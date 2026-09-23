@@ -6,7 +6,7 @@ This repository is intentionally separate from the private RoadPilot application
 
 ## Responsibilities
 
-RoadPilot-Offline-Data will own the production and publication of offline data consumed by RoadPilot, including:
+RoadPilot-Offline-Data owns the production and publication of offline data consumed by RoadPilot, including:
 
 - Overture Places regional search sidecars;
 - future downloadable map packs;
@@ -29,7 +29,14 @@ The existing RoadPilot runtime contract is preserved:
 - validation target: SARP
 - coverage: longitude `10.40..13.40`, latitude `44.50..46.80`
 
-The generated SQLite database and manifest will be published as assets on the `roadpilot-overture-packs` release.
+The generated SQLite database and manifest are published as assets on the `roadpilot-overture-packs` release.
+
+First successful public build:
+
+- 378,234 searchable places
+- SQLite size: 108,879,872 bytes
+- SARP regression validation: passed
+- pack version: `main-3-eb7be85c`
 
 ## Repository layout
 
