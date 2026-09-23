@@ -1,0 +1,143 @@
+name: Publish RoadPilot Overture Sidecar Pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "Region id"
+        required: true
+        default: "italy-nord-est"
+        type: string
+      pack_version:
+        description: "Logical pack version (blank uses run/commit)"
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      - "config/regions/**"
+      - "tools/build_overture_places_pack.py"
+      - "tools/build_overture_manifest.py"
+      - "tools/validate_overture_pack.py"
+      - ".github/workflows/publish-overture-pack.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      RELEASE_TAG: roadpilot-overture-packs
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve region configuration
+        id: region
+        shell: bash
+        env:
+          REQUESTED_REGION: ${{ inputs.region }}
+        run: |
+          set -euo pipefail
+          REGION="${REQUESTED_REGION:-italy-nord-est}"
+          CONFIG="config/regions/${REGION}.json"
+          test -f "$CONFIG"
+          python tools/validate_region_config.py --config "$CONFIG"
+
+          REGION_ID="$(jq -r '.id' "$CONFIG")"
+          COUNTRY="$(jq -r '.overture.country' "$CONFIG")"
+          FILE_NAME="$(jq -r '.overture.fileName' "$CONFIG")"
+          MANIFEST_NAME="$(jq -r '.overture.manifestFileName' "$CONFIG")"
+          MIN_LAT="$(jq -r '.overture.coverage.minLat' "$CONFIG")"
+          MAX_LAT="$(jq -r '.overture.coverage.maxLat' "$CONFIG")"
+          MIN_LNG="$(jq -r '.overture.coverage.minLng' "$CONFIG")"
+          MAX_LNG="$(jq -r '.overture.coverage.maxLng' "$CONFIG")"
+          BBOX="${MIN_LNG},${MIN_LAT},${MAX_LNG},${MAX_LAT}"
+
+          echo "config=$CONFIG" >> "$GITHUB_OUTPUT"
+          echo "region_id=$REGION_ID" >> "$GITHUB_OUTPUT"
+          echo "country=$COUNTRY" >> "$GITHUB_OUTPUT"
+          echo "file_name=$FILE_NAME" >> "$GITHUB_OUTPUT"
+          echo "manifest_name=$MANIFEST_NAME" >> "$GITHUB_OUTPUT"
+          echo "bbox=$BBOX" >> "$GITHUB_OUTPUT"
+
+      - name: Download current Overture Places
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install overturemaps
+          mkdir -p "$RUNNER_TEMP/overture"
+          overturemaps download \
+            --bbox="${{ steps.region.outputs.bbox }}" \
+            --type=place \
+            -f geojsonseq \
+            -o "$RUNNER_TEMP/overture/places.geojsonseq"
+          test -s "$RUNNER_TEMP/overture/places.geojsonseq"
+
+      - name: Build compact regional SQLite pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/overture
+          python tools/build_overture_places_pack.py \
+            --input "$RUNNER_TEMP/overture/places.geojsonseq" \
+            --output "dist/overture/${{ steps.region.outputs.file_name }}" \
+            --region-id "${{ steps.region.outputs.region_id }}" \
+            --country "${{ steps.region.outputs.country }}"
+          test -s "dist/overture/${{ steps.region.outputs.file_name }}"
+
+      - name: Validate pack regression targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/validate_overture_pack.py \
+            --database "dist/overture/${{ steps.region.outputs.file_name }}" \
+            --config "${{ steps.region.outputs.config }}"
+
+      - name: Build distributable manifest
+        shell: bash
+        env:
+          REQUESTED_PACK_VERSION: ${{ inputs.pack_version }}
+        run: |
+          set -euo pipefail
+          PACK_VERSION="${REQUESTED_PACK_VERSION:-}"
+          if [ -z "$PACK_VERSION" ]; then
+            PACK_VERSION="main-${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:8}"
+          fi
+
+          python tools/build_overture_manifest.py \
+            --database "dist/overture/${{ steps.region.outputs.file_name }}" \
+            --output "dist/overture/${{ steps.region.outputs.manifest_name }}" \
+            --config "${{ steps.region.outputs.config }}" \
+            --pack-version "$PACK_VERSION"
+
+          sha256sum "dist/overture/${{ steps.region.outputs.file_name }}"
+          ls -lh dist/overture
+
+      - name: Publish public release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --prerelease \
+              --title "RoadPilot Overture sidecar packs" \
+              --notes "Public regional Overture Places packs for RoadPilot. These assets are not bundled in the RoadPilot APK."
+          fi
+
+          gh release upload "$RELEASE_TAG" \
+            "dist/overture/${{ steps.region.outputs.file_name }}" \
+            "dist/overture/${{ steps.region.outputs.manifest_name }}" \
+            --clobber
