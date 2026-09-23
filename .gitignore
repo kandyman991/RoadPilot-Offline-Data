@@ -1,0 +1,8 @@
+dist/
+build/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.geojsonseq
+__pycache__/
+*.pyc

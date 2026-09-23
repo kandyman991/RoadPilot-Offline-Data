@@ -1,0 +1,52 @@
+name: Validate offline-data repository
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - "config/**"
+      - "schemas/**"
+      - "tools/**"
+      - ".github/workflows/validate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile Python tooling
+        run: python -m py_compile tools/*.py
+
+      - name: Validate JSON files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for root in ("config", "schemas"):
+              for path in Path(root).rglob("*.json"):
+                  json.loads(path.read_text(encoding="utf-8"))
+                  print("valid JSON:", path)
+          PY
+
+      - name: Validate region configs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in config/regions/*.json; do
+            python tools/validate_region_config.py --config "$file"
+          done

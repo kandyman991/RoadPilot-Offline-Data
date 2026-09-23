@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.example/schemas/overture-sidecar-manifest-v1.json",
+  "title": "RoadPilot Overture sidecar manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "regionId", "packVersion", "databaseSchema", "fileName", "downloadUrl", "sha256", "sizeBytes", "recordCount", "coverage"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "regionId": {"type": "string", "minLength": 1},
+    "packVersion": {"type": "string", "minLength": 1},
+    "databaseSchema": {"const": "roadpilot-overture-v1"},
+    "fileName": {"type": "string", "pattern": "^[A-Za-z0-9._-]+\\.sqlite$"},
+    "downloadUrl": {"type": "string", "minLength": 1},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "sizeBytes": {"type": "integer", "minimum": 1},
+    "recordCount": {"type": "integer", "minimum": 1},
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minLat", "maxLat", "minLng", "maxLng"],
+      "properties": {
+        "minLat": {"type": "number", "minimum": -90, "maximum": 90},
+        "maxLat": {"type": "number", "minimum": -90, "maximum": 90},
+        "minLng": {"type": "number", "minimum": -180, "maximum": 180},
+        "maxLng": {"type": "number", "minimum": -180, "maximum": 180}
+      }
+    },
+    "source": {"type": "string"}
+  }
+}
