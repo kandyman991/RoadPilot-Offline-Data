@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "italy-nord-est",
+  "name": "Italy Nord-Est / Dolomites",
+  "overture": {
+    "enabled": true,
+    "country": "IT",
+    "databaseSchema": "roadpilot-overture-v1",
+    "fileName": "italy-nord-est-v1.sqlite",
+    "manifestFileName": "italy-nord-est-v1.json",
+    "coverage": {
+      "minLat": 44.5,
+      "maxLat": 46.8,
+      "minLng": 10.4,
+      "maxLng": 13.4
+    },
+    "validation": [
+      {
+        "nameEquals": "SARP",
+        "addressContainsAny": [
+          "montebelluna",
+          "san martino di lupari",
+          "colombara"
+        ]
+      }
+    ]
+  }
+}
