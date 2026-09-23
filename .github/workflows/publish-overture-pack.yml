@@ -77,21 +77,26 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install overturemaps
           mkdir -p "$RUNNER_TEMP/overture"
-          if ! overturemaps download \
+          OUTPUT="$RUNNER_TEMP/overture/places.geojsonseq"
+          rm -f "$OUTPUT"
+          overturemaps download \
             --bbox="${{ steps.region.outputs.bbox }}" \
             --type=place \
             -f geojsonseq \
-            -o "$RUNNER_TEMP/overture/places.geojsonseq"; then
-            echo "STAC-backed Overture query returned no data; retrying without STAC."
-            rm -f "$RUNNER_TEMP/overture/places.geojsonseq"
+            -o "$OUTPUT" || true
+
+          if [ ! -s "$OUTPUT" ]; then
+            echo "STAC-backed Overture query produced no data; retrying without STAC."
+            rm -f "$OUTPUT"
             overturemaps download \
               --no-stac \
               --bbox="${{ steps.region.outputs.bbox }}" \
               --type=place \
               -f geojsonseq \
-              -o "$RUNNER_TEMP/overture/places.geojsonseq"
+              -o "$OUTPUT"
           fi
-          test -s "$RUNNER_TEMP/overture/places.geojsonseq"
+
+          test -s "$OUTPUT"
 
       - name: Build compact regional SQLite pack
         shell: bash
