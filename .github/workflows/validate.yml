@@ -50,6 +50,16 @@ jobs:
           for file in config/regions/*.json; do
             python tools/validate_region_config.py --config "$file"
           done
+      - name: Compile-check Python tools
+        run: python -m py_compile tools/*.py
+
+      - name: Validate routing inventory fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/validate_boundary_edge_inventory.py             --inventory tests/fixtures/austria-boundary-inventory.json
+          python tools/validate_boundary_edge_inventory.py             --inventory tests/fixtures/oberbayern-boundary-inventory.json
+
       - name: Run routing transition tests
         run: python -m unittest discover -s tests -p "test_*.py" -v
 
