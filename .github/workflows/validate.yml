@@ -75,3 +75,24 @@ jobs:
             --catalog dist/routing-test/austria__oberbayern.json
           python tools/validate_routing_transition_candidates.py \
             --catalog dist/routing-test/oberbayern__austria.json
+
+      - name: Compile bound transition fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/routing-test
+
+          python tools/compile_bound_routing_transitions.py \
+            --proof-results tests/fixtures/austria-oberbayern-proof-results.json \
+            --mode MOTORCYCLE \
+            --output dist/routing-test/austria__oberbayern-motorcycle-bound.json
+
+          python tools/compile_bound_routing_transitions.py \
+            --proof-results tests/fixtures/austria-oberbayern-proof-results.json \
+            --mode CAR \
+            --output dist/routing-test/austria__oberbayern-car-bound.json
+
+          python tools/validate_bound_routing_transitions.py \
+            --artifact dist/routing-test/austria__oberbayern-motorcycle-bound.json
+          python tools/validate_bound_routing_transitions.py \
+            --artifact dist/routing-test/austria__oberbayern-car-bound.json
