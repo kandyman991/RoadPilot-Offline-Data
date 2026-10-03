@@ -50,3 +50,28 @@ jobs:
           for file in config/regions/*.json; do
             python tools/validate_region_config.py --config "$file"
           done
+      - name: Run routing transition tests
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Build Kufstein routing regression catalogs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/routing-test
+
+          python tools/build_routing_transition_candidates.py \
+            --from-inventory tests/fixtures/austria-boundary-inventory.json \
+            --to-inventory tests/fixtures/oberbayern-boundary-inventory.json \
+            --pair-config config/routing-pairs/geofabrik-austria__geofabrik-oberbayern.json \
+            --output dist/routing-test/austria__oberbayern.json
+
+          python tools/build_routing_transition_candidates.py \
+            --from-inventory tests/fixtures/oberbayern-boundary-inventory.json \
+            --to-inventory tests/fixtures/austria-boundary-inventory.json \
+            --pair-config config/routing-pairs/geofabrik-oberbayern__geofabrik-austria.json \
+            --output dist/routing-test/oberbayern__austria.json
+
+          python tools/validate_routing_transition_candidates.py \
+            --catalog dist/routing-test/austria__oberbayern.json
+          python tools/validate_routing_transition_candidates.py \
+            --catalog dist/routing-test/oberbayern__austria.json
