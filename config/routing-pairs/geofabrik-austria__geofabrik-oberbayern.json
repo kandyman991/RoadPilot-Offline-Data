@@ -3,8 +3,15 @@
   "id": "geofabrik-austria__geofabrik-oberbayern",
   "fromRegionId": "geofabrik-austria",
   "toRegionId": "geofabrik-oberbayern",
+  "fromPbfUrl": "https://download.geofabrik.de/europe/austria-latest.osm.pbf",
+  "toPbfUrl": "https://download.geofabrik.de/europe/germany/bayern/oberbayern-latest.osm.pbf",
+  "frontierSearch": {
+    "sampleSpacingMeters": 500,
+    "neighborDistanceMeters": 2000,
+    "windowRadiusMeters": 1200
+  },
   "candidateSearch": {
-    "maxSeparationMeters": 80.0
+    "maxSeparationMeters": 80
   },
   "regressionAnchors": [
     {
@@ -13,9 +20,17 @@
         "lat": 47.60525,
         "lng": 12.1945
       },
-      "radiusMeters": 2500.0,
-      "fromRefs": ["A12", "E45", "E60"],
-      "toRefs": ["A93", "E45", "E60"]
+      "radiusMeters": 2500,
+      "fromRefs": [
+        "A12",
+        "E45",
+        "E60"
+      ],
+      "toRefs": [
+        "A93",
+        "E45",
+        "E60"
+      ]
     }
   ]
 }
