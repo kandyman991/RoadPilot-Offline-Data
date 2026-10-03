@@ -88,6 +88,14 @@ def generate_direction(
     candidates.verify_regression_anchors(candidate_catalog, pair_config)
     candidate_path = output_dir / f"{pair_name}-candidates.json"
     write_json(candidate_path, candidate_catalog)
+    run(
+        [
+            sys.executable,
+            str(ROOT / "tools/validate_routing_transition_candidates.py"),
+            "--catalog",
+            str(candidate_path),
+        ]
+    )
 
     outputs: list[Path] = []
     for mode in modes:
@@ -198,18 +206,6 @@ def main() -> int:
             str(to_inventory_path),
         ]
     )
-
-    run(
-        [
-            sys.executable,
-            str(ROOT / "tools/validate_routing_transition_candidates.py"),
-            "--catalog",
-            str(
-                args.output_dir
-                / f"{safe_pair_name(forward_config)}-candidates.json"
-            ),
-        ]
-    ) if False else None
 
     outputs = []
     outputs.extend(
