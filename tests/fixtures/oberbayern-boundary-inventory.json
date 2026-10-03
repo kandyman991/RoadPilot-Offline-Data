@@ -1,0 +1,60 @@
+{
+  "schema": "roadpilot.boundary-edge-inventory",
+  "version": 1,
+  "regionId": "geofabrik-oberbayern",
+  "graphFingerprint": "sha256:oberbayern-fixture",
+  "generator": {"name": "fixture", "version": "1"},
+  "edges": [
+    {
+      "graphId": 301,
+      "opposingGraphId": 302,
+      "sourceNodeGraphId": 401,
+      "endNodeGraphId": 402,
+      "wayId": 9901,
+      "anchorCoordinate": {"lat": 47.60523, "lng": 12.19425},
+      "innerCoordinate": {"lat": 47.6062, "lng": 12.1968},
+      "headingDegrees": 4.0,
+      "forwardAccess": 3,
+      "reverseAccess": 3,
+      "roadClass": 0,
+      "use": 0,
+      "roadNames": ["Inntalautobahn"],
+      "roadRefs": ["A93", "E45"],
+      "allowedTravelModes": ["MOTORCYCLE", "CAR"]
+    },
+    {
+      "graphId": 311,
+      "opposingGraphId": 312,
+      "sourceNodeGraphId": 411,
+      "endNodeGraphId": 412,
+      "wayId": 9101,
+      "anchorCoordinate": {"lat": 47.59457, "lng": 12.16859},
+      "innerCoordinate": {"lat": 47.5954, "lng": 12.1688},
+      "headingDegrees": 0.1,
+      "forwardAccess": 3,
+      "reverseAccess": 3,
+      "roadClass": 3,
+      "use": 0,
+      "roadNames": ["Münchner Straße"],
+      "roadRefs": ["B171"],
+      "allowedTravelModes": ["MOTORCYCLE", "CAR"]
+    },
+    {
+      "graphId": 321,
+      "opposingGraphId": 322,
+      "sourceNodeGraphId": 421,
+      "endNodeGraphId": 422,
+      "wayId": 9999,
+      "anchorCoordinate": {"lat": 47.7, "lng": 12.4},
+      "innerCoordinate": {"lat": 47.701, "lng": 12.401},
+      "headingDegrees": 90.0,
+      "forwardAccess": 3,
+      "reverseAccess": 3,
+      "roadClass": 3,
+      "use": 0,
+      "roadNames": ["Far road"],
+      "roadRefs": ["B999"],
+      "allowedTravelModes": ["MOTORCYCLE", "CAR"]
+    }
+  ]
+}
