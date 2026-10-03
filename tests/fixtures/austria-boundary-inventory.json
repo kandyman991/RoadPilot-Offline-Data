@@ -1,0 +1,43 @@
+{
+  "schema": "roadpilot.boundary-edge-inventory",
+  "version": 1,
+  "regionId": "geofabrik-austria",
+  "graphFingerprint": "sha256:austria-fixture",
+  "generator": {"name": "fixture", "version": "1"},
+  "edges": [
+    {
+      "graphId": 101,
+      "opposingGraphId": 102,
+      "sourceNodeGraphId": 201,
+      "endNodeGraphId": 202,
+      "wayId": 9001,
+      "anchorCoordinate": {"lat": 47.6052, "lng": 12.1942},
+      "innerCoordinate": {"lat": 47.6043, "lng": 12.1918},
+      "headingDegrees": 5.0,
+      "forwardAccess": 3,
+      "reverseAccess": 3,
+      "roadClass": 0,
+      "use": 0,
+      "roadNames": ["Inntal Autobahn"],
+      "roadRefs": ["A12", "E45"],
+      "allowedTravelModes": ["MOTORCYCLE", "CAR"]
+    },
+    {
+      "graphId": 111,
+      "opposingGraphId": 112,
+      "sourceNodeGraphId": 211,
+      "endNodeGraphId": 212,
+      "wayId": 9101,
+      "anchorCoordinate": {"lat": 47.59456, "lng": 12.16858},
+      "innerCoordinate": {"lat": 47.5936, "lng": 12.1684},
+      "headingDegrees": 0.1,
+      "forwardAccess": 3,
+      "reverseAccess": 3,
+      "roadClass": 3,
+      "use": 0,
+      "roadNames": ["Münchner Straße"],
+      "roadRefs": ["B171"],
+      "allowedTravelModes": ["MOTORCYCLE", "CAR"]
+    }
+  ]
+}
