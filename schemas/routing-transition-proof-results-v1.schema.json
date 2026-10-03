@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/routing-transition-proof-results-v1.schema.json",
+  "title": "RoadPilot routing transition proof results v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "fromRegionId", "toRegionId", "fromGraphFingerprint", "toGraphFingerprint", "results"],
+  "properties": {
+    "schema": {"const": "roadpilot.transition-proof-results"},
+    "version": {"const": 1},
+    "fromRegionId": {"type": "string", "minLength": 1},
+    "toRegionId": {"type": "string", "minLength": 1},
+    "fromGraphFingerprint": {"type": "string", "minLength": 1},
+    "toGraphFingerprint": {"type": "string", "minLength": 1},
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["candidateId", "bindingMode", "accepted"],
+        "properties": {
+          "candidateId": {"type": "string", "minLength": 1},
+          "bindingMode": {"enum": ["MOTORCYCLE", "CAR"]},
+          "accepted": {"type": "boolean"},
+          "failureReason": {"type": "string"},
+          "fromBinding": {"type": "object"},
+          "toBinding": {"type": "object"}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"accepted": {"const": true}}},
+            "then": {"required": ["fromBinding", "toBinding"]}
+          }
+        ]
+      }
+    }
+  }
+}
