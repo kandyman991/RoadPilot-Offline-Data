@@ -9,6 +9,7 @@ on:
       - "config/**"
       - "schemas/**"
       - "tools/**"
+      - "examples/**"
       - ".github/workflows/validate.yml"
 
 permissions:
