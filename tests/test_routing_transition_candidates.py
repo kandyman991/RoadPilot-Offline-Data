@@ -63,7 +63,9 @@ class TransitionCandidateBuilderTest(unittest.TestCase):
         )
 
     def test_no_common_motorized_mode_rejects_candidate(self):
-        self.b["edges"][0]["allowedTravelModes"] = []
+        # For A -> B, B needs forward/stored access. Diagnostic allowedTravelModes
+        # is not authoritative; the actual Valhalla directional access mask is.
+        self.b["edges"][0]["forwardAccess"] = 0
         catalog = builder.build_candidates(self.a, self.b, self.cfg)
         self.assertFalse(
             any(
