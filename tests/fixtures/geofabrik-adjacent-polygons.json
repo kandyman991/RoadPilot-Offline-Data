@@ -1,0 +1,27 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "a",
+        "urls": {"pbf": "https://example.test/a-latest.osm.pbf"}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[10.0,47.0],[11.0,47.0],[11.0,48.0],[10.0,48.0],[10.0,47.0]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "b",
+        "urls": {"pbf": "https://example.test/b-latest.osm.pbf"}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[11.0,47.0],[12.0,47.0],[12.0,48.0],[11.0,48.0],[11.0,47.0]]]
+      }
+    }
+  ]
+}
