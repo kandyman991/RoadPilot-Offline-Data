@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/routing-pair-config-v1.schema.json",
+  "title": "RoadPilot routing graph-pair build config v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "fromRegionId", "toRegionId", "candidateSearch"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "fromRegionId": {"type": "string", "minLength": 1},
+    "toRegionId": {"type": "string", "minLength": 1},
+    "candidateSearch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxSeparationMeters"],
+      "properties": {
+        "maxSeparationMeters": {"type": "number", "exclusiveMinimum": 0, "maximum": 500}
+      }
+    },
+    "regressionAnchors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "coordinate", "radiusMeters"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "coordinate": {"$ref": "#/$defs/coord"},
+          "radiusMeters": {"type": "number", "exclusiveMinimum": 0, "maximum": 10000},
+          "fromRefs": {"type": "array", "items": {"type": "string"}},
+          "toRefs": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "coord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lat", "lng"],
+      "properties": {
+        "lat": {"type": "number", "minimum": -90, "maximum": 90},
+        "lng": {"type": "number", "minimum": -180, "maximum": 180}
+      }
+    }
+  }
+}
