@@ -1,0 +1,63 @@
+{
+  "schema": "roadpilot.cross-graph-transitions",
+  "version": 1,
+  "fromRegionId": "italy-nord-ovest",
+  "toRegionId": "italy-nord-est",
+  "fromGraphFingerprint": "west-build-123",
+  "toGraphFingerprint": "east-build-456",
+  "generator": {
+    "name": "roadpilot-f8-proof-exporter",
+    "version": "1",
+    "sourceFingerprint": "example-geofabrik-source-snapshot"
+  },
+  "transitions": [
+    {
+      "id": "xgt1-0e4f2afeea93becb72e112d1",
+      "fromAnchor": {
+        "regionId": "italy-nord-ovest",
+        "coordinate": {
+          "lat": 45.431023,
+          "lng": 10.659672
+        },
+        "roadName": "A4",
+        "roadRef": "A4",
+        "headingDegrees": 90.0
+      },
+      "toAnchor": {
+        "regionId": "italy-nord-est",
+        "coordinate": {
+          "lat": 45.431023,
+          "lng": 10.659672
+        },
+        "roadName": "A4",
+        "roadRef": "A4",
+        "headingDegrees": 90.0
+      },
+      "proposedCoordinate": {
+        "lat": 45.431085,
+        "lng": 10.65968
+      },
+      "matchEvidence": "GPS_ROAD_DIRECTION",
+      "matchedNormalizedValue": "A4",
+      "provenTravelModes": [
+        "MOTORCYCLE"
+      ],
+      "firstLegDistanceMeters": 165648.0,
+      "firstLegDurationSeconds": 5214.0,
+      "secondLegDistanceMeters": 116389.0,
+      "secondLegDurationSeconds": 3433.0,
+      "totalDistanceMeters": 282037.0,
+      "totalDurationSeconds": 8647.0,
+      "proofOriginCoordinate": {
+        "lat": 45.650127,
+        "lng": 8.755342
+      },
+      "proofDestinationCoordinate": {
+        "lat": 45.478688,
+        "lng": 11.926988
+      },
+      "frontierSeparationMeters": 36.6,
+      "seamHeadingDeltaDegrees": 0.0
+    }
+  ]
+}
