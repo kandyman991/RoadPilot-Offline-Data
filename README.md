@@ -51,3 +51,23 @@ dist/                    generated output (ignored by Git)
 ## Distribution rule
 
 Application CI must never download Overture source data or embed regional place databases in the APK. RoadPilot downloads published regional packs independently and verifies size, SHA-256, schema, region identity, and record count before activation.
+
+## Routing transition generation
+
+RoadPilot keeps independently built regional Valhalla graphs, then generates cross-graph topology as a post-build artifact.
+
+The production pipeline is intentionally split into two stages:
+
+1. **Discovery** scans the entire shared frontier of a neighboring graph pair and retains every spatially plausible motorized edge pair. OSM way IDs, road names, refs, road class and heading are evidence only; heading is never a hard pre-Valhalla rejection.
+2. **Proof/binding** lets Valhalla/Thor prove the legal travel direction and reachability on each graph before a candidate can be promoted into an app-consumable bound transition artifact.
+
+The first reference pair is `geofabrik-austria <-> geofabrik-oberbayern`. Its regression anchors require the Kufstein motorway corridor to survive discovery in both directions even though the road changes from A12 to A93 and may use different OSM way IDs across the border.
+
+Current tooling:
+
+- `tools/build_routing_transition_candidates.py` builds a deterministic, fingerprint-bound candidate catalog from two full boundary-edge inventories.
+- `tools/validate_routing_transition_candidates.py` validates the generated catalog.
+- `config/routing-pairs/` owns pair-specific discovery limits and regression corridors.
+- `schemas/routing-*` defines the build-time contracts.
+
+Candidate catalogs are **not** safe to ship directly to RoadPilot. They are deliberately pre-proof artifacts; the next stage must run exact Valhalla validation and emit only proven directional transitions.
