@@ -50,3 +50,11 @@ jobs:
           for file in config/regions/*.json; do
             python tools/validate_region_config.py --config "$file"
           done
+
+      - name: Validate cross-graph transition examples
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in examples/cross-graph-transitions/*.json; do
+            python tools/validate_cross_graph_transitions.py --artifact "$file"
+          done
