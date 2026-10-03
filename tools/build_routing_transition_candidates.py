@@ -20,6 +20,8 @@ VERSION = 1
 GENERATOR_NAME = "roadpilot-offline-boundary-pairer"
 GENERATOR_VERSION = "1"
 EARTH_RADIUS_M = 6_371_008.8
+AUTO_ACCESS_MASK = 1
+MOTORCYCLE_ACCESS_MASK = 1024
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -69,6 +71,15 @@ def normalize_token(value: str) -> str:
 
 def normalized_set(values: Iterable[str]) -> set[str]:
     return {token for item in values if (token := normalize_token(str(item)))}
+
+
+def motorized_modes_for_access(access_mask: int) -> set[str]:
+    modes: set[str] = set()
+    if int(access_mask) & AUTO_ACCESS_MASK:
+        modes.add("CAR")
+    if int(access_mask) & MOTORCYCLE_ACCESS_MASK:
+        modes.add("MOTORCYCLE")
+    return modes
 
 
 def candidate_id(
@@ -189,15 +200,19 @@ def build_candidates(
 
     for from_edge in from_inventory["edges"]:
         local: list[dict[str, Any]] = []
-        from_modes = set(from_edge.get("allowedTravelModes", []))
+        # Scanner edges are directed boundary -> interior. For A -> B, A travels
+        # on the opposing direction (reverseAccess) and B travels on the stored
+        # direction (forwardAccess). Filter with those exact directional masks.
+        from_modes = motorized_modes_for_access(from_edge.get("reverseAccess", 0))
         if not from_modes:
             continue
         for to_edge in nearby_edges(
             to_index, lat_cell, lon_cell, from_edge["anchorCoordinate"]
         ):
-            common_modes = sorted(
-                from_modes & set(to_edge.get("allowedTravelModes", []))
+            to_modes = motorized_modes_for_access(
+                to_edge.get("forwardAccess", 0)
             )
+            common_modes = sorted(from_modes & to_modes)
             if not common_modes:
                 continue
             seam = distance_m(
