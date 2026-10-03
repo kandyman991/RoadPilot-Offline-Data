@@ -4,18 +4,44 @@
   "title": "RoadPilot routing graph-pair build config v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "id", "fromRegionId", "toRegionId", "candidateSearch"],
+  "required": [
+    "schemaVersion",
+    "id",
+    "fromRegionId",
+    "toRegionId",
+    "fromPbfUrl",
+    "toPbfUrl",
+    "frontierSearch",
+    "candidateSearch"
+  ],
   "properties": {
-    "schemaVersion": {"const": 1},
-    "id": {"type": "string", "minLength": 1},
-    "fromRegionId": {"type": "string", "minLength": 1},
-    "toRegionId": {"type": "string", "minLength": 1},
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fromRegionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toRegionId": {
+      "type": "string",
+      "minLength": 1
+    },
     "candidateSearch": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["maxSeparationMeters"],
+      "required": [
+        "maxSeparationMeters"
+      ],
       "properties": {
-        "maxSeparationMeters": {"type": "number", "exclusiveMinimum": 0, "maximum": 500}
+        "maxSeparationMeters": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 500
+        }
       }
     },
     "regressionAnchors": {
@@ -23,13 +49,70 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "coordinate", "radiusMeters"],
+        "required": [
+          "name",
+          "coordinate",
+          "radiusMeters"
+        ],
         "properties": {
-          "name": {"type": "string", "minLength": 1},
-          "coordinate": {"$ref": "#/$defs/coord"},
-          "radiusMeters": {"type": "number", "exclusiveMinimum": 0, "maximum": 10000},
-          "fromRefs": {"type": "array", "items": {"type": "string"}},
-          "toRefs": {"type": "array", "items": {"type": "string"}}
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "coordinate": {
+            "$ref": "#/$defs/coord"
+          },
+          "radiusMeters": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 10000
+          },
+          "fromRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "toRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "fromPbfUrl": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toPbfUrl": {
+      "type": "string",
+      "minLength": 1
+    },
+    "frontierSearch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sampleSpacingMeters",
+        "neighborDistanceMeters",
+        "windowRadiusMeters"
+      ],
+      "properties": {
+        "sampleSpacingMeters": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000
+        },
+        "neighborDistanceMeters": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 50000
+        },
+        "windowRadiusMeters": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000
         }
       }
     }
@@ -38,10 +121,21 @@
     "coord": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["lat", "lng"],
+      "required": [
+        "lat",
+        "lng"
+      ],
       "properties": {
-        "lat": {"type": "number", "minimum": -90, "maximum": 90},
-        "lng": {"type": "number", "minimum": -180, "maximum": 180}
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "lng": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
       }
     }
   }
