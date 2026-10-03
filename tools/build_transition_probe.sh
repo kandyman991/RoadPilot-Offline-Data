@@ -12,6 +12,7 @@ fi
 
 cmake -S "$ROOT/native/transition-probe" -B "$BUILD_DIR" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release
-cmake --build "$BUILD_DIR" --target roadpilot-transition-probe
+cmake --build "$BUILD_DIR" --target roadpilot-transition-probe roadpilot-boundary-inventory
 
 echo "$BUILD_DIR/roadpilot-transition-probe"
+echo "$BUILD_DIR/roadpilot-boundary-inventory"
