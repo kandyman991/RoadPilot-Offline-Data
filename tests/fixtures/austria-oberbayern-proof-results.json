@@ -1,0 +1,193 @@
+{
+  "schema": "roadpilot.transition-proof-results",
+  "version": 1,
+  "fromRegionId": "geofabrik-austria",
+  "toRegionId": "geofabrik-oberbayern",
+  "fromGraphFingerprint": "sha256:austria-fixture",
+  "toGraphFingerprint": "sha256:oberbayern-fixture",
+  "results": [
+    {
+      "candidateId": "xgc1-a12a93motorcycleproof001",
+      "bindingMode": "MOTORCYCLE",
+      "accepted": true,
+      "fromBinding": {
+        "regionId": "geofabrik-austria",
+        "graphFingerprint": "sha256:austria-fixture",
+        "proofCoordinate": {"lat": 47.6052, "lng": 12.1942},
+        "candidates": [
+          {
+            "correlationRank": 0,
+            "graphId": 101,
+            "opposingGraphId": 102,
+            "sourceNodeGraphId": 201,
+            "endNodeGraphId": 202,
+            "wayId": 9001,
+            "correlatedCoordinate": {"lat": 47.6052, "lng": 12.1942},
+            "percentAlong": 0.25,
+            "distanceMeters": 0.0,
+            "headingDegrees": 5.0,
+            "inboundReach": 100,
+            "outboundReach": 100,
+            "forwardAccess": 3,
+            "reverseAccess": 3,
+            "roadClass": 0,
+            "use": 0,
+            "roadNames": ["Inntal Autobahn"],
+            "roadRefs": ["A12", "E45"]
+          }
+        ]
+      },
+      "toBinding": {
+        "regionId": "geofabrik-oberbayern",
+        "graphFingerprint": "sha256:oberbayern-fixture",
+        "proofCoordinate": {"lat": 47.60523, "lng": 12.19425},
+        "candidates": [
+          {
+            "correlationRank": 0,
+            "graphId": 301,
+            "opposingGraphId": 302,
+            "sourceNodeGraphId": 401,
+            "endNodeGraphId": 402,
+            "wayId": 9901,
+            "correlatedCoordinate": {"lat": 47.60523, "lng": 12.19425},
+            "percentAlong": 0.25,
+            "distanceMeters": 0.0,
+            "headingDegrees": 4.0,
+            "inboundReach": 100,
+            "outboundReach": 100,
+            "forwardAccess": 3,
+            "reverseAccess": 3,
+            "roadClass": 0,
+            "use": 0,
+            "roadNames": ["Inntalautobahn"],
+            "roadRefs": ["A93", "E45"]
+          }
+        ]
+      }
+    },
+    {
+      "candidateId": "xgc1-b171motorcycleproof0001",
+      "bindingMode": "MOTORCYCLE",
+      "accepted": true,
+      "fromBinding": {
+        "regionId": "geofabrik-austria",
+        "graphFingerprint": "sha256:austria-fixture",
+        "proofCoordinate": {"lat": 47.59456, "lng": 12.16858},
+        "candidates": [
+          {
+            "correlationRank": 0,
+            "graphId": 111,
+            "opposingGraphId": 112,
+            "sourceNodeGraphId": 211,
+            "endNodeGraphId": 212,
+            "wayId": 9101,
+            "correlatedCoordinate": {"lat": 47.59456, "lng": 12.16858},
+            "percentAlong": 0.5,
+            "distanceMeters": 0.0,
+            "headingDegrees": 0.1,
+            "inboundReach": 100,
+            "outboundReach": 100,
+            "forwardAccess": 3,
+            "reverseAccess": 3,
+            "roadClass": 3,
+            "use": 0,
+            "roadNames": ["Münchner Straße"],
+            "roadRefs": ["B171"]
+          }
+        ]
+      },
+      "toBinding": {
+        "regionId": "geofabrik-oberbayern",
+        "graphFingerprint": "sha256:oberbayern-fixture",
+        "proofCoordinate": {"lat": 47.59457, "lng": 12.16859},
+        "candidates": [
+          {
+            "correlationRank": 0,
+            "graphId": 311,
+            "opposingGraphId": 312,
+            "sourceNodeGraphId": 411,
+            "endNodeGraphId": 412,
+            "wayId": 9101,
+            "correlatedCoordinate": {"lat": 47.59457, "lng": 12.16859},
+            "percentAlong": 0.5,
+            "distanceMeters": 0.0,
+            "headingDegrees": 0.1,
+            "inboundReach": 100,
+            "outboundReach": 100,
+            "forwardAccess": 3,
+            "reverseAccess": 3,
+            "roadClass": 3,
+            "use": 0,
+            "roadNames": ["Münchner Straße"],
+            "roadRefs": ["B171"]
+          }
+        ]
+      }
+    },
+    {
+      "candidateId": "xgc1-rejectedmotorcycle0001",
+      "bindingMode": "MOTORCYCLE",
+      "accepted": false,
+      "failureReason": "Graph-B exact Thor proof failed"
+    },
+    {
+      "candidateId": "xgc1-a12a93carproof000000001",
+      "bindingMode": "CAR",
+      "accepted": true,
+      "fromBinding": {
+        "regionId": "geofabrik-austria",
+        "graphFingerprint": "sha256:austria-fixture",
+        "proofCoordinate": {"lat": 47.6052, "lng": 12.1942},
+        "candidates": [
+          {
+            "correlationRank": 0,
+            "graphId": 101,
+            "opposingGraphId": 102,
+            "sourceNodeGraphId": 201,
+            "endNodeGraphId": 202,
+            "wayId": 9001,
+            "correlatedCoordinate": {"lat": 47.6052, "lng": 12.1942},
+            "percentAlong": 0.25,
+            "distanceMeters": 0.0,
+            "headingDegrees": 5.0,
+            "inboundReach": 100,
+            "outboundReach": 100,
+            "forwardAccess": 3,
+            "reverseAccess": 3,
+            "roadClass": 0,
+            "use": 0,
+            "roadNames": ["Inntal Autobahn"],
+            "roadRefs": ["A12", "E45"]
+          }
+        ]
+      },
+      "toBinding": {
+        "regionId": "geofabrik-oberbayern",
+        "graphFingerprint": "sha256:oberbayern-fixture",
+        "proofCoordinate": {"lat": 47.60523, "lng": 12.19425},
+        "candidates": [
+          {
+            "correlationRank": 0,
+            "graphId": 301,
+            "opposingGraphId": 302,
+            "sourceNodeGraphId": 401,
+            "endNodeGraphId": 402,
+            "wayId": 9901,
+            "correlatedCoordinate": {"lat": 47.60523, "lng": 12.19425},
+            "percentAlong": 0.25,
+            "distanceMeters": 0.0,
+            "headingDegrees": 4.0,
+            "inboundReach": 100,
+            "outboundReach": 100,
+            "forwardAccess": 3,
+            "reverseAccess": 3,
+            "roadClass": 0,
+            "use": 0,
+            "roadNames": ["Inntalautobahn"],
+            "roadRefs": ["A93", "E45"]
+          }
+        ]
+      }
+    }
+  ]
+}
