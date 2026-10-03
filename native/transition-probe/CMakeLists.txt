@@ -13,14 +13,33 @@ add_executable(
     roadpilot_transition_probe.cpp
 )
 
+add_executable(
+    roadpilot-boundary-inventory
+    roadpilot_boundary_inventory.cpp
+)
+
 target_link_libraries(
     roadpilot-transition-probe
     PRIVATE
     PkgConfig::VALHALLA
 )
 
+target_link_libraries(
+    roadpilot-boundary-inventory
+    PRIVATE
+    PkgConfig::VALHALLA
+)
+
 target_compile_options(
     roadpilot-transition-probe
+    PRIVATE
+    -Wall
+    -Wextra
+    -Wpedantic
+)
+
+target_compile_options(
+    roadpilot-boundary-inventory
     PRIVATE
     -Wall
     -Wextra
