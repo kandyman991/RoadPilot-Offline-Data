@@ -207,6 +207,16 @@ def main() -> int:
         ]
     )
 
+    for inventory_path in (from_inventory_path, to_inventory_path):
+        run(
+            [
+                sys.executable,
+                str(ROOT / "tools/validate_boundary_edge_inventory.py"),
+                "--inventory",
+                str(inventory_path),
+            ]
+        )
+
     outputs = []
     outputs.extend(
         generate_direction(
