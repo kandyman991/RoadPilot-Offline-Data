@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/shared-frontier-windows-v1.schema.json",
+  "title": "RoadPilot shared frontier scan windows v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "pairId", "fromRegionId", "toRegionId", "source", "sampling", "windows"],
+  "properties": {
+    "schema": {"const": "roadpilot.shared-frontier-windows"},
+    "version": {"const": 1},
+    "pairId": {"type": "string", "minLength": 1},
+    "fromRegionId": {"type": "string", "minLength": 1},
+    "toRegionId": {"type": "string", "minLength": 1},
+    "source": {"type": "object"},
+    "sampling": {"type": "object"},
+    "windows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["minLat", "maxLat", "minLng", "maxLng"],
+        "properties": {
+          "minLat": {"type": "number", "minimum": -90, "maximum": 90},
+          "maxLat": {"type": "number", "minimum": -90, "maximum": 90},
+          "minLng": {"type": "number", "minimum": -180, "maximum": 180},
+          "maxLng": {"type": "number", "minimum": -180, "maximum": 180}
+        }
+      }
+    }
+  }
+}
