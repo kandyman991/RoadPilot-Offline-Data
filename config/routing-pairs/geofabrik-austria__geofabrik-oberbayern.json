@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "geofabrik-austria__geofabrik-oberbayern",
+  "fromRegionId": "geofabrik-austria",
+  "toRegionId": "geofabrik-oberbayern",
+  "candidateSearch": {
+    "maxSeparationMeters": 80.0
+  },
+  "regressionAnchors": [
+    {
+      "name": "Kufstein A12/A93 motorway corridor",
+      "coordinate": {
+        "lat": 47.60525,
+        "lng": 12.1945
+      },
+      "radiusMeters": 2500.0,
+      "fromRefs": ["A12", "E45", "E60"],
+      "toRefs": ["A93", "E45", "E60"]
+    }
+  ]
+}
