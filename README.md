@@ -70,4 +70,37 @@ Current tooling:
 - `config/routing-pairs/` owns pair-specific discovery limits and regression corridors.
 - `schemas/routing-*` defines the build-time contracts.
 
-Candidate catalogs are **not** safe to ship directly to RoadPilot. They are deliberately pre-proof artifacts; the next stage must run exact Valhalla validation and emit only proven directional transitions.
+Candidate catalogs are **not** safe to ship directly to RoadPilot. They are deliberately pre-proof artifacts; exact Valhalla validation must succeed before a crossing is promoted.
+
+The complete production path is now:
+
+```text
+finished Graph A + fingerprint A
+finished Graph B + fingerprint B
+        ↓
+Geofabrik exact polygons
+        ↓
+continuous shared-frontier scan windows
+        ↓
+roadpilot-boundary-inventory on Graph A and Graph B
+        ↓
+exhaustive directional candidate pairing
+        ↓
+roadpilot-transition-probe
+  A: interior → seam on normalized outbound DirectedEdge
+  B: seam → interior on stored inbound DirectedEdge
+        ↓
+Thor proves both local directed routes
+        ↓
+≤5 m exact projected seam check
+        ↓
+roadpilot.bound-cross-graph-transitions
+        ↓
+RoadPilot learned-chain runtime / exact regional Thor legs
+```
+
+The host native tools compile against the same Valhalla source revision used by RoadPilot Mobile: `e2f017b16080f49203de245a211b09efab09cf72`. The pair build entry point is `tools/build_pair_routing_transitions.py`.
+
+For a directed A → B transition, the boundary inventory scanner records edges as boundary → interior. The proof stage deliberately normalizes Graph A to its opposing DirectedEdge (interior → seam) and leaves Graph B on its stored DirectedEdge (seam → interior). The packaged transition can therefore replay as STORED/STORED, matching the successfully validated F8-learned runtime representation.
+
+The Austria ↔ Oberbayern reference build is not considered complete until a real graph run proves and packages the A12/A93 Kufstein motorway corridor in both directions. The fixed coordinate in the pair config is a regression assertion only; it is never injected as a transition.
