@@ -9,6 +9,10 @@ on:
       - ".github/workflows/native-routing-tools.yml"
   workflow_dispatch:
 
+concurrency:
+  group: native-routing-tools-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
