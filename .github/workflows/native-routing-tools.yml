@@ -1,0 +1,71 @@
+name: Native routing tools
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "native/transition-probe/**"
+      - "tools/build_transition_probe.sh"
+      - ".github/workflows/native-routing-tools.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VALHALLA_COMMIT: e2f017b16080f49203de245a211b09efab09cf72
+
+jobs:
+  compile-native-routing-tools:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch pinned Valhalla
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/valhalla"
+          git -C "$RUNNER_TEMP/valhalla" remote add origin https://github.com/valhalla/valhalla.git
+          git -C "$RUNNER_TEMP/valhalla" fetch --depth 1 origin "$VALHALLA_COMMIT"
+          git -C "$RUNNER_TEMP/valhalla" checkout --detach FETCH_HEAD
+
+      - name: Install Valhalla build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CONCURRENCY=2
+          "$RUNNER_TEMP/valhalla/scripts/install-linux-deps.sh"
+
+      - name: Build pinned libvalhalla
+        shell: bash
+        run: |
+          set -euo pipefail
+          INSTALL="$RUNNER_TEMP/valhalla-install"
+          cmake -S "$RUNNER_TEMP/valhalla" -B "$RUNNER_TEMP/valhalla-build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$INSTALL" \
+            -DENABLE_TOOLS=OFF \
+            -DENABLE_DATA_TOOLS=OFF \
+            -DENABLE_SERVICES=OFF \
+            -DENABLE_HTTP=OFF \
+            -DENABLE_PYTHON_BINDINGS=OFF \
+            -DENABLE_NODE_BINDINGS=OFF \
+            -DENABLE_TESTS=OFF \
+            -DENABLE_GEOTIFF=OFF
+          cmake --build "$RUNNER_TEMP/valhalla-build" --parallel 2
+          cmake --install "$RUNNER_TEMP/valhalla-build"
+          test -f "$INSTALL/lib/pkgconfig/libvalhalla.pc"
+          echo "PKG_CONFIG_PATH=$INSTALL/lib/pkgconfig:$INSTALL/lib64/pkgconfig" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$INSTALL/lib:$INSTALL/lib64" >> "$GITHUB_ENV"
+
+      - name: Compile RoadPilot boundary inventory and exact Thor probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x tools/build_transition_probe.sh
+          tools/build_transition_probe.sh
+          test -x build/transition-probe/roadpilot-boundary-inventory
+          test -x build/transition-probe/roadpilot-transition-probe
