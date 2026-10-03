@@ -27,6 +27,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Restore pinned libvalhalla cache
+        id: valhalla-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/roadpilot-valhalla-host
+          key: roadpilot-host-valhalla-${{ runner.os }}-${{ env.VALHALLA_COMMIT }}
+
       - name: Fetch pinned Valhalla
         shell: bash
         run: |
@@ -45,10 +52,12 @@ jobs:
           "$RUNNER_TEMP/valhalla/scripts/install-linux-deps.sh"
 
       - name: Build pinned libvalhalla
+        if: steps.valhalla-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
-          INSTALL="$RUNNER_TEMP/valhalla-install"
+          INSTALL="$HOME/.cache/roadpilot-valhalla-host/$VALHALLA_COMMIT"
+          rm -rf "$INSTALL"
           cmake -S "$RUNNER_TEMP/valhalla" -B "$RUNNER_TEMP/valhalla-build" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$INSTALL" \
@@ -62,6 +71,12 @@ jobs:
             -DENABLE_GEOTIFF=OFF
           cmake --build "$RUNNER_TEMP/valhalla-build" --parallel 2
           cmake --install "$RUNNER_TEMP/valhalla-build"
+          test -f "$INSTALL/lib/pkgconfig/libvalhalla.pc"
+      - name: Export pinned libvalhalla environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          INSTALL="$HOME/.cache/roadpilot-valhalla-host/$VALHALLA_COMMIT"
           test -f "$INSTALL/lib/pkgconfig/libvalhalla.pc"
           echo "PKG_CONFIG_PATH=$INSTALL/lib/pkgconfig:$INSTALL/lib64/pkgconfig" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$INSTALL/lib:$INSTALL/lib64" >> "$GITHUB_ENV"
