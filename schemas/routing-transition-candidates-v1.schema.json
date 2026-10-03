@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/routing-transition-candidates-v1.schema.json",
+  "title": "RoadPilot routing transition candidate catalog v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "fromRegionId", "toRegionId", "fromGraphFingerprint", "toGraphFingerprint", "generator", "candidates"],
+  "properties": {
+    "schema": {"const": "roadpilot.transition-candidates"},
+    "version": {"const": 1},
+    "fromRegionId": {"type": "string", "minLength": 1},
+    "toRegionId": {"type": "string", "minLength": 1},
+    "fromGraphFingerprint": {"type": "string", "minLength": 1},
+    "toGraphFingerprint": {"type": "string", "minLength": 1},
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "candidates": {"type": "array", "items": {"$ref": "#/$defs/candidate"}}
+  },
+  "$defs": {
+    "coord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lat", "lng"],
+      "properties": {
+        "lat": {"type": "number", "minimum": -90, "maximum": 90},
+        "lng": {"type": "number", "minimum": -180, "maximum": 180}
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "graphId", "opposingGraphId", "sourceNodeGraphId", "endNodeGraphId", "wayId",
+        "anchorCoordinate", "innerCoordinate", "headingDegrees", "forwardAccess",
+        "reverseAccess", "roadClass", "use", "roadNames", "roadRefs", "allowedTravelModes"
+      ],
+      "properties": {
+        "graphId": {"type": "integer", "minimum": 1},
+        "opposingGraphId": {"type": "integer", "minimum": 1},
+        "sourceNodeGraphId": {"type": "integer", "minimum": 1},
+        "endNodeGraphId": {"type": "integer", "minimum": 1},
+        "wayId": {"type": "integer", "minimum": 1},
+        "anchorCoordinate": {"$ref": "#/$defs/coord"},
+        "innerCoordinate": {"$ref": "#/$defs/coord"},
+        "headingDegrees": {"type": "number", "minimum": 0, "exclusiveMaximum": 360},
+        "forwardAccess": {"type": "integer", "minimum": 0},
+        "reverseAccess": {"type": "integer", "minimum": 0},
+        "roadClass": {"type": "integer", "minimum": 0},
+        "use": {"type": "integer", "minimum": 0},
+        "roadNames": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "roadRefs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "allowedTravelModes": {
+          "type": "array",
+          "items": {"enum": ["MOTORCYCLE", "CAR"]},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "fromEdge", "toEdge", "separationMeters", "headingDeltaDegrees",
+        "roadClassDelta", "matchEvidence", "commonTravelModes"
+      ],
+      "properties": {
+        "id": {"type": "string", "pattern": "^xgc1-[0-9a-f]{24}$"},
+        "fromEdge": {"$ref": "#/$defs/edge"},
+        "toEdge": {"$ref": "#/$defs/edge"},
+        "separationMeters": {"type": "number", "minimum": 0},
+        "headingDeltaDegrees": {"type": "number", "minimum": 0, "maximum": 180},
+        "roadClassDelta": {"type": "integer", "minimum": 0},
+        "matchEvidence": {
+          "type": "array",
+          "items": {"enum": ["SAME_OSM_WAY", "SHARED_ROAD_REF", "SHARED_ROAD_NAME", "SPATIAL_PROXIMITY"]},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "commonTravelModes": {
+          "type": "array",
+          "items": {"enum": ["MOTORCYCLE", "CAR"]},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}
