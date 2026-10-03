@@ -35,6 +35,7 @@ jobs:
           git -C "$RUNNER_TEMP/valhalla" remote add origin https://github.com/valhalla/valhalla.git
           git -C "$RUNNER_TEMP/valhalla" fetch --depth 1 origin "$VALHALLA_COMMIT"
           git -C "$RUNNER_TEMP/valhalla" checkout --detach FETCH_HEAD
+          git -C "$RUNNER_TEMP/valhalla" submodule update --init --recursive
 
       - name: Install Valhalla build dependencies
         shell: bash
