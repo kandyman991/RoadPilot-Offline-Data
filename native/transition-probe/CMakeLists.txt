@@ -7,6 +7,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(VALHALLA REQUIRED IMPORTED_TARGET libvalhalla)
+# The pinned host build installs libvalhalla as a static archive. pkg-config's normal
+# imported target does not pull LibLZ4 from Libs.private, even though Valhalla's Skadi
+# objects reference the LZ4 frame API. Link it explicitly so the standalone RoadPilot
+# host tools have the same complete dependency closure as the Valhalla build itself.
+pkg_check_modules(LZ4 REQUIRED IMPORTED_TARGET liblz4)
 
 add_executable(
     roadpilot-transition-probe
@@ -22,12 +27,14 @@ target_link_libraries(
     roadpilot-transition-probe
     PRIVATE
     PkgConfig::VALHALLA
+    PkgConfig::LZ4
 )
 
 target_link_libraries(
     roadpilot-boundary-inventory
     PRIVATE
     PkgConfig::VALHALLA
+    PkgConfig::LZ4
 )
 
 target_compile_options(
