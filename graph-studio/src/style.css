@@ -253,3 +253,59 @@ button { cursor: pointer; }
   .console { grid-template-columns: 240px minmax(0, 1fr); }
   .console-side { display: none; }
 }
+
+
+.coord-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 8px;
+}
+
+.source-list {
+  margin-top: 8px;
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid #2c3743;
+  border-radius: 5px;
+  background: #0c1218;
+}
+
+.source-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 2px 8px;
+  padding: 7px 8px;
+  border-bottom: 1px solid #222c36;
+  font-size: 10.5px;
+}
+
+.source-row:last-child {
+  border-bottom: 0;
+}
+
+.source-row > span {
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: #6fcf97;
+  font-size: 9px;
+  letter-spacing: .05em;
+}
+
+.source-row b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #d7dee7;
+  font-weight: 600;
+}
+
+.source-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #748292;
+}
+
+#regionEditorSection[hidden] {
+  display: none;
+}
