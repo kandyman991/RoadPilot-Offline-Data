@@ -81,12 +81,19 @@ def build_pair(
     if from_region == to_region:
         fail("from/to regionId must be different")
 
+    from_source = from_manifest.get("source")
+    to_source = to_manifest.get("source")
+    if not isinstance(from_source, dict):
+        fail("from source must be an object")
+    if not isinstance(to_source, dict):
+        fail("to source must be an object")
+
     from_primary = require_string(
-        (from_manifest.get("source") or {}).get("primaryGeofabrikId"),
+        from_source.get("primaryGeofabrikId"),
         "from source.primaryGeofabrikId",
     )
     to_primary = require_string(
-        (to_manifest.get("source") or {}).get("primaryGeofabrikId"),
+        to_source.get("primaryGeofabrikId"),
         "to source.primaryGeofabrikId",
     )
 
