@@ -34,7 +34,7 @@ retained-build road-level boundary diffing.
 PR #27 merged the fingerprint-bound pair-manifest foundation.
 PR #28 merged stable OSM frontier-road inventory generation.
 
-Current #26 milestone branch: `connectivity-valhalla-correlation-m3`.
+PR #29 merged independent Graph A/B Valhalla correlation.\n\nCurrent #26 milestone branch: `connectivity-crossing-candidates-m4`.
 
 Current implementation:
 - `roadpilot.cross-region-connectivity` v1 pair contract;
@@ -49,7 +49,7 @@ Current implementation:
 Architectural split for #26:
 - stable physical discovery evidence is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;
 - exact graph-local correlation evidence is bound to the exact graph fingerprint;
-- direction/access become proof criteria only in later plain-Valhalla validation;
+- physical crossing candidates are now generated as the full Graph A × Graph B candidate product for each frontier road;\n- evidence ranks candidates but does not delete them;\n- candidate artifacts are explicitly `validationState=UNPROVEN`;\n- direction/access become proof criteria only in later plain-Valhalla validation;
 - F8 remains runtime fallback for missing/stale/ambiguous metadata.
 ## Critical architectural decisions
 
@@ -69,13 +69,6 @@ Architectural split for #26:
 
 PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do not merge or revive them blindly. Compare their useful concepts against the current Graph Studio roadmap and issue #26 connectivity work.
 
-## Next exact action
-
-1. Get the #26 independent Graph A/B Valhalla correlation milestone green and merged.
-2. Generate physical crossing candidates from the independent correlations without pre-Valhalla hard direction filters.
-3. Validate candidates with plain Valhalla for motorcycle/auto and both travel directions.
-4. Compile validated region-pair metadata for RoadPilot; keep F8 as fallback.
-5. Add multi-hop region-chain composition and surgical refresh driven by boundary fingerprints.
-## Handoff maintenance
+## Next exact action\n\n1. Get the #26 lossless physical crossing-candidate milestone green and merged.\n2. Validate candidate pairs with plain Valhalla for motorcycle/auto and both travel directions.\n3. Compile only proven candidates into the compact RoadPilot runtime connectivity artifact.\n4. Add multi-hop region-chain composition.\n5. Use boundary fingerprints for surgical stale detection/rebuild; keep F8 as fallback.\n## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
