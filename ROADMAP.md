@@ -166,12 +166,15 @@ This is the key step for removing expensive first-route F8 discovery from phones
 Milestones:
 - fingerprint-bound region-pair manifest and validator — merged in PR #27;
 - stable OSM frontier-road inventory using real geometry and no graph-local ids — merged in PR #28;
-- independent Graph A/B Valhalla correlation of stable anchors — active;
+- independent Graph A/B Valhalla correlation of stable anchors — merged in PR #29;
   - all usable locate candidates retained;
   - same-OSM-way identity is ranking evidence, not a hard filter;
   - A/B coordinates may differ;
   - OSM frontier heading is evidence only, never inferred journey direction.
-- physical crossing candidate generation;
+- physical crossing candidate generation — active;
+  - retain the complete Graph A × Graph B candidate product per frontier road;
+  - rank by evidence only; never filter by heading/access/direction here;
+  - emit explicit `UNPROVEN` state until Valhalla route proof;
 - plain-Valhalla motorcycle/auto direction proofs;
 - compact validated connectivity artifact for RoadPilot;
 - multi-hop region-chain composition;
