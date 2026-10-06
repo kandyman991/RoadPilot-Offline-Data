@@ -1,7 +1,8 @@
 import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Map, NavigationControl, addProtocol, setWorkerUrl } from "maplibre-gl";
+import { Map as MapLibreMap, NavigationControl, addProtocol, setWorkerUrl } from "maplibre-gl";
+import type { Feature, FeatureCollection, Geometry } from "geojson";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
 setWorkerUrl(workerUrl);
@@ -43,6 +44,38 @@ type BuildArtifact = {
   tile_count: number;
   manifest_path: string;
 };
+type GeofabrikCatalogItem = {
+  id: string;
+  name: string;
+  parent: string | null;
+  pbfUrl: string;
+  polygonUrl: string;
+  countryId: string | null;
+  countryName: string | null;
+  bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number };
+};
+type RegionPreviewSource = {
+  id: string;
+  name: string;
+  pbfUrl: string;
+  polygonUrl: string;
+  primary: boolean;
+  intersectionArea: number;
+  geometry: Geometry;
+};
+type RegionPreview = {
+  geofabrikId: string;
+  name: string;
+  countryId: string | null;
+  countryName: string | null;
+  pbfUrl: string;
+  polygonUrl: string;
+  borderBufferKm: number;
+  bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number };
+  primaryGeometry: Geometry;
+  bufferGeometry: Geometry;
+  sources: RegionPreviewSource[];
+};
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
@@ -62,6 +95,14 @@ app.innerHTML = `
       <section class="section">
         <h2>Regions</h2>
         <div id="regions"></div>
+      </section>
+      <section class="section">
+        <h2>Region configuration</h2>
+        <div class="actions">
+          <button id="newRegionBtn" class="btn" type="button">New region</button>
+          <button id="editRegionBtn" class="btn" type="button" disabled>Edit selected</button>
+        </div>
+        <p>Graph Studio keeps editable region definitions in your local workspace and seeds them from the production repository.</p>
       </section>
       <section class="section">
         <h2>Build</h2>
@@ -91,6 +132,48 @@ app.innerHTML = `
     </section>
 
     <aside class="inspector">
+      <section id="regionEditorSection" class="section" hidden>
+        <h2>Region editor</h2>
+        <div class="field">
+          <label for="editorRoadpilotId">RoadPilot region id</label>
+          <input id="editorRoadpilotId" autocomplete="off" placeholder="geofabrik-austria" />
+        </div>
+        <div class="field">
+          <label for="editorName">Display name</label>
+          <input id="editorName" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="editorGeofabrik">Geofabrik extract</label>
+          <select id="editorGeofabrik"></select>
+        </div>
+        <div class="field">
+          <label for="editorBuffer">Border buffer (km)</label>
+          <input id="editorBuffer" type="number" min="1" max="100" step="1" value="25" />
+        </div>
+        <div class="actions">
+          <button id="previewRegionBtn" class="btn" type="button">Preview + discover sources</button>
+          <button id="refreshCatalogBtn" class="btn" type="button">Refresh catalog</button>
+        </div>
+        <div id="regionPreviewSummary" class="empty" style="margin-top:8px">Choose a Geofabrik extract and preview it.</div>
+        <div id="regionSourceList" class="source-list"></div>
+
+        <h2 style="margin-top:16px">Border validation route</h2>
+        <div class="field">
+          <label for="editorRouteName">Test name</label>
+          <input id="editorRouteName" value="border-smoke-test" autocomplete="off" />
+        </div>
+        <div class="coord-grid">
+          <div class="field"><label for="editorStartLat">Start lat</label><input id="editorStartLat" type="number" step="0.000001" /></div>
+          <div class="field"><label for="editorStartLng">Start lng</label><input id="editorStartLng" type="number" step="0.000001" /></div>
+          <div class="field"><label for="editorEndLat">End lat</label><input id="editorEndLat" type="number" step="0.000001" /></div>
+          <div class="field"><label for="editorEndLng">End lng</label><input id="editorEndLng" type="number" step="0.000001" /></div>
+        </div>
+        <p>Exactly one endpoint must be inside the nominal Geofabrik region. You can copy coordinates from the map inspector.</p>
+        <div class="actions">
+          <button id="saveRegionBtn" class="btn primary" type="button" disabled>Save region</button>
+          <button id="closeRegionEditorBtn" class="btn" type="button">Close</button>
+        </div>
+      </section>
       <section class="section">
         <h2>Graph inspector</h2>
         <div id="inspectorSummary" class="empty">
@@ -137,6 +220,24 @@ const toolHost = document.querySelector<HTMLDivElement>("#tools")!;
 const logHost = document.querySelector<HTMLPreElement>("#consoleLog")!;
 const buildsHost = document.querySelector<HTMLDivElement>("#builds")!;
 const packageVersionInput = document.querySelector<HTMLInputElement>("#packageVersion")!;
+const newRegionBtn = document.querySelector<HTMLButtonElement>("#newRegionBtn")!;
+const editRegionBtn = document.querySelector<HTMLButtonElement>("#editRegionBtn")!;
+const regionEditorSection = document.querySelector<HTMLElement>("#regionEditorSection")!;
+const editorRoadpilotId = document.querySelector<HTMLInputElement>("#editorRoadpilotId")!;
+const editorName = document.querySelector<HTMLInputElement>("#editorName")!;
+const editorGeofabrik = document.querySelector<HTMLSelectElement>("#editorGeofabrik")!;
+const editorBuffer = document.querySelector<HTMLInputElement>("#editorBuffer")!;
+const previewRegionBtn = document.querySelector<HTMLButtonElement>("#previewRegionBtn")!;
+const refreshCatalogBtn = document.querySelector<HTMLButtonElement>("#refreshCatalogBtn")!;
+const regionPreviewSummary = document.querySelector<HTMLDivElement>("#regionPreviewSummary")!;
+const regionSourceList = document.querySelector<HTMLDivElement>("#regionSourceList")!;
+const editorRouteName = document.querySelector<HTMLInputElement>("#editorRouteName")!;
+const editorStartLat = document.querySelector<HTMLInputElement>("#editorStartLat")!;
+const editorStartLng = document.querySelector<HTMLInputElement>("#editorStartLng")!;
+const editorEndLat = document.querySelector<HTMLInputElement>("#editorEndLat")!;
+const editorEndLng = document.querySelector<HTMLInputElement>("#editorEndLng")!;
+const saveRegionBtn = document.querySelector<HTMLButtonElement>("#saveRegionBtn")!;
+const closeRegionEditorBtn = document.querySelector<HTMLButtonElement>("#closeRegionEditorBtn")!;
 const buildBtn = document.querySelector<HTMLButtonElement>("#buildBtn")!;
 const cancelBtn = document.querySelector<HTMLButtonElement>("#cancelBtn")!;
 const graphLayerBtn = document.querySelector<HTMLButtonElement>("#graphLayerBtn")!;
@@ -151,6 +252,9 @@ const comparison = document.querySelector<HTMLDivElement>("#comparison")!;
 
 let regions: RegionSummary[] = [];
 let artifacts: BuildArtifact[] = [];
+let geofabrikCatalog: GeofabrikCatalogItem[] = [];
+let editorPreview: RegionPreview | null = null;
+let editorExistingConfig: Record<string, unknown> | null = null;
 let activeRegion: RegionSummary | null = null;
 let graphVisible = false;
 let lastMapClick: { lat: number; lng: number } | null = null;
@@ -195,13 +299,53 @@ addProtocol("roadpilot-graph", async (request) => {
   return { data: new Uint8Array(data).buffer };
 });
 
-const map = new Map({
+const map = new MapLibreMap({
   container: "map",
   style: "https://tiles.openfreemap.org/styles/bright",
   center: [11.8, 46.2],
   zoom: 6.2,
 });
 map.addControl(new NavigationControl({ showCompass: true }), "bottom-right");
+
+const editorOverlaySourceIds = ["rp-editor-primary", "rp-editor-buffer", "rp-editor-sources"];
+const editorOverlayLayerIds = ["rp-editor-primary-fill", "rp-editor-primary-line", "rp-editor-buffer-fill", "rp-editor-buffer-line", "rp-editor-sources-line"];
+
+function removeEditorOverlays(): void {
+  for (const id of editorOverlayLayerIds) if (map.getLayer(id)) map.removeLayer(id);
+  for (const id of editorOverlaySourceIds) if (map.getSource(id)) map.removeSource(id);
+}
+
+function showEditorPreview(preview: RegionPreview): void {
+  removeEditorOverlays();
+  map.addSource("rp-editor-primary", {
+    type: "geojson",
+    data: { type: "Feature", properties: {}, geometry: preview.primaryGeometry } as Feature,
+  });
+  map.addSource("rp-editor-buffer", {
+    type: "geojson",
+    data: { type: "Feature", properties: {}, geometry: preview.bufferGeometry } as Feature,
+  });
+  map.addSource("rp-editor-sources", {
+    type: "geojson",
+    data: {
+      type: "FeatureCollection",
+      features: preview.sources.map(source => ({
+        type: "Feature",
+        properties: { id: source.id, primary: source.primary },
+        geometry: source.geometry,
+      })),
+    } as FeatureCollection,
+  });
+  map.addLayer({ id: "rp-editor-sources-line", type: "line", source: "rp-editor-sources", paint: { "line-color": "#6b7f93", "line-width": 1, "line-opacity": 0.5 } });
+  map.addLayer({ id: "rp-editor-buffer-fill", type: "fill", source: "rp-editor-buffer", paint: { "fill-color": "#4f9bd8", "fill-opacity": 0.08 } });
+  map.addLayer({ id: "rp-editor-buffer-line", type: "line", source: "rp-editor-buffer", paint: { "line-color": "#4f9bd8", "line-width": 2, "line-dasharray": [3, 2] } });
+  map.addLayer({ id: "rp-editor-primary-fill", type: "fill", source: "rp-editor-primary", paint: { "fill-color": "#e66a52", "fill-opacity": 0.08 } });
+  map.addLayer({ id: "rp-editor-primary-line", type: "line", source: "rp-editor-primary", paint: { "line-color": "#e66a52", "line-width": 2 } });
+  map.fitBounds(
+    [[preview.bounds.minLng, preview.bounds.minLat], [preview.bounds.maxLng, preview.bounds.maxLat]],
+    { padding: 60, duration: 450 },
+  );
+}
 
 function graphSourceId(): string { return "roadpilot-graph-source"; }
 const graphLayers = ["rp-graph-edges", "rp-graph-shortcuts", "rp-graph-nodes", "rp-graph-restrictions"];
@@ -266,6 +410,7 @@ function setActiveRegion(region: RegionSummary): void {
   activeRegionBadge.textContent = region.name;
   fitBtn.disabled = !region.coverage;
   graphLayerBtn.disabled = false;
+  editRegionBtn.disabled = false;
   locateBtn.disabled = true;
   featureJson.textContent = "No graph feature selected.";
   inspectorSummary.textContent = `${region.id} • ${region.border_buffer_km} km border buffer • Valhalla ${region.expected_valhalla_version}`;
@@ -309,6 +454,229 @@ async function refreshRegions(): Promise<void> {
   renderRegions();
   if (!activeRegion && regions.length) setActiveRegion(regions[0]);
 }
+
+async function loadGeofabrikCatalog(refresh = false): Promise<void> {
+  editorGeofabrik.disabled = true;
+  editorGeofabrik.innerHTML = '<option value="">Loading Geofabrik catalog…</option>';
+  try {
+    geofabrikCatalog = await invoke<GeofabrikCatalogItem[]>("geofabrik_catalog", { refresh });
+    const groups = new globalThis.Map<string, GeofabrikCatalogItem[]>();
+    for (const item of geofabrikCatalog) {
+      const country = item.countryName || "Other";
+      const list = groups.get(country) ?? [];
+      list.push(item);
+      groups.set(country, list);
+    }
+    editorGeofabrik.innerHTML = '<option value="">Choose extract…</option>';
+    for (const country of [...groups.keys()].sort()) {
+      const group = document.createElement("optgroup");
+      group.label = country;
+      for (const item of groups.get(country) ?? []) {
+        const option = document.createElement("option");
+        option.value = item.id;
+        option.textContent = `${item.name} (${item.id})`;
+        group.appendChild(option);
+      }
+      editorGeofabrik.appendChild(group);
+    }
+  } catch (error) {
+    editorGeofabrik.innerHTML = '<option value="">Catalog unavailable</option>';
+    appendLog(`Geofabrik catalog error: ${String(error)}`);
+  } finally {
+    editorGeofabrik.disabled = false;
+  }
+}
+
+function resetRegionEditor(): void {
+  editorExistingConfig = null;
+  editorPreview = null;
+  editorRoadpilotId.value = "";
+  editorRoadpilotId.disabled = false;
+  editorName.value = "";
+  editorGeofabrik.value = "";
+  editorBuffer.value = "25";
+  editorRouteName.value = "border-smoke-test";
+  editorStartLat.value = "";
+  editorStartLng.value = "";
+  editorEndLat.value = "";
+  editorEndLng.value = "";
+  regionPreviewSummary.textContent = "Choose a Geofabrik extract and preview it.";
+  regionSourceList.innerHTML = "";
+  saveRegionBtn.disabled = true;
+  removeEditorOverlays();
+}
+
+function openRegionEditor(): void {
+  regionEditorSection.hidden = false;
+  regionEditorSection.scrollIntoView({ block: "start" });
+}
+
+function closeRegionEditor(): void {
+  regionEditorSection.hidden = true;
+  removeEditorOverlays();
+}
+
+async function previewEditorRegion(refresh = false): Promise<void> {
+  const geofabrikId = editorGeofabrik.value;
+  const bufferKm = Number(editorBuffer.value);
+  if (!geofabrikId) {
+    regionPreviewSummary.textContent = "Choose a Geofabrik extract first.";
+    return;
+  }
+  previewRegionBtn.disabled = true;
+  saveRegionBtn.disabled = true;
+  regionPreviewSummary.textContent = "Discovering exact polygon and neighboring source extracts…";
+  try {
+    const preview = await invoke<RegionPreview>("preview_region", { geofabrikId, bufferKm, refresh });
+    editorPreview = preview;
+    if (!editorName.value.trim()) editorName.value = preview.name;
+    if (!editorRoadpilotId.value.trim()) {
+      editorRoadpilotId.value = geofabrikId.replaceAll("/", "-");
+    }
+    regionPreviewSummary.innerHTML =
+      `<span class="ok">Preview ready</span> • ${preview.sources.length} source extract${preview.sources.length === 1 ? "" : "s"} intersect the ${preview.borderBufferKm} km buffer.`;
+    regionSourceList.innerHTML = preview.sources.map(source =>
+      `<div class="source-row"><span>${source.primary ? "PRIMARY" : "NEIGHBOR"}</span><b>${source.name}</b><small>${source.id}</small></div>`
+    ).join("");
+    showEditorPreview(preview);
+    saveRegionBtn.disabled = false;
+  } catch (error) {
+    editorPreview = null;
+    regionPreviewSummary.innerHTML = `<span class="bad">Preview failed:</span> ${String(error)}`;
+    regionSourceList.innerHTML = "";
+    removeEditorOverlays();
+  } finally {
+    previewRegionBtn.disabled = false;
+  }
+}
+
+function numberField(field: HTMLInputElement, label: string): number {
+  const value = Number(field.value);
+  if (!Number.isFinite(value)) throw new Error(`${label} is required.`);
+  return value;
+}
+
+function configFromEditor(): Record<string, unknown> {
+  if (!editorPreview) throw new Error("Preview the region before saving.");
+  const regionId = editorRoadpilotId.value.trim();
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(regionId)) {
+    throw new Error("RoadPilot region id must contain only lowercase letters, numbers and hyphens.");
+  }
+  const name = editorName.value.trim();
+  if (!name) throw new Error("Display name is required.");
+
+  const startLat = numberField(editorStartLat, "Start latitude");
+  const startLng = numberField(editorStartLng, "Start longitude");
+  const endLat = numberField(editorEndLat, "End latitude");
+  const endLng = numberField(editorEndLng, "End longitude");
+  const existing = editorExistingConfig ? structuredClone(editorExistingConfig) : {};
+  const existingOverture = existing["overture"];
+  const existingRouting = (existing["routing"] ?? {}) as Record<string, unknown>;
+  const existingRoutes = Array.isArray(existingRouting.validationRoutes)
+    ? existingRouting.validationRoutes as Array<Record<string, unknown>>
+    : [];
+  const firstBorderIndex = existingRoutes.findIndex(route => route.kind === "border");
+  const routeName = editorRouteName.value.trim() || "border-smoke-test";
+  const editedBorderRoute = {
+    name: routeName,
+    kind: "border",
+    costing: "motorcycle",
+    start: { lat: startLat, lng: startLng },
+    end: { lat: endLat, lng: endLng },
+  };
+  const validationRoutes = existingRoutes.map(route => structuredClone(route));
+  if (firstBorderIndex >= 0) validationRoutes[firstBorderIndex] = editedBorderRoute;
+  else validationRoutes.push(editedBorderRoute);
+
+  const config: Record<string, unknown> = {
+    ...existing,
+    schemaVersion: 1,
+    id: regionId,
+    name,
+    routing: {
+      ...existingRouting,
+      enabled: true,
+      expectedValhallaVersion: String(existingRouting.expectedValhallaVersion ?? "3.6.3"),
+      borderBufferKm: editorPreview.borderBufferKm,
+      buildConcurrency: Number(existingRouting.buildConcurrency ?? 12),
+      coverage: editorPreview.bounds,
+      source: {
+        primaryGeofabrikId: editorPreview.geofabrikId,
+        polygonUrl: editorPreview.polygonUrl,
+        pbfs: editorPreview.sources.map(source => ({ id: source.id, url: source.pbfUrl })),
+      },
+      package: {
+        fileNameTemplate: `${regionId}-routing-{version}.tar`,
+        manifestFileNameTemplate: `${regionId}-routing-{version}-manifest.json`,
+      },
+      validationRoutes,
+    },
+  };
+  if (existingOverture) config["overture"] = existingOverture;
+  return config;
+}
+
+newRegionBtn.addEventListener("click", async () => {
+  resetRegionEditor();
+  openRegionEditor();
+  if (!geofabrikCatalog.length) await loadGeofabrikCatalog(false);
+});
+
+editRegionBtn.addEventListener("click", async () => {
+  if (!activeRegion) return;
+  resetRegionEditor();
+  openRegionEditor();
+  try {
+    if (!geofabrikCatalog.length) await loadGeofabrikCatalog(false);
+    const config = await invoke<Record<string, unknown>>("load_region_config", { regionId: activeRegion.id });
+    editorExistingConfig = config;
+    editorRoadpilotId.value = String(config.id ?? activeRegion.id);
+    editorRoadpilotId.disabled = true;
+    editorName.value = String(config.name ?? activeRegion.name);
+    const routing = (config.routing ?? {}) as Record<string, unknown>;
+    const source = (routing.source ?? {}) as Record<string, unknown>;
+    editorGeofabrik.value = String(source.primaryGeofabrikId ?? "");
+    editorBuffer.value = String(routing.borderBufferKm ?? activeRegion.border_buffer_km);
+    const routes = Array.isArray(routing.validationRoutes) ? routing.validationRoutes as Array<Record<string, unknown>> : [];
+    const borderRoute = routes.find(route => route.kind === "border");
+    if (borderRoute) {
+      editorRouteName.value = String(borderRoute.name ?? "border-smoke-test");
+      const start = (borderRoute.start ?? {}) as Record<string, unknown>;
+      const end = (borderRoute.end ?? {}) as Record<string, unknown>;
+      editorStartLat.value = String(start.lat ?? "");
+      editorStartLng.value = String(start.lng ?? "");
+      editorEndLat.value = String(end.lat ?? "");
+      editorEndLng.value = String(end.lng ?? "");
+    }
+    await previewEditorRegion(false);
+  } catch (error) {
+    regionPreviewSummary.innerHTML = `<span class="bad">Could not load region:</span> ${String(error)}`;
+  }
+});
+
+previewRegionBtn.addEventListener("click", () => previewEditorRegion(false));
+refreshCatalogBtn.addEventListener("click", async () => {
+  await loadGeofabrikCatalog(true);
+  appendLog("Geofabrik catalog refreshed.");
+});
+closeRegionEditorBtn.addEventListener("click", closeRegionEditor);
+
+saveRegionBtn.addEventListener("click", async () => {
+  saveRegionBtn.disabled = true;
+  try {
+    const config = configFromEditor();
+    const saved = await invoke<Record<string, unknown>>("save_region_config", { config, refreshGeometry: false });
+    appendLog(`Saved and validated region config: ${String(saved.id)}`);
+    await refreshRegions();
+    const savedRegion = regions.find(region => region.id === String(saved.id));
+    if (savedRegion) setActiveRegion(savedRegion);
+    closeRegionEditor();
+  } catch (error) {
+    regionPreviewSummary.innerHTML = `<span class="bad">Save rejected:</span> ${String(error)}`;
+  } finally {
+    saveRegionBtn.disabled = editorPreview == null;
+  }
+});
 
 async function refreshToolchain(): Promise<void> {
   const status = await invoke<ToolchainStatus>("toolchain_status");

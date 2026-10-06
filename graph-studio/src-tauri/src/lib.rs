@@ -212,6 +212,45 @@ fn workspace_root(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(root)
 }
 
+fn region_config_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let destination = workspace_root(app)?.join("config/regions");
+    fs::create_dir_all(&destination)
+        .map_err(|e| format!("Could not create writable region config directory: {e}"))?;
+
+    let bundled = pipeline_root(app)?.join("config/regions");
+    if bundled.is_dir() {
+        for entry in fs::read_dir(&bundled)
+            .map_err(|e| format!("Could not read bundled region configs: {e}"))?
+            .flatten()
+        {
+            let source = entry.path();
+            if source.extension().and_then(|value| value.to_str()) != Some("json") {
+                continue;
+            }
+            let Some(file_name) = source.file_name() else {
+                continue;
+            };
+            let target = destination.join(file_name);
+            if !target.exists() {
+                fs::copy(&source, &target).map_err(|e| {
+                    format!(
+                        "Could not seed writable region config {}: {e}",
+                        target.display()
+                    )
+                })?;
+            }
+        }
+    }
+    Ok(destination)
+}
+
+fn geofabrik_cache_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = workspace_root(app)?.join("catalog");
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("Could not create Geofabrik catalog cache: {e}"))?;
+    Ok(path)
+}
+
 fn work_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let path = workspace_root(app)?.join("work");
     fs::create_dir_all(&path).map_err(|e| format!("Could not create work directory: {e}"))?;
@@ -302,7 +341,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
 
 #[tauri::command]
 fn list_regions(app: AppHandle) -> Result<Vec<RegionSummary>, String> {
-    let root = pipeline_root(&app)?.join("config/regions");
+    let root = region_config_dir(&app)?;
     let mut entries: Vec<PathBuf> = fs::read_dir(root)
         .map_err(|e| format!("Could not read region configs: {e}"))?
         .filter_map(Result::ok)
@@ -336,7 +375,10 @@ fn list_regions(app: AppHandle) -> Result<Vec<RegionSummary>, String> {
             })
             .unwrap_or_default();
 
-        let coverage = value.pointer("/overture/coverage").and_then(|c| {
+        let coverage = value
+            .pointer("/routing/coverage")
+            .or_else(|| value.pointer("/overture/coverage"))
+            .and_then(|c| {
             Some(Coverage {
                 min_lat: c.get("minLat")?.as_f64()?,
                 max_lat: c.get("maxLat")?.as_f64()?,
@@ -366,6 +408,161 @@ fn list_regions(app: AppHandle) -> Result<Vec<RegionSummary>, String> {
         });
     }
     Ok(regions)
+}
+
+fn run_graph_studio_region_helper(
+    app: &AppHandle,
+    arguments: &[String],
+) -> Result<Value, String> {
+    let python = ensure_python_env(app)?;
+    let pipeline = pipeline_root(app)?;
+    let script = pipeline.join("tools/graph_studio_regions.py");
+    if !script.is_file() {
+        return Err(format!(
+            "Graph Studio region helper is missing: {}",
+            script.display()
+        ));
+    }
+
+    let output = Command::new(python)
+        .arg(script)
+        .args(arguments)
+        .output()
+        .map_err(|e| format!("Could not run Graph Studio region helper: {e}"))?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if error.is_empty() {
+            "Graph Studio region helper failed.".into()
+        } else {
+            error
+        });
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Region helper returned invalid JSON: {e}"))
+}
+
+#[tauri::command]
+fn geofabrik_catalog(app: AppHandle, refresh: bool) -> Result<Value, String> {
+    let cache = geofabrik_cache_dir(&app)?;
+    let mut args = vec![
+        "--cache-dir".to_string(),
+        cache.display().to_string(),
+    ];
+    if refresh {
+        args.push("--refresh".into());
+    }
+    args.push("catalog".into());
+    run_graph_studio_region_helper(&app, &args)
+}
+
+#[tauri::command]
+fn preview_region(
+    app: AppHandle,
+    geofabrik_id: String,
+    buffer_km: f64,
+    refresh: bool,
+) -> Result<Value, String> {
+    if geofabrik_id.is_empty() || geofabrik_id.len() > 160 {
+        return Err("Invalid Geofabrik region id.".into());
+    }
+    if !buffer_km.is_finite() || !(0.0..=100.0).contains(&buffer_km) || buffer_km == 0.0 {
+        return Err("Border buffer must be greater than 0 and no more than 100 km.".into());
+    }
+    let cache = geofabrik_cache_dir(&app)?;
+    let mut args = vec![
+        "--cache-dir".to_string(),
+        cache.display().to_string(),
+    ];
+    if refresh {
+        args.push("--refresh".into());
+    }
+    args.extend([
+        "preview".into(),
+        "--geofabrik-id".into(),
+        geofabrik_id,
+        "--buffer-km".into(),
+        buffer_km.to_string(),
+    ]);
+    run_graph_studio_region_helper(&app, &args)
+}
+
+#[tauri::command]
+fn load_region_config(app: AppHandle, region_id: String) -> Result<Value, String> {
+    if !safe_token(&region_id) {
+        return Err("Invalid RoadPilot region id.".into());
+    }
+    let path = region_config_dir(&app)?.join(format!("{region_id}.json"));
+    let text = fs::read_to_string(&path)
+        .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
+    serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse {}: {e}", path.display()))
+}
+
+#[tauri::command]
+fn save_region_config(
+    app: AppHandle,
+    config: Value,
+    refresh_geometry: bool,
+) -> Result<Value, String> {
+    let region_id = config
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or("Region config id is required.")?
+        .to_string();
+    if !safe_token(&region_id) {
+        return Err("RoadPilot region id contains unsupported characters.".into());
+    }
+
+    let root = region_config_dir(&app)?;
+    let destination = root.join(format!("{region_id}.json"));
+    let temporary = root.join(format!(".{region_id}.json.tmp"));
+    let serialized = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Could not serialize region config: {e}"))?;
+    fs::write(&temporary, format!("{serialized}\n"))
+        .map_err(|e| format!("Could not write temporary region config: {e}"))?;
+
+    let validate_result = (|| -> Result<(), String> {
+        let python = ensure_python_env(&app)?;
+        let pipeline = pipeline_root(&app)?;
+        let structural = Command::new(&python)
+            .arg(pipeline.join("tools/validate_region_config.py"))
+            .arg("--config")
+            .arg(&temporary)
+            .output()
+            .map_err(|e| format!("Could not validate region config: {e}"))?;
+        if !structural.status.success() {
+            return Err(String::from_utf8_lossy(&structural.stderr).trim().to_string());
+        }
+
+        let cache = geofabrik_cache_dir(&app)?;
+        let mut args = vec![
+            "--cache-dir".to_string(),
+            cache.display().to_string(),
+        ];
+        if refresh_geometry {
+            args.push("--refresh".into());
+        }
+        args.extend([
+            "validate-config".into(),
+            "--config".into(),
+            temporary.display().to_string(),
+        ]);
+        run_graph_studio_region_helper(&app, &args)?;
+        Ok(())
+    })();
+
+    if let Err(error) = validate_result {
+        let _ = fs::remove_file(&temporary);
+        return Err(if error.is_empty() {
+            "Region config validation failed.".into()
+        } else {
+            error
+        });
+    }
+
+    fs::rename(&temporary, &destination)
+        .map_err(|e| format!("Could not activate region config: {e}"))?;
+    Ok(config)
 }
 
 #[tauri::command]
@@ -620,9 +817,7 @@ fn run_build_queue(
             format!("\n=== {} • {} ===", region_id, package_version),
         );
 
-        let config = pipeline
-            .join("config/regions")
-            .join(format!("{region_id}.json"));
+        let config = region_config_dir(&app)?.join(format!("{region_id}.json"));
         if !config.is_file() {
             return Err(format!("Region config does not exist: {}", config.display()));
         }
@@ -922,6 +1117,10 @@ pub fn run() {
         .manage(BuildState::default())
         .invoke_handler(tauri::generate_handler![
             list_regions,
+            geofabrik_catalog,
+            preview_region,
+            load_region_config,
+            save_region_config,
             toolchain_status,
             system_stats,
             build_status,

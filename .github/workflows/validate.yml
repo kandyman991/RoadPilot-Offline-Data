@@ -29,6 +29,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install routing Python dependencies
+        run: python -m pip install -r requirements-routing.txt
+
       - name: Compile Python tooling
         run: python -m py_compile tools/*.py
 
@@ -53,6 +56,31 @@ jobs:
           for file in config/regions/*.json; do
             python tools/validate_region_config.py --config "$file"
           done
+
+      - name: Smoke-test Geofabrik Graph Studio discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache="$RUNNER_TEMP/graph-studio-geofabrik"
+          python tools/graph_studio_regions.py --cache-dir "$cache" catalog > "$RUNNER_TEMP/catalog.json"
+          python tools/graph_studio_regions.py --cache-dir "$cache" preview             --geofabrik-id italy/nord-est             --buffer-km 25 > "$RUNNER_TEMP/nord-est-preview.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"])
+          catalog = json.loads((root / "catalog.json").read_text())
+          preview = json.loads((root / "nord-est-preview.json").read_text())
+
+          assert any(item["id"] == "italy/nord-est" for item in catalog)
+          assert preview["geofabrikId"] == "italy/nord-est"
+          assert preview["borderBufferKm"] == 25
+          assert any(item["primary"] and item["id"] == "italy/nord-est" for item in preview["sources"])
+          assert len(preview["sources"]) > 1
+          print("discovered sources:", ", ".join(item["id"] for item in preview["sources"]))
+          PY
 
       - name: Verify hosted routing toolchain
         shell: bash
