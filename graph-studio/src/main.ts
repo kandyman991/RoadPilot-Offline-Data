@@ -594,6 +594,23 @@ addProtocol("roadpilot-graph", async (request) => {
   return { data: new Uint8Array(data).buffer };
 });
 
+const buildGraphManifests = new globalThis.Map<string, string>();
+addProtocol("roadpilot-build-graph", async (request) => {
+  const raw = request.url.replace("roadpilot-build-graph://", "");
+  const match = raw.match(/^([^/]+)\/(\d+)\/(\d+)\/(\d+)\.mvt$/);
+  if (!match) throw new Error("Invalid retained-build graph tile URL");
+  const [, buildKey, z, x, y] = match;
+  const manifestPath = buildGraphManifests.get(buildKey);
+  if (!manifestPath) throw new Error(`Unknown retained build key: ${buildKey}`);
+  const data = await invoke<number[]>("graph_tile_for_build", {
+    manifestPath,
+    z: Number(z),
+    x: Number(x),
+    y: Number(y),
+  });
+  return { data: new Uint8Array(data).buffer };
+});
+
 const map = new MapLibreMap({
   container: "map",
   style: "https://tiles.openfreemap.org/styles/bright",
@@ -653,8 +670,35 @@ const borderDiffBOnlyLayer = "roadpilot-border-b-only";
 const buildDiffSource = "roadpilot-build-boundary-diff";
 const buildDiffFillLayer = "roadpilot-build-boundary-diff-fill";
 const buildDiffLineLayer = "roadpilot-build-boundary-diff-line";
+const buildRoadSourceA = "roadpilot-build-road-a";
+const buildRoadSourceB = "roadpilot-build-road-b";
+const buildRoadHiddenLayerA = "roadpilot-build-road-a-hidden";
+const buildRoadHiddenLayerB = "roadpilot-build-road-b-hidden";
+const buildRoadDiffSource = "roadpilot-build-road-diff";
+const buildRoadAddedLayer = "roadpilot-build-road-added";
+const buildRoadRemovedLayer = "roadpilot-build-road-removed";
+const buildRoadChangedLayer = "roadpilot-build-road-changed";
+let buildComparisonGeneration = 0;
+
+function removeBuildRoadDiff(): void {
+  for (const id of [
+    buildRoadAddedLayer,
+    buildRoadRemovedLayer,
+    buildRoadChangedLayer,
+    buildRoadHiddenLayerA,
+    buildRoadHiddenLayerB,
+  ]) {
+    if (map.getLayer(id)) map.removeLayer(id);
+  }
+  for (const id of [buildRoadDiffSource, buildRoadSourceA, buildRoadSourceB]) {
+    if (map.getSource(id)) map.removeSource(id);
+  }
+  buildGraphManifests.delete("a");
+  buildGraphManifests.delete("b");
+}
 
 function removeBuildDiffOverlay(): void {
+  removeBuildRoadDiff();
   for (const id of [buildDiffFillLayer, buildDiffLineLayer]) {
     if (map.getLayer(id)) map.removeLayer(id);
   }
@@ -710,6 +754,229 @@ function showBuildDiffOverlay(collection: FeatureCollection): void {
   if (bounds) {
     map.fitBounds([[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]], { padding: 70, duration: 450 });
   }
+}
+
+type RoadFeature = {
+  type: "Feature";
+  geometry: Geometry;
+  properties?: Record<string, unknown> | null;
+};
+
+type RoadAggregate = {
+  features: RoadFeature[];
+  attributeSignatures: Set<string>;
+  geometrySignatures: Set<string>;
+};
+
+const buildRoadComparableProperties = [
+  "use",
+  "country_crossing",
+  "access_forward",
+  "access_backward",
+  "length",
+  "speed_forward",
+  "speed_backward",
+  "speed_limit",
+  "tunnel",
+  "bridge",
+  "roundabout",
+  "destination_only",
+  "unpaved",
+  "surface",
+  "ramp",
+  "not_thru",
+  "layer",
+] as const;
+
+function normalizedNumber(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+function canonicalLineCoordinates(coordinates: number[][]): string {
+  const normalized = coordinates.map(([lng, lat]) => [normalizedNumber(lng), normalizedNumber(lat)]);
+  const forward = JSON.stringify(normalized);
+  const reverse = JSON.stringify([...normalized].reverse());
+  return forward < reverse ? forward : reverse;
+}
+
+function geometrySignature(geometry: Geometry): string {
+  if (geometry.type === "LineString") {
+    return "LineString:" + canonicalLineCoordinates(geometry.coordinates as number[][]);
+  }
+  if (geometry.type === "MultiLineString") {
+    const parts = (geometry.coordinates as number[][][]).map(canonicalLineCoordinates).sort();
+    return "MultiLineString:" + JSON.stringify(parts);
+  }
+  return JSON.stringify(geometry);
+}
+
+function geometryBounds(geometry: Geometry): [number, number, number, number] | null {
+  const points: number[][] = [];
+  const collect = (value: unknown): void => {
+    if (!Array.isArray(value)) return;
+    if (value.length >= 2 && typeof value[0] === "number" && typeof value[1] === "number") {
+      points.push([value[0], value[1]]);
+      return;
+    }
+    for (const item of value) collect(item);
+  };
+  if ("coordinates" in geometry) collect(geometry.coordinates);
+  if (!points.length) return null;
+  let minLng = points[0][0], maxLng = points[0][0];
+  let minLat = points[0][1], maxLat = points[0][1];
+  for (const [lng, lat] of points.slice(1)) {
+    minLng = Math.min(minLng, lng);
+    maxLng = Math.max(maxLng, lng);
+    minLat = Math.min(minLat, lat);
+    maxLat = Math.max(maxLat, lat);
+  }
+  return [minLng, minLat, maxLng, maxLat];
+}
+
+function boundaryTileBounds(collection: FeatureCollection): Array<[number, number, number, number]> {
+  return collection.features
+    .map(feature => geometryBounds(feature.geometry as Geometry))
+    .filter((value): value is [number, number, number, number] => value != null);
+}
+
+function boundsIntersect(a: [number, number, number, number], b: [number, number, number, number]): boolean {
+  return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+}
+
+function featureTouchesChangedBoundary(
+  geometry: Geometry,
+  changedBounds: Array<[number, number, number, number]>,
+): boolean {
+  const bounds = geometryBounds(geometry);
+  return bounds != null && changedBounds.some(candidate => boundsIntersect(bounds, candidate));
+}
+
+function roadAttributeSignature(properties: Record<string, unknown> | null | undefined): string {
+  return JSON.stringify(buildRoadComparableProperties.map(key => [key, properties?.[key] ?? null]));
+}
+
+function aggregateRoadWays(
+  features: ReturnType<typeof map.querySourceFeatures>,
+  changedBounds: Array<[number, number, number, number]>,
+): globalThis.Map<string, RoadAggregate> {
+  const ways = new globalThis.Map<string, RoadAggregate>();
+  for (const raw of features) {
+    const feature = raw as unknown as RoadFeature;
+    const osmId = edgeOsmId(feature);
+    if (!osmId || !featureTouchesChangedBoundary(feature.geometry, changedBounds)) continue;
+    let aggregate = ways.get(osmId);
+    if (!aggregate) {
+      aggregate = { features: [], attributeSignatures: new Set<string>(), geometrySignatures: new Set<string>() };
+      ways.set(osmId, aggregate);
+    }
+    aggregate.features.push(feature);
+    aggregate.attributeSignatures.add(roadAttributeSignature(feature.properties));
+    aggregate.geometrySignatures.add(geometrySignature(feature.geometry));
+  }
+  return ways;
+}
+
+function aggregateSignature(aggregate: RoadAggregate): string {
+  return JSON.stringify({
+    attributes: [...aggregate.attributeSignatures].sort(),
+    geometries: [...aggregate.geometrySignatures].sort(),
+  });
+}
+
+function renderBuildRoadDiffCollection(collection: FeatureCollection): void {
+  for (const id of [buildRoadAddedLayer, buildRoadRemovedLayer, buildRoadChangedLayer]) {
+    if (map.getLayer(id)) map.removeLayer(id);
+  }
+  if (map.getSource(buildRoadDiffSource)) map.removeSource(buildRoadDiffSource);
+  if (!collection.features.length) return;
+  map.addSource(buildRoadDiffSource, { type: "geojson", data: collection });
+  map.addLayer({
+    id: buildRoadAddedLayer, type: "line", source: buildRoadDiffSource,
+    filter: ["==", ["get", "classification"], "added"],
+    paint: { "line-color": "#42c58a", "line-width": 4, "line-opacity": 0.95 },
+  });
+  map.addLayer({
+    id: buildRoadRemovedLayer, type: "line", source: buildRoadDiffSource,
+    filter: ["==", ["get", "classification"], "removed"],
+    paint: { "line-color": "#e35d5b", "line-width": 4, "line-opacity": 0.95 },
+  });
+  map.addLayer({
+    id: buildRoadChangedLayer, type: "line", source: buildRoadDiffSource,
+    filter: ["==", ["get", "classification"], "changed"],
+    paint: { "line-color": "#f2a93b", "line-width": 4.6, "line-opacity": 0.98 },
+  });
+}
+
+function classifyBuildRoads(diff: BuildIndexDiff, generation: number): void {
+  if (generation !== buildComparisonGeneration) return;
+  const changedBounds = boundaryTileBounds(diff.changedBoundaryTiles);
+  if (!changedBounds.length) return;
+  const featuresA = map.querySourceFeatures(buildRoadSourceA, { sourceLayer: "edges" });
+  const featuresB = map.querySourceFeatures(buildRoadSourceB, { sourceLayer: "edges" });
+  const summary = document.querySelector<HTMLElement>("#buildRoadDiffSummary");
+  if (!featuresA.length && !featuresB.length) {
+    if (summary) summary.textContent = "no retained edge features loaded for the changed boundary window";
+    return;
+  }
+  const waysA = aggregateRoadWays(featuresA, changedBounds);
+  const waysB = aggregateRoadWays(featuresB, changedBounds);
+  const ids = new Set([...waysA.keys(), ...waysB.keys()]);
+  let added = 0, removed = 0, changed = 0, unchanged = 0;
+  const output: Feature[] = [];
+  const seen = new Set<string>();
+  const emit = (aggregate: RoadAggregate, classification: "added" | "removed" | "changed", side: "A" | "B", osmId: string): void => {
+    for (const feature of aggregate.features) {
+      const key = classification + ":" + side + ":" + osmId + ":" + geometrySignature(feature.geometry);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      output.push({
+        type: "Feature", geometry: feature.geometry,
+        properties: { ...(feature.properties ?? {}), classification, source_build: side, osm_id: osmId },
+      });
+    }
+  };
+  for (const osmId of ids) {
+    const a = waysA.get(osmId);
+    const b = waysB.get(osmId);
+    if (!a && b) { added += 1; emit(b, "added", "B", osmId); continue; }
+    if (a && !b) { removed += 1; emit(a, "removed", "A", osmId); continue; }
+    if (!a || !b) continue;
+    if (aggregateSignature(a) !== aggregateSignature(b)) {
+      changed += 1;
+      emit(b, "changed", "B", osmId);
+    } else {
+      unchanged += 1;
+    }
+  }
+  renderBuildRoadDiffCollection({ type: "FeatureCollection", features: output });
+  if (summary) {
+    const stateClass = added || removed || changed ? "warn" : "ok";
+    summary.innerHTML =
+      "<span class=\"" + stateClass + "\">" +
+      added + " added / " + removed + " removed / " + changed + " changed / " + unchanged + " unchanged OSM ways</span>" +
+      "<small> (" + featuresA.length + " A edges / " + featuresB.length + " B edges loaded)</small>";
+  }
+}
+
+function loadBuildRoadComparison(a: BuildArtifact, b: BuildArtifact, diff: BuildIndexDiff, generation: number): void {
+  if (!diff.changedBoundaryTiles.features.length) return;
+  buildGraphManifests.set("a", a.manifest_path);
+  buildGraphManifests.set("b", b.manifest_path);
+  map.addSource(buildRoadSourceA, {
+    type: "vector", tiles: ["roadpilot-build-graph://a/{z}/{x}/{y}.mvt"], minzoom: 5, maxzoom: 18,
+  });
+  map.addSource(buildRoadSourceB, {
+    type: "vector", tiles: ["roadpilot-build-graph://b/{z}/{x}/{y}.mvt"], minzoom: 5, maxzoom: 18,
+  });
+  map.addLayer({
+    id: buildRoadHiddenLayerA, type: "line", source: buildRoadSourceA, "source-layer": "edges",
+    paint: { "line-opacity": 0.01, "line-width": 0.5 },
+  });
+  map.addLayer({
+    id: buildRoadHiddenLayerB, type: "line", source: buildRoadSourceB, "source-layer": "edges",
+    paint: { "line-opacity": 0.01, "line-width": 0.5 },
+  });
+  map.once("idle", () => classifyBuildRoads(diff, generation));
 }
 
 function removeBorderRoadDiff(): void {
@@ -1860,6 +2127,7 @@ function renderCompareSelectors(): void {
 }
 
 async function renderComparison(): Promise<void> {
+  const generation = ++buildComparisonGeneration;
   removeBuildDiffOverlay();
   const ai = Number(compareA.value);
   const bi = Number(compareB.value);
@@ -1895,6 +2163,7 @@ async function renderComparison(): Promise<void> {
       manifestPathA: a.manifest_path,
       manifestPathB: b.manifest_path,
     });
+    if (generation !== buildComparisonGeneration) return;
     const graphChanged = diff.graphTileFingerprintA !== diff.graphTileFingerprintB;
     const internalChanged = diff.internalFingerprintA !== diff.internalFingerprintB;
     const refreshBoundaries = diff.boundaries.filter(item => item.requiresRefresh);
@@ -1910,8 +2179,12 @@ async function renderComparison(): Promise<void> {
       <dt>Boundary changed tiles</dt><dd class="${diff.counts.boundaryChangedTiles ? "warn" : "ok"}">${diff.counts.boundaryChangedTiles}</dd>
       <dt>Neighbor metadata refresh</dt><dd class="${refreshBoundaries.length ? "warn" : "ok"}">${refreshBoundaries.length ? refreshBoundaries.map(item => item.sourceId).join(", ") : "none"}</dd>
       <dt>Boundary fingerprints</dt><dd>${boundaryRows}</dd>
+      <dt>Road-level boundary diff</dt><dd id="buildRoadDiffSummary">${diff.changedBoundaryTiles.features.length ? "loading retained Build A/B roads…" : "no changed boundary tiles"}</dd>
     `;
     showBuildDiffOverlay(diff.changedBoundaryTiles);
+    if (diff.changedBoundaryTiles.features.length) {
+      loadBuildRoadComparison(a, b, diff, generation);
+    }
   } catch (error) {
     comparison.innerHTML = basic + `<dt>Graph diff</dt><dd class="bad">${String(error)}</dd>`;
   }

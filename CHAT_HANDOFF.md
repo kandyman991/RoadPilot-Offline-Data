@@ -38,7 +38,7 @@ Implementation direction:
 - each configured neighboring Geofabrik source receives a conservative boundary/overlap fingerprint;
 - Build Comparison reports added/removed/modified tiles and REFRESH/UNCHANGED for each neighbor;
 - changed boundary tiles are visualized on the map;
-- road/edge-level changed-road visualization follows as the next #13 refinement.
+- road/edge-level changed-road visualization is implemented in PR #25 using retained Build A/B packs and stable OSM/geometry/access evidence.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -59,9 +59,9 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Finish and merge the first issue #13 deterministic graph/boundary-index milestone.
-2. Add road/edge-level changed-border visualization for indexed build A/B pairs.
-3. Use boundary fingerprints to drive build-time connectivity manifests / F8 seeds.
+1. Get PR #25 green and merge the road-level retained-build boundary diff milestone.
+2. Validate the retained-build comparison on two real local versions of the same region in Graph Studio.
+3. Use the resulting boundary fingerprints/change evidence to drive build-time connectivity manifests / F8 seeds.
 4. Then proceed to R2 publication, visual-map artifact, POI/search artifact, and scheduled updates as defined in `ROADMAP.md`.
 ## Handoff maintenance
 

@@ -2259,6 +2259,143 @@ fn valhalla_config_for(app: &AppHandle, region_id: &str) -> Result<PathBuf, Stri
     Ok(config)
 }
 
+fn valhalla_config_for_build(app: &AppHandle, raw_manifest_path: &str) -> Result<PathBuf, String> {
+    let manifest_path = safe_build_manifest_path(app, raw_manifest_path)?;
+    let text = fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("Could not read {}: {e}", manifest_path.display()))?;
+    let manifest: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse {}: {e}", manifest_path.display()))?;
+
+    let region_id = manifest
+        .get("regionId")
+        .and_then(Value::as_str)
+        .ok_or("Build manifest is missing regionId.")?;
+    let version = manifest
+        .get("packageVersion")
+        .and_then(Value::as_str)
+        .ok_or("Build manifest is missing packageVersion.")?;
+    if !safe_token(region_id) || !safe_token(version) {
+        return Err("Build manifest contains an unsafe region/version identifier.".into());
+    }
+
+    let artifact_name = manifest
+        .pointer("/artifact/fileName")
+        .and_then(Value::as_str)
+        .ok_or("Build manifest is missing artifact.fileName.")?;
+    let manifest_dir = manifest_path
+        .parent()
+        .ok_or("Build manifest has no parent directory.")?
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve build directory: {e}"))?;
+    let artifact_path = manifest_dir
+        .join(artifact_name)
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve retained routing pack {artifact_name}: {e}"))?;
+    if !artifact_path.starts_with(&manifest_dir) || !artifact_path.is_file() {
+        return Err("Retained routing pack is outside the build directory or missing.".into());
+    }
+
+    let base_config_path = valhalla_config_for(app, region_id)?;
+    let base_text = fs::read_to_string(&base_config_path)
+        .map_err(|e| format!("Could not read {}: {e}", base_config_path.display()))?;
+    let mut config: Value = serde_json::from_str(&base_text)
+        .map_err(|e| format!("Could not parse {}: {e}", base_config_path.display()))?;
+
+    let cache = workspace_root(app)?
+        .join("cache")
+        .join("build-diff")
+        .join(format!("{region_id}--{version}"));
+    let empty_tiles = cache.join("tiles");
+    fs::create_dir_all(&empty_tiles)
+        .map_err(|e| format!("Could not create historical graph cache: {e}"))?;
+    let config_path = cache.join("valhalla.json");
+
+    let mjolnir = config
+        .get_mut("mjolnir")
+        .and_then(Value::as_object_mut)
+        .ok_or("Valhalla config is missing mjolnir settings.")?;
+    mjolnir.insert(
+        "tile_extract".into(),
+        Value::String(artifact_path.display().to_string()),
+    );
+    mjolnir.insert(
+        "tile_dir".into(),
+        Value::String(empty_tiles.display().to_string()),
+    );
+    mjolnir.remove("traffic_extract");
+
+    let serialized = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Could not serialize historical Valhalla config: {e}"))?;
+    fs::write(&config_path, serialized)
+        .map_err(|e| format!("Could not write {}: {e}", config_path.display()))?;
+    Ok(config_path)
+}
+
+fn render_graph_tile(config: &Path, z: u8, x: u32, y: u32) -> Result<Vec<u8>, String> {
+    if z > 30 {
+        return Err("Invalid graph tile zoom.".into());
+    }
+    let max = if z >= 32 { u64::MAX } else { 1_u64 << z };
+    if u64::from(x) >= max || u64::from(y) >= max {
+        return Err("Invalid graph tile coordinate.".into());
+    }
+
+    let request = json!({
+        "tile": {"z": z, "x": x, "y": y},
+        "generalize": 1.0,
+        "filters": {
+            "action": "include",
+            "attributes": [
+                "edge.osm_id",
+                "edge.country_crossing",
+                "edge.use",
+                "edge.access_forward",
+                "edge.access_backward",
+                "edge.length",
+                "edge.speed_forward",
+                "edge.speed_backward",
+                "edge.speed_limit",
+                "edge.tunnel",
+                "edge.bridge",
+                "edge.roundabout",
+                "edge.destination_only",
+                "edge.unpaved",
+                "edge.surface",
+                "edge.ramp",
+                "edge.not_thru",
+                "edge.layer"
+            ]
+        }
+    })
+    .to_string();
+    let output = Command::new("valhalla_service")
+        .arg(config)
+        .arg("tile")
+        .arg(request)
+        .output()
+        .map_err(|e| format!("Could not render Valhalla graph tile: {e}"))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    if output.stdout.is_empty() {
+        return Err("Valhalla returned an empty graph tile.".into());
+    }
+    Ok(output.stdout)
+}
+
+#[tauri::command]
+fn graph_tile_for_build(
+    app: AppHandle,
+    manifest_path: String,
+    z: u8,
+    x: u32,
+    y: u32,
+) -> Result<Vec<u8>, String> {
+    let config = valhalla_config_for_build(&app, &manifest_path)?;
+    render_graph_tile(&config, z, x, y)
+}
+
 fn validate_route_request(
     start_lat: f64,
     start_lng: f64,
@@ -2519,43 +2656,8 @@ fn graph_tile(
     x: u32,
     y: u32,
 ) -> Result<Vec<u8>, String> {
-    if z > 30 {
-        return Err("Invalid graph tile zoom.".into());
-    }
-    let max = if z >= 32 { u64::MAX } else { 1_u64 << z };
-    if u64::from(x) >= max || u64::from(y) >= max {
-        return Err("Invalid graph tile coordinate.".into());
-    }
-
     let config = valhalla_config_for(&app, &region_id)?;
-    let request = json!({
-        "tile": {"z": z, "x": x, "y": y},
-        "filters": {
-            "action": "include",
-            "attributes": [
-                "edge.osm_id",
-                "edge.country_crossing",
-                "edge.use",
-                "edge.access_forward",
-                "edge.access_backward"
-            ]
-        }
-    })
-    .to_string();
-    let output = Command::new("valhalla_service")
-        .arg(config)
-        .arg("tile")
-        .arg(request)
-        .output()
-        .map_err(|e| format!("Could not render Valhalla graph tile: {e}"))?;
-
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    if output.stdout.is_empty() {
-        return Err("Valhalla returned an empty graph tile.".into());
-    }
-    Ok(output.stdout)
+    render_graph_tile(&config, z, x, y)
 }
 
 pub fn run() {
@@ -2585,7 +2687,8 @@ pub fn run() {
             plan_route,
             route_expansion,
             inspect_locate,
-            graph_tile
+            graph_tile,
+            graph_tile_for_build
         ])
         .run(tauri::generate_context!())
         .expect("error while running RoadPilot Graph Studio");
