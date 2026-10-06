@@ -176,31 +176,41 @@ def local_projection(from_geometry, to_geometry):
     return forward, backward
 
 
-def iter_frontier_hits(geometry) -> Iterable[tuple[str, Point, float]]:
+def iter_frontier_hits(
+    geometry,
+    forward_transform,
+) -> Iterable[tuple[str, Point, float]]:
+    """Yield metric-local frontier anchors from WGS84 topology.
+
+    Topological intersection stays in the original OSM coordinate space so a
+    road exactly following a nominal polygon boundary remains an overlap after
+    projection. Projection is used only after the topology is established.
+    """
     if geometry.is_empty:
         return
     if isinstance(geometry, Point):
-        yield ("CROSSING", geometry, 0.0)
+        yield ("CROSSING", transform(forward_transform, geometry), 0.0)
         return
     if isinstance(geometry, MultiPoint):
         for item in geometry.geoms:
-            yield ("CROSSING", item, 0.0)
+            yield ("CROSSING", transform(forward_transform, item), 0.0)
         return
     if isinstance(geometry, LineString):
-        if geometry.length > 0.01:
+        local = transform(forward_transform, geometry)
+        if local.length > 0.01:
             yield (
                 "FRONTIER_OVERLAP",
-                geometry.interpolate(geometry.length * 0.5),
-                geometry.length,
+                local.interpolate(local.length * 0.5),
+                local.length,
             )
         return
     if isinstance(geometry, MultiLineString):
         for item in geometry.geoms:
-            yield from iter_frontier_hits(item)
+            yield from iter_frontier_hits(item, forward_transform)
         return
     if isinstance(geometry, GeometryCollection):
         for item in geometry.geoms:
-            yield from iter_frontier_hits(item)
+            yield from iter_frontier_hits(item, forward_transform)
 
 
 def heading_degrees(line: LineString, distance: float) -> float:
@@ -315,8 +325,12 @@ def build_inventory(
     forward, backward = local_projection(from_wgs, to_wgs)
     from_local = transform(forward, from_wgs)
     to_local = transform(forward, to_wgs)
-    frontier = from_local.boundary.intersection(to_local.boundary)
-    if frontier.is_empty:
+
+    # Determine the actual shared frontier in original OSM/WGS84 topology.
+    # Projecting polygon edges before intersection can turn an exactly shared
+    # curved/geodesic boundary into two slightly different straight chords.
+    frontier_wgs = from_wgs.boundary.intersection(to_wgs.boundary)
+    if frontier_wgs.is_empty:
         fail(
             "Nominal region polygons do not share a frontier; "
             "refusing to invent a seam corridor"
@@ -351,15 +365,16 @@ def build_inventory(
                 # nominal regions. No heading, distance, road-class, or travel-mode
                 # filter is applied here; Valhalla proves those in a later stage.
                 if (
-                    line.intersection(from_local).length <= 0.01
-                    or line.intersection(to_local).length <= 0.01
+                    line_wgs.intersection(from_wgs).length <= 0.0
+                    or line_wgs.intersection(to_wgs).length <= 0.0
                 ):
                     continue
 
                 hits = []
                 seen = set()
                 for kind, point, overlap_length in iter_frontier_hits(
-                    line.intersection(frontier)
+                    line_wgs.intersection(frontier_wgs),
+                    forward,
                 ):
                     key = (kind, round(point.x, 3), round(point.y, 3))
                     if key in seen:
