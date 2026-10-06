@@ -24,5 +24,60 @@
         ]
       }
     ]
+  },
+  "routing": {
+    "enabled": true,
+    "borderBufferKm": 25,
+    "buildConcurrency": 12,
+    "source": {
+      "primaryGeofabrikId": "italy/nord-est",
+      "polygonUrl": "https://download.geofabrik.de/europe/italy/nord-est.poly",
+      "pbfs": [
+        {
+          "id": "italy/nord-est",
+          "url": "https://download.geofabrik.de/europe/italy/nord-est-latest.osm.pbf"
+        },
+        {
+          "id": "italy/nord-ovest",
+          "url": "https://download.geofabrik.de/europe/italy/nord-ovest-latest.osm.pbf"
+        },
+        {
+          "id": "italy/centro",
+          "url": "https://download.geofabrik.de/europe/italy/centro-latest.osm.pbf"
+        },
+        {
+          "id": "austria",
+          "url": "https://download.geofabrik.de/europe/austria-latest.osm.pbf"
+        },
+        {
+          "id": "switzerland",
+          "url": "https://download.geofabrik.de/europe/switzerland-latest.osm.pbf"
+        },
+        {
+          "id": "slovenia",
+          "url": "https://download.geofabrik.de/europe/slovenia-latest.osm.pbf"
+        }
+      ]
+    },
+    "package": {
+      "fileNameTemplate": "italy-nord-est-routing-{version}.tar",
+      "manifestFileNameTemplate": "italy-nord-est-routing-{version}-manifest.json"
+    },
+    "validationRoutes": [
+      {
+        "name": "dolomites-interior",
+        "kind": "interior",
+        "costing": "motorcycle",
+        "start": { "lat": 46.0748, "lng": 11.1217 },
+        "end": { "lat": 46.5405, "lng": 12.1357 }
+      },
+      {
+        "name": "coccau-austria-border",
+        "kind": "border",
+        "costing": "motorcycle",
+        "start": { "lat": 46.501885, "lng": 13.592668 },
+        "end": { "lat": 46.592234, "lng": 13.846448 }
+      }
+    ]
   }
 }
