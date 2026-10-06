@@ -48,7 +48,8 @@ Each region is intended to expose independently versioned routing, visual, and s
 | Region editor + Geofabrik discovery | #10 / PR #18 | Merged | Region creation/editing, buffer preview, automatic source discovery |
 | Standard Valhalla route planner | #12 / PR #19 | Merged | Normal routing, costing controls, route geometry, maneuvers, search expansion |
 | Border inspector + manual crossings | #11 / PRs #20-#23 | Merged | A/B road diff, manual/automatic/learned handoffs, validation, stale detection, diagnostics export |
-| Exact graph/boundary diffing | #13 | Active | Deterministic graph-tile index, internal-vs-boundary changes, per-neighbor fingerprints |
+| Exact graph/boundary diffing | #13 / PRs #24-#25 | Merged | Deterministic graph/boundary fingerprints plus retained-build road-level diffing |
+| Build-time cross-region connectivity | #26 | Active | Fingerprint-bound pair manifests, discovery/proof pipeline, F8 runtime fallback |
 | Cloudflare R2 publication manager | #14 | Planned | Publish validated immutable packs and manage latest pointers |
 | Visual map production/inspection | #16 | Planned | Lightweight RoadPilot offline vector-map artifact |
 | POI/search production/inspection | #17 | Planned | Overture/SQLite offline search artifact |
@@ -133,49 +134,44 @@ Implemented:
 - graph-fingerprint stale detection;
 - JSON + Markdown diagnostics export.
 
-## Active — Exact graph and boundary diffing (#13)
+## Completed — Exact graph and boundary diffing (#13)
 
-The first #13 milestone adds a deterministic graph index for every newly built routing pack:
-- SHA-256 for every Valhalla `.gph` tile;
-- a graph-tile fingerprint independent from tar packing metadata;
-- an internal-graph fingerprint;
-- conservative per-neighbor boundary/overlap fingerprints using configured Geofabrik source polygons;
-- Build Comparison counts for added/removed/modified graph tiles;
-- explicit per-neighbor REFRESH/UNCHANGED decisions;
-- changed boundary-tile visualization on the map.
+Issue #13 is complete across PRs #24-#25.
 
-Road/edge-level comparison remains the next #13 refinement. Graph-local edge IDs are not treated as stable identity across builds.
+Implemented:
+- deterministic per-`.gph` tile hashes and graph-tile fingerprint;
+- internal-only fingerprint;
+- conservative per-neighbor boundary/overlap fingerprints;
+- per-neighbor REFRESH/UNCHANGED decisions;
+- retained Build A/B graph loading through Valhalla;
+- added/removed/changed/unchanged boundary-road classification using stable OSM identity, canonicalized geometry and supported road/access attributes;
+- changed boundary-tile and changed-road map visualization;
+- graph-local edge ids are not treated as durable cross-build identity.
+
+## Active — Build-time cross-region connectivity metadata (#26)
+
+The first #26 milestone establishes a stable physical pair-manifest contract bound to the two
+regional graph versions for provenance and, critically, to the two relevant per-neighbor
+boundary fingerprints for surgical discovery reuse.
+
+The architecture separates expensive stable physical discovery from optional exact graph-local
+bindings. Internal-only graph rebuilds can therefore retain physical connectivity evidence when
+the relevant boundary is unchanged, while graph-local bindings can be regenerated cheaply.
+
 ## Next
 
-### 1. Finish exact graph and boundary diffing (#13)
-
-Goal:
-
-~~~
-build A + build B
-       ↓
-deterministic tile/road identities
-       ↓
-internal vs boundary changes
-       ↓
-per-neighbor refresh decision
-       ↓
-changed boundary roads on map
-~~~
-
-After the first tile-index milestone, refine changed boundary tiles into stable road/edge-level differences using OSM identity, geometry and access attributes.
-### 2. Build-time cross-region connectivity metadata
+### 1. Build-time cross-region connectivity metadata (#26)
 
 This is the key step for removing expensive first-route F8 discovery from phones.
 
-During graph production, Graph Studio should derive compact RoadPilot connectivity metadata using stable real-world references wherever possible:
-- OSM way/node identity;
-- correlated GPS position;
-- direction;
-- road class/ref/name;
-- validated motorcycle/auto access;
-- regional graph fingerprints;
-- region-pair identity.
+Milestones:
+- fingerprint-bound region-pair manifest and validator;
+- boundary-edge inventory using stable real-world evidence;
+- physical crossing candidate generation;
+- plain-Valhalla motorcycle/auto direction proofs;
+- compact validated connectivity artifact for RoadPilot;
+- multi-hop region-chain composition;
+- rebuild only pair metadata whose relevant boundary fingerprint changed.
 
 Runtime target:
 
@@ -184,14 +180,14 @@ origin region
     ↓
 precomputed connectivity layer
     ↓
-region chain
+validated region chain
     ↓
 local Valhalla detailed routing
 ~~~
 
 F8 remains the fallback when metadata is missing, stale or ambiguous.
 
-### 3. Cloudflare R2 publication manager (#14)
+### 2. Cloudflare R2 publication manager (#14)
 
 Required behavior:
 - immutable versioned objects;

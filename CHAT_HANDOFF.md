@@ -26,19 +26,25 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Graph Studio exact graph/boundary diffing**, issue #13.
+**Graph Studio build-time cross-region connectivity metadata**, issue #26.
 
-Issue #11 is complete. PRs #20-#23 delivered the Border Inspector core, road diff, handoff artifact overlays, and diagnostics export.
+Issue #13 is complete. PR #24 added deterministic graph/boundary fingerprints and PR #25 added
+retained-build road-level boundary diffing.
 
-Current #13 milestone branch: `graph-studio-boundary-fingerprints-m1`.
+Current #26 milestone branch: `connectivity-pair-manifest-m1`.
 
-Implementation direction:
-- new builds emit deterministic per-`.gph` tile hashes;
-- graph-wide and internal-only tile fingerprints are recorded;
-- each configured neighboring Geofabrik source receives a conservative boundary/overlap fingerprint;
-- Build Comparison reports added/removed/modified tiles and REFRESH/UNCHANGED for each neighbor;
-- changed boundary tiles are visualized on the map;
-- road/edge-level changed-road visualization is implemented in PR #25 using retained Build A/B packs and stable OSM/geometry/access evidence.
+Current implementation:
+- `roadpilot.cross-region-connectivity` v1 schema;
+- generator that binds a directed RoadPilot region pair to both graph fingerprints and both mutual boundary fingerprints;
+- standard-library validator;
+- hosted synthetic smoke test for mutual boundary identity;
+- initial artifacts are `STABLE_PHYSICAL` / `UNPROVEN` with no graph-local IDs.
+
+Architectural split for #26:
+- stable physical discovery evidence is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;
+- exact graph-local bindings may be added later but are fingerprint-bound and cheap to regenerate;
+- F8 remains runtime fallback for missing/stale/ambiguous metadata.
+
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -55,14 +61,15 @@ Implementation direction:
 
 ## Experimental branches / PRs
 
-PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do not merge or revive them blindly. Compare their useful concepts against the current Graph Studio roadmap and issue #13/build-time connectivity work.
+PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do not merge or revive them blindly. Compare their useful concepts against the current Graph Studio roadmap and issue #26 connectivity work.
 
 ## Next exact action
 
-1. Get PR #25 green and merge the road-level retained-build boundary diff milestone.
-2. Validate the retained-build comparison on two real local versions of the same region in Graph Studio.
-3. Use the resulting boundary fingerprints/change evidence to drive build-time connectivity manifests / F8 seeds.
-4. Then proceed to R2 publication, visual-map artifact, POI/search artifact, and scheduled updates as defined in `ROADMAP.md`.
+1. Get the first #26 pair-manifest contract/generator/validator milestone green and merged.
+2. Add build-time boundary-edge inventory without using graph-local IDs as cross-build identity.
+3. Generate physical crossing candidates from stable road/GPS evidence.
+4. Validate candidates with plain Valhalla for motorcycle/auto and both travel directions.
+5. Compile validated region-pair metadata for RoadPilot; keep F8 as fallback.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.

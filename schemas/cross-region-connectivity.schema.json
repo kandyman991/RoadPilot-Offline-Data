@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.example/schemas/cross-region-connectivity-v1.json",
+  "title": "RoadPilot cross-region connectivity metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "pairId",
+    "fromRegionId",
+    "toRegionId",
+    "fromPackageVersion",
+    "toPackageVersion",
+    "fromGraphFingerprint",
+    "toGraphFingerprint",
+    "fromBoundarySourceId",
+    "toBoundarySourceId",
+    "fromBoundaryFingerprint",
+    "toBoundaryFingerprint",
+    "bindingState",
+    "validationState",
+    "generator",
+    "candidates"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot.cross-region-connectivity"
+    },
+    "version": {
+      "const": 1
+    },
+    "pairId": {
+      "type": "string",
+      "minLength": 3
+    },
+    "fromRegionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toRegionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fromPackageVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toPackageVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fromGraphFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "toGraphFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "fromBoundarySourceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toBoundarySourceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fromBoundaryFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "toBoundaryFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "bindingState": {
+      "enum": [
+        "STABLE_PHYSICAL"
+      ]
+    },
+    "validationState": {
+      "enum": [
+        "UNPROVEN",
+        "PARTIAL",
+        "VALIDATED"
+      ]
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
+    }
+  },
+  "$defs": {
+    "coordinate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lat",
+        "lng"
+      ],
+      "properties": {
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "lng": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "regionId",
+        "coordinate"
+      ],
+      "properties": {
+        "regionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "coordinate": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "wayId": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "roadRef": {
+          "type": "string"
+        },
+        "roadName": {
+          "type": "string"
+        },
+        "percentAlong": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "headingDegrees": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360
+        }
+      }
+    },
+    "proofDirection": {
+      "enum": [
+        "UNTESTED",
+        "VALID",
+        "FAILED"
+      ]
+    },
+    "modeProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fromTo",
+        "toFrom"
+      ],
+      "properties": {
+        "fromTo": {
+          "$ref": "#/$defs/proofDirection"
+        },
+        "toFrom": {
+          "$ref": "#/$defs/proofDirection"
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fromAnchor",
+        "toAnchor",
+        "matchEvidence",
+        "separationMeters",
+        "proofs"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^xrc1-[0-9a-f]{24}$"
+        },
+        "fromAnchor": {
+          "$ref": "#/$defs/anchor"
+        },
+        "toAnchor": {
+          "$ref": "#/$defs/anchor"
+        },
+        "matchEvidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "SAME_OSM_WAY",
+              "SHARED_ROAD_REF",
+              "SHARED_ROAD_NAME",
+              "SPATIAL_PROXIMITY"
+            ]
+          }
+        },
+        "separationMeters": {
+          "type": "number",
+          "minimum": 0
+        },
+        "proofs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "MOTORCYCLE",
+            "CAR"
+          ],
+          "properties": {
+            "MOTORCYCLE": {
+              "$ref": "#/$defs/modeProof"
+            },
+            "CAR": {
+              "$ref": "#/$defs/modeProof"
+            }
+          }
+        }
+      }
+    }
+  }
+}
