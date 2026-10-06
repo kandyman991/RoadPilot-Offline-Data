@@ -150,9 +150,8 @@ Implemented:
 
 ## Active — Build-time cross-region connectivity metadata (#26)
 
-PR #27 established the stable physical pair-manifest contract bound to the two
-regional graph versions for provenance and, critically, to the two relevant per-neighbor
-boundary fingerprints for surgical discovery reuse.
+PR #27 established the fingerprint-bound region-pair contract. PR #28 added stable OSM
+frontier-road inventory from real road geometry, including border-following roads.
 
 The architecture separates expensive stable physical discovery from optional exact graph-local
 bindings. Internal-only graph rebuilds can therefore retain physical connectivity evidence when
@@ -166,8 +165,12 @@ This is the key step for removing expensive first-route F8 discovery from phones
 
 Milestones:
 - fingerprint-bound region-pair manifest and validator — merged in PR #27;
-- stable OSM frontier-road inventory using real geometry and no graph-local ids — active;
-- independent Graph A/B Valhalla correlation of stable anchors;
+- stable OSM frontier-road inventory using real geometry and no graph-local ids — merged in PR #28;
+- independent Graph A/B Valhalla correlation of stable anchors — active;
+  - all usable locate candidates retained;
+  - same-OSM-way identity is ranking evidence, not a hard filter;
+  - A/B coordinates may differ;
+  - OSM frontier heading is evidence only, never inferred journey direction.
 - physical crossing candidate generation;
 - plain-Valhalla motorcycle/auto direction proofs;
 - compact validated connectivity artifact for RoadPilot;
