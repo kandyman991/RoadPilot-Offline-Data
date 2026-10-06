@@ -1083,6 +1083,328 @@ fn handoff_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn transition_artifact_dirs(app: &AppHandle) -> Result<Vec<PathBuf>, String> {
+    let workspace = workspace_root(app)?;
+    let transitions = workspace.join("transitions");
+    let imports = workspace.join("imports/handoffs");
+    fs::create_dir_all(&transitions)
+        .map_err(|e| format!("Could not create transition artifact directory: {e}"))?;
+    fs::create_dir_all(&imports)
+        .map_err(|e| format!("Could not create handoff import directory: {e}"))?;
+    Ok(vec![transitions, imports])
+}
+
+fn collect_json_files(root: &Path, depth: usize, output: &mut Vec<PathBuf>) {
+    if depth == 0 || !root.is_dir() || output.len() >= 1000 {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if output.len() >= 1000 {
+            break;
+        }
+        let path = entry.path();
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_symlink() {
+            continue;
+        }
+        if file_type.is_dir() {
+            collect_json_files(&path, depth - 1, output);
+        } else if file_type.is_file()
+            && path.extension().and_then(|value| value.to_str()) == Some("json")
+        {
+            output.push(path);
+        }
+    }
+}
+
+fn pair_matches(document: &Value, region_a: &str, region_b: &str) -> bool {
+    let from = document.get("fromRegionId").and_then(Value::as_str);
+    let to = document.get("toRegionId").and_then(Value::as_str);
+    matches!(
+        (from, to),
+        (Some(from), Some(to))
+            if (from == region_a && to == region_b) || (from == region_b && to == region_a)
+    )
+}
+
+fn coordinate_value(value: Option<&Value>) -> Option<Value> {
+    let value = value?;
+    let lat = value.get("lat")?.as_f64()?;
+    let lng = value.get("lng")?.as_f64()?;
+    if !lat.is_finite()
+        || !lng.is_finite()
+        || !(-90.0..=90.0).contains(&lat)
+        || !(-180.0..=180.0).contains(&lng)
+    {
+        return None;
+    }
+    Some(json!({"lat": lat, "lng": lng}))
+}
+
+fn artifact_fingerprint_status(
+    document: &Value,
+    current_a: &Value,
+    current_b: &Value,
+    region_a: &str,
+    region_b: &str,
+) -> &'static str {
+    let from = document.get("fromRegionId").and_then(Value::as_str).unwrap_or_default();
+    let to = document.get("toRegionId").and_then(Value::as_str).unwrap_or_default();
+    let from_fp = document.get("fromGraphFingerprint").and_then(Value::as_str);
+    let to_fp = document.get("toGraphFingerprint").and_then(Value::as_str);
+    let current_a_fp = current_a.get("graphFingerprint").and_then(Value::as_str);
+    let current_b_fp = current_b.get("graphFingerprint").and_then(Value::as_str);
+    let matches = if from == region_a && to == region_b {
+        from_fp == current_a_fp && to_fp == current_b_fp
+    } else if from == region_b && to == region_a {
+        from_fp == current_b_fp && to_fp == current_a_fp
+    } else {
+        false
+    };
+    if matches { "CURRENT" } else { "STALE" }
+}
+
+fn normalize_transition_document(
+    document: &Value,
+    path: &Path,
+    current_a: &Value,
+    current_b: &Value,
+    region_a: &str,
+    region_b: &str,
+    output: &mut Vec<Value>,
+) {
+    if !pair_matches(document, region_a, region_b) {
+        return;
+    }
+    let schema = document.get("schema").and_then(Value::as_str).unwrap_or_default();
+    let status = artifact_fingerprint_status(
+        document,
+        current_a,
+        current_b,
+        region_a,
+        region_b,
+    );
+    let from_region = document
+        .get("fromRegionId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let to_region = document
+        .get("toRegionId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let path_text = path.display().to_string();
+
+    match schema {
+        "roadpilot.transition-candidates" => {
+            for candidate in document
+                .get("candidates")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let Some(from_coordinate) =
+                    coordinate_value(candidate.pointer("/fromEdge/anchorCoordinate"))
+                else {
+                    continue;
+                };
+                let Some(to_coordinate) =
+                    coordinate_value(candidate.pointer("/toEdge/anchorCoordinate"))
+                else {
+                    continue;
+                };
+                output.push(json!({
+                    "kind": "candidate",
+                    "id": candidate.get("id").cloned().unwrap_or(Value::Null),
+                    "status": status,
+                    "fromRegionId": from_region,
+                    "toRegionId": to_region,
+                    "from": from_coordinate,
+                    "to": to_coordinate,
+                    "fromWayId": candidate.pointer("/fromEdge/wayId").cloned().unwrap_or(Value::Null),
+                    "toWayId": candidate.pointer("/toEdge/wayId").cloned().unwrap_or(Value::Null),
+                    "modes": candidate.get("commonTravelModes").cloned().unwrap_or_else(|| json!([])),
+                    "evidence": candidate.get("matchEvidence").cloned().unwrap_or_else(|| json!([])),
+                    "separationMeters": candidate.get("separationMeters").cloned().unwrap_or(Value::Null),
+                    "artifactPath": path_text
+                }));
+            }
+        }
+        "roadpilot.bound-cross-graph-transitions" => {
+            let mode = document.get("bindingMode").cloned().unwrap_or(Value::Null);
+            for transition in document
+                .get("transitions")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let Some(from_coordinate) =
+                    coordinate_value(transition.pointer("/fromBinding/proofCoordinate"))
+                else {
+                    continue;
+                };
+                let Some(to_coordinate) =
+                    coordinate_value(transition.pointer("/toBinding/proofCoordinate"))
+                else {
+                    continue;
+                };
+                output.push(json!({
+                    "kind": "accepted",
+                    "id": transition.get("sourceProofId").cloned().unwrap_or(Value::Null),
+                    "status": status,
+                    "fromRegionId": from_region,
+                    "toRegionId": to_region,
+                    "from": from_coordinate,
+                    "to": to_coordinate,
+                    "modes": [mode.clone()],
+                    "evidence": ["VALHALLA_PROVEN_BOUND_TRANSITION"],
+                    "artifactPath": path_text
+                }));
+            }
+        }
+        "roadpilot.cross-graph-transitions" => {
+            for transition in document
+                .get("transitions")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let Some(from_coordinate) =
+                    coordinate_value(transition.pointer("/fromAnchor/coordinate"))
+                else {
+                    continue;
+                };
+                let Some(to_coordinate) =
+                    coordinate_value(transition.pointer("/toAnchor/coordinate"))
+                else {
+                    continue;
+                };
+                output.push(json!({
+                    "kind": "learned",
+                    "id": transition.get("id").cloned().unwrap_or(Value::Null),
+                    "status": status,
+                    "fromRegionId": from_region,
+                    "toRegionId": to_region,
+                    "from": from_coordinate,
+                    "to": to_coordinate,
+                    "modes": transition.get("provenTravelModes").cloned().unwrap_or_else(|| json!([])),
+                    "evidence": transition.get("matchEvidence").cloned().map(|value| json!([value])).unwrap_or_else(|| json!([])),
+                    "separationMeters": transition.get("frontierSeparationMeters").cloned().unwrap_or(Value::Null),
+                    "artifactPath": path_text
+                }));
+            }
+        }
+        _ => {}
+    }
+}
+
+#[tauri::command]
+fn inspect_handoff_artifacts(
+    app: AppHandle,
+    region_a: String,
+    region_b: String,
+) -> Result<Value, String> {
+    handoff_pair_key(&region_a, &region_b)?;
+    let current_a = latest_graph_identity(&app, &region_a)?;
+    let current_b = latest_graph_identity(&app, &region_b)?;
+    let mut files = Vec::new();
+    for root in transition_artifact_dirs(&app)? {
+        collect_json_files(&root, 6, &mut files);
+    }
+    files.sort();
+    files.dedup();
+
+    let mut items = Vec::new();
+    let mut recognized_files = 0usize;
+    for path in files {
+        let Ok(metadata) = fs::metadata(&path) else {
+            continue;
+        };
+        if metadata.len() > 25 * 1024 * 1024 {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(document) = serde_json::from_str::<Value>(&text) else {
+            continue;
+        };
+        let before = items.len();
+        normalize_transition_document(
+            &document,
+            &path,
+            &current_a,
+            &current_b,
+            &region_a,
+            &region_b,
+            &mut items,
+        );
+        if items.len() > before {
+            recognized_files += 1;
+        }
+    }
+
+    for override_record in list_handoff_overrides(app.clone())? {
+        let a = override_record.get("regionA").and_then(Value::as_str);
+        let b = override_record.get("regionB").and_then(Value::as_str);
+        if !matches!(
+            (a, b),
+            (Some(a), Some(b))
+                if (a == region_a && b == region_b) || (a == region_b && b == region_a)
+        ) {
+            continue;
+        }
+        let Some(from_coordinate) = coordinate_value(override_record.pointer("/snapA/correlated"))
+        else {
+            continue;
+        };
+        let Some(to_coordinate) = coordinate_value(override_record.pointer("/snapB/correlated"))
+        else {
+            continue;
+        };
+        items.push(json!({
+            "kind": "manual",
+            "id": override_record.get("id").cloned().unwrap_or(Value::Null),
+            "status": override_record.get("status").cloned().unwrap_or(Value::String("STALE".into())),
+            "fromRegionId": override_record.get("regionA").cloned().unwrap_or(Value::Null),
+            "toRegionId": override_record.get("regionB").cloned().unwrap_or(Value::Null),
+            "from": from_coordinate,
+            "to": to_coordinate,
+            "modes": ["MOTORCYCLE", "CAR"],
+            "evidence": ["MANUAL_VALHALLA_PROOF"],
+            "artifactPath": "Graph Studio manual override layer"
+        }));
+    }
+
+    items.sort_by(|a, b| {
+        a.get("kind")
+            .and_then(Value::as_str)
+            .cmp(&b.get("kind").and_then(Value::as_str))
+            .then_with(|| {
+                a.get("id")
+                    .and_then(Value::as_str)
+                    .cmp(&b.get("id").and_then(Value::as_str))
+            })
+    });
+
+    Ok(json!({
+        "regionA": region_a,
+        "regionB": region_b,
+        "graphA": current_a,
+        "graphB": current_b,
+        "recognizedArtifactFiles": recognized_files,
+        "searchDirectories": transition_artifact_dirs(&app)?
+            .into_iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>(),
+        "items": items
+    }))
+}
+
 fn handoff_pair_key(region_a: &str, region_b: &str) -> Result<String, String> {
     if !safe_token(region_a) || !safe_token(region_b) || region_a == region_b {
         return Err("Manual handoff requires two different valid region ids.".into());
@@ -1760,6 +2082,7 @@ pub fn run() {
             save_handoff_override,
             list_handoff_overrides,
             delete_handoff_override,
+            inspect_handoff_artifacts,
             plan_route,
             route_expansion,
             inspect_locate,
