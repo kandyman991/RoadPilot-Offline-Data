@@ -24,7 +24,27 @@ Target regional artifacts are independently versioned:
 
 Rebuilding one artifact or one region must not force unrelated regional/artifact downloads.
 
-## Current focus\n\n**Graph Studio build-time cross-region connectivity metadata**, issue #26.\n\nIssue #13 is complete. PR #24 added deterministic graph/boundary fingerprints and PR #25 added\nretained-build road-level boundary diffing.\n\nCurrent #26 milestone branch: `connectivity-pair-manifest-m1`.\n\nCurrent implementation:\n- `roadpilot.cross-region-connectivity` v1 schema;\n- generator that binds a directed RoadPilot region pair to both graph fingerprints and both mutual boundary fingerprints;\n- standard-library validator;\n- hosted synthetic smoke test for mutual boundary identity;\n- initial artifacts are `STABLE_PHYSICAL` / `UNPROVEN` with no graph-local IDs.\n\nArchitectural split for #26:\n- stable physical discovery evidence is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;\n- exact graph-local bindings may be added later but are fingerprint-bound and cheap to regenerate;\n- F8 remains runtime fallback for missing/stale/ambiguous metadata.\n## Critical architectural decisions
+## Current focus
+
+**Graph Studio build-time cross-region connectivity metadata**, issue #26.
+
+Issue #13 is complete. PR #24 added deterministic graph/boundary fingerprints and PR #25 added
+retained-build road-level boundary diffing.
+
+Current #26 milestone branch: `connectivity-pair-manifest-m1`.
+
+Current implementation:
+- `roadpilot.cross-region-connectivity` v1 schema;
+- generator that binds a directed RoadPilot region pair to both graph fingerprints and both mutual boundary fingerprints;
+- standard-library validator;
+- hosted synthetic smoke test for mutual boundary identity;
+- initial artifacts are `STABLE_PHYSICAL` / `UNPROVEN` with no graph-local IDs.
+
+Architectural split for #26:
+- stable physical discovery evidence is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;
+- exact graph-local bindings may be added later but are fingerprint-bound and cheap to regenerate;
+- F8 remains runtime fallback for missing/stale/ambiguous metadata.
+## Critical architectural decisions
 
 - Regional graphs stay independent.
 - Valhalla pin for production compatibility is 3.6.3.
@@ -42,6 +62,13 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do not merge or revive them blindly. Compare their useful concepts against the current Graph Studio roadmap and issue #13/build-time connectivity work.
 
-## Next exact action\n\n1. Get the first #26 pair-manifest contract/generator/validator milestone green and merged.\n2. Add build-time boundary-edge inventory without using graph-local IDs as cross-build identity.\n3. Generate physical crossing candidates from stable road/GPS evidence.\n4. Validate candidates with plain Valhalla for motorcycle/auto and both travel directions.\n5. Compile validated region-pair metadata for RoadPilot; keep F8 as fallback.\n## Handoff maintenance
+## Next exact action
+
+1. Get the first #26 pair-manifest contract/generator/validator milestone green and merged.
+2. Add build-time boundary-edge inventory without using graph-local IDs as cross-build identity.
+3. Generate physical crossing candidates from stable road/GPS evidence.
+4. Validate candidates with plain Valhalla for motorcycle/auto and both travel directions.
+5. Compile validated region-pair metadata for RoadPilot; keep F8 as fallback.
+## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
