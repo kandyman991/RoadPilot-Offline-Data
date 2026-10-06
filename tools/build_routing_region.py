@@ -277,7 +277,8 @@ def main() -> None:
     tile_extract = build_root / "tiles.tar"
     admin_db = build_root / "admins.sqlite"
     timezone_db = build_root / "timezones.sqlite"
-    tile_dir.delete(recursive=True) if False else None
+    if tile_dir.exists():
+        shutil.rmtree(tile_dir)
     tile_dir.mkdir(parents=True, exist_ok=True)
     tile_extract.unlink(missing_ok=True)
     admin_db.unlink(missing_ok=True)
