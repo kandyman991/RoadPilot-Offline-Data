@@ -117,3 +117,27 @@ Artifacts copied from a device or another workstation can be placed under:
 Graph Studio compares every artifact's region-pair graph fingerprints against the latest local
 routing builds and marks it CURRENT/VALID or STALE. Graph-local IDs are never compared between
 independent graphs.
+
+
+## Border diagnostics report
+
+The Border Inspector can export a compact development report for the currently selected regional
+graph pair.
+
+Reports are written under:
+
+```text
+~/RoadPilotGraphStudio/reports/
+```
+
+Each export produces both JSON and Markdown and records:
+
+- the exact Graph A and Graph B package versions/fingerprints;
+- the currently loaded common / A-only / B-only OSM-way counts;
+- loaded graph-edge counts and edges without OSM identity;
+- candidate, accepted/bound, learned and manual handoff counts with CURRENT/VALID vs STALE state;
+- a bounded list of notable handoffs;
+- the currently selected manual crossing's full eight-probe Valhalla validation when present.
+
+Changing either selected graph clears the previous pair's road-diff/report state before another
+report can be exported.
