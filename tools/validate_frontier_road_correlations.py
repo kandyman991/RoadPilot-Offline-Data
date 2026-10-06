@@ -106,9 +106,10 @@ def candidate(value: Any, stable_way_id: int, expected_rank: int, label: str) ->
     names = value.get("roadNames")
     require(isinstance(names, list), f"{label}.roadNames must be an array")
     require(
-        len(names) == len(set(names)) and all(isinstance(item, str) for item in names),
+        all(isinstance(item, str) for item in names),
         f"{label}.roadNames invalid",
     )
+    require(len(names) == len(set(names)), f"{label}.roadNames contains duplicates")
 
     access = value.get("access")
     require(isinstance(access, dict), f"{label}.access must be an object")
@@ -224,6 +225,14 @@ def main() -> int:
         )
         require(item.get("crossingKind") in KINDS, f"{label}.crossingKind invalid")
         coordinate(item.get("frontierCoordinate"), f"{label}.frontierCoordinate")
+        heading = finite(item.get("frontierHeadingDegrees"), f"{label}.frontierHeadingDegrees")
+        require(0 <= heading < 360, f"{label}.frontierHeadingDegrees invalid")
+        tags = item.get("routingTags")
+        require(isinstance(tags, dict), f"{label}.routingTags must be an object")
+        require(
+            all(isinstance(key, str) and isinstance(value, str) for key, value in tags.items()),
+            f"{label}.routingTags invalid",
+        )
         side(item.get("fromGraph"), way_id, f"{label}.fromGraph")
         side(item.get("toGraph"), way_id, f"{label}.toGraph")
 
