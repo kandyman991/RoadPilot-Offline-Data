@@ -247,6 +247,157 @@ jobs:
           print("stable frontier road inventory smoke test passed")
           PY
 
+      - name: Smoke-test independent Valhalla frontier correlation
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-correlation"
+          mkdir -p "$root/bin" "$root/from" "$root/to"
+          printf 'graph-a' > "$root/from/a.tar"
+          printf 'graph-b' > "$root/to/b.tar"
+
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          def digest(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          a_sha = digest(root / "from" / "a.tar")
+          b_sha = digest(root / "to" / "b.tar")
+          a = {
+              "schema": "roadpilot-routing-pack",
+              "schemaVersion": 1,
+              "regionId": "region-a",
+              "regionName": "Region A",
+              "packageVersion": "a-v1",
+              "graphFingerprint": "sha256:" + a_sha,
+              "source": {"primaryGeofabrikId": "country/region-a"},
+              "artifact": {"fileName": "a.tar", "sha256": a_sha},
+              "graphIndex": {
+                  "boundaryFingerprints": {
+                      "country/region-b": "sha256:" + "c" * 64
+                  }
+              },
+          }
+          b = {
+              "schema": "roadpilot-routing-pack",
+              "schemaVersion": 1,
+              "regionId": "region-b",
+              "regionName": "Region B",
+              "packageVersion": "b-v1",
+              "graphFingerprint": "sha256:" + b_sha,
+              "source": {"primaryGeofabrikId": "country/region-b"},
+              "artifact": {"fileName": "b.tar", "sha256": b_sha},
+              "graphIndex": {
+                  "boundaryFingerprints": {
+                      "country/region-a": "sha256:" + "d" * 64
+                  }
+              },
+          }
+          (root / "from" / "manifest.json").write_text(json.dumps(a))
+          (root / "to" / "manifest.json").write_text(json.dumps(b))
+          PY
+
+          cat > "$root/bin/valhalla_build_config" <<'PY'
+          #!/usr/bin/env python3
+          import json
+          import sys
+          args = sys.argv[1:]
+          tile_extract = args[args.index("--mjolnir-tile-extract") + 1]
+          tile_dir = args[args.index("--mjolnir-tile-dir") + 1]
+          print(json.dumps({"mjolnir":{"tile_extract":tile_extract,"tile_dir":tile_dir}}))
+          PY
+          chmod +x "$root/bin/valhalla_build_config"
+
+          cat > "$root/bin/valhalla_service" <<'PY'
+          #!/usr/bin/env python3
+          import json
+          import sys
+
+          config = json.load(open(sys.argv[1]))
+          request = json.loads(sys.argv[3])
+          point = request["locations"][0]
+          is_a = config["mjolnir"]["tile_extract"].endswith("/a.tar")
+          shift = 0.0002 if is_a else -0.0002
+          base = 1000 if is_a else 2000
+
+          def edge(way_id, offset, graph_id, heading):
+              return {
+                  "edge_id": {"value": graph_id},
+                  "edge_info": {
+                      "way_id": way_id,
+                      "names": ["Road " + str(way_id)],
+                  },
+                  "edge": {
+                      "classification": {"classification": "primary"},
+                      "access": {"car": True, "motorcycle": True},
+                      "use": "road",
+                  },
+                  "percent_along": 0.5,
+                  "heading": heading,
+                  "correlated_lat": point["lat"],
+                  "correlated_lon": point["lon"] + offset,
+              }
+
+          # Wrong way 999 is closest on purpose. Stable way matches must be ranked
+          # first as evidence, but this wrong-way candidate must remain in output.
+          result = [{
+              "input_lat": point["lat"],
+              "input_lon": point["lon"],
+              "edges": [
+                  edge(999, 0.00001, base + 1, 5),
+                  edge(100, shift, base + 2, 275),
+                  edge(102, shift * 1.5, base + 3, 95),
+              ],
+          }]
+          print(json.dumps(result))
+          PY
+          chmod +x "$root/bin/valhalla_service"
+
+          PATH="$root/bin:$PATH" python tools/correlate_frontier_roads.py \
+            --inventory "$RUNNER_TEMP/frontier-inventory/inventory.json" \
+            --from-manifest "$root/from/manifest.json" \
+            --to-manifest "$root/to/manifest.json" \
+            --output "$root/correlations.json"
+
+          python tools/validate_frontier_road_correlations.py \
+            --artifact "$root/correlations.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          data = json.loads((root / "correlations.json").read_text())
+          assert len(data["correlations"]) == 2
+          by_way = {item["wayId"]: item for item in data["correlations"]}
+
+          for way_id in (100, 102):
+              item = by_way[way_id]
+              for side in ("fromGraph", "toGraph"):
+                  result = item[side]
+                  assert result["status"] == "CORRELATED"
+                  assert result["candidateCount"] == 3
+                  assert result["sameWayCandidateCount"] == 1
+                  assert result["candidates"][0]["wayId"] == way_id
+                  assert result["candidates"][0]["wayMatch"] is True
+                  assert any(candidate["wayId"] == 999 for candidate in result["candidates"])
+
+              a = item["fromGraph"]["candidates"][0]["correlatedCoordinate"]
+              b = item["toGraph"]["candidates"][0]["correlatedCoordinate"]
+              assert a != b
+
+          # Large heading disagreement is retained as evidence; it is not a
+          # pre-Valhalla rejection criterion in this stage.
+          assert by_way[100]["fromGraph"]["candidates"][0]["headingDegrees"] == 275
+          print("independent Valhalla frontier correlation smoke test passed")
+          PY
+
       - name: Verify hosted routing toolchain
         shell: bash
         run: |
