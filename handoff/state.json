@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-06T18:10:42.316Z",
+  "generatedAt": "2026-10-06T18:16:49.239Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,21 +11,11 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "5460c4bb369ec3ec4795d9314267660b05947e0c",
-    "message": "Avoid handoff state commits on PR updates",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/5460c4bb369ec3ec4795d9314267660b05947e0c"
+    "sha": "b230cd2159356aecdc35ddf687e364a3c4691166",
+    "message": "Add Graph Studio border inspector and manual crossing overrides (#20)\n\n* Add manual border handoff override backend\n\n* Add dual-graph border inspector and manual handoff UI\n\n* Style border inspector and manual overrides\n\n* Revalidate saved handoff overrides in place",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/b230cd2159356aecdc35ddf687e364a3c4691166"
   },
   "openPullRequests": [
-    {
-      "number": 20,
-      "title": "Add Graph Studio border inspector and manual crossing overrides",
-      "draft": false,
-      "head": "graph-studio-border-inspector-v2",
-      "headSha": "65694fb45b5227553b61b9af9393a2a4fa211fdf",
-      "base": "main",
-      "updatedAt": "2026-10-06T18:05:25Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/pull/20"
-    },
     {
       "number": 6,
       "title": "Routing: generate exhaustive cross-graph transition candidates offline",
@@ -98,6 +88,39 @@
     }
   ],
   "recentWorkflowRuns": [
+    {
+      "id": 37510058327,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "b230cd2159356aecdc35ddf687e364a3c4691166",
+      "event": "push",
+      "updatedAt": "2026-10-06T18:16:44Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37510058327"
+    },
+    {
+      "id": 37509366003,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "graph-studio-border-inspector-v2",
+      "headSha": "2f0aac8342a9af45eb03e92dde2ae501ea7dc885",
+      "event": "pull_request",
+      "updatedAt": "2026-10-06T18:12:04Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37509366003"
+    },
+    {
+      "id": 37509365789,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "graph-studio-border-inspector-v2",
+      "headSha": "2f0aac8342a9af45eb03e92dde2ae501ea7dc885",
+      "event": "pull_request",
+      "updatedAt": "2026-10-06T18:16:08Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37509365789"
+    },
     {
       "id": 37508609851,
       "name": "Validate offline-data repository",
@@ -174,39 +197,6 @@
       "event": "push",
       "updatedAt": "2026-10-06T16:04:31Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37492287474"
-    },
-    {
-      "id": 37491508415,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "graph-studio-route-planner-v2",
-      "headSha": "951ac698d7509aa1e7e29b9c78f86cbd21c6dd5a",
-      "event": "pull_request",
-      "updatedAt": "2026-10-06T15:58:48Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37491508415"
-    },
-    {
-      "id": 37491508380,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "graph-studio-route-planner-v2",
-      "headSha": "951ac698d7509aa1e7e29b9c78f86cbd21c6dd5a",
-      "event": "pull_request",
-      "updatedAt": "2026-10-06T15:55:44Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37491508380"
-    },
-    {
-      "id": 37491026324,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "62232ba3db325428e97b4c27c8628509835f1537",
-      "event": "push",
-      "updatedAt": "2026-10-06T15:55:15Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37491026324"
     }
   ]
 }
