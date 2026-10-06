@@ -11,7 +11,7 @@ use std::{
         Arc, Mutex,
     },
     thread,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -1045,6 +1045,229 @@ fn valhalla_config_for(app: &AppHandle, region_id: &str) -> Result<PathBuf, Stri
     Ok(config)
 }
 
+fn validate_route_request(
+    start_lat: f64,
+    start_lng: f64,
+    end_lat: f64,
+    end_lng: f64,
+    costing: &str,
+) -> Result<(), String> {
+    for (label, lat, lng) in [
+        ("start", start_lat, start_lng),
+        ("end", end_lat, end_lng),
+    ] {
+        if !lat.is_finite()
+            || !lng.is_finite()
+            || !(-90.0..=90.0).contains(&lat)
+            || !(-180.0..=180.0).contains(&lng)
+        {
+            return Err(format!("Invalid {label} coordinate."));
+        }
+    }
+    match costing {
+        "motorcycle" | "auto" | "bicycle" | "pedestrian" => Ok(()),
+        _ => Err(format!("Unsupported Graph Studio costing: {costing}")),
+    }
+}
+
+fn decode_polyline6(encoded: &str) -> Result<Vec<Value>, String> {
+    let bytes = encoded.as_bytes();
+    let mut index = 0usize;
+    let mut latitude = 0_i64;
+    let mut longitude = 0_i64;
+    let mut coordinates = Vec::new();
+
+    fn next_value(bytes: &[u8], index: &mut usize) -> Result<i64, String> {
+        let mut result = 0_i64;
+        let mut shift = 0_u32;
+        loop {
+            let Some(byte) = bytes.get(*index).copied() else {
+                return Err("Truncated Valhalla route polyline.".into());
+            };
+            *index += 1;
+            let value = i64::from(byte.saturating_sub(63));
+            result |= (value & 0x1f) << shift;
+            shift += 5;
+            if value < 0x20 {
+                break;
+            }
+            if shift > 60 {
+                return Err("Invalid Valhalla route polyline.".into());
+            }
+        }
+        Ok(if result & 1 != 0 {
+            !(result >> 1)
+        } else {
+            result >> 1
+        })
+    }
+
+    while index < bytes.len() {
+        latitude += next_value(bytes, &mut index)?;
+        longitude += next_value(bytes, &mut index)?;
+        coordinates.push(json!([
+            longitude as f64 / 1_000_000.0,
+            latitude as f64 / 1_000_000.0
+        ]));
+    }
+    Ok(coordinates)
+}
+
+fn route_geometry(response: &Value) -> Result<Value, String> {
+    let legs = response
+        .pointer("/trip/legs")
+        .and_then(Value::as_array)
+        .ok_or("Valhalla route response did not contain trip.legs.")?;
+    let mut coordinates: Vec<Value> = Vec::new();
+    for leg in legs {
+        let shape = leg
+            .get("shape")
+            .and_then(Value::as_str)
+            .ok_or("Valhalla route leg did not contain an encoded shape.")?;
+        let mut leg_coordinates = decode_polyline6(shape)?;
+        if !coordinates.is_empty() && !leg_coordinates.is_empty() {
+            leg_coordinates.remove(0);
+        }
+        coordinates.extend(leg_coordinates);
+    }
+    if coordinates.len() < 2 {
+        return Err("Valhalla route returned insufficient geometry.".into());
+    }
+    Ok(json!({
+        "type": "LineString",
+        "coordinates": coordinates
+    }))
+}
+
+fn valhalla_route_request(
+    start_lat: f64,
+    start_lng: f64,
+    end_lat: f64,
+    end_lng: f64,
+    costing: &str,
+    costing_options: Option<Value>,
+) -> Value {
+    let mut request = json!({
+        "locations": [
+            {"lat": start_lat, "lon": start_lng},
+            {"lat": end_lat, "lon": end_lng}
+        ],
+        "costing": costing,
+        "directions_options": {"units": "kilometers"}
+    });
+    if let Some(options) = costing_options {
+        if !options.is_null() {
+            request["costing_options"] = options;
+        }
+    }
+    request
+}
+
+#[tauri::command]
+fn plan_route(
+    app: AppHandle,
+    region_id: String,
+    start_lat: f64,
+    start_lng: f64,
+    end_lat: f64,
+    end_lng: f64,
+    costing: String,
+    costing_options: Option<Value>,
+) -> Result<Value, String> {
+    validate_route_request(start_lat, start_lng, end_lat, end_lng, &costing)?;
+    let config = valhalla_config_for(&app, &region_id)?;
+    let request = valhalla_route_request(
+        start_lat,
+        start_lng,
+        end_lat,
+        end_lng,
+        &costing,
+        costing_options,
+    );
+
+    let started = Instant::now();
+    let output = Command::new("valhalla_service")
+        .arg(config)
+        .arg("route")
+        .arg(request.to_string())
+        .output()
+        .map_err(|e| format!("Could not run Valhalla route: {e}"))?;
+    let elapsed_ms = started.elapsed().as_millis();
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    let response: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Valhalla route returned invalid JSON: {e}"))?;
+    let geometry = route_geometry(&response)?;
+
+    Ok(json!({
+        "elapsedMs": elapsed_ms,
+        "geometry": geometry,
+        "response": response
+    }))
+}
+
+#[tauri::command]
+fn route_expansion(
+    app: AppHandle,
+    region_id: String,
+    start_lat: f64,
+    start_lng: f64,
+    end_lat: f64,
+    end_lng: f64,
+    costing: String,
+    costing_options: Option<Value>,
+) -> Result<Value, String> {
+    validate_route_request(start_lat, start_lng, end_lat, end_lng, &costing)?;
+    let config = valhalla_config_for(&app, &region_id)?;
+    let mut request = valhalla_route_request(
+        start_lat,
+        start_lng,
+        end_lat,
+        end_lng,
+        &costing,
+        costing_options,
+    );
+    request["action"] = Value::String("route".into());
+    request["dedupe"] = Value::Bool(true);
+    request["expansion_properties"] = json!([
+        "duration",
+        "distance",
+        "cost",
+        "edge_status",
+        "edge_id",
+        "pred_edge_id",
+        "expansion_type"
+    ]);
+
+    let started = Instant::now();
+    let output = Command::new("valhalla_service")
+        .arg(config)
+        .arg("expansion")
+        .arg(request.to_string())
+        .output()
+        .map_err(|e| format!("Could not run Valhalla expansion: {e}"))?;
+    let elapsed_ms = started.elapsed().as_millis();
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    let expansion: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("Valhalla expansion returned invalid GeoJSON: {e}"))?;
+    let feature_count = expansion
+        .get("features")
+        .and_then(Value::as_array)
+        .map(|features| features.len())
+        .unwrap_or(0);
+
+    Ok(json!({
+        "elapsedMs": elapsed_ms,
+        "featureCount": feature_count,
+        "geojson": expansion
+    }))
+}
+
 #[tauri::command]
 fn inspect_locate(
     app: AppHandle,
@@ -1127,6 +1350,8 @@ pub fn run() {
             start_build_queue,
             cancel_build,
             list_builds,
+            plan_route,
+            route_expansion,
             inspect_locate,
             graph_tile
         ])
