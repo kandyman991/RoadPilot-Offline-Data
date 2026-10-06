@@ -103,6 +103,8 @@ def main() -> int:
     graph(data.get("fromGraph"), from_region, "fromGraph")
     graph(data.get("toGraph"), to_region, "toGraph")
 
+    require(data.get("validationState") == "UNPROVEN", "validationState must be UNPROVEN")
+
     generator = data.get("generator")
     require(isinstance(generator, dict), "generator must be an object")
     require(bool(str(generator.get("name") or "").strip()), "generator.name required")
