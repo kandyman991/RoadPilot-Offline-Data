@@ -570,17 +570,34 @@ function configFromEditor(): Record<string, unknown> {
   const endLng = numberField(editorEndLng, "End longitude");
   const existing = editorExistingConfig ? structuredClone(editorExistingConfig) : {};
   const existingOverture = existing["overture"];
+  const existingRouting = (existing["routing"] ?? {}) as Record<string, unknown>;
+  const existingRoutes = Array.isArray(existingRouting.validationRoutes)
+    ? existingRouting.validationRoutes as Array<Record<string, unknown>>
+    : [];
+  const firstBorderIndex = existingRoutes.findIndex(route => route.kind === "border");
   const routeName = editorRouteName.value.trim() || "border-smoke-test";
+  const editedBorderRoute = {
+    name: routeName,
+    kind: "border",
+    costing: "motorcycle",
+    start: { lat: startLat, lng: startLng },
+    end: { lat: endLat, lng: endLng },
+  };
+  const validationRoutes = existingRoutes.map(route => structuredClone(route));
+  if (firstBorderIndex >= 0) validationRoutes[firstBorderIndex] = editedBorderRoute;
+  else validationRoutes.push(editedBorderRoute);
+
   const config: Record<string, unknown> = {
     ...existing,
     schemaVersion: 1,
     id: regionId,
     name,
     routing: {
+      ...existingRouting,
       enabled: true,
-      expectedValhallaVersion: "3.6.3",
+      expectedValhallaVersion: String(existingRouting.expectedValhallaVersion ?? "3.6.3"),
       borderBufferKm: editorPreview.borderBufferKm,
-      buildConcurrency: 12,
+      buildConcurrency: Number(existingRouting.buildConcurrency ?? 12),
       coverage: editorPreview.bounds,
       source: {
         primaryGeofabrikId: editorPreview.geofabrikId,
@@ -591,13 +608,7 @@ function configFromEditor(): Record<string, unknown> {
         fileNameTemplate: `${regionId}-routing-{version}.tar`,
         manifestFileNameTemplate: `${regionId}-routing-{version}-manifest.json`,
       },
-      validationRoutes: [{
-        name: routeName,
-        kind: "border",
-        costing: "motorcycle",
-        start: { lat: startLat, lng: startLng },
-        end: { lat: endLat, lng: endLng },
-      }],
+      validationRoutes,
     },
   };
   if (existingOverture) config["overture"] = existingOverture;
