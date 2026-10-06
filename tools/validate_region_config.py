@@ -69,6 +69,10 @@ def validate_routing(routing) -> bool:
     if not isinstance(routing, dict) or routing.get("enabled") is not True:
         return False
 
+    expected_valhalla = str(routing.get("expectedValhallaVersion") or "")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", expected_valhalla):
+        fail("routing.expectedValhallaVersion must be a semantic version such as 3.6.3")
+
     try:
         buffer_km = float(routing["borderBufferKm"])
     except (KeyError, TypeError, ValueError):
