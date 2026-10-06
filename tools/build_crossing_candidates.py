@@ -281,6 +281,7 @@ def main() -> int:
         "fromGraph": from_graph,
         "toGraph": to_graph,
         "generator": {"name": GENERATOR_NAME, "version": GENERATOR_VERSION},
+        "validationState": "UNPROVEN",
         "frontierRoadCount": len(correlations),
         "candidateCount": len(all_candidates),
         "unresolvedFrontierRoadIds": sorted(set(unresolved)),
