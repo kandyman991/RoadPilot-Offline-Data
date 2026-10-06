@@ -24,22 +24,7 @@ Target regional artifacts are independently versioned:
 
 Rebuilding one artifact or one region must not force unrelated regional/artifact downloads.
 
-## Current focus
-
-**Graph Studio exact graph/boundary diffing**, issue #13.
-
-Issue #11 is complete. PRs #20-#23 delivered the Border Inspector core, road diff, handoff artifact overlays, and diagnostics export.
-
-Current #13 milestone branch: `graph-studio-boundary-fingerprints-m1`.
-
-Implementation direction:
-- new builds emit deterministic per-`.gph` tile hashes;
-- graph-wide and internal-only tile fingerprints are recorded;
-- each configured neighboring Geofabrik source receives a conservative boundary/overlap fingerprint;
-- Build Comparison reports added/removed/modified tiles and REFRESH/UNCHANGED for each neighbor;
-- changed boundary tiles are visualized on the map;
-- road/edge-level changed-road visualization is implemented in PR #25 using retained Build A/B packs and stable OSM/geometry/access evidence.
-## Critical architectural decisions
+## Current focus\n\n**Graph Studio build-time cross-region connectivity metadata**, issue #26.\n\nIssue #13 is complete. PR #24 added deterministic graph/boundary fingerprints and PR #25 added\nretained-build road-level boundary diffing.\n\nCurrent #26 milestone branch: `connectivity-pair-manifest-m1`.\n\nCurrent implementation:\n- `roadpilot.cross-region-connectivity` v1 schema;\n- generator that binds a directed RoadPilot region pair to both graph fingerprints and both mutual boundary fingerprints;\n- standard-library validator;\n- hosted synthetic smoke test for mutual boundary identity;\n- initial artifacts are `STABLE_PHYSICAL` / `UNPROVEN` with no graph-local IDs.\n\nArchitectural split for #26:\n- stable physical discovery evidence is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;\n- exact graph-local bindings may be added later but are fingerprint-bound and cheap to regenerate;\n- F8 remains runtime fallback for missing/stale/ambiguous metadata.\n## Critical architectural decisions
 
 - Regional graphs stay independent.
 - Valhalla pin for production compatibility is 3.6.3.
@@ -57,12 +42,6 @@ Implementation direction:
 
 PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do not merge or revive them blindly. Compare their useful concepts against the current Graph Studio roadmap and issue #13/build-time connectivity work.
 
-## Next exact action
-
-1. Get PR #25 green and merge the road-level retained-build boundary diff milestone.
-2. Validate the retained-build comparison on two real local versions of the same region in Graph Studio.
-3. Use the resulting boundary fingerprints/change evidence to drive build-time connectivity manifests / F8 seeds.
-4. Then proceed to R2 publication, visual-map artifact, POI/search artifact, and scheduled updates as defined in `ROADMAP.md`.
-## Handoff maintenance
+## Next exact action\n\n1. Get the first #26 pair-manifest contract/generator/validator milestone green and merged.\n2. Add build-time boundary-edge inventory without using graph-local IDs as cross-build identity.\n3. Generate physical crossing candidates from stable road/GPS evidence.\n4. Validate candidates with plain Valhalla for motorcycle/auto and both travel directions.\n5. Compile validated region-pair metadata for RoadPilot; keep F8 as fallback.\n## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
