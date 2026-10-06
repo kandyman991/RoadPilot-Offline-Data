@@ -17,6 +17,11 @@ on:
         required: true
         default: false
         type: boolean
+      publish_r2:
+        description: Publish the validated immutable pack to Cloudflare R2
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -57,7 +62,8 @@ jobs:
           set -euo pipefail
           .venv-routing/bin/python tools/build_routing_region.py \
             --config "config/regions/${{ inputs.region }}.json" \
-            --package-version "${{ inputs.package_version }}"
+            --package-version "${{ inputs.package_version }}" \
+            --refresh-sources
 
       - name: Validate routing pack
         shell: bash
@@ -85,3 +91,17 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 3
+
+      - name: Publish validated pack to Cloudflare R2
+        if: ${{ inputs.publish_r2 }}
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
+        run: |
+          set -euo pipefail
+          manifest="$(find "dist/routing/${{ inputs.region }}" -maxdepth 1 -name '*-manifest.json' -print -quit)"
+          .venv-routing/bin/python tools/publish_routing_pack_r2.py --manifest "$manifest"
