@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -132,8 +133,9 @@ def valhalla_version() -> str:
     for command in (["valhalla_build_tiles", "--version"], ["valhalla_service", "--version"]):
         try:
             output = run(command, capture=True).strip()
-            if output:
-                return output.splitlines()[-1][:200]
+            match = re.search(r"(?<!\\d)(\\d+\\.\\d+\\.\\d+)(?!\\d)", output)
+            if match:
+                return match.group(1)
         except subprocess.CalledProcessError:
             pass
     return "unknown"
@@ -227,6 +229,15 @@ def main() -> None:
     region_id = str(config["id"])
     region_name = str(config["name"])
     border_buffer_km = float(routing["borderBufferKm"])
+    expected_valhalla_version = str(routing["expectedValhallaVersion"])
+    actual_valhalla_version = valhalla_version()
+    if actual_valhalla_version != expected_valhalla_version:
+        fail(
+            "Valhalla build/runtime version mismatch: "
+            f"expected {expected_valhalla_version}, found {actual_valhalla_version}. "
+            "Refusing to publish graph tiles that may be incompatible with RoadPilot."
+        )
+
     source = routing["source"]
     pbfs = source["pbfs"]
     if not pbfs:
@@ -358,7 +369,7 @@ def main() -> None:
         "regionName": region_name,
         "packageVersion": args.package_version,
         "builtAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "valhallaVersion": valhalla_version(),
+        "valhallaVersion": actual_valhalla_version,
         "graphFingerprint": f"sha256:{package_sha}",
         "source": {
             "primaryGeofabrikId": source["primaryGeofabrikId"],
