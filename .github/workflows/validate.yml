@@ -590,8 +590,8 @@ jobs:
           candidates = json.loads((root / "candidates.json").read_text())
 
           assert proofs["sourceCandidateCount"] == 18
-          assert proofs["provenCandidateCount"] == 18
-          assert proofs["rejectedCandidateCount"] == 0
+          assert proofs["provenCandidateCount"] == 8
+          assert proofs["rejectedCandidateCount"] == 10
           assert proofs["inconclusiveCandidateCount"] == 0
 
           best_candidate = next(
@@ -614,6 +614,29 @@ jobs:
           assert best_proof["modes"]["MOTORCYCLE"]["toFrom"]["passed"] is False
           assert best_proof["modes"]["CAR"]["fromTo"]["passed"] is True
           assert best_proof["modes"]["CAR"]["toFrom"]["passed"] is True
+          for mode in ("MOTORCYCLE", "CAR"):
+              for direction in ("fromTo", "toFrom"):
+                  result = best_proof["modes"][mode][direction]
+                  if result["passed"]:
+                      assert result["graphA"]["edgeMatched"] is True
+                      assert result["graphB"]["edgeMatched"] is True
+
+          wrong_candidate = next(
+              candidate for candidate in candidates["candidates"]
+              if candidate["stableWayId"] == 100
+              and candidate["fromEdge"]["wayId"] == 999
+              and candidate["toEdge"]["wayId"] == 999
+          )
+          wrong_proof = next(
+              proof for proof in proofs["proofs"]
+              if proof["candidateId"] == wrong_candidate["id"]
+          )
+          assert wrong_proof["proofState"] == "REJECTED"
+          wrong_auto = wrong_proof["modes"]["CAR"]["fromTo"]
+          assert wrong_auto["passed"] is False
+          assert wrong_auto["graphA"]["expectedGraphId"] == 1001
+          assert wrong_auto["graphA"]["actualEndpointGraphId"] == 1002
+          assert wrong_auto["graphA"]["edgeMatched"] is False
 
           # Route proof is authoritative: locate access metadata did not reject
           # the motorcycle direction before Valhalla was asked to route it.
