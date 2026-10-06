@@ -44,6 +44,7 @@ Architectural split for #26:
 - stable physical discovery evidence is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;
 - exact graph-local bindings may be added later but are fingerprint-bound and cheap to regenerate;
 - F8 remains runtime fallback for missing/stale/ambiguous metadata.
+
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -60,7 +61,7 @@ Architectural split for #26:
 
 ## Experimental branches / PRs
 
-PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do not merge or revive them blindly. Compare their useful concepts against the current Graph Studio roadmap and issue #13/build-time connectivity work.
+PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do not merge or revive them blindly. Compare their useful concepts against the current Graph Studio roadmap and issue #26 connectivity work.
 
 ## Next exact action
 
