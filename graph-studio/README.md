@@ -104,8 +104,11 @@ neighbor compatibility metadata needs to be refreshed. Changed boundary tiles ar
 Builds created before this index exists remain usable, but they must be rebuilt before detailed
 comparison is available.
 
-This first diff milestone is tile-level. Road/edge-level visualization is the next #13 refinement
-and will use stable real-world/geometry evidence rather than graph-local edge IDs as durable identity.
+Build Comparison now also loads the retained Build A and Build B routing packs through Valhalla
+inside changed boundary tiles. Roads are grouped by stable OSM way identity and compared using
+canonicalized rendered geometry plus supported access/use/speed/surface/structure attributes.
+The map classifies boundary ways as added, removed, changed, or unchanged without treating
+graph-local edge IDs as durable identity.
 
 ## Handoff artifact overlay
 
