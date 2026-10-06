@@ -482,13 +482,22 @@ locateBtn.addEventListener("click", async () => {
   }
 });
 
-await listen<{ line: string }>("graph-studio://build-log", event => appendLog(event.payload.line));
-await listen<BuildStatus>("graph-studio://build-status", event => {
-  renderBuildStatus(event.payload);
-  if (!event.payload.running) refreshBuilds().catch(() => {});
-});
+async function bootstrap(): Promise<void> {
+  await listen<{ line: string }>("graph-studio://build-log", event => appendLog(event.payload.line));
+  await listen<BuildStatus>("graph-studio://build-status", event => {
+    renderBuildStatus(event.payload);
+    if (!event.payload.running) refreshBuilds().catch(() => {});
+  });
 
-Promise.all([refreshRegions(), refreshToolchain(), refreshBuildStatus(), refreshBuilds(), refreshStats()])
-  .catch(error => appendLog(`Startup error: ${String(error)}`));
-setInterval(refreshStats, 3000);
-setInterval(refreshBuildStatus, 2500);
+  await Promise.all([
+    refreshRegions(),
+    refreshToolchain(),
+    refreshBuildStatus(),
+    refreshBuilds(),
+    refreshStats(),
+  ]);
+  setInterval(refreshStats, 3000);
+  setInterval(refreshBuildStatus, 2500);
+}
+
+bootstrap().catch(error => appendLog(`Startup error: ${String(error)}`));
