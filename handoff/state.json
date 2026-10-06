@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-06T23:30:10.508Z",
+  "generatedAt": "2026-10-06T23:38:52.653Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,9 +11,9 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "7da45fc9908156706bf47361851eeee6ef9eac57",
-    "message": "Merge pull request #29 from kandyman991/connectivity-valhalla-correlation-m3\n\nCorrelate frontier roads independently into both Valhalla graphs",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/7da45fc9908156706bf47361851eeee6ef9eac57"
+    "sha": "aabc394a3fe5035aa5bff7c785c0ae94dc33bbed",
+    "message": "Merge pull request #30 from kandyman991/connectivity-crossing-candidates-m4\n\nGenerate lossless cross-region crossing candidates",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/aabc394a3fe5035aa5bff7c785c0ae94dc33bbed"
   },
   "openPullRequests": [
     {
@@ -41,7 +41,7 @@
     {
       "number": 26,
       "title": "Graph Studio: build-time cross-region connectivity metadata",
-      "updatedAt": "2026-10-06T23:26:17Z",
+      "updatedAt": "2026-10-06T23:34:30Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/issues/26"
     },
     {
@@ -83,14 +83,47 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 37546890018,
+      "id": 37547690773,
       "name": "Validate offline-data repository",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "aabc394a3fe5035aa5bff7c785c0ae94dc33bbed",
+      "event": "push",
+      "updatedAt": "2026-10-06T23:38:49Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37547690773"
+    },
+    {
+      "id": 37547291004,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "connectivity-crossing-candidates-m4",
+      "headSha": "dbf5ee6c9a68620ae445509b0f7861b8e23c5e90",
+      "event": "pull_request",
+      "updatedAt": "2026-10-06T23:35:06Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37547291004"
+    },
+    {
+      "id": 37547291003,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "connectivity-crossing-candidates-m4",
+      "headSha": "dbf5ee6c9a68620ae445509b0f7861b8e23c5e90",
+      "event": "pull_request",
+      "updatedAt": "2026-10-06T23:38:14Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37547291003"
+    },
+    {
+      "id": 37546890018,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "7da45fc9908156706bf47361851eeee6ef9eac57",
       "event": "push",
-      "updatedAt": "2026-10-06T23:30:05Z",
+      "updatedAt": "2026-10-06T23:30:46Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37546890018"
     },
     {
@@ -158,39 +191,6 @@
       "event": "pull_request",
       "updatedAt": "2026-10-06T23:07:13Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37544700051"
-    },
-    {
-      "id": 37544700046,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "connectivity-frontier-inventory-m2",
-      "headSha": "cf2d304d9d96b6b520d3651d99aa1f51d1207717",
-      "event": "pull_request",
-      "updatedAt": "2026-10-06T23:10:32Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37544700046"
-    },
-    {
-      "id": 37544545272,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "connectivity-frontier-inventory-m2",
-      "headSha": "8fe8fa819d517f5749c8e8ed7232e73dd73a35d6",
-      "event": "pull_request",
-      "updatedAt": "2026-10-06T23:11:34Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37544545272"
-    },
-    {
-      "id": 37544545164,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "failure",
-      "branch": "connectivity-frontier-inventory-m2",
-      "headSha": "8fe8fa819d517f5749c8e8ed7232e73dd73a35d6",
-      "event": "pull_request",
-      "updatedAt": "2026-10-06T23:05:38Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37544545164"
     }
   ]
 }
