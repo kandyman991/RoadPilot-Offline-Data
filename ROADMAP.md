@@ -157,6 +157,7 @@ boundary fingerprints for surgical discovery reuse.
 The architecture separates expensive stable physical discovery from optional exact graph-local
 bindings. Internal-only graph rebuilds can therefore retain physical connectivity evidence when
 the relevant boundary is unchanged, while graph-local bindings can be regenerated cheaply.
+
 ## Next
 
 ### 1. Build-time cross-region connectivity metadata (#26)
@@ -187,6 +188,7 @@ local Valhalla detailed routing
 F8 remains the fallback when metadata is missing, stale or ambiguous.
 
 ### 2. Cloudflare R2 publication manager (#14)
+
 Required behavior:
 - immutable versioned objects;
 - SHA-256 verification;
