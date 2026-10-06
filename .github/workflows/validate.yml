@@ -318,10 +318,57 @@ jobs:
           import json
           import sys
 
+          def encode_value(value):
+              value = ~(value << 1) if value < 0 else (value << 1)
+              chars = []
+              while value >= 0x20:
+                  chars.append(chr((0x20 | (value & 0x1F)) + 63))
+                  value >>= 5
+              chars.append(chr(value + 63))
+              return "".join(chars)
+
+          def encode_polyline(points):
+              last_lat = 0
+              last_lon = 0
+              out = []
+              for point in points:
+                  lat = round(point["lat"] * 1_000_000)
+                  lon = round(point["lon"] * 1_000_000)
+                  out.append(encode_value(lat - last_lat))
+                  out.append(encode_value(lon - last_lon))
+                  last_lat, last_lon = lat, lon
+              return "".join(out)
+
+          def decode_polyline(encoded):
+              index = 0
+              lat = 0
+              lon = 0
+              points = []
+
+              def next_value():
+                  nonlocal index
+                  result = 0
+                  shift = 0
+                  while True:
+                      value = ord(encoded[index]) - 63
+                      index += 1
+                      result |= (value & 0x1F) << shift
+                      shift += 5
+                      if value < 0x20:
+                          break
+                  return ~(result >> 1) if result & 1 else result >> 1
+
+              while index < len(encoded):
+                  lat += next_value()
+                  lon += next_value()
+                  points.append({"lat": lat / 1_000_000, "lon": lon / 1_000_000})
+              return points
+
           config = json.load(open(sys.argv[1]))
           action = sys.argv[2]
           request = json.loads(sys.argv[3])
           is_a = config["mjolnir"]["tile_extract"].endswith("/a.tar")
+          base = 1000 if is_a else 2000
 
           if action == "route":
               start, end = request["locations"]
@@ -333,7 +380,8 @@ jobs:
                       "trip": {
                           "status": 0,
                           "status_message": "Found route between points",
-                          "summary": {"length": 0.12, "time": 8}
+                          "summary": {"length": 0.12, "time": 8},
+                          "legs": [{"shape": encode_polyline([start, end])}],
                       }
                   }))
               else:
@@ -346,12 +394,42 @@ jobs:
                   }))
               raise SystemExit(0)
 
+          if action == "trace_attributes":
+              points = decode_polyline(request["encoded_polyline"])
+              near_frontier = sorted(
+                  (
+                      (abs(point["lon"] - 1.0), point)
+                      for point in points
+                      if abs(point["lon"] - 1.0) < 0.01
+                  ),
+                  key=lambda item: item[0],
+              )
+              if not near_frontier:
+                  raise SystemExit("fake trace had no frontier endpoint")
+
+              # For normal crossings only the snap is near lon=1. For a
+              # FRONTIER_OVERLAP probe both points are near lon=1, so the
+              # non-zero offset identifies the correlated snap.
+              delta = near_frontier[-1][0]
+              if delta < 0.00005:
+                  # Candidate 999 is deliberately re-correlated by the route to
+                  # edge +2. This must fail exact candidate-edge proof.
+                  graph_id = base + 2
+                  way_id = 100
+              elif delta < 0.00025:
+                  graph_id = base + 2
+                  way_id = 100
+              else:
+                  graph_id = base + 3
+                  way_id = 102
+              print(json.dumps({"edges": [{"id": graph_id, "way_id": way_id}]}))
+              raise SystemExit(0)
+
           if action != "locate":
               raise SystemExit("unsupported fake Valhalla action: " + action)
 
           point = request["locations"][0]
           shift = 0.0002 if is_a else -0.0002
-          base = 1000 if is_a else 2000
 
           def edge(way_id, offset, graph_id, heading):
               motorcycle = not (way_id == 100 and not is_a)
