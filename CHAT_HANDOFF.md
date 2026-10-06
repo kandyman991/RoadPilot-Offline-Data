@@ -31,14 +31,20 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 Issue #13 is complete. PR #24 added deterministic graph/boundary fingerprints and PR #25 added
 retained-build road-level boundary diffing.
 
-Current #26 milestone branch: `connectivity-pair-manifest-m1`.
+PR #27 merged the fingerprint-bound pair-manifest foundation.
+
+Current #26 milestone branch: `connectivity-frontier-inventory-m2`.
 
 Current implementation:
 - `roadpilot.cross-region-connectivity` v1 schema;
 - generator that binds a directed RoadPilot region pair to both graph fingerprints and both mutual boundary fingerprints;
 - standard-library validator;
 - hosted synthetic smoke test for mutual boundary identity;
-- initial artifacts are `STABLE_PHYSICAL` / `UNPROVEN` with no graph-local IDs.
+- initial artifacts are `STABLE_PHYSICAL` / `UNPROVEN` with no graph-local IDs;
+- stable frontier inventory discovers real OSM `highway` ways whose geometry enters both nominal regions;
+- each frontier anchor records OSM way id, crossing/overlap coordinate, heading, routing tags and a local geometry snippet;
+- roads following the shared frontier are retained as `FRONTIER_OVERLAP`;
+- Graph-local IDs remain forbidden in this stable inventory.
 
 Architectural split for #26:
 - stable physical discovery evidence is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;
@@ -65,9 +71,9 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get the first #26 pair-manifest contract/generator/validator milestone green and merged.
-2. Add build-time boundary-edge inventory without using graph-local IDs as cross-build identity.
-3. Generate physical crossing candidates from stable road/GPS evidence.
+1. Get the #26 stable frontier-road inventory milestone green and merged.
+2. Correlate each stable OSM frontier anchor independently into Graph A and Graph B using Valhalla locate.
+3. Generate physical crossing candidates from the independent correlations without pre-Valhalla hard direction filters.
 4. Validate candidates with plain Valhalla for motorcycle/auto and both travel directions.
 5. Compile validated region-pair metadata for RoadPilot; keep F8 as fallback.
 ## Handoff maintenance

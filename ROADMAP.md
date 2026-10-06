@@ -150,7 +150,7 @@ Implemented:
 
 ## Active — Build-time cross-region connectivity metadata (#26)
 
-The first #26 milestone establishes a stable physical pair-manifest contract bound to the two
+PR #27 established the stable physical pair-manifest contract bound to the two
 regional graph versions for provenance and, critically, to the two relevant per-neighbor
 boundary fingerprints for surgical discovery reuse.
 
@@ -165,8 +165,9 @@ the relevant boundary is unchanged, while graph-local bindings can be regenerate
 This is the key step for removing expensive first-route F8 discovery from phones.
 
 Milestones:
-- fingerprint-bound region-pair manifest and validator;
-- boundary-edge inventory using stable real-world evidence;
+- fingerprint-bound region-pair manifest and validator — merged in PR #27;
+- stable OSM frontier-road inventory using real geometry and no graph-local ids — active;
+- independent Graph A/B Valhalla correlation of stable anchors;
 - physical crossing candidate generation;
 - plain-Valhalla motorcycle/auto direction proofs;
 - compact validated connectivity artifact for RoadPilot;
