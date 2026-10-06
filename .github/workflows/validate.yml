@@ -169,12 +169,88 @@ jobs:
           print("connectivity pair manifest smoke test passed")
           PY
 
-      - name: Verify hosted routing toolchain
+      - name: Install Osmium
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y osmium-tool
+          osmium --version | head -n1
+
+      - name: Smoke-test stable frontier road inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-inventory"
+          mkdir -p "$root"
+
+          cat > "$root/a.geojson" <<'EOF'
+          {"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]]]}
+          EOF
+          cat > "$root/b.geojson" <<'EOF'
+          {"type":"Polygon","coordinates":[[[1,0],[2,0],[2,1],[1,1],[1,0]]]}
+          EOF
+          cat > "$root/roads.osm" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <osm version="0.6" generator="roadpilot-test">
+            <node id="1" lat="0.5" lon="0.5"/>
+            <node id="2" lat="0.5" lon="1.0"/>
+            <node id="3" lat="0.5" lon="1.5"/>
+            <node id="4" lat="0.25" lon="0.2"/>
+            <node id="5" lat="0.25" lon="0.8"/>
+            <node id="6" lat="0.2" lon="1.0"/>
+            <node id="7" lat="0.8" lon="1.0"/>
+            <way id="100">
+              <nd ref="1"/><nd ref="2"/><nd ref="3"/>
+              <tag k="highway" v="primary"/>
+              <tag k="name" v="Cross Road"/>
+              <tag k="ref" v="A1"/>
+            </way>
+            <way id="101">
+              <nd ref="4"/><nd ref="5"/>
+              <tag k="highway" v="residential"/>
+              <tag k="name" v="A-only Road"/>
+            </way>
+            <way id="102">
+              <nd ref="6"/><nd ref="7"/>
+              <tag k="highway" v="secondary"/>
+              <tag k="name" v="Border Road"/>
+            </way>
+          </osm>
+          EOF
+
+          python tools/build_frontier_road_inventory.py \
+            --pair-manifest "$RUNNER_TEMP/connectivity-pair/a__b-connectivity.json" \
+            --from-polygon "$root/a.geojson" \
+            --to-polygon "$root/b.geojson" \
+            --osm-source "$root/roads.osm" \
+            --output "$root/inventory.json"
+
+          python tools/validate_frontier_road_inventory.py \
+            --inventory "$root/inventory.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-inventory"
+          inventory = json.loads((root / "inventory.json").read_text())
+          roads = inventory["roads"]
+          assert {road["wayId"] for road in roads} == {100, 102}, roads
+          by_way = {road["wayId"]: road for road in roads}
+          assert by_way[100]["crossingKind"] == "CROSSING"
+          assert by_way[100]["routingTags"]["ref"] == "A1"
+          assert by_way[102]["crossingKind"] == "FRONTIER_OVERLAP"
+          assert by_way[102]["overlapLengthMeters"] > 0
+          assert all("graphId" not in road for road in roads)
+          print("stable frontier road inventory smoke test passed")
+          PY
+
+      - name: Verify hosted routing toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
           osmium --version | head -n1
 
           docker pull ghcr.io/valhalla/valhalla:3.6.3
