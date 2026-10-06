@@ -27,7 +27,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["appimage", "deb"],
+    "targets": [
+      "appimage",
+      "deb"
+    ],
     "category": "DeveloperTool",
     "shortDescription": "Build, validate and inspect RoadPilot Valhalla regional graphs.",
     "longDescription": "RoadPilot Graph Studio is the production workstation for independently building, validating, inspecting, comparing and publishing RoadPilot regional Valhalla routing graphs.",
@@ -36,6 +39,12 @@
       "../../tools/": "pipeline/tools/",
       "../../schemas/": "pipeline/schemas/",
       "../../requirements-routing.txt": "pipeline/requirements-routing.txt"
-    }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png"
+    ]
   }
 }
