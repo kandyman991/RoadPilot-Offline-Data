@@ -32,25 +32,25 @@ Issue #13 is complete. PR #24 added deterministic graph/boundary fingerprints an
 retained-build road-level boundary diffing.
 
 PR #27 merged the fingerprint-bound pair-manifest foundation.
+PR #28 merged stable OSM frontier-road inventory generation.
 
-Current #26 milestone branch: `connectivity-frontier-inventory-m2`.
+Current #26 milestone branch: `connectivity-valhalla-correlation-m3`.
 
 Current implementation:
-- `roadpilot.cross-region-connectivity` v1 schema;
-- generator that binds a directed RoadPilot region pair to both graph fingerprints and both mutual boundary fingerprints;
-- standard-library validator;
-- hosted synthetic smoke test for mutual boundary identity;
-- initial artifacts are `STABLE_PHYSICAL` / `UNPROVEN` with no graph-local IDs;
-- stable frontier inventory discovers real OSM `highway` ways whose geometry enters both nominal regions;
-- each frontier anchor records OSM way id, crossing/overlap coordinate, heading, routing tags and a local geometry snippet;
-- roads following the shared frontier are retained as `FRONTIER_OVERLAP`;
-- Graph-local IDs remain forbidden in this stable inventory.
+- `roadpilot.cross-region-connectivity` v1 pair contract;
+- stable physical frontier inventory from real OSM `highway` geometry entering both nominal regions;
+- border-following roads retained as `FRONTIER_OVERLAP`;
+- graph-bound correlation artifact for independent Graph A / Graph B Valhalla `locate` results;
+- all usable locate candidates retained; stable OSM-way identity is ranking evidence, not a rejection gate;
+- A/B correlated coordinates are explicitly allowed to differ;
+- correlation refuses stale boundary fingerprints and verifies each retained graph artifact SHA;
+- frontier heading is OSM-geometry evidence only, not inferred journey direction and not a hard threshold.
 
 Architectural split for #26:
 - stable physical discovery evidence is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;
-- exact graph-local bindings may be added later but are fingerprint-bound and cheap to regenerate;
+- exact graph-local correlation evidence is bound to the exact graph fingerprint;
+- direction/access become proof criteria only in later plain-Valhalla validation;
 - F8 remains runtime fallback for missing/stale/ambiguous metadata.
-
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -71,11 +71,11 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get the #26 stable frontier-road inventory milestone green and merged.
-2. Correlate each stable OSM frontier anchor independently into Graph A and Graph B using Valhalla locate.
-3. Generate physical crossing candidates from the independent correlations without pre-Valhalla hard direction filters.
-4. Validate candidates with plain Valhalla for motorcycle/auto and both travel directions.
-5. Compile validated region-pair metadata for RoadPilot; keep F8 as fallback.
+1. Get the #26 independent Graph A/B Valhalla correlation milestone green and merged.
+2. Generate physical crossing candidates from the independent correlations without pre-Valhalla hard direction filters.
+3. Validate candidates with plain Valhalla for motorcycle/auto and both travel directions.
+4. Compile validated region-pair metadata for RoadPilot; keep F8 as fallback.
+5. Add multi-hop region-chain composition and surgical refresh driven by boundary fingerprints.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
