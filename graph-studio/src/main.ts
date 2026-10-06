@@ -994,6 +994,7 @@ function artifactLineFeature(item: HandoffArtifactItem): Feature {
       modes: item.modes.join(","),
       evidence: item.evidence.join(","),
       artifactPath: item.artifactPath,
+      active: item.status === "CURRENT" || item.status === "VALID",
       geometryRole: "link",
     },
   };
@@ -1010,6 +1011,7 @@ function artifactPointFeatures(item: HandoffArtifactItem): Feature[] {
         id: item.id ?? "",
         regionId: item.fromRegionId,
         endpoint: "from",
+        active: item.status === "CURRENT" || item.status === "VALID",
         geometryRole: "endpoint",
       },
     },
@@ -1022,6 +1024,7 @@ function artifactPointFeatures(item: HandoffArtifactItem): Feature[] {
         id: item.id ?? "",
         regionId: item.toRegionId,
         endpoint: "to",
+        active: item.status === "CURRENT" || item.status === "VALID",
         geometryRole: "endpoint",
       },
     },
@@ -1052,8 +1055,8 @@ function renderHandoffArtifactOverlay(result: HandoffArtifactInspection): void {
         ],
         paint: {
           "line-color": color,
-          "line-width": ["case", ["==", ["get", "status"], "CURRENT"], 4.2, 2.6],
-          "line-opacity": ["case", ["==", ["get", "status"], "CURRENT"], 0.95, 0.38],
+          "line-width": ["case", ["==", ["get", "active"], true], 4.2, 2.6],
+          "line-opacity": ["case", ["==", ["get", "active"], true], 0.95, 0.38],
           ...(dash ? { "line-dasharray": dash } : {}),
         },
       });
@@ -1070,7 +1073,7 @@ function renderHandoffArtifactOverlay(result: HandoffArtifactInspection): void {
       source: handoffArtifactSource,
       filter: ["==", ["get", "geometryRole"], "endpoint"],
       paint: {
-        "circle-radius": ["case", ["==", ["get", "status"], "CURRENT"], 5, 3.5],
+        "circle-radius": ["case", ["==", ["get", "active"], true], 5, 3.5],
         "circle-color": [
           "match",
           ["get", "kind"],
@@ -1080,7 +1083,7 @@ function renderHandoffArtifactOverlay(result: HandoffArtifactInspection): void {
           "manual", "#ee5aa7",
           "#ffffff",
         ],
-        "circle-opacity": ["case", ["==", ["get", "status"], "CURRENT"], 0.95, 0.4],
+        "circle-opacity": ["case", ["==", ["get", "active"], true], 0.95, 0.4],
         "circle-stroke-color": "#111820",
         "circle-stroke-width": 1,
       },
