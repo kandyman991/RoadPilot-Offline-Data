@@ -53,3 +53,20 @@ jobs:
           for file in config/regions/*.json; do
             python tools/validate_region_config.py --config "$file"
           done
+
+      - name: Verify hosted routing toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool
+          osmium --version | head -n1
+
+          docker pull ghcr.io/valhalla/valhalla:3.6.3
+          docker run --rm ghcr.io/valhalla/valhalla:3.6.3 sh -lc '
+            set -eu
+            for tool in               valhalla_build_config               valhalla_build_timezones               valhalla_build_admins               valhalla_build_tiles               valhalla_build_extract               valhalla_service; do
+              command -v "$tool" >/dev/null
+              echo "found $tool"
+            done
+          '
