@@ -420,6 +420,7 @@ jobs:
 
           root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
           data = json.loads((root / "candidates.json").read_text())
+          assert data["validationState"] == "UNPROVEN"
           assert data["frontierRoadCount"] == 2
           assert data["candidateCount"] == 18
           assert data["unresolvedFrontierRoadIds"] == []
