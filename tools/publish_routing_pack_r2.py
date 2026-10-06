@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,14 @@ from botocore.exceptions import ClientError
 
 def fail(message: str) -> None:
     raise SystemExit(message)
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def required_env(name: str) -> str:
@@ -106,6 +115,7 @@ def main() -> None:
         manifest_path,
         manifest_key,
         "application/json",
+        sha256(manifest_path),
     )
     upload_immutable(
         client,
@@ -113,6 +123,7 @@ def main() -> None:
         checksum_path,
         checksum_key,
         "text/plain; charset=utf-8",
+        sha256(checksum_path),
     )
 
     latest = {
