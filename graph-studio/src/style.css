@@ -462,3 +462,73 @@ button { cursor: pointer; }
 .legend-common { background: #42c58a; }
 .legend-a { background: #e35d5b; }
 .legend-b { background: #4b9ee8; }
+
+
+.handoff-artifact-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 8px;
+  margin-top: 6px;
+  color: #aeb9c6;
+  font-size: 10px;
+}
+
+.handoff-artifact-legend span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.handoff-artifact-legend i {
+  display: inline-block;
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+}
+
+.artifact-candidate { background: #f0a44b; }
+.artifact-accepted { background: #2fbd71; }
+.artifact-learned { background: #9d72e8; }
+.artifact-manual { background: #ee5aa7; }
+
+.artifact-list {
+  margin-top: 8px;
+  max-height: 250px;
+  overflow: auto;
+  border: 1px solid #2c3743;
+  border-radius: 5px;
+  background: #0c1218;
+}
+
+.artifact-row {
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border-bottom: 1px solid #222c36;
+  font-size: 10px;
+}
+
+.artifact-row:last-child {
+  border-bottom: 0;
+}
+
+.artifact-row > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.artifact-row b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #d7dee7;
+  font-weight: 600;
+}
+
+.artifact-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #748292;
+}

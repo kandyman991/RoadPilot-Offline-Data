@@ -90,3 +90,30 @@ graphs.
 The inspector reports unique OSM-way counts, loaded edge counts, and any edges that do not expose
 an OSM identity. This is a way-level diagnostic view; exact geometry/boundary fingerprint diffing
 is a separate roadmap milestone.
+
+
+## Handoff artifact overlay
+
+The Border Inspector can normalize and display RoadPilot handoff evidence from the local Graph Studio
+workspace. It recognizes:
+
+- `roadpilot.transition-candidates` — automatic offline candidate pairs;
+- `roadpilot.bound-cross-graph-transitions` — Valhalla-proven, graph-bound transitions;
+- `roadpilot.cross-graph-transitions` — F8-learned physical proof artifacts;
+- Graph Studio manual overrides.
+
+Generated transition artifacts belong under:
+
+```text
+~/RoadPilotGraphStudio/transitions/
+```
+
+Artifacts copied from a device or another workstation can be placed under:
+
+```text
+~/RoadPilotGraphStudio/imports/handoffs/
+```
+
+Graph Studio compares every artifact's region-pair graph fingerprints against the latest local
+routing builds and marks it CURRENT/VALID or STALE. Graph-local IDs are never compared between
+independent graphs.
