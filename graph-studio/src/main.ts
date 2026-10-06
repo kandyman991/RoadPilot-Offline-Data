@@ -139,6 +139,28 @@ type HandoffOverride = {
   snapB: HandoffSnap;
   validation?: HandoffValidation;
 };
+type HandoffArtifactItem = {
+  kind: "candidate" | "accepted" | "learned" | "manual";
+  id: string | null;
+  status: string;
+  fromRegionId: string;
+  toRegionId: string;
+  from: { lat: number; lng: number };
+  to: { lat: number; lng: number };
+  modes: string[];
+  evidence: string[];
+  separationMeters?: number | null;
+  artifactPath: string;
+};
+type HandoffArtifactInspection = {
+  regionA: string;
+  regionB: string;
+  graphA: Record<string, unknown>;
+  graphB: Record<string, unknown>;
+  recognizedArtifactFiles: number;
+  searchDirectories: string[];
+  items: HandoffArtifactItem[];
+};
 type RegionPreview = {
   geofabrikId: string;
   name: string;
@@ -304,6 +326,18 @@ app.innerHTML = `
           <button id="refreshBorderDiffBtn" class="btn" type="button" disabled>Refresh road diff</button>
         </div>
         <div id="borderDiffSummary" class="empty">Load a graph pair to compare border roads.</div>
+        <h2 style="margin-top:16px">Handoff layers</h2>
+        <div class="handoff-artifact-legend">
+          <span><i class="artifact-candidate"></i>Candidate</span>
+          <span><i class="artifact-accepted"></i>Accepted / bound</span>
+          <span><i class="artifact-learned"></i>Learned F8 proof</span>
+          <span><i class="artifact-manual"></i>Manual</span>
+        </div>
+        <div class="actions" style="margin-top:8px">
+          <button id="refreshHandoffArtifactsBtn" class="btn" type="button" disabled>Refresh handoffs</button>
+        </div>
+        <div id="handoffArtifactSummary" class="empty">Load a graph pair to inspect handoff artifacts.</div>
+        <div id="handoffArtifactList" class="artifact-list"></div>
         <h2 style="margin-top:16px">Saved manual overrides</h2>
         <div id="handoffOverrideList" class="empty">No manual overrides.</div>
       </section>
@@ -424,6 +458,9 @@ const handoffProbeList = document.querySelector<HTMLDivElement>("#handoffProbeLi
 const handoffOverrideList = document.querySelector<HTMLDivElement>("#handoffOverrideList")!;
 const refreshBorderDiffBtn = document.querySelector<HTMLButtonElement>("#refreshBorderDiffBtn")!;
 const borderDiffSummary = document.querySelector<HTMLDivElement>("#borderDiffSummary")!;
+const refreshHandoffArtifactsBtn = document.querySelector<HTMLButtonElement>("#refreshHandoffArtifactsBtn")!;
+const handoffArtifactSummary = document.querySelector<HTMLDivElement>("#handoffArtifactSummary")!;
+const handoffArtifactList = document.querySelector<HTMLDivElement>("#handoffArtifactList")!;
 const routeCosting = document.querySelector<HTMLSelectElement>("#routeCosting")!;
 const routeStartLat = document.querySelector<HTMLInputElement>("#routeStartLat")!;
 const routeStartLng = document.querySelector<HTMLInputElement>("#routeStartLng")!;
@@ -575,6 +612,7 @@ function removeBorderRoadDiff(): void {
 
 function removeBorderPairLayers(): void {
   removeBorderRoadDiff();
+  removeHandoffArtifactOverlay();
   for (const id of [borderLayerA, borderLayerB]) if (map.getLayer(id)) map.removeLayer(id);
   for (const id of [borderSourceA, borderSourceB]) if (map.getSource(id)) map.removeSource(id);
   refreshBorderDiffBtn.disabled = true;
@@ -733,9 +771,11 @@ function showBorderPairLayers(regionA: string, regionB: string): void {
     paint: { "line-color": "#4b9ee8", "line-width": 1.4, "line-opacity": 0.22 },
   });
   refreshBorderDiffBtn.disabled = false;
+  refreshHandoffArtifactsBtn.disabled = false;
   borderDiffSummary.className = "empty";
   borderDiffSummary.textContent = "Loading OSM way identities from both graph tile sets…";
   map.once("idle", scheduleBorderRoadDiff);
+  refreshHandoffArtifactOverlay().catch(error => appendLog(String(error)));
 }
 
 function clearHandoffSelection(removeLayers = false): void {
@@ -861,6 +901,9 @@ async function refreshHandoffOverrides(): Promise<void> {
             overrideId: item.id,
           });
           await refreshHandoffOverrides();
+          if (borderRegionA.value && borderRegionB.value) {
+            await refreshHandoffArtifactOverlay();
+          }
         } catch (error) {
           appendLog(`Delete manual handoff failed: ${String(error)}`);
         }
@@ -911,6 +954,195 @@ async function snapHandoff(kind: "A" | "B", lat: number, lng: number): Promise<v
   } catch (error) {
     summary.className = "bad";
     summary.textContent = `Snap failed: ${String(error)}`;
+  }
+}
+
+const handoffArtifactSource = "roadpilot-handoff-artifacts";
+const handoffArtifactLayers = [
+  "roadpilot-handoff-candidate",
+  "roadpilot-handoff-accepted",
+  "roadpilot-handoff-learned",
+  "roadpilot-handoff-manual",
+  "roadpilot-handoff-endpoints",
+];
+
+function removeHandoffArtifactOverlay(): void {
+  for (const id of handoffArtifactLayers) if (map.getLayer(id)) map.removeLayer(id);
+  if (map.getSource(handoffArtifactSource)) map.removeSource(handoffArtifactSource);
+  handoffArtifactSummary.className = "empty";
+  handoffArtifactSummary.textContent = "Load a graph pair to inspect handoff artifacts.";
+  handoffArtifactList.innerHTML = "";
+  refreshHandoffArtifactsBtn.disabled = true;
+}
+
+function artifactLineFeature(item: HandoffArtifactItem): Feature {
+  return {
+    type: "Feature",
+    geometry: {
+      type: "LineString",
+      coordinates: [
+        [item.from.lng, item.from.lat],
+        [item.to.lng, item.to.lat],
+      ],
+    },
+    properties: {
+      kind: item.kind,
+      id: item.id ?? "",
+      status: item.status,
+      fromRegionId: item.fromRegionId,
+      toRegionId: item.toRegionId,
+      modes: item.modes.join(","),
+      evidence: item.evidence.join(","),
+      artifactPath: item.artifactPath,
+      geometryRole: "link",
+    },
+  };
+}
+
+function artifactPointFeatures(item: HandoffArtifactItem): Feature[] {
+  return [
+    {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [item.from.lng, item.from.lat] },
+      properties: {
+        kind: item.kind,
+        status: item.status,
+        id: item.id ?? "",
+        regionId: item.fromRegionId,
+        endpoint: "from",
+        geometryRole: "endpoint",
+      },
+    },
+    {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [item.to.lng, item.to.lat] },
+      properties: {
+        kind: item.kind,
+        status: item.status,
+        id: item.id ?? "",
+        regionId: item.toRegionId,
+        endpoint: "to",
+        geometryRole: "endpoint",
+      },
+    },
+  ];
+}
+
+function renderHandoffArtifactOverlay(result: HandoffArtifactInspection): void {
+  const features: Feature[] = [];
+  for (const item of result.items) {
+    features.push(artifactLineFeature(item), ...artifactPointFeatures(item));
+  }
+  const collection: FeatureCollection = { type: "FeatureCollection", features };
+
+  const existing = map.getSource(handoffArtifactSource) as { setData?: (data: FeatureCollection) => void } | undefined;
+  if (existing?.setData) {
+    existing.setData(collection);
+  } else {
+    map.addSource(handoffArtifactSource, { type: "geojson", data: collection });
+
+    const addLine = (id: string, kind: HandoffArtifactItem["kind"], color: string, dash?: number[]) => {
+      map.addLayer({
+        id,
+        type: "line",
+        source: handoffArtifactSource,
+        filter: ["all",
+          ["==", ["get", "geometryRole"], "link"],
+          ["==", ["get", "kind"], kind],
+        ],
+        paint: {
+          "line-color": color,
+          "line-width": ["case", ["==", ["get", "status"], "CURRENT"], 4.2, 2.6],
+          "line-opacity": ["case", ["==", ["get", "status"], "CURRENT"], 0.95, 0.38],
+          ...(dash ? { "line-dasharray": dash } : {}),
+        },
+      });
+    };
+
+    addLine("roadpilot-handoff-candidate", "candidate", "#f0a44b", [2, 2]);
+    addLine("roadpilot-handoff-accepted", "accepted", "#2fbd71");
+    addLine("roadpilot-handoff-learned", "learned", "#9d72e8", [4, 1.5]);
+    addLine("roadpilot-handoff-manual", "manual", "#ee5aa7");
+
+    map.addLayer({
+      id: "roadpilot-handoff-endpoints",
+      type: "circle",
+      source: handoffArtifactSource,
+      filter: ["==", ["get", "geometryRole"], "endpoint"],
+      paint: {
+        "circle-radius": ["case", ["==", ["get", "status"], "CURRENT"], 5, 3.5],
+        "circle-color": [
+          "match",
+          ["get", "kind"],
+          "candidate", "#f0a44b",
+          "accepted", "#2fbd71",
+          "learned", "#9d72e8",
+          "manual", "#ee5aa7",
+          "#ffffff",
+        ],
+        "circle-opacity": ["case", ["==", ["get", "status"], "CURRENT"], 0.95, 0.4],
+        "circle-stroke-color": "#111820",
+        "circle-stroke-width": 1,
+      },
+    });
+  }
+
+  const counts = new Map<string, number>();
+  for (const item of result.items) {
+    const key = `${item.kind}:${item.status}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const count = (kind: string, status: string) => counts.get(`${kind}:${status}`) ?? 0;
+  handoffArtifactSummary.className = "kv";
+  handoffArtifactSummary.innerHTML = `
+    <dt>Candidates</dt><dd>${count("candidate", "CURRENT")} current / ${count("candidate", "STALE")} stale</dd>
+    <dt>Accepted</dt><dd>${count("accepted", "CURRENT")} current / ${count("accepted", "STALE")} stale</dd>
+    <dt>Learned proofs</dt><dd>${count("learned", "CURRENT")} current / ${count("learned", "STALE")} stale</dd>
+    <dt>Manual</dt><dd>${count("manual", "VALID")} valid / ${count("manual", "STALE")} stale</dd>
+    <dt>Artifact files</dt><dd>${result.recognizedArtifactFiles}</dd>
+  `;
+
+  handoffArtifactList.innerHTML = result.items.slice(0, 100).map(item => {
+    const statusClass = item.status === "CURRENT" || item.status === "VALID" ? "ok" : "warn";
+    const modes = item.modes.length ? item.modes.join(", ") : "—";
+    const evidence = item.evidence.length ? item.evidence.join(", ") : "—";
+    return `
+      <div class="artifact-row">
+        <div><b>${item.kind.toUpperCase()} ${item.id ?? ""}</b><span class="${statusClass}">${item.status}</span></div>
+        <small>${item.fromRegionId} → ${item.toRegionId} • ${modes}</small>
+        <small>${evidence}</small>
+      </div>
+    `;
+  }).join("");
+  if (!result.items.length) {
+    handoffArtifactList.innerHTML = `
+      <div class="empty">
+        No candidate/learned/manual handoffs found for this pair.
+        Artifact imports are scanned under:<br>
+        ${result.searchDirectories.map(path => `<code>${path}</code>`).join("<br>")}
+      </div>
+    `;
+  }
+}
+
+async function refreshHandoffArtifactOverlay(): Promise<void> {
+  const regionA = borderRegionA.value;
+  const regionB = borderRegionB.value;
+  if (!regionA || !regionB || regionA === regionB) return;
+  refreshHandoffArtifactsBtn.disabled = true;
+  handoffArtifactSummary.className = "empty";
+  handoffArtifactSummary.textContent = "Reading fingerprint-bound handoff artifacts…";
+  try {
+    const result = await invoke<HandoffArtifactInspection>("inspect_handoff_artifacts", {
+      regionA,
+      regionB,
+    });
+    renderHandoffArtifactOverlay(result);
+  } catch (error) {
+    handoffArtifactSummary.className = "bad";
+    handoffArtifactSummary.textContent = `Handoff artifact inspection failed: ${String(error)}`;
+  } finally {
+    refreshHandoffArtifactsBtn.disabled = false;
   }
 }
 
@@ -1563,6 +1795,7 @@ loadBorderPairBtn.addEventListener("click", () => {
 });
 
 refreshBorderDiffBtn.addEventListener("click", scheduleBorderRoadDiff);
+refreshHandoffArtifactsBtn.addEventListener("click", () => refreshHandoffArtifactOverlay());
 map.on("moveend", scheduleBorderRoadDiff);
 
 pickHandoffABtn.addEventListener("click", () => {
@@ -1624,6 +1857,7 @@ saveHandoffBtn.addEventListener("click", async () => {
     editingHandoffId = saved.id;
     appendLog(`Saved VALID manual handoff: ${borderRegionA.value} ↔ ${borderRegionB.value}`);
     await refreshHandoffOverrides();
+    await refreshHandoffArtifactOverlay();
   } catch (error) {
     handoffValidationSummary.className = "bad";
     handoffValidationSummary.textContent = `Save rejected: ${String(error)}`;
