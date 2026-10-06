@@ -191,7 +191,11 @@
         "directDistanceMeters",
         "elapsedMs",
         "routeLengthKm",
-        "routeTimeSeconds"
+        "routeTimeSeconds",
+        "expectedGraphId",
+        "endpointEdgePosition",
+        "actualEndpointGraphId",
+        "edgeMatched"
       ],
       "properties": {
         "status": {
@@ -235,6 +239,26 @@
         },
         "error": {
           "type": "string"
+        },
+        "expectedGraphId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endpointEdgePosition": {
+          "enum": [
+            "START",
+            "END"
+          ]
+        },
+        "actualEndpointGraphId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "edgeMatched": {
+          "type": "boolean"
         }
       }
     },
