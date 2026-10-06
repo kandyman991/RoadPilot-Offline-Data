@@ -152,17 +152,18 @@ Road/edge-level comparison remains the next #13 refinement. Graph-local edge IDs
 Goal:
 
 ~~~
-Graph A + Graph B
+build A + build B
        ↓
-common / unique roads
+deterministic tile/road identities
        ↓
-automatic + learned + manual handoffs
+internal vs boundary changes
        ↓
-Valhalla proof
+per-neighbor refresh decision
        ↓
-VALID / FAILED / STALE
+changed boundary roads on map
 ~~~
 
+After the first tile-index milestone, refine changed boundary tiles into stable road/edge-level differences using OSM identity, geometry and access attributes.
 ### 2. Build-time cross-region connectivity metadata
 
 This is the key step for removing expensive first-route F8 discovery from phones.
