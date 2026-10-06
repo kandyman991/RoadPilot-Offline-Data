@@ -47,3 +47,24 @@ A pack is not publishable unless:
 5. the graph fingerprint is the SHA-256 identity of the immutable published tile extract.
 
 Cloudflare publication is intentionally a later step. The first milestone proves reproducible build + validation on the Legion before any public object is replaced.
+
+
+## Cloudflare R2 publication
+
+Publishing is a separate manual gate after the build and validation steps. Immutable objects are stored under:
+
+    routing/<region>/<version>/<artifact>
+    routing/<region>/<version>/<manifest>
+    routing/<region>/<version>/<artifact>.sha256
+
+The publisher writes `routing/<region>/latest.json` only after all immutable versioned objects are present. That pointer is the small object RoadPilot can poll when checking for an update.
+
+The workflow requires these repository secrets only when `publish_r2=true`:
+
+- `CLOUDFLARE_ACCOUNT_ID`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_BUCKET`
+- `R2_PUBLIC_BASE_URL`
+
+Versioned objects are never overwritten with different content. Re-running the same publication is safe when the object SHA-256 matches.
