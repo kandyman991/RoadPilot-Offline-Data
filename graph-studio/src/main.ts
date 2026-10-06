@@ -1,7 +1,8 @@
 import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Map, NavigationControl, addProtocol, setWorkerUrl } from "maplibre-gl";
+import { Map as MapLibreMap, NavigationControl, addProtocol, setWorkerUrl } from "maplibre-gl";
+import type { Feature, FeatureCollection, Geometry } from "geojson";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
 setWorkerUrl(workerUrl);
@@ -60,7 +61,7 @@ type RegionPreviewSource = {
   polygonUrl: string;
   primary: boolean;
   intersectionArea: number;
-  geometry: GeoJSON.Geometry;
+  geometry: Geometry;
 };
 type RegionPreview = {
   geofabrikId: string;
@@ -71,8 +72,8 @@ type RegionPreview = {
   polygonUrl: string;
   borderBufferKm: number;
   bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number };
-  primaryGeometry: GeoJSON.Geometry;
-  bufferGeometry: GeoJSON.Geometry;
+  primaryGeometry: Geometry;
+  bufferGeometry: Geometry;
   sources: RegionPreviewSource[];
 };
 
@@ -298,7 +299,7 @@ addProtocol("roadpilot-graph", async (request) => {
   return { data: new Uint8Array(data).buffer };
 });
 
-const map = new Map({
+const map = new MapLibreMap({
   container: "map",
   style: "https://tiles.openfreemap.org/styles/bright",
   center: [11.8, 46.2],
@@ -318,11 +319,11 @@ function showEditorPreview(preview: RegionPreview): void {
   removeEditorOverlays();
   map.addSource("rp-editor-primary", {
     type: "geojson",
-    data: { type: "Feature", properties: {}, geometry: preview.primaryGeometry } as GeoJSON.Feature,
+    data: { type: "Feature", properties: {}, geometry: preview.primaryGeometry } as Feature,
   });
   map.addSource("rp-editor-buffer", {
     type: "geojson",
-    data: { type: "Feature", properties: {}, geometry: preview.bufferGeometry } as GeoJSON.Feature,
+    data: { type: "Feature", properties: {}, geometry: preview.bufferGeometry } as Feature,
   });
   map.addSource("rp-editor-sources", {
     type: "geojson",
@@ -333,7 +334,7 @@ function showEditorPreview(preview: RegionPreview): void {
         properties: { id: source.id, primary: source.primary },
         geometry: source.geometry,
       })),
-    } as GeoJSON.FeatureCollection,
+    } as FeatureCollection,
   });
   map.addLayer({ id: "rp-editor-sources-line", type: "line", source: "rp-editor-sources", paint: { "line-color": "#6b7f93", "line-width": 1, "line-opacity": 0.5 } });
   map.addLayer({ id: "rp-editor-buffer-fill", type: "fill", source: "rp-editor-buffer", paint: { "fill-color": "#4f9bd8", "fill-opacity": 0.08 } });
@@ -459,7 +460,7 @@ async function loadGeofabrikCatalog(refresh = false): Promise<void> {
   editorGeofabrik.innerHTML = '<option value="">Loading Geofabrik catalog…</option>';
   try {
     geofabrikCatalog = await invoke<GeofabrikCatalogItem[]>("geofabrik_catalog", { refresh });
-    const groups = new Map<string, GeofabrikCatalogItem[]>();
+    const groups = new globalThis.Map<string, GeofabrikCatalogItem[]>();
     for (const item of geofabrikCatalog) {
       const country = item.countryName || "Other";
       const list = groups.get(country) ?? [];
