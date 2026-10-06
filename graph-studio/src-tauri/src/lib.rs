@@ -1211,8 +1211,10 @@ fn compare_build_indexes(
             _ => continue,
         };
 
-        let boundaries: BTreeSet<String> = tile_boundary_ids(old)
-            .union(&tile_boundary_ids(new))
+        let old_boundaries = tile_boundary_ids(old);
+        let new_boundaries = tile_boundary_ids(new);
+        let boundaries: BTreeSet<String> = old_boundaries
+            .union(&new_boundaries)
             .cloned()
             .collect();
         if boundaries.is_empty() {
