@@ -26,26 +26,19 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Graph Studio Border Inspector refinement**, issue #11. PR #20 core is merged.
+**Graph Studio exact graph/boundary diffing**, issue #13.
 
-PR #18 merged: region editor + automatic Geofabrik neighbor/source discovery.
+Issue #11 is complete. PRs #20-#23 delivered the Border Inspector core, road diff, handoff artifact overlays, and diagnostics export.
 
-PR #19 merged: standard local Valhalla route planner + optional search-expansion overlay.
+Current #13 milestone branch: `graph-studio-boundary-fingerprints-m1`.
 
-PR #20 merged with:
-
-- dual Graph A / Graph B overlays;
-- manual A/B crossing selection;
-- Valhalla `locate` snapping to actual directed edges;
-- correlated coordinates, OSM way, percent-along, heading, directed-edge metadata;
-- A/B coordinates may differ;
-- eight strict validation probes: two graphs × two directions × motorcycle/auto;
-- RoadPilot-owned manual override storage rather than graph mutation;
-- exact graph fingerprint binding;
-- automatic STALE detection after either graph changes;
-- revalidation in place;
-- deletion.
-
+Implementation direction:
+- new builds emit deterministic per-`.gph` tile hashes;
+- graph-wide and internal-only tile fingerprints are recorded;
+- each configured neighboring Geofabrik source receives a conservative boundary/overlap fingerprint;
+- Build Comparison reports added/removed/modified tiles and REFRESH/UNCHANGED for each neighbor;
+- changed boundary tiles are visualized on the map;
+- road/edge-level changed-road visualization follows as the next #13 refinement.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -66,16 +59,10 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Finish the remaining issue #11 work:
-   - common roads vs A-only/B-only;
-   - automatic candidate handoffs;
-   - learned handoffs;
-   - visual distinction between manual/automatic/learned;
-   - compact diagnostics export.
-2. Begin issue #13 exact graph/boundary diffing and per-neighbor fingerprints.
-3. Use those fingerprints to drive build-time connectivity manifests / F8 seeds.
+1. Finish and merge the first issue #13 deterministic graph/boundary-index milestone.
+2. Add road/edge-level changed-border visualization for indexed build A/B pairs.
+3. Use boundary fingerprints to drive build-time connectivity manifests / F8 seeds.
 4. Then proceed to R2 publication, visual-map artifact, POI/search artifact, and scheduled updates as defined in `ROADMAP.md`.
-
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.

@@ -12,11 +12,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from pyproj import CRS, Transformer
-from shapely.geometry import Point, Polygon, mapping
+from shapely.geometry import Point, Polygon, box, mapping
 from shapely.ops import transform, unary_union
 
 
 USER_AGENT = "RoadPilot-Offline-Data/1"
+VALHALLA_TILE_SIZE_DEGREES = {0: 4.0, 1: 1.0, 2: 0.25}
 
 
 def fail(message: str) -> None:
@@ -29,6 +30,130 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def sha256_lines(lines) -> str:
+    digest = hashlib.sha256()
+    for line in sorted(lines):
+        digest.update(line.encode("utf-8"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def geofabrik_polygon_url(pbf_url: str) -> str:
+    suffix = "-latest.osm.pbf"
+    if not pbf_url.endswith(suffix):
+        fail(f"Cannot derive Geofabrik polygon URL from {pbf_url}")
+    return pbf_url[: -len(suffix)] + ".poly"
+
+
+def valhalla_tile_metadata(tile_path: Path, tile_dir: Path):
+    relative = tile_path.relative_to(tile_dir)
+    parts = relative.parts
+    if len(parts) < 2 or not parts[-1].endswith(".gph"):
+        fail(f"Unexpected Valhalla graph tile path: {relative}")
+    try:
+        level = int(parts[0])
+        tile_index = int("".join([*parts[1:-1], Path(parts[-1]).stem]))
+        size = VALHALLA_TILE_SIZE_DEGREES[level]
+    except (KeyError, ValueError):
+        fail(f"Unsupported Valhalla graph tile path: {relative}")
+    width = int(360.0 / size)
+    row = tile_index // width
+    column = tile_index % width
+    min_lat = row * size - 90.0
+    min_lng = column * size - 180.0
+    return {
+        "path": relative.as_posix(),
+        "level": level,
+        "tileIndex": tile_index,
+        "bounds": {
+            "minLat": min_lat,
+            "maxLat": min_lat + size,
+            "minLng": min_lng,
+            "maxLng": min_lng + size,
+        },
+    }
+
+
+def build_graph_index(
+    *,
+    tile_dir: Path,
+    nominal_geometry,
+    buffered_geometry,
+    source: dict,
+    cache_root: Path,
+    refresh_sources: bool,
+    region_id: str,
+    package_version: str,
+):
+    border_ring = buffered_geometry.difference(nominal_geometry)
+    primary_id = str(source["primaryGeofabrikId"])
+    boundary_geometries = {}
+    for item in source.get("pbfs") or []:
+        source_id = str(item.get("id") or "")
+        if not source_id or source_id == primary_id:
+            continue
+        polygon_url = geofabrik_polygon_url(str(item["url"]))
+        polygon_path = download(
+            polygon_url,
+            cache_root / f"graph-index__{source_id.replace('/', '__')}.poly",
+            refresh=refresh_sources,
+        )
+        overlap = parse_poly(polygon_path).intersection(border_ring)
+        if not overlap.is_empty:
+            boundary_geometries[source_id] = overlap
+
+    tiles = []
+    graph_lines = []
+    internal_lines = []
+    boundary_lines = {source_id: [] for source_id in boundary_geometries}
+    for tile_path in sorted(tile_dir.rglob("*.gph")):
+        metadata = valhalla_tile_metadata(tile_path, tile_dir)
+        tile_sha = sha256(tile_path)
+        bounds = metadata["bounds"]
+        tile_geometry = box(
+            bounds["minLng"], bounds["minLat"], bounds["maxLng"], bounds["maxLat"]
+        )
+        boundaries = sorted(
+            source_id
+            for source_id, geometry in boundary_geometries.items()
+            if geometry.intersection(tile_geometry).area > 0.0
+        )
+        metadata["sha256"] = tile_sha
+        metadata["boundaries"] = boundaries
+        tiles.append(metadata)
+        identity = f'{metadata["path"]}:{tile_sha}'
+        graph_lines.append(identity)
+        if boundaries:
+            for source_id in boundaries:
+                boundary_lines[source_id].append(identity)
+        else:
+            internal_lines.append(identity)
+
+    if not tiles:
+        fail("Cannot create graph index without Valhalla .gph tiles")
+
+    boundaries = [
+        {
+            "sourceId": source_id,
+            "fingerprint": f"sha256:{sha256_lines(lines)}",
+            "tileCount": len(lines),
+        }
+        for source_id, lines in sorted(boundary_lines.items())
+        if lines
+    ]
+    return {
+        "schema": "roadpilot-graph-index",
+        "schemaVersion": 1,
+        "regionId": region_id,
+        "packageVersion": package_version,
+        "graphTileFingerprint": f"sha256:{sha256_lines(graph_lines)}",
+        "internalFingerprint": f"sha256:{sha256_lines(internal_lines)}",
+        "tileCount": len(tiles),
+        "boundaries": boundaries,
+        "tiles": tiles,
+    }
 
 
 def run(command, *, stdout=None, capture=False):
@@ -255,10 +380,23 @@ def main() -> None:
         cache_root / f"{region_id}.poly",
         refresh=args.refresh_sources,
     )
-    nominal_geometry = make_buffered_geojson(
-        polygon_path,
-        border_buffer_km,
-        build_root / "buffer.geojson",
+    nominal_geometry = parse_poly(polygon_path)
+    center = nominal_geometry.centroid
+    local_crs = CRS.from_proj4(
+        f"+proj=aeqd +lat_0={center.y} +lon_0={center.x} +datum=WGS84 +units=m +no_defs"
+    )
+    forward = Transformer.from_crs("EPSG:4326", local_crs, always_xy=True).transform
+    backward = Transformer.from_crs(local_crs, "EPSG:4326", always_xy=True).transform
+    buffered_geometry = transform(
+        backward, transform(forward, nominal_geometry).buffer(border_buffer_km * 1000.0)
+    )
+    feature = {
+        "type": "Feature",
+        "properties": {"borderBufferKm": border_buffer_km},
+        "geometry": mapping(buffered_geometry),
+    }
+    (build_root / "buffer.geojson").write_text(
+        json.dumps(feature, separators=(",", ":")), encoding="utf-8"
     )
 
     source_records = []
@@ -359,6 +497,25 @@ def main() -> None:
     manifest_name = manifest_template.replace("{version}", args.package_version)
     package_path = dist_root / package_name
     manifest_path = dist_root / manifest_name
+    if manifest_name.endswith("-manifest.json"):
+        graph_index_name = manifest_name[: -len("-manifest.json")] + "-graph-index.json"
+    else:
+        graph_index_name = manifest_name.removesuffix(".json") + "-graph-index.json"
+    graph_index_path = dist_root / graph_index_name
+
+    graph_index = build_graph_index(
+        tile_dir=tile_dir,
+        nominal_geometry=nominal_geometry,
+        buffered_geometry=buffered_geometry,
+        source=source,
+        cache_root=cache_root,
+        refresh_sources=args.refresh_sources,
+        region_id=region_id,
+        package_version=args.package_version,
+    )
+    graph_index_path.write_text(json.dumps(graph_index, indent=2) + "\n", encoding="utf-8")
+    graph_index_sha = sha256(graph_index_path)
+
     shutil.copy2(tile_extract, package_path)
 
     package_sha = sha256(package_path)
@@ -384,6 +541,15 @@ def main() -> None:
             "sha256": package_sha,
             "tileCount": tile_count,
         },
+        "graphIndex": {
+            "fileName": graph_index_name,
+            "sha256": graph_index_sha,
+            "graphTileFingerprint": graph_index["graphTileFingerprint"],
+            "internalFingerprint": graph_index["internalFingerprint"],
+            "boundaryFingerprints": {
+                item["sourceId"]: item["fingerprint"] for item in graph_index["boundaries"]
+            },
+        },
         "validation": {"routes": route_results},
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -395,6 +561,8 @@ def main() -> None:
     print(f"manifest: {manifest_path}")
     print(f"sha256: {package_sha}")
     print(f"tiles: {tile_count}")
+    print(f"graph-index: {graph_index_path}")
+    print(f"graph-tile-fingerprint: {graph_index['graphTileFingerprint']}")
 
 
 if __name__ == "__main__":

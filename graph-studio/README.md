@@ -70,7 +70,7 @@ This deliberately avoids exposing a local HTTP server or relying on browser CORS
 2. Region-detail editor and neighbor/source auto-discovery.
 3. Dedicated border-pair inspector with A/B graph overlays and two-sided route probes.
 4. Route-search/expansion visualization.
-5. Detailed graph-to-graph diffing, including boundary fingerprints.
+5. Detailed graph-to-graph diffing and boundary fingerprints — active.
 6. Cloudflare R2 credential setup, publish confirmation and rollback/latest-pointer management.
 7. Automatic update/build scheduling and retained-build cleanup policies.
 
@@ -91,6 +91,21 @@ The inspector reports unique OSM-way counts, loaded edge counts, and any edges t
 an OSM identity. This is a way-level diagnostic view; exact geometry/boundary fingerprint diffing
 is a separate roadmap milestone.
 
+
+## Build and boundary diffing
+
+New routing builds emit a deterministic graph-index sidecar next to the immutable routing pack.
+The index records SHA-256 identity for each Valhalla `.gph` tile, a whole-graph tile fingerprint,
+an internal-only fingerprint, and conservative fingerprints for each configured neighboring
+Geofabrik source intersecting the buffered overlap.
+
+Build Comparison can therefore distinguish internal changes from boundary changes and answer which
+neighbor compatibility metadata needs to be refreshed. Changed boundary tiles are drawn on the map.
+Builds created before this index exists remain usable, but they must be rebuilt before detailed
+comparison is available.
+
+This first diff milestone is tile-level. Road/edge-level visualization is the next #13 refinement
+and will use stable real-world/geometry evidence rather than graph-local edge IDs as durable identity.
 
 ## Handoff artifact overlay
 

@@ -43,6 +43,10 @@ type BuildArtifact = {
   sha256: string;
   tile_count: number;
   manifest_path: string;
+  graph_index_path: string | null;
+  graph_tile_fingerprint: string | null;
+  internal_fingerprint: string | null;
+  boundary_fingerprints: Record<string, string>;
 };
 type GeofabrikCatalogItem = {
   id: string;
@@ -161,6 +165,31 @@ type BorderRoadDiffMetrics = {
   unidentifiedA: number;
   unidentifiedB: number;
 };
+type BuildIndexDiff = {
+  regionId: string;
+  versionA: string;
+  versionB: string;
+  graphTileFingerprintA: string | null;
+  graphTileFingerprintB: string | null;
+  internalFingerprintA: string | null;
+  internalFingerprintB: string | null;
+  counts: {
+    addedTiles: number;
+    removedTiles: number;
+    changedTiles: number;
+    internalChangedTiles: number;
+    boundaryChangedTiles: number;
+  };
+  boundaries: Array<{
+    sourceId: string;
+    oldFingerprint: string | null;
+    newFingerprint: string | null;
+    requiresRefresh: boolean;
+    changedTiles: number;
+  }>;
+  changedBoundaryTiles: FeatureCollection;
+};
+
 type BorderDiagnosticsExport = {
   jsonPath: string;
   markdownPath: string;
@@ -621,6 +650,67 @@ const borderDiffSource = "roadpilot-border-road-diff";
 const borderDiffCommonLayer = "roadpilot-border-common";
 const borderDiffAOnlyLayer = "roadpilot-border-a-only";
 const borderDiffBOnlyLayer = "roadpilot-border-b-only";
+const buildDiffSource = "roadpilot-build-boundary-diff";
+const buildDiffFillLayer = "roadpilot-build-boundary-diff-fill";
+const buildDiffLineLayer = "roadpilot-build-boundary-diff-line";
+
+function removeBuildDiffOverlay(): void {
+  for (const id of [buildDiffFillLayer, buildDiffLineLayer]) {
+    if (map.getLayer(id)) map.removeLayer(id);
+  }
+  if (map.getSource(buildDiffSource)) map.removeSource(buildDiffSource);
+}
+
+function showBuildDiffOverlay(collection: FeatureCollection): void {
+  removeBuildDiffOverlay();
+  if (!collection.features.length) return;
+  map.addSource(buildDiffSource, { type: "geojson", data: collection });
+  map.addLayer({
+    id: buildDiffFillLayer,
+    type: "fill",
+    source: buildDiffSource,
+    paint: {
+      "fill-color": [
+        "match", ["get", "status"],
+        "added", "#42c58a",
+        "removed", "#e35d5b",
+        "#f2a93b",
+      ],
+      "fill-opacity": 0.18,
+    },
+  });
+  map.addLayer({
+    id: buildDiffLineLayer,
+    type: "line",
+    source: buildDiffSource,
+    paint: {
+      "line-color": [
+        "match", ["get", "status"],
+        "added", "#42c58a",
+        "removed", "#e35d5b",
+        "#f2a93b",
+      ],
+      "line-width": 2.2,
+      "line-opacity": 0.9,
+    },
+  });
+  const bounds = collection.features
+    .map(feature => feature.geometry)
+    .filter((geometry): geometry is Extract<Geometry, { type: "Polygon" }> => geometry.type === "Polygon")
+    .flatMap(geometry => geometry.coordinates[0])
+    .reduce<{ minLng: number; minLat: number; maxLng: number; maxLat: number } | null>((acc, coordinate) => {
+      const [lng, lat] = coordinate;
+      if (!acc) return { minLng: lng, minLat: lat, maxLng: lng, maxLat: lat };
+      acc.minLng = Math.min(acc.minLng, lng);
+      acc.minLat = Math.min(acc.minLat, lat);
+      acc.maxLng = Math.max(acc.maxLng, lng);
+      acc.maxLat = Math.max(acc.maxLat, lat);
+      return acc;
+    }, null);
+  if (bounds) {
+    map.fitBounds([[bounds.minLng, bounds.minLat], [bounds.maxLng, bounds.maxLat]], { padding: 70, duration: 450 });
+  }
+}
 
 function removeBorderRoadDiff(): void {
   lastBorderDiffMetrics = null;
@@ -1749,7 +1839,7 @@ async function refreshBuilds(): Promise<void> {
       const strong = document.createElement("strong");
       strong.textContent = `${item.region_id} • ${item.version}`;
       const meta = document.createElement("span");
-      meta.textContent = `${bytes(item.size_bytes)} • ${item.tile_count} tiles • ${item.sha256.slice(0, 10)}…`;
+      meta.textContent = `${bytes(item.size_bytes)} • ${item.tile_count} tiles • ${item.sha256.slice(0, 10)}…${item.graph_index_path ? " • indexed" : ""}`;
       card.append(strong, meta);
       buildsHost.appendChild(card);
     }
@@ -1766,10 +1856,11 @@ function renderCompareSelectors(): void {
   compareB.innerHTML = `<option value="">Choose…</option>${options}`;
   compareA.value = currentA;
   compareB.value = currentB;
-  renderComparison();
+  void renderComparison();
 }
 
-function renderComparison(): void {
+async function renderComparison(): Promise<void> {
+  removeBuildDiffOverlay();
   const ai = Number(compareA.value);
   const bi = Number(compareB.value);
   if (compareA.value === "" || compareB.value === "" || !artifacts[ai] || !artifacts[bi]) {
@@ -1785,16 +1876,48 @@ function renderComparison(): void {
   }
   const sizeDelta = b.size_bytes - a.size_bytes;
   const tileDelta = b.tile_count - a.tile_count;
-  comparison.className = "kv";
-  comparison.innerHTML = `
+  const basic = `
     <dt>Version</dt><dd>${a.version} → ${b.version}</dd>
     <dt>Size change</dt><dd>${sizeDelta >= 0 ? "+" : ""}${bytes(Math.abs(sizeDelta))} ${sizeDelta < 0 ? "smaller" : "larger"}</dd>
     <dt>Tile change</dt><dd>${tileDelta >= 0 ? "+" : ""}${tileDelta}</dd>
-    <dt>Same graph</dt><dd class="${a.sha256 === b.sha256 ? "ok" : "warn"}">${a.sha256 === b.sha256 ? "yes" : "no"}</dd>
+    <dt>Same package</dt><dd class="${a.sha256 === b.sha256 ? "ok" : "warn"}">${a.sha256 === b.sha256 ? "yes" : "no"}</dd>
   `;
+  comparison.className = "kv";
+  if (!a.graph_index_path || !b.graph_index_path) {
+    comparison.innerHTML = basic + `
+      <dt>Graph index</dt><dd class="warn">unavailable — rebuild both versions with the current Graph Studio</dd>
+    `;
+    return;
+  }
+  comparison.innerHTML = basic + `<dt>Graph diff</dt><dd>Reading deterministic tile indexes…</dd>`;
+  try {
+    const diff = await invoke<BuildIndexDiff>("compare_build_indexes", {
+      manifestPathA: a.manifest_path,
+      manifestPathB: b.manifest_path,
+    });
+    const graphChanged = diff.graphTileFingerprintA !== diff.graphTileFingerprintB;
+    const internalChanged = diff.internalFingerprintA !== diff.internalFingerprintB;
+    const refreshBoundaries = diff.boundaries.filter(item => item.requiresRefresh);
+    const boundaryRows = diff.boundaries.length
+      ? diff.boundaries.map(item =>
+          `<div class="source-row"><span>${item.requiresRefresh ? "REFRESH" : "UNCHANGED"}</span><b>${item.sourceId}</b><small>${item.changedTiles} changed tiles</small></div>`
+        ).join("")
+      : `<div class="empty">No neighboring boundary fingerprints were recorded.</div>`;
+    comparison.innerHTML = basic + `
+      <dt>Graph tiles changed</dt><dd class="${graphChanged ? "warn" : "ok"}">${graphChanged ? "yes" : "no"}</dd>
+      <dt>Added / removed / modified</dt><dd>${diff.counts.addedTiles} / ${diff.counts.removedTiles} / ${diff.counts.changedTiles}</dd>
+      <dt>Internal-only changed tiles</dt><dd class="${internalChanged ? "warn" : "ok"}">${diff.counts.internalChangedTiles}</dd>
+      <dt>Boundary changed tiles</dt><dd class="${diff.counts.boundaryChangedTiles ? "warn" : "ok"}">${diff.counts.boundaryChangedTiles}</dd>
+      <dt>Neighbor metadata refresh</dt><dd class="${refreshBoundaries.length ? "warn" : "ok"}">${refreshBoundaries.length ? refreshBoundaries.map(item => item.sourceId).join(", ") : "none"}</dd>
+      <dt>Boundary fingerprints</dt><dd>${boundaryRows}</dd>
+    `;
+    showBuildDiffOverlay(diff.changedBoundaryTiles);
+  } catch (error) {
+    comparison.innerHTML = basic + `<dt>Graph diff</dt><dd class="bad">${String(error)}</dd>`;
+  }
 }
-compareA.addEventListener("change", renderComparison);
-compareB.addEventListener("change", renderComparison);
+compareA.addEventListener("change", () => { void renderComparison(); });
+compareB.addEventListener("change", () => { void renderComparison(); });
 
 buildBtn.addEventListener("click", async () => {
   const queue = [...selected];
