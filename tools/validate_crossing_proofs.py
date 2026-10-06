@@ -68,6 +68,38 @@ def leg(value: Any, expected_region: str, label: str) -> bool:
     coord(value.get("start"), f"{label}.start")
     coord(value.get("end"), f"{label}.end")
     require(finite(value.get("directDistanceMeters"), f"{label}.directDistanceMeters") >= 0, f"{label}.directDistanceMeters invalid")
+    expected_graph_id = value.get("expectedGraphId")
+    require(
+        expected_graph_id is None
+        or (
+            isinstance(expected_graph_id, int)
+            and not isinstance(expected_graph_id, bool)
+            and expected_graph_id > 0
+        ),
+        f"{label}.expectedGraphId invalid",
+    )
+    endpoint_position = value.get("endpointEdgePosition")
+    require(endpoint_position in {"START", "END"}, f"{label}.endpointEdgePosition invalid")
+    actual_graph_id = value.get("actualEndpointGraphId")
+    require(
+        actual_graph_id is None
+        or (
+            isinstance(actual_graph_id, int)
+            and not isinstance(actual_graph_id, bool)
+            and actual_graph_id > 0
+        ),
+        f"{label}.actualEndpointGraphId invalid",
+    )
+    edge_matched = value.get("edgeMatched")
+    require(isinstance(edge_matched, bool), f"{label}.edgeMatched must be boolean")
+    require(
+        edge_matched == (
+            expected_graph_id is not None
+            and actual_graph_id is not None
+            and expected_graph_id == actual_graph_id
+        ),
+        f"{label}.edgeMatched mismatch",
+    )
     elapsed = value.get("elapsedMs")
     require(isinstance(elapsed, int) and not isinstance(elapsed, bool) and elapsed >= 0, f"{label}.elapsedMs invalid")
     for key in ("routeLengthKm", "routeTimeSeconds"):
@@ -76,8 +108,13 @@ def leg(value: Any, expected_region: str, label: str) -> bool:
             require(finite(item, f"{label}.{key}") >= 0, f"{label}.{key} invalid")
     if status == "PASSED":
         require("error" not in value, f"{label} PASSED must not contain error")
+        require(expected_graph_id is not None, f"{label} PASSED requires expectedGraphId")
+        require(edge_matched, f"{label} PASSED requires exact endpoint edge match")
     else:
         require(bool(str(value.get("error") or "").strip()), f"{label} {status} requires error")
+        require(not edge_matched, f"{label} {status} cannot have edgeMatched=true")
+    if expected_graph_id is None:
+        require(status == "ERROR", f"{label} missing graphId must be ERROR/inconclusive")
     return status == "ERROR"
 
 
