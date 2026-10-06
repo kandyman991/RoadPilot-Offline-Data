@@ -152,6 +152,20 @@ type HandoffArtifactItem = {
   separationMeters?: number | null;
   artifactPath: string;
 };
+type BorderRoadDiffMetrics = {
+  commonWays: number;
+  aOnlyWays: number;
+  bOnlyWays: number;
+  loadedEdgesA: number;
+  loadedEdgesB: number;
+  unidentifiedA: number;
+  unidentifiedB: number;
+};
+type BorderDiagnosticsExport = {
+  jsonPath: string;
+  markdownPath: string;
+  report: unknown;
+};
 type HandoffArtifactInspection = {
   regionA: string;
   regionB: string;
@@ -338,6 +352,10 @@ app.innerHTML = `
         </div>
         <div id="handoffArtifactSummary" class="empty">Load a graph pair to inspect handoff artifacts.</div>
         <div id="handoffArtifactList" class="artifact-list"></div>
+        <div class="actions" style="margin-top:10px">
+          <button id="exportBorderDiagnosticsBtn" class="btn" type="button" disabled>Export diagnostics</button>
+        </div>
+        <div id="borderReportSummary" class="empty" style="margin-top:8px">No diagnostics report exported.</div>
         <h2 style="margin-top:16px">Saved manual overrides</h2>
         <div id="handoffOverrideList" class="empty">No manual overrides.</div>
       </section>
@@ -461,6 +479,8 @@ const borderDiffSummary = document.querySelector<HTMLDivElement>("#borderDiffSum
 const refreshHandoffArtifactsBtn = document.querySelector<HTMLButtonElement>("#refreshHandoffArtifactsBtn")!;
 const handoffArtifactSummary = document.querySelector<HTMLDivElement>("#handoffArtifactSummary")!;
 const handoffArtifactList = document.querySelector<HTMLDivElement>("#handoffArtifactList")!;
+const exportBorderDiagnosticsBtn = document.querySelector<HTMLButtonElement>("#exportBorderDiagnosticsBtn")!;
+const borderReportSummary = document.querySelector<HTMLDivElement>("#borderReportSummary")!;
 const routeCosting = document.querySelector<HTMLSelectElement>("#routeCosting")!;
 const routeStartLat = document.querySelector<HTMLInputElement>("#routeStartLat")!;
 const routeStartLng = document.querySelector<HTMLInputElement>("#routeStartLng")!;
@@ -492,6 +512,7 @@ let editorPreview: RegionPreview | null = null;
 let editorExistingConfig: Record<string, unknown> | null = null;
 let activeRegion: RegionSummary | null = null;
 let graphVisible = false;
+let lastBorderDiffMetrics: BorderRoadDiffMetrics | null = null;
 let handoffPickMode: "A" | "B" | null = null;
 let editingHandoffId: string | null = null;
 let handoffSnapA: HandoffSnap | null = null;
@@ -602,6 +623,7 @@ const borderDiffAOnlyLayer = "roadpilot-border-a-only";
 const borderDiffBOnlyLayer = "roadpilot-border-b-only";
 
 function removeBorderRoadDiff(): void {
+  lastBorderDiffMetrics = null;
   for (const id of [borderDiffCommonLayer, borderDiffAOnlyLayer, borderDiffBOnlyLayer]) {
     if (map.getLayer(id)) map.removeLayer(id);
   }
@@ -616,6 +638,9 @@ function removeBorderPairLayers(): void {
   for (const id of [borderLayerA, borderLayerB]) if (map.getLayer(id)) map.removeLayer(id);
   for (const id of [borderSourceA, borderSourceB]) if (map.getSource(id)) map.removeSource(id);
   refreshBorderDiffBtn.disabled = true;
+  exportBorderDiagnosticsBtn.disabled = true;
+  borderReportSummary.className = "empty";
+  borderReportSummary.textContent = "No diagnostics report exported.";
 }
 
 function edgeOsmId(feature: { properties?: Record<string, unknown> | null }): string | null {
@@ -634,6 +659,7 @@ function refreshBorderRoadDiff(): void {
   const featuresA = map.querySourceFeatures(borderSourceA, { sourceLayer: "edges" });
   const featuresB = map.querySourceFeatures(borderSourceB, { sourceLayer: "edges" });
   if (!featuresA.length && !featuresB.length) {
+    lastBorderDiffMetrics = null;
     borderDiffSummary.className = "empty";
     borderDiffSummary.textContent = "Graph tiles are still loading. Move/zoom the map or refresh again.";
     return;
@@ -719,6 +745,16 @@ function refreshBorderRoadDiff(): void {
     });
   }
 
+  lastBorderDiffMetrics = {
+    commonWays: common.size,
+    aOnlyWays: aOnly.size,
+    bOnlyWays: bOnly.size,
+    loadedEdgesA: featuresA.length,
+    loadedEdgesB: featuresB.length,
+    unidentifiedA,
+    unidentifiedB,
+  };
+
   borderDiffSummary.className = "kv";
   borderDiffSummary.innerHTML = `
     <dt>Common OSM ways</dt><dd>${common.size}</dd>
@@ -772,6 +808,7 @@ function showBorderPairLayers(regionA: string, regionB: string): void {
   });
   refreshBorderDiffBtn.disabled = false;
   refreshHandoffArtifactsBtn.disabled = false;
+  exportBorderDiagnosticsBtn.disabled = false;
   borderDiffSummary.className = "empty";
   borderDiffSummary.textContent = "Loading OSM way identities from both graph tile sets…";
   map.once("idle", scheduleBorderRoadDiff);
@@ -1799,6 +1836,30 @@ loadBorderPairBtn.addEventListener("click", () => {
 
 refreshBorderDiffBtn.addEventListener("click", scheduleBorderRoadDiff);
 refreshHandoffArtifactsBtn.addEventListener("click", () => refreshHandoffArtifactOverlay());
+exportBorderDiagnosticsBtn.addEventListener("click", async () => {
+  const regionA = borderRegionA.value;
+  const regionB = borderRegionB.value;
+  if (!regionA || !regionB || regionA === regionB) return;
+  exportBorderDiagnosticsBtn.disabled = true;
+  borderReportSummary.className = "empty";
+  borderReportSummary.textContent = "Writing JSON and Markdown diagnostics…";
+  try {
+    const result = await invoke<BorderDiagnosticsExport>("export_border_diagnostics", {
+      regionA,
+      regionB,
+      roadDiff: lastBorderDiffMetrics,
+      selectedValidation: handoffValidation,
+    });
+    borderReportSummary.className = "ok report-path";
+    borderReportSummary.textContent = `Saved Markdown: ${result.markdownPath}\nSaved JSON: ${result.jsonPath}`;
+    appendLog(`Border diagnostics saved: ${result.markdownPath}`);
+  } catch (error) {
+    borderReportSummary.className = "bad";
+    borderReportSummary.textContent = `Diagnostics export failed: ${String(error)}`;
+  } finally {
+    exportBorderDiagnosticsBtn.disabled = false;
+  }
+});
 map.on("moveend", scheduleBorderRoadDiff);
 
 pickHandoffABtn.addEventListener("click", () => {
