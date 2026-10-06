@@ -1,0 +1,49 @@
+# RoadPilot routing packs v1
+
+RoadPilot routing packs are independently built Valhalla graphs distributed separately from the application APK.
+
+## Production flow
+
+    Geofabrik regional PBFs
+            ↓
+    merge primary + neighboring source extracts
+            ↓
+    clip to the primary Geofabrik polygon + border buffer
+            ↓
+    build Valhalla on the Legion self-hosted runner
+            ↓
+    validate interior and border-crossing routes
+            ↓
+    create immutable .tar tile extract
+            ↓
+    record version + SHA-256 + graph fingerprint
+            ↓
+    publish to Cloudflare R2
+            ↓
+    RoadPilot downloads/updates one region at a time
+
+## Independence rule
+
+A routing pack is versioned independently. Updating Austria must not require rebuilding or downloading Italy Nord-Est, Oberbayern, or any other installed region.
+
+Cross-region compatibility is therefore not expressed by requiring all installed graphs to come from one synchronized global build. RoadPilot's cross-region layer remains responsible for joining independently built graphs.
+
+## Border coverage
+
+The nominal Geofabrik polygon defines which region the pack represents.
+
+Before graph construction, the builder expands that polygon by `borderBufferKm` in a local metric projection, merges all configured neighboring Geofabrik extracts, and clips the merged OSM input to that buffered geometry. This ensures roads crossing the nominal border continue into the neighboring area far enough for RoadPilot/Valhalla to prove usable handoffs.
+
+The buffer is part of the manifest and can be changed per region without changing the global architecture.
+
+## Publication gate
+
+A pack is not publishable unless:
+
+1. the Valhalla tile extract contains `index.bin` and at least one `.gph` tile;
+2. package size and SHA-256 match the manifest;
+3. all configured Valhalla smoke routes succeed;
+4. at least one configured route crosses the nominal Geofabrik boundary;
+5. the graph fingerprint is the SHA-256 identity of the immutable published tile extract.
+
+Cloudflare publication is intentionally a later step. The first milestone proves reproducible build + validation on the Legion before any public object is replaced.
