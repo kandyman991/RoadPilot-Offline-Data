@@ -47,7 +47,7 @@ Each region is intended to expose independently versioned routing, visual, and s
 | Installable Graph Studio | #9 | Done | Linux Tauri app, AppImage + Debian packaging |
 | Region editor + Geofabrik discovery | #10 / PR #18 | Merged | Region creation/editing, buffer preview, automatic source discovery |
 | Standard Valhalla route planner | #12 / PR #19 | Merged | Normal routing, costing controls, route geometry, maneuvers, search expansion |
-| Border inspector + manual crossings | #11 / PR #20 | Active | Dual graph overlay, manual A/B edge snapping, validation, fingerprints, stale detection |
+| Border inspector + manual crossings | #11 / PR #20 | Core merged | Dual graph overlay, manual A/B edge snapping, validation, fingerprints, stale detection |
 | Exact graph/boundary diffing | #13 | Next | Internal-vs-boundary change detection and per-neighbor fingerprints |
 | Cloudflare R2 publication manager | #14 | Planned | Publish validated immutable packs and manage latest pointers |
 | Visual map production/inspection | #16 | Planned | Lightweight RoadPilot offline vector-map artifact |
@@ -121,11 +121,11 @@ standard Valhalla succeeds/fails
 then inspect RoadPilot cross-region behavior
 ~~~
 
-## Active — Border Inspector / manual crossing overrides
+## Active — Border Inspector refinement
 
-Issue #11. Current implementation is PR #20.
+Issue #11 remains active. Border Inspector core was merged in PR #20.
 
-Already implemented on the active branch:
+Core now merged into `main`:
 - choose Graph A and Graph B;
 - overlay both independent Valhalla graphs;
 - manually select the intended crossing edge in A and in B;
@@ -312,8 +312,6 @@ The offline-data system is production ready when Graph Studio can, without hand-
 ## Immediate execution order
 
 ~~~
-PR #20 Border Inspector core
-        ↓
 finish #11 border diff / candidates / reports
         ↓
 #13 exact build + boundary fingerprints
