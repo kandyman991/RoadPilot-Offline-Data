@@ -444,6 +444,7 @@ let editorExistingConfig: Record<string, unknown> | null = null;
 let activeRegion: RegionSummary | null = null;
 let graphVisible = false;
 let handoffPickMode: "A" | "B" | null = null;
+let editingHandoffId: string | null = null;
 let handoffSnapA: HandoffSnap | null = null;
 let handoffSnapB: HandoffSnap | null = null;
 let handoffValidation: HandoffValidation | null = null;
@@ -583,6 +584,7 @@ function showBorderPairLayers(regionA: string, regionB: string): void {
 }
 
 function clearHandoffSelection(removeLayers = false): void {
+  editingHandoffId = null;
   handoffSnapA = null;
   handoffSnapB = null;
   handoffValidation = null;
@@ -673,6 +675,7 @@ async function refreshHandoffOverrides(): Promise<void> {
       load.type = "button";
       load.textContent = "Inspect";
       load.addEventListener("click", () => {
+        editingHandoffId = item.id;
         borderRegionA.value = item.regionA;
         borderRegionB.value = item.regionB;
         handoffSnapA = item.snapA;
@@ -1453,13 +1456,14 @@ saveHandoffBtn.addEventListener("click", async () => {
   if (!handoffSnapA || !handoffSnapB || !handoffValidation?.passed) return;
   saveHandoffBtn.disabled = true;
   try {
-    await invoke<HandoffOverride>("save_handoff_override", {
+    const saved = await invoke<HandoffOverride>("save_handoff_override", {
       regionA: borderRegionA.value,
       regionB: borderRegionB.value,
       snapA: handoffSnapA,
       snapB: handoffSnapB,
-      overrideId: null,
+      overrideId: editingHandoffId,
     });
+    editingHandoffId = saved.id;
     appendLog(`Saved VALID manual handoff: ${borderRegionA.value} ↔ ${borderRegionB.value}`);
     await refreshHandoffOverrides();
   } catch (error) {
