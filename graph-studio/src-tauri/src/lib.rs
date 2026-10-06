@@ -1710,7 +1710,17 @@ fn graph_tile(
 
     let config = valhalla_config_for(&app, &region_id)?;
     let request = json!({
-        "tile": {"z": z, "x": x, "y": y}
+        "tile": {"z": z, "x": x, "y": y},
+        "filters": {
+            "action": "include",
+            "attributes": [
+                "edge.osm_id",
+                "edge.country_crossing",
+                "edge.use",
+                "edge.access_forward",
+                "edge.access_backward"
+            ]
+        }
     })
     .to_string();
     let output = Command::new("valhalla_service")

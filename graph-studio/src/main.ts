@@ -294,6 +294,16 @@ app.innerHTML = `
         </div>
         <div id="handoffValidationSummary" class="empty" style="margin-top:8px">No manual crossing selected.</div>
         <div id="handoffProbeList" class="probe-list"></div>
+        <h2 style="margin-top:16px">Road overlap</h2>
+        <div class="border-diff-legend">
+          <span><i class="legend-common"></i>Common OSM way</span>
+          <span><i class="legend-a"></i>A only</span>
+          <span><i class="legend-b"></i>B only</span>
+        </div>
+        <div class="actions" style="margin-top:8px">
+          <button id="refreshBorderDiffBtn" class="btn" type="button" disabled>Refresh road diff</button>
+        </div>
+        <div id="borderDiffSummary" class="empty">Load a graph pair to compare border roads.</div>
         <h2 style="margin-top:16px">Saved manual overrides</h2>
         <div id="handoffOverrideList" class="empty">No manual overrides.</div>
       </section>
@@ -412,6 +422,8 @@ const clearHandoffBtn = document.querySelector<HTMLButtonElement>("#clearHandoff
 const handoffValidationSummary = document.querySelector<HTMLDivElement>("#handoffValidationSummary")!;
 const handoffProbeList = document.querySelector<HTMLDivElement>("#handoffProbeList")!;
 const handoffOverrideList = document.querySelector<HTMLDivElement>("#handoffOverrideList")!;
+const refreshBorderDiffBtn = document.querySelector<HTMLButtonElement>("#refreshBorderDiffBtn")!;
+const borderDiffSummary = document.querySelector<HTMLDivElement>("#borderDiffSummary")!;
 const routeCosting = document.querySelector<HTMLSelectElement>("#routeCosting")!;
 const routeStartLat = document.querySelector<HTMLInputElement>("#routeStartLat")!;
 const routeStartLng = document.querySelector<HTMLInputElement>("#routeStartLng")!;
@@ -547,10 +559,149 @@ const borderSourceA = "roadpilot-border-a";
 const borderSourceB = "roadpilot-border-b";
 const borderLayerA = "roadpilot-border-a-edges";
 const borderLayerB = "roadpilot-border-b-edges";
+const borderDiffSource = "roadpilot-border-road-diff";
+const borderDiffCommonLayer = "roadpilot-border-common";
+const borderDiffAOnlyLayer = "roadpilot-border-a-only";
+const borderDiffBOnlyLayer = "roadpilot-border-b-only";
+
+function removeBorderRoadDiff(): void {
+  for (const id of [borderDiffCommonLayer, borderDiffAOnlyLayer, borderDiffBOnlyLayer]) {
+    if (map.getLayer(id)) map.removeLayer(id);
+  }
+  if (map.getSource(borderDiffSource)) map.removeSource(borderDiffSource);
+  borderDiffSummary.className = "empty";
+  borderDiffSummary.textContent = "Load a graph pair to compare border roads.";
+}
 
 function removeBorderPairLayers(): void {
+  removeBorderRoadDiff();
   for (const id of [borderLayerA, borderLayerB]) if (map.getLayer(id)) map.removeLayer(id);
   for (const id of [borderSourceA, borderSourceB]) if (map.getSource(id)) map.removeSource(id);
+  refreshBorderDiffBtn.disabled = true;
+}
+
+function edgeOsmId(feature: { properties?: Record<string, unknown> | null }): string | null {
+  const value = feature.properties?.osm_id;
+  if (value == null || value === "") return null;
+  return String(value);
+}
+
+function borderDiffFeatureKey(osmId: string, geometry: Geometry, side: string): string {
+  return `${side}:${osmId}:${JSON.stringify(geometry)}`;
+}
+
+function refreshBorderRoadDiff(): void {
+  if (!map.getSource(borderSourceA) || !map.getSource(borderSourceB)) return;
+
+  const featuresA = map.querySourceFeatures(borderSourceA, { sourceLayer: "edges" });
+  const featuresB = map.querySourceFeatures(borderSourceB, { sourceLayer: "edges" });
+  if (!featuresA.length && !featuresB.length) {
+    borderDiffSummary.className = "empty";
+    borderDiffSummary.textContent = "Graph tiles are still loading. Move/zoom the map or refresh again.";
+    return;
+  }
+
+  const idsA = new Set<string>();
+  const idsB = new Set<string>();
+  let unidentifiedA = 0;
+  let unidentifiedB = 0;
+  for (const feature of featuresA) {
+    const id = edgeOsmId(feature);
+    if (id) idsA.add(id);
+    else unidentifiedA += 1;
+  }
+  for (const feature of featuresB) {
+    const id = edgeOsmId(feature);
+    if (id) idsB.add(id);
+    else unidentifiedB += 1;
+  }
+
+  const common = new Set([...idsA].filter(id => idsB.has(id)));
+  const aOnly = new Set([...idsA].filter(id => !idsB.has(id)));
+  const bOnly = new Set([...idsB].filter(id => !idsA.has(id)));
+
+  const output: Feature[] = [];
+  const seen = new Set<string>();
+  const addFeatures = (
+    features: typeof featuresA,
+    allowed: Set<string>,
+    classification: "common" | "a-only" | "b-only",
+    side: "A" | "B",
+  ) => {
+    for (const feature of features) {
+      const osmId = edgeOsmId(feature);
+      if (!osmId || !allowed.has(osmId)) continue;
+      const key = borderDiffFeatureKey(osmId, feature.geometry as Geometry, side);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      output.push({
+        type: "Feature",
+        geometry: feature.geometry as Geometry,
+        properties: {
+          classification,
+          side,
+          osm_id: osmId,
+        },
+      });
+    }
+  };
+
+  // Draw common roads once using Graph A's geometry. Independent graphs may split the same
+  // OSM way differently, but shared OSM identity is the stable evidence we care about here.
+  addFeatures(featuresA, common, "common", "A");
+  addFeatures(featuresA, aOnly, "a-only", "A");
+  addFeatures(featuresB, bOnly, "b-only", "B");
+
+  const collection: FeatureCollection = { type: "FeatureCollection", features: output };
+  const existing = map.getSource(borderDiffSource) as { setData?: (data: FeatureCollection) => void } | undefined;
+  if (existing?.setData) {
+    existing.setData(collection);
+  } else {
+    map.addSource(borderDiffSource, { type: "geojson", data: collection });
+    map.addLayer({
+      id: borderDiffCommonLayer,
+      type: "line",
+      source: borderDiffSource,
+      filter: ["==", ["get", "classification"], "common"],
+      paint: { "line-color": "#42c58a", "line-width": 4.2, "line-opacity": 0.92 },
+    });
+    map.addLayer({
+      id: borderDiffAOnlyLayer,
+      type: "line",
+      source: borderDiffSource,
+      filter: ["==", ["get", "classification"], "a-only"],
+      paint: { "line-color": "#e35d5b", "line-width": 3.2, "line-opacity": 0.9 },
+    });
+    map.addLayer({
+      id: borderDiffBOnlyLayer,
+      type: "line",
+      source: borderDiffSource,
+      filter: ["==", ["get", "classification"], "b-only"],
+      paint: { "line-color": "#4b9ee8", "line-width": 3.2, "line-opacity": 0.9 },
+    });
+  }
+
+  borderDiffSummary.className = "kv";
+  borderDiffSummary.innerHTML = `
+    <dt>Common OSM ways</dt><dd>${common.size}</dd>
+    <dt>Graph A only</dt><dd>${aOnly.size}</dd>
+    <dt>Graph B only</dt><dd>${bOnly.size}</dd>
+    <dt>Loaded A edges</dt><dd>${featuresA.length}</dd>
+    <dt>Loaded B edges</dt><dd>${featuresB.length}</dd>
+    <dt>No OSM id</dt><dd>A ${unidentifiedA} / B ${unidentifiedB}</dd>
+  `;
+}
+
+function scheduleBorderRoadDiff(): void {
+  if (!map.getSource(borderSourceA) || !map.getSource(borderSourceB)) return;
+  window.setTimeout(() => {
+    try {
+      refreshBorderRoadDiff();
+    } catch (error) {
+      borderDiffSummary.className = "bad";
+      borderDiffSummary.textContent = `Road diff failed: ${String(error)}`;
+    }
+  }, 120);
 }
 
 function showBorderPairLayers(regionA: string, regionB: string): void {
@@ -572,15 +723,19 @@ function showBorderPairLayers(regionA: string, regionB: string): void {
     type: "line",
     source: borderSourceA,
     "source-layer": "edges",
-    paint: { "line-color": "#e35d5b", "line-width": 2.4, "line-opacity": 0.72 },
+    paint: { "line-color": "#e35d5b", "line-width": 1.4, "line-opacity": 0.22 },
   });
   map.addLayer({
     id: borderLayerB,
     type: "line",
     source: borderSourceB,
     "source-layer": "edges",
-    paint: { "line-color": "#4b9ee8", "line-width": 1.8, "line-opacity": 0.72 },
+    paint: { "line-color": "#4b9ee8", "line-width": 1.4, "line-opacity": 0.22 },
   });
+  refreshBorderDiffBtn.disabled = false;
+  borderDiffSummary.className = "empty";
+  borderDiffSummary.textContent = "Loading OSM way identities from both graph tile sets…";
+  map.once("idle", scheduleBorderRoadDiff);
 }
 
 function clearHandoffSelection(removeLayers = false): void {
@@ -1404,8 +1559,11 @@ loadBorderPairBtn.addEventListener("click", () => {
   clearHandoffSelection(false);
   showBorderPairLayers(a, b);
   handoffValidationSummary.className = "empty";
-  handoffValidationSummary.textContent = `Overlay loaded: A=${a}, B=${b}. Red is A; blue is B.`;
+  handoffValidationSummary.textContent = `Overlay loaded: A=${a}, B=${b}. Road diff uses stable OSM way identity.`;
 });
+
+refreshBorderDiffBtn.addEventListener("click", scheduleBorderRoadDiff);
+map.on("moveend", scheduleBorderRoadDiff);
 
 pickHandoffABtn.addEventListener("click", () => {
   if (!borderRegionA.value) {
