@@ -365,3 +365,73 @@ button { cursor: pointer; }
   color: #768495;
   font-size: 9.5px;
 }
+
+
+.handoff-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.handoff-card {
+  padding: 8px;
+  border: 1px solid #2c3743;
+  border-radius: 5px;
+  background: #0c1218;
+}
+.handoff-card > strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #cbd5e1;
+  font-size: 10.5px;
+}
+
+.probe-list {
+  margin-top: 8px;
+  max-height: 200px;
+  overflow: auto;
+  border: 1px solid #2c3743;
+  border-radius: 5px;
+  background: #0c1218;
+}
+.probe-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid #222c36;
+  font-size: 10px;
+}
+.probe-row:last-child { border-bottom: 0; }
+.probe-row b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #cdd6e0;
+  font-weight: 500;
+}
+.probe-row small { color: #748292; }
+
+.handoff-override-row {
+  display: grid;
+  gap: 5px;
+  padding: 8px 0;
+  border-bottom: 1px solid #27303b;
+  font-size: 10.5px;
+}
+.handoff-override-row:last-child { border-bottom: 0; }
+.handoff-override-row > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.handoff-override-row > div:first-child b {
+  color: #d7dee7;
+  font-weight: 600;
+}
+.handoff-override-row small {
+  color: #748292;
+  overflow-wrap: anywhere;
+}
