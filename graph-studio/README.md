@@ -73,3 +73,20 @@ This deliberately avoids exposing a local HTTP server or relying on browser CORS
 5. Detailed graph-to-graph diffing, including boundary fingerprints.
 6. Cloudflare R2 credential setup, publish confirmation and rollback/latest-pointer management.
 7. Automatic update/build scheduling and retained-build cleanup policies.
+
+
+## Border road diff
+
+When two locally built neighboring graphs are loaded in the Border Inspector, Graph Studio compares
+the currently loaded graph-tile window using Valhalla's stable `edge.osm_id` attribute.
+
+The overlay deliberately does **not** compare Valhalla graph-local edge ids across independent
+graphs.
+
+- green — the OSM way identity is present in both graphs;
+- red — the OSM way identity is present only in Graph A;
+- blue — the OSM way identity is present only in Graph B.
+
+The inspector reports unique OSM-way counts, loaded edge counts, and any edges that do not expose
+an OSM identity. This is a way-level diagnostic view; exact geometry/boundary fingerprint diffing
+is a separate roadmap milestone.
