@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "RoadPilot Graph Studio",
+  "version": "0.1.0",
+  "identifier": "app.roadpilot.graphstudio",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "RoadPilot Graph Studio",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 900,
+        "minHeight": 650,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' custom: asset:; connect-src ipc: http://ipc.localhost https://tiles.openfreemap.org https://*.openfreemap.org; img-src 'self' asset: data: blob: https://tiles.openfreemap.org https://*.openfreemap.org; style-src 'self' 'unsafe-inline'; font-src 'self' data: https://tiles.openfreemap.org https://*.openfreemap.org; worker-src 'self' blob:; child-src 'self' blob:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["appimage", "deb"],
+    "category": "DeveloperTool",
+    "shortDescription": "Build, validate and inspect RoadPilot Valhalla regional graphs.",
+    "longDescription": "RoadPilot Graph Studio is the production workstation for independently building, validating, inspecting, comparing and publishing RoadPilot regional Valhalla routing graphs.",
+    "resources": {
+      "../../config/": "pipeline/config/",
+      "../../tools/": "pipeline/tools/",
+      "../../schemas/": "pipeline/schemas/",
+      "../../requirements-routing.txt": "pipeline/requirements-routing.txt"
+    }
+  }
+}
