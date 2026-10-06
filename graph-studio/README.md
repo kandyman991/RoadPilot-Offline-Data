@@ -1,0 +1,75 @@
+# RoadPilot Graph Studio
+
+RoadPilot Graph Studio is the Linux workstation for producing RoadPilot's independently versioned Valhalla routing packs.
+
+## Current milestone
+
+The first installable milestone provides:
+
+- region catalog loaded from the production RoadPilot offline-data configs;
+- multi-region build selection and sequential build queue;
+- live Python/Osmium/Valhalla logs;
+- cancellation;
+- CPU/load, RAM, disk-free and thermal monitoring;
+- local build history and basic build comparison;
+- MapLibre inspection workspace;
+- direct rendering of Valhalla graph MVT layers through a custom MapLibre protocol;
+- click-to-inspect graph feature properties;
+- deep `locate` inspection using the exact locally built graph;
+- AppImage and Debian package generation on GitHub-hosted CI.
+
+Graph Studio bundles the canonical `config/`, `schemas/`, `tools/` and `requirements-routing.txt` files from this repository. The desktop UI does not maintain a second routing pipeline.
+
+## Local workspace
+
+At runtime Graph Studio uses:
+
+```text
+~/RoadPilotGraphStudio/
+  work/       cached Geofabrik sources + unpacked build workspace
+  builds/     immutable routing TARs, manifests and checksums
+```
+
+The Python virtual environment is stored in the application cache directory and prepared automatically on first build.
+
+## Host requirements
+
+The Legion still needs the native graph toolchain on `PATH`:
+
+- Python 3 + venv
+- osmium
+- Valhalla 3.6.3:
+  - `valhalla_build_config`
+  - `valhalla_build_timezones`
+  - `valhalla_build_admins`
+  - `valhalla_build_tiles`
+  - `valhalla_build_extract`
+  - `valhalla_service`
+
+The production build script refuses to build with a Valhalla version different from the version declared by the region config.
+
+## Development
+
+```bash
+cd graph-studio
+npm install
+npm run tauri dev
+```
+
+Tauri v2 on Debian/Ubuntu requires WebKitGTK 4.1 development packages and the standard Linux build dependencies.
+
+## Inspector architecture
+
+MapLibre GL JS supports custom resource protocols. Graph Studio registers `roadpilot-graph://` and resolves requested vector tiles through the Tauri backend. The backend uses Valhalla's one-shot `tile` action against the region's retained `valhalla.json`.
+
+This deliberately avoids exposing a local HTTP server or relying on browser CORS configuration.
+
+## Next milestones
+
+1. Production region catalog and build queue — implemented in this milestone.
+2. Region-detail editor and neighbor/source auto-discovery.
+3. Dedicated border-pair inspector with A/B graph overlays and two-sided route probes.
+4. Route-search/expansion visualization.
+5. Detailed graph-to-graph diffing, including boundary fingerprints.
+6. Cloudflare R2 credential setup, publish confirmation and rollback/latest-pointer management.
+7. Automatic update/build scheduling and retained-build cleanup policies.

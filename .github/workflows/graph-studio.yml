@@ -1,0 +1,80 @@
+name: Build RoadPilot Graph Studio
+
+on:
+  pull_request:
+    paths:
+      - "graph-studio/**"
+      - "config/**"
+      - "schemas/**"
+      - "tools/**"
+      - "requirements-routing.txt"
+      - ".github/workflows/graph-studio.yml"
+  push:
+    branches: [main]
+    paths:
+      - "graph-studio/**"
+      - ".github/workflows/graph-studio.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Tauri Linux dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y             libwebkit2gtk-4.1-dev             build-essential             curl             wget             file             libxdo-dev             libssl-dev             libayatana-appindicator3-dev             librsvg2-dev
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: graph-studio/src-tauri
+
+      - name: Install frontend dependencies
+        working-directory: graph-studio
+        run: npm install --package-lock-only && npm ci
+
+      - name: Build frontend
+        working-directory: graph-studio
+        run: npm run build
+
+      - name: Generate Graph Studio icons
+        working-directory: graph-studio
+        run: npm run prepare:icons
+
+      - name: Compile Tauri backend
+        working-directory: graph-studio/src-tauri
+        run: cargo check --locked || cargo check
+
+      - name: Build AppImage and Debian packages
+        working-directory: graph-studio
+        run: npm run tauri build -- --bundles appimage,deb
+
+      - name: Upload Graph Studio packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: roadpilot-graph-studio-linux
+          path: |
+            graph-studio/src-tauri/target/release/bundle/appimage/*.AppImage
+            graph-studio/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
