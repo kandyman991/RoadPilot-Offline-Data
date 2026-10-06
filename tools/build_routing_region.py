@@ -48,7 +48,9 @@ def require_tools(names):
         fail("Missing required build tools: " + ", ".join(missing))
 
 
-def download(url: str, destination: Path) -> Path:
+def download(url: str, destination: Path, *, refresh: bool = False) -> Path:
+    if refresh:
+        destination.unlink(missing_ok=True)
     if destination.is_file() and destination.stat().st_size > 0:
         print(f"cache hit: {destination}")
         return destination
@@ -197,6 +199,11 @@ def main() -> None:
     parser.add_argument("--package-version", required=True)
     parser.add_argument("--work-dir", default=".routing-work")
     parser.add_argument("--dist-dir", default="dist/routing")
+    parser.add_argument(
+        "--refresh-sources",
+        action="store_true",
+        help="Redownload Geofabrik polygon/PBF inputs instead of reusing the local cache.",
+    )
     args = parser.parse_args()
 
     require_tools(
@@ -232,7 +239,11 @@ def main() -> None:
     build_root.mkdir(parents=True, exist_ok=True)
     dist_root.mkdir(parents=True, exist_ok=True)
 
-    polygon_path = download(source["polygonUrl"], cache_root / f"{region_id}.poly")
+    polygon_path = download(
+        source["polygonUrl"],
+        cache_root / f"{region_id}.poly",
+        refresh=args.refresh_sources,
+    )
     nominal_geometry = make_buffered_geojson(
         polygon_path,
         border_buffer_km,
@@ -244,7 +255,7 @@ def main() -> None:
     for item in pbfs:
         source_id = str(item["id"])
         file_name = source_id.replace("/", "__") + ".osm.pbf"
-        path = download(item["url"], cache_root / file_name)
+        path = download(item["url"], cache_root / file_name, refresh=args.refresh_sources)
         source_paths.append(path)
         source_records.append(
             {
