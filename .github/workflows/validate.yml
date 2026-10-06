@@ -10,13 +10,16 @@ on:
       - "schemas/**"
       - "tools/**"
       - ".github/workflows/validate.yml"
+      - ".github/workflows/build-routing-pack.yml"
+      - "requirements-routing.txt"
+      - "docs/routing-packs-v1.md"
 
 permissions:
   contents: read
 
 jobs:
   validate:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
