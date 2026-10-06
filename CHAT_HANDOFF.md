@@ -26,13 +26,13 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Graph Studio Border Inspector**, issue #11, active PR #20.
+**Graph Studio Border Inspector refinement**, issue #11. PR #20 core is merged.
 
 PR #18 merged: region editor + automatic Geofabrik neighbor/source discovery.
 
 PR #19 merged: standard local Valhalla route planner + optional search-expansion overlay.
 
-PR #20 currently implements:
+PR #20 merged with:
 
 - dual Graph A / Graph B overlays;
 - manual A/B crossing selection;
@@ -66,17 +66,15 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Check PR #20 CI/package status.
-2. If fully green and mergeable, merge #20.
-3. Finish the remaining issue #11 work:
+1. Finish the remaining issue #11 work:
    - common roads vs A-only/B-only;
    - automatic candidate handoffs;
    - learned handoffs;
    - visual distinction between manual/automatic/learned;
    - compact diagnostics export.
-4. Begin issue #13 exact graph/boundary diffing and per-neighbor fingerprints.
-5. Use those fingerprints to drive build-time connectivity manifests / F8 seeds.
-6. Then proceed to R2 publication, visual-map artifact, POI/search artifact, and scheduled updates as defined in `ROADMAP.md`.
+2. Begin issue #13 exact graph/boundary diffing and per-neighbor fingerprints.
+3. Use those fingerprints to drive build-time connectivity manifests / F8 seeds.
+4. Then proceed to R2 publication, visual-map artifact, POI/search artifact, and scheduled updates as defined in `ROADMAP.md`.
 
 ## Handoff maintenance
 
