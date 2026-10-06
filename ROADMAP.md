@@ -150,7 +150,7 @@ Implemented:
 
 ## Active — Build-time cross-region connectivity metadata (#26)
 
-The first #26 milestone establishes a stable physical pair-manifest contract bound to the two
+PR #27 established the stable physical pair-manifest contract bound to the two
 regional graph versions for provenance and, critically, to the two relevant per-neighbor
 boundary fingerprints for surgical discovery reuse.
 
