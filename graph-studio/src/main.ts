@@ -2127,6 +2127,7 @@ function renderCompareSelectors(): void {
 }
 
 async function renderComparison(): Promise<void> {
+  const generation = ++buildComparisonGeneration;
   removeBuildDiffOverlay();
   const ai = Number(compareA.value);
   const bi = Number(compareB.value);
@@ -2162,6 +2163,7 @@ async function renderComparison(): Promise<void> {
       manifestPathA: a.manifest_path,
       manifestPathB: b.manifest_path,
     });
+    if (generation !== buildComparisonGeneration) return;
     const graphChanged = diff.graphTileFingerprintA !== diff.graphTileFingerprintB;
     const internalChanged = diff.internalFingerprintA !== diff.internalFingerprintB;
     const refreshBoundaries = diff.boundaries.filter(item => item.requiresRefresh);
@@ -2177,8 +2179,12 @@ async function renderComparison(): Promise<void> {
       <dt>Boundary changed tiles</dt><dd class="${diff.counts.boundaryChangedTiles ? "warn" : "ok"}">${diff.counts.boundaryChangedTiles}</dd>
       <dt>Neighbor metadata refresh</dt><dd class="${refreshBoundaries.length ? "warn" : "ok"}">${refreshBoundaries.length ? refreshBoundaries.map(item => item.sourceId).join(", ") : "none"}</dd>
       <dt>Boundary fingerprints</dt><dd>${boundaryRows}</dd>
+      <dt>Road-level boundary diff</dt><dd id="buildRoadDiffSummary">${diff.changedBoundaryTiles.features.length ? "loading retained Build A/B roads…" : "no changed boundary tiles"}</dd>
     `;
     showBuildDiffOverlay(diff.changedBoundaryTiles);
+    if (diff.changedBoundaryTiles.features.length) {
+      loadBuildRoadComparison(a, b, diff, generation);
+    }
   } catch (error) {
     comparison.innerHTML = basic + `<dt>Graph diff</dt><dd class="bad">${String(error)}</dd>`;
   }
