@@ -1029,6 +1029,401 @@ fn list_builds(app: AppHandle) -> Result<Vec<BuildArtifact>, String> {
     Ok(result)
 }
 
+fn latest_graph_identity(app: &AppHandle, region_id: &str) -> Result<Value, String> {
+    let root = dist_dir(app)?.join(region_id);
+    if !root.is_dir() {
+        return Err(format!("No completed local build exists for {region_id}."));
+    }
+
+    let mut candidates: Vec<(String, Value)> = Vec::new();
+    for entry in fs::read_dir(&root)
+        .map_err(|e| format!("Could not inspect {}: {e}", root.display()))?
+        .flatten()
+    {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !name.ends_with("-manifest.json") {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(value) = serde_json::from_str::<Value>(&text) else {
+            continue;
+        };
+        if value.get("regionId").and_then(Value::as_str) != Some(region_id) {
+            continue;
+        }
+        let built_at = value
+            .get("builtAtUtc")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        candidates.push((built_at, value));
+    }
+    candidates.sort_by(|a, b| b.0.cmp(&a.0));
+    let Some((_, manifest)) = candidates.into_iter().next() else {
+        return Err(format!("No routing manifest found for {region_id}."));
+    };
+
+    Ok(json!({
+        "regionId": region_id,
+        "packageVersion": manifest.get("packageVersion").cloned().unwrap_or(Value::Null),
+        "builtAtUtc": manifest.get("builtAtUtc").cloned().unwrap_or(Value::Null),
+        "graphFingerprint": manifest.get("graphFingerprint").cloned().unwrap_or(Value::Null)
+    }))
+}
+
+fn handoff_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = workspace_root(app)?.join("handoffs");
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("Could not create handoff override directory: {e}"))?;
+    Ok(path)
+}
+
+fn handoff_pair_key(region_a: &str, region_b: &str) -> Result<String, String> {
+    if !safe_token(region_a) || !safe_token(region_b) || region_a == region_b {
+        return Err("Manual handoff requires two different valid region ids.".into());
+    }
+    let mut pair = [region_a.to_string(), region_b.to_string()];
+    pair.sort();
+    Ok(format!("{}__{}", pair[0], pair[1]))
+}
+
+fn handoff_pair_path(app: &AppHandle, region_a: &str, region_b: &str) -> Result<PathBuf, String> {
+    Ok(handoff_dir(app)?.join(format!("{}.json", handoff_pair_key(region_a, region_b)?)))
+}
+
+fn load_handoff_file(path: &Path) -> Result<Vec<Value>, String> {
+    if !path.is_file() {
+        return Ok(Vec::new());
+    }
+    let text = fs::read_to_string(path)
+        .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
+    let value: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse {}: {e}", path.display()))?;
+    value
+        .get("overrides")
+        .and_then(Value::as_array)
+        .cloned()
+        .ok_or_else(|| format!("Invalid manual handoff file: {}", path.display()))
+}
+
+fn write_handoff_file(path: &Path, overrides: &[Value]) -> Result<(), String> {
+    let document = json!({
+        "schema": "roadpilot-manual-handoffs",
+        "schemaVersion": 1,
+        "overrides": overrides
+    });
+    let temporary = path.with_extension("json.tmp");
+    fs::write(
+        &temporary,
+        serde_json::to_string_pretty(&document)
+            .map_err(|e| format!("Could not serialize manual handoffs: {e}"))?
+            + "\n",
+    )
+    .map_err(|e| format!("Could not write {}: {e}", temporary.display()))?;
+    fs::rename(&temporary, path)
+        .map_err(|e| format!("Could not activate {}: {e}", path.display()))?;
+    Ok(())
+}
+
+fn first_located_edge(locate: &Value) -> Result<Value, String> {
+    let item = locate
+        .as_array()
+        .and_then(|items| items.first())
+        .ok_or("Valhalla locate returned no location result.")?;
+    let edges = item
+        .get("edges")
+        .and_then(Value::as_array)
+        .ok_or("Valhalla locate returned no correlated edges.")?;
+    let edge = edges
+        .iter()
+        .filter(|edge| edge.get("correlated_lat").is_some() && edge.get("correlated_lon").is_some())
+        .min_by(|a, b| {
+            let ad = a.get("distance").and_then(Value::as_f64).unwrap_or(f64::MAX);
+            let bd = b.get("distance").and_then(Value::as_f64).unwrap_or(f64::MAX);
+            ad.partial_cmp(&bd).unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .cloned()
+        .ok_or("Valhalla locate did not return a usable directed edge.")?;
+    Ok(edge)
+}
+
+#[tauri::command]
+fn snap_handoff_point(
+    app: AppHandle,
+    region_id: String,
+    lat: f64,
+    lng: f64,
+) -> Result<Value, String> {
+    let locate = inspect_locate(app.clone(), region_id.clone(), lat, lng)?;
+    let edge = first_located_edge(&locate)?;
+    let identity = latest_graph_identity(&app, &region_id)?;
+    Ok(json!({
+        "regionId": region_id,
+        "input": {"lat": lat, "lng": lng},
+        "correlated": {
+            "lat": edge.get("correlated_lat").cloned().unwrap_or(Value::Null),
+            "lng": edge.get("correlated_lon").cloned().unwrap_or(Value::Null)
+        },
+        "wayId": edge
+            .pointer("/edge_info/way_id")
+            .cloned()
+            .or_else(|| edge.get("way_id").cloned())
+            .unwrap_or(Value::Null),
+        "percentAlong": edge.get("percent_along").cloned().unwrap_or(Value::Null),
+        "distanceMeters": edge.get("distance").cloned().unwrap_or(Value::Null),
+        "heading": edge.get("heading").cloned().unwrap_or(Value::Null),
+        "linearReference": edge.get("linear_reference").cloned().unwrap_or(Value::Null),
+        "edgeId": edge.get("edge_id").cloned().unwrap_or(Value::Null),
+        "edge": edge.get("edge").cloned().unwrap_or(Value::Null),
+        "edgeInfo": edge.get("edge_info").cloned().unwrap_or(Value::Null),
+        "graph": identity
+    }))
+}
+
+fn handoff_route_probe(
+    app: &AppHandle,
+    region_id: &str,
+    start_lat: f64,
+    start_lng: f64,
+    end_lat: f64,
+    end_lng: f64,
+    costing: &str,
+) -> Value {
+    let config = match valhalla_config_for(app, region_id) {
+        Ok(config) => config,
+        Err(error) => return json!({"passed": false, "error": error}),
+    };
+    let request = valhalla_route_request(
+        start_lat,
+        start_lng,
+        end_lat,
+        end_lng,
+        costing,
+        None,
+    );
+    let started = Instant::now();
+    let output = match Command::new("valhalla_service")
+        .arg(config)
+        .arg("route")
+        .arg(request.to_string())
+        .output()
+    {
+        Ok(output) => output,
+        Err(error) => {
+            return json!({"passed": false, "error": format!("Could not run Valhalla: {error}")})
+        }
+    };
+    let elapsed_ms = started.elapsed().as_millis();
+    if !output.status.success() {
+        return json!({
+            "passed": false,
+            "elapsedMs": elapsed_ms,
+            "error": String::from_utf8_lossy(&output.stderr).trim()
+        });
+    }
+    match serde_json::from_slice::<Value>(&output.stdout) {
+        Ok(response) => json!({
+            "passed": response.pointer("/trip/status").and_then(Value::as_i64).unwrap_or(0) == 0,
+            "elapsedMs": elapsed_ms,
+            "summary": response.pointer("/trip/summary").cloned().unwrap_or(Value::Null),
+            "statusMessage": response.pointer("/trip/status_message").cloned().unwrap_or(Value::Null)
+        }),
+        Err(error) => json!({
+            "passed": false,
+            "elapsedMs": elapsed_ms,
+            "error": format!("Invalid Valhalla response: {error}")
+        }),
+    }
+}
+
+fn snap_coordinate(snap: &Value) -> Result<(f64, f64), String> {
+    let lat = snap
+        .pointer("/correlated/lat")
+        .and_then(Value::as_f64)
+        .ok_or("Manual handoff snap is missing correlated latitude.")?;
+    let lng = snap
+        .pointer("/correlated/lng")
+        .and_then(Value::as_f64)
+        .ok_or("Manual handoff snap is missing correlated longitude.")?;
+    Ok((lat, lng))
+}
+
+#[tauri::command]
+fn validate_handoff_override(
+    app: AppHandle,
+    region_a: String,
+    region_b: String,
+    snap_a: Value,
+    snap_b: Value,
+) -> Result<Value, String> {
+    handoff_pair_key(&region_a, &region_b)?;
+    if snap_a.get("regionId").and_then(Value::as_str) != Some(region_a.as_str())
+        || snap_b.get("regionId").and_then(Value::as_str) != Some(region_b.as_str())
+    {
+        return Err("Handoff snaps do not match the selected regions.".into());
+    }
+
+    let (a_lat, a_lng) = snap_coordinate(&snap_a)?;
+    let (b_lat, b_lng) = snap_coordinate(&snap_b)?;
+    let mut probes = serde_json::Map::new();
+    let mut all_passed = true;
+
+    for costing in ["motorcycle", "auto"] {
+        for (graph_label, region_id) in [("graphA", region_a.as_str()), ("graphB", region_b.as_str())] {
+            for (direction, start_lat, start_lng, end_lat, end_lng) in [
+                ("aToB", a_lat, a_lng, b_lat, b_lng),
+                ("bToA", b_lat, b_lng, a_lat, a_lng),
+            ] {
+                let result = handoff_route_probe(
+                    &app,
+                    region_id,
+                    start_lat,
+                    start_lng,
+                    end_lat,
+                    end_lng,
+                    costing,
+                );
+                if result.get("passed").and_then(Value::as_bool) != Some(true) {
+                    all_passed = false;
+                }
+                probes.insert(
+                    format!("{costing}.{graph_label}.{direction}"),
+                    result,
+                );
+            }
+        }
+    }
+
+    Ok(json!({
+        "passed": all_passed,
+        "regionA": region_a,
+        "regionB": region_b,
+        "graphA": latest_graph_identity(&app, &region_a)?,
+        "graphB": latest_graph_identity(&app, &region_b)?,
+        "probes": probes
+    }))
+}
+
+#[tauri::command]
+fn save_handoff_override(
+    app: AppHandle,
+    region_a: String,
+    region_b: String,
+    snap_a: Value,
+    snap_b: Value,
+    override_id: Option<String>,
+) -> Result<Value, String> {
+    let validation = validate_handoff_override(
+        app.clone(),
+        region_a.clone(),
+        region_b.clone(),
+        snap_a.clone(),
+        snap_b.clone(),
+    )?;
+    if validation.get("passed").and_then(Value::as_bool) != Some(true) {
+        return Err("Manual handoff validation failed; refusing to save it as VALID.".into());
+    }
+
+    let path = handoff_pair_path(&app, &region_a, &region_b)?;
+    let mut overrides = load_handoff_file(&path)?;
+    let id = override_id
+        .filter(|id| safe_token(id))
+        .unwrap_or_else(|| format!("handoff-{}", now_epoch_ms()));
+    let record = json!({
+        "id": id,
+        "schemaVersion": 1,
+        "source": "manual",
+        "status": "VALID",
+        "createdAtEpochMs": now_epoch_ms(),
+        "regionA": region_a,
+        "regionB": region_b,
+        "graphFingerprintA": validation.pointer("/graphA/graphFingerprint").cloned().unwrap_or(Value::Null),
+        "graphFingerprintB": validation.pointer("/graphB/graphFingerprint").cloned().unwrap_or(Value::Null),
+        "graphVersionA": validation.pointer("/graphA/packageVersion").cloned().unwrap_or(Value::Null),
+        "graphVersionB": validation.pointer("/graphB/packageVersion").cloned().unwrap_or(Value::Null),
+        "snapA": snap_a,
+        "snapB": snap_b,
+        "validation": validation
+    });
+
+    if let Some(position) = overrides
+        .iter()
+        .position(|existing| existing.get("id").and_then(Value::as_str) == record.get("id").and_then(Value::as_str))
+    {
+        overrides[position] = record.clone();
+    } else {
+        overrides.push(record.clone());
+    }
+    write_handoff_file(&path, &overrides)?;
+    Ok(record)
+}
+
+#[tauri::command]
+fn list_handoff_overrides(app: AppHandle) -> Result<Vec<Value>, String> {
+    let root = handoff_dir(&app)?;
+    let mut result = Vec::new();
+    for entry in fs::read_dir(root)
+        .map_err(|e| format!("Could not list manual handoffs: {e}"))?
+        .flatten()
+    {
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) != Some("json") {
+            continue;
+        }
+        for mut record in load_handoff_file(&path)? {
+            let region_a = record.get("regionA").and_then(Value::as_str).unwrap_or_default();
+            let region_b = record.get("regionB").and_then(Value::as_str).unwrap_or_default();
+            let current_a = latest_graph_identity(&app, region_a).ok();
+            let current_b = latest_graph_identity(&app, region_b).ok();
+            let matches_a = current_a
+                .as_ref()
+                .and_then(|value| value.get("graphFingerprint"))
+                == record.get("graphFingerprintA");
+            let matches_b = current_b
+                .as_ref()
+                .and_then(|value| value.get("graphFingerprint"))
+                == record.get("graphFingerprintB");
+            record["status"] = Value::String(
+                if matches_a && matches_b { "VALID" } else { "STALE" }.into(),
+            );
+            record["currentGraphA"] = current_a.unwrap_or(Value::Null);
+            record["currentGraphB"] = current_b.unwrap_or(Value::Null);
+            result.push(record);
+        }
+    }
+    result.sort_by(|a, b| {
+        b.get("createdAtEpochMs")
+            .and_then(Value::as_u64)
+            .cmp(&a.get("createdAtEpochMs").and_then(Value::as_u64))
+    });
+    Ok(result)
+}
+
+#[tauri::command]
+fn delete_handoff_override(
+    app: AppHandle,
+    region_a: String,
+    region_b: String,
+    override_id: String,
+) -> Result<(), String> {
+    if !safe_token(&override_id) {
+        return Err("Invalid manual handoff id.".into());
+    }
+    let path = handoff_pair_path(&app, &region_a, &region_b)?;
+    let mut overrides = load_handoff_file(&path)?;
+    let before = overrides.len();
+    overrides.retain(|record| record.get("id").and_then(Value::as_str) != Some(override_id.as_str()));
+    if overrides.len() == before {
+        return Err(format!("Manual handoff not found: {override_id}"));
+    }
+    write_handoff_file(&path, &overrides)
+}
+
 fn valhalla_config_for(app: &AppHandle, region_id: &str) -> Result<PathBuf, String> {
     if !safe_token(region_id) {
         return Err("Invalid region id.".into());
@@ -1350,6 +1745,11 @@ pub fn run() {
             start_build_queue,
             cancel_build,
             list_builds,
+            snap_handoff_point,
+            validate_handoff_override,
+            save_handoff_override,
+            list_handoff_overrides,
+            delete_handoff_override,
             plan_route,
             route_expansion,
             inspect_locate,

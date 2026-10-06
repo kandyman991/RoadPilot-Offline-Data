@@ -94,6 +94,51 @@ type ExpansionResult = {
   featureCount: number;
   geojson: FeatureCollection;
 };
+type HandoffSnap = {
+  regionId: string;
+  input: { lat: number; lng: number };
+  correlated: { lat: number; lng: number };
+  wayId: number | string | null;
+  percentAlong: number | null;
+  distanceMeters: number | null;
+  heading: number | null;
+  linearReference: string | null;
+  edgeId: unknown;
+  edge: unknown;
+  edgeInfo: unknown;
+  graph: {
+    regionId: string;
+    packageVersion: string;
+    builtAtUtc: string;
+    graphFingerprint: string;
+  };
+};
+type HandoffValidation = {
+  passed: boolean;
+  regionA: string;
+  regionB: string;
+  graphA: Record<string, unknown>;
+  graphB: Record<string, unknown>;
+  probes: Record<string, {
+    passed?: boolean;
+    elapsedMs?: number;
+    error?: string;
+    summary?: Record<string, unknown>;
+  }>;
+};
+type HandoffOverride = {
+  id: string;
+  source: string;
+  status: "VALID" | "STALE" | string;
+  createdAtEpochMs: number;
+  regionA: string;
+  regionB: string;
+  graphFingerprintA?: string;
+  graphFingerprintB?: string;
+  snapA: HandoffSnap;
+  snapB: HandoffSnap;
+  validation?: HandoffValidation;
+};
 type RegionPreview = {
   geofabrikId: string;
   name: string;
@@ -216,6 +261,43 @@ app.innerHTML = `
         </div>
       </section>
       <section class="section">
+        <h2>Border inspector</h2>
+        <div class="coord-grid">
+          <div class="field">
+            <label for="borderRegionA">Graph A</label>
+            <select id="borderRegionA"></select>
+          </div>
+          <div class="field">
+            <label for="borderRegionB">Graph B</label>
+            <select id="borderRegionB"></select>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="loadBorderPairBtn" class="btn" type="button">Load A/B overlay</button>
+          <button id="pickHandoffABtn" class="btn" type="button">Pick A edge</button>
+          <button id="pickHandoffBBtn" class="btn" type="button">Pick B edge</button>
+        </div>
+        <div class="handoff-grid">
+          <div class="handoff-card">
+            <strong>Graph A snap</strong>
+            <div id="handoffASummary" class="empty">Not selected.</div>
+          </div>
+          <div class="handoff-card">
+            <strong>Graph B snap</strong>
+            <div id="handoffBSummary" class="empty">Not selected.</div>
+          </div>
+        </div>
+        <div class="actions" style="margin-top:8px">
+          <button id="validateHandoffBtn" class="btn" type="button" disabled>Validate crossing</button>
+          <button id="saveHandoffBtn" class="btn primary" type="button" disabled>Save manual override</button>
+          <button id="clearHandoffBtn" class="btn" type="button">Clear</button>
+        </div>
+        <div id="handoffValidationSummary" class="empty" style="margin-top:8px">No manual crossing selected.</div>
+        <div id="handoffProbeList" class="probe-list"></div>
+        <h2 style="margin-top:16px">Saved manual overrides</h2>
+        <div id="handoffOverrideList" class="empty">No manual overrides.</div>
+      </section>
+      <section class="section">
         <h2>Valhalla route planner</h2>
         <div class="field">
           <label for="routeCosting">Costing</label>
@@ -317,6 +399,19 @@ const cancelBtn = document.querySelector<HTMLButtonElement>("#cancelBtn")!;
 const graphLayerBtn = document.querySelector<HTMLButtonElement>("#graphLayerBtn")!;
 const fitBtn = document.querySelector<HTMLButtonElement>("#fitBtn")!;
 const locateBtn = document.querySelector<HTMLButtonElement>("#locateBtn")!;
+const borderRegionA = document.querySelector<HTMLSelectElement>("#borderRegionA")!;
+const borderRegionB = document.querySelector<HTMLSelectElement>("#borderRegionB")!;
+const loadBorderPairBtn = document.querySelector<HTMLButtonElement>("#loadBorderPairBtn")!;
+const pickHandoffABtn = document.querySelector<HTMLButtonElement>("#pickHandoffABtn")!;
+const pickHandoffBBtn = document.querySelector<HTMLButtonElement>("#pickHandoffBBtn")!;
+const handoffASummary = document.querySelector<HTMLDivElement>("#handoffASummary")!;
+const handoffBSummary = document.querySelector<HTMLDivElement>("#handoffBSummary")!;
+const validateHandoffBtn = document.querySelector<HTMLButtonElement>("#validateHandoffBtn")!;
+const saveHandoffBtn = document.querySelector<HTMLButtonElement>("#saveHandoffBtn")!;
+const clearHandoffBtn = document.querySelector<HTMLButtonElement>("#clearHandoffBtn")!;
+const handoffValidationSummary = document.querySelector<HTMLDivElement>("#handoffValidationSummary")!;
+const handoffProbeList = document.querySelector<HTMLDivElement>("#handoffProbeList")!;
+const handoffOverrideList = document.querySelector<HTMLDivElement>("#handoffOverrideList")!;
 const routeCosting = document.querySelector<HTMLSelectElement>("#routeCosting")!;
 const routeStartLat = document.querySelector<HTMLInputElement>("#routeStartLat")!;
 const routeStartLng = document.querySelector<HTMLInputElement>("#routeStartLng")!;
@@ -348,6 +443,13 @@ let editorPreview: RegionPreview | null = null;
 let editorExistingConfig: Record<string, unknown> | null = null;
 let activeRegion: RegionSummary | null = null;
 let graphVisible = false;
+let handoffPickMode: "A" | "B" | null = null;
+let editingHandoffId: string | null = null;
+let handoffSnapA: HandoffSnap | null = null;
+let handoffSnapB: HandoffSnap | null = null;
+let handoffValidation: HandoffValidation | null = null;
+let handoffMarkerA: Marker | null = null;
+let handoffMarkerB: Marker | null = null;
 let routePickMode: "start" | "end" | null = null;
 let routeStartMarker: Marker | null = null;
 let routeEndMarker: Marker | null = null;
@@ -439,6 +541,222 @@ function showEditorPreview(preview: RegionPreview): void {
     [[preview.bounds.minLng, preview.bounds.minLat], [preview.bounds.maxLng, preview.bounds.maxLat]],
     { padding: 60, duration: 450 },
   );
+}
+
+const borderSourceA = "roadpilot-border-a";
+const borderSourceB = "roadpilot-border-b";
+const borderLayerA = "roadpilot-border-a-edges";
+const borderLayerB = "roadpilot-border-b-edges";
+
+function removeBorderPairLayers(): void {
+  for (const id of [borderLayerA, borderLayerB]) if (map.getLayer(id)) map.removeLayer(id);
+  for (const id of [borderSourceA, borderSourceB]) if (map.getSource(id)) map.removeSource(id);
+}
+
+function showBorderPairLayers(regionA: string, regionB: string): void {
+  removeBorderPairLayers();
+  map.addSource(borderSourceA, {
+    type: "vector",
+    tiles: [`roadpilot-graph://${encodeURIComponent(regionA)}/{z}/{x}/{y}.mvt`],
+    minzoom: 5,
+    maxzoom: 18,
+  });
+  map.addSource(borderSourceB, {
+    type: "vector",
+    tiles: [`roadpilot-graph://${encodeURIComponent(regionB)}/{z}/{x}/{y}.mvt`],
+    minzoom: 5,
+    maxzoom: 18,
+  });
+  map.addLayer({
+    id: borderLayerA,
+    type: "line",
+    source: borderSourceA,
+    "source-layer": "edges",
+    paint: { "line-color": "#e35d5b", "line-width": 2.4, "line-opacity": 0.72 },
+  });
+  map.addLayer({
+    id: borderLayerB,
+    type: "line",
+    source: borderSourceB,
+    "source-layer": "edges",
+    paint: { "line-color": "#4b9ee8", "line-width": 1.8, "line-opacity": 0.72 },
+  });
+}
+
+function clearHandoffSelection(removeLayers = false): void {
+  editingHandoffId = null;
+  handoffSnapA = null;
+  handoffSnapB = null;
+  handoffValidation = null;
+  handoffPickMode = null;
+  handoffMarkerA?.remove();
+  handoffMarkerB?.remove();
+  handoffMarkerA = null;
+  handoffMarkerB = null;
+  handoffASummary.className = "empty";
+  handoffASummary.textContent = "Not selected.";
+  handoffBSummary.className = "empty";
+  handoffBSummary.textContent = "Not selected.";
+  handoffValidationSummary.className = "empty";
+  handoffValidationSummary.textContent = "No manual crossing selected.";
+  handoffProbeList.innerHTML = "";
+  validateHandoffBtn.disabled = true;
+  saveHandoffBtn.disabled = true;
+  pickHandoffABtn.textContent = "Pick A edge";
+  pickHandoffBBtn.textContent = "Pick B edge";
+  if (removeLayers) removeBorderPairLayers();
+}
+
+function handoffSnapSummary(snap: HandoffSnap): string {
+  const edgeId = snap.edgeId == null ? "—" : JSON.stringify(snap.edgeId);
+  return `
+    <div class="kv">
+      <dt>Region</dt><dd>${snap.regionId}</dd>
+      <dt>Correlated</dt><dd>${snap.correlated.lat.toFixed(6)}, ${snap.correlated.lng.toFixed(6)}</dd>
+      <dt>OSM way</dt><dd>${snap.wayId ?? "—"}</dd>
+      <dt>Percent</dt><dd>${snap.percentAlong == null ? "—" : snap.percentAlong.toFixed(5)}</dd>
+      <dt>Edge id</dt><dd>${edgeId}</dd>
+      <dt>Graph</dt><dd>${snap.graph.packageVersion ?? "—"}</dd>
+    </div>
+  `;
+}
+
+function renderHandoffValidation(validation: HandoffValidation): void {
+  handoffValidationSummary.className = validation.passed ? "ok" : "bad";
+  handoffValidationSummary.textContent = validation.passed
+    ? "VALID — both graphs proved the manual crossing in both directions for motorcycle and auto."
+    : "FAILED — one or more Valhalla proofs failed. The override cannot be saved as VALID.";
+  handoffProbeList.innerHTML = Object.entries(validation.probes).map(([name, result]) => {
+    const passed = result.passed === true;
+    const detail = passed
+      ? `${result.elapsedMs ?? "—"} ms`
+      : result.error || "No route";
+    return `<div class="probe-row"><span class="${passed ? "ok" : "bad"}">${passed ? "✓" : "✗"}</span><b>${name}</b><small>${detail}</small></div>`;
+  }).join("");
+  saveHandoffBtn.disabled = !validation.passed;
+}
+
+function uniqueBuiltRegions(): string[] {
+  return [...new Set(artifacts.map(item => item.region_id))].sort();
+}
+
+function renderBorderRegionSelectors(): void {
+  const currentA = borderRegionA.value;
+  const currentB = borderRegionB.value;
+  const options = uniqueBuiltRegions().map(id => `<option value="${id}">${id}</option>`).join("");
+  borderRegionA.innerHTML = `<option value="">Choose A…</option>${options}`;
+  borderRegionB.innerHTML = `<option value="">Choose B…</option>${options}`;
+  if ([...borderRegionA.options].some(option => option.value === currentA)) borderRegionA.value = currentA;
+  if ([...borderRegionB.options].some(option => option.value === currentB)) borderRegionB.value = currentB;
+}
+
+async function refreshHandoffOverrides(): Promise<void> {
+  try {
+    const overrides = await invoke<HandoffOverride[]>("list_handoff_overrides");
+    if (!overrides.length) {
+      handoffOverrideList.className = "empty";
+      handoffOverrideList.textContent = "No manual overrides.";
+      return;
+    }
+    handoffOverrideList.className = "";
+    handoffOverrideList.innerHTML = "";
+    for (const item of overrides) {
+      const row = document.createElement("div");
+      row.className = "handoff-override-row";
+      const statusClass = item.status === "VALID" ? "ok" : "warn";
+      row.innerHTML = `
+        <div><b>${item.regionA} ↔ ${item.regionB}</b><span class="${statusClass}">${item.status}</span></div>
+        <small>${item.id}</small>
+      `;
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const load = document.createElement("button");
+      load.className = "btn";
+      load.type = "button";
+      load.textContent = "Inspect";
+      load.addEventListener("click", () => {
+        editingHandoffId = item.id;
+        borderRegionA.value = item.regionA;
+        borderRegionB.value = item.regionB;
+        handoffSnapA = item.snapA;
+        handoffSnapB = item.snapB;
+        handoffValidation = item.validation ?? null;
+        showBorderPairLayers(item.regionA, item.regionB);
+        handoffASummary.className = "";
+        handoffASummary.innerHTML = handoffSnapSummary(item.snapA);
+        handoffBSummary.className = "";
+        handoffBSummary.innerHTML = handoffSnapSummary(item.snapB);
+        if (item.validation) renderHandoffValidation(item.validation);
+        handoffMarkerA?.remove();
+        handoffMarkerB?.remove();
+        handoffMarkerA = new Marker({ color: "#e35d5b" }).setLngLat([item.snapA.correlated.lng, item.snapA.correlated.lat]).addTo(map);
+        handoffMarkerB = new Marker({ color: "#4b9ee8" }).setLngLat([item.snapB.correlated.lng, item.snapB.correlated.lat]).addTo(map);
+        validateHandoffBtn.disabled = false;
+        saveHandoffBtn.disabled = item.status !== "VALID";
+      });
+      const remove = document.createElement("button");
+      remove.className = "btn danger";
+      remove.type = "button";
+      remove.textContent = "Delete";
+      remove.addEventListener("click", async () => {
+        try {
+          await invoke("delete_handoff_override", {
+            regionA: item.regionA,
+            regionB: item.regionB,
+            overrideId: item.id,
+          });
+          await refreshHandoffOverrides();
+        } catch (error) {
+          appendLog(`Delete manual handoff failed: ${String(error)}`);
+        }
+      });
+      actions.append(load, remove);
+      row.appendChild(actions);
+      handoffOverrideList.appendChild(row);
+    }
+  } catch (error) {
+    handoffOverrideList.className = "bad";
+    handoffOverrideList.textContent = `Could not load manual overrides: ${String(error)}`;
+  }
+}
+
+async function snapHandoff(kind: "A" | "B", lat: number, lng: number): Promise<void> {
+  const regionId = kind === "A" ? borderRegionA.value : borderRegionB.value;
+  if (!regionId) {
+    appendLog(`Choose Graph ${kind} before selecting a handoff edge.`);
+    return;
+  }
+  const summary = kind === "A" ? handoffASummary : handoffBSummary;
+  summary.className = "empty";
+  summary.textContent = "Snapping to Valhalla directed edge…";
+  try {
+    const snap = await invoke<HandoffSnap>("snap_handoff_point", { regionId, lat, lng });
+    const marker = new Marker({ color: kind === "A" ? "#e35d5b" : "#4b9ee8" })
+      .setLngLat([snap.correlated.lng, snap.correlated.lat])
+      .addTo(map);
+    if (kind === "A") {
+      handoffMarkerA?.remove();
+      handoffMarkerA = marker;
+      handoffSnapA = snap;
+      handoffASummary.className = "";
+      handoffASummary.innerHTML = handoffSnapSummary(snap);
+    } else {
+      handoffMarkerB?.remove();
+      handoffMarkerB = marker;
+      handoffSnapB = snap;
+      handoffBSummary.className = "";
+      handoffBSummary.innerHTML = handoffSnapSummary(snap);
+    }
+    handoffValidation = null;
+    handoffValidationSummary.className = "empty";
+    handoffValidationSummary.textContent = "Manual points changed — validation required.";
+    handoffProbeList.innerHTML = "";
+    validateHandoffBtn.disabled = !(handoffSnapA && handoffSnapB);
+    saveHandoffBtn.disabled = true;
+  } catch (error) {
+    summary.className = "bad";
+    summary.textContent = `Snap failed: ${String(error)}`;
+  }
 }
 
 const routeSourceId = "roadpilot-route";
@@ -1010,6 +1328,7 @@ async function refreshBuilds(): Promise<void> {
     }
   }
   renderCompareSelectors();
+  renderBorderRegionSelectors();
 }
 
 function renderCompareSelectors(): void {
@@ -1074,6 +1393,91 @@ cancelBtn.addEventListener("click", async () => {
   appendLog("Cancellation requested.");
 });
 
+loadBorderPairBtn.addEventListener("click", () => {
+  const a = borderRegionA.value;
+  const b = borderRegionB.value;
+  if (!a || !b || a === b) {
+    handoffValidationSummary.className = "bad";
+    handoffValidationSummary.textContent = "Choose two different locally built regions.";
+    return;
+  }
+  clearHandoffSelection(false);
+  showBorderPairLayers(a, b);
+  handoffValidationSummary.className = "empty";
+  handoffValidationSummary.textContent = `Overlay loaded: A=${a}, B=${b}. Red is A; blue is B.`;
+});
+
+pickHandoffABtn.addEventListener("click", () => {
+  if (!borderRegionA.value) {
+    handoffValidationSummary.className = "bad";
+    handoffValidationSummary.textContent = "Choose Graph A first.";
+    return;
+  }
+  handoffPickMode = "A";
+  pickHandoffABtn.textContent = "Click map…";
+  pickHandoffBBtn.textContent = "Pick B edge";
+});
+pickHandoffBBtn.addEventListener("click", () => {
+  if (!borderRegionB.value) {
+    handoffValidationSummary.className = "bad";
+    handoffValidationSummary.textContent = "Choose Graph B first.";
+    return;
+  }
+  handoffPickMode = "B";
+  pickHandoffBBtn.textContent = "Click map…";
+  pickHandoffABtn.textContent = "Pick A edge";
+});
+
+validateHandoffBtn.addEventListener("click", async () => {
+  if (!handoffSnapA || !handoffSnapB) return;
+  validateHandoffBtn.disabled = true;
+  saveHandoffBtn.disabled = true;
+  handoffValidationSummary.className = "empty";
+  handoffValidationSummary.textContent = "Running two-graph motorcycle/auto direction proofs…";
+  try {
+    const validation = await invoke<HandoffValidation>("validate_handoff_override", {
+      regionA: borderRegionA.value,
+      regionB: borderRegionB.value,
+      snapA: handoffSnapA,
+      snapB: handoffSnapB,
+    });
+    handoffValidation = validation;
+    renderHandoffValidation(validation);
+  } catch (error) {
+    handoffValidation = null;
+    handoffValidationSummary.className = "bad";
+    handoffValidationSummary.textContent = `Validation failed: ${String(error)}`;
+  } finally {
+    validateHandoffBtn.disabled = !(handoffSnapA && handoffSnapB);
+  }
+});
+
+saveHandoffBtn.addEventListener("click", async () => {
+  if (!handoffSnapA || !handoffSnapB || !handoffValidation?.passed) return;
+  saveHandoffBtn.disabled = true;
+  try {
+    const saved = await invoke<HandoffOverride>("save_handoff_override", {
+      regionA: borderRegionA.value,
+      regionB: borderRegionB.value,
+      snapA: handoffSnapA,
+      snapB: handoffSnapB,
+      overrideId: editingHandoffId,
+    });
+    editingHandoffId = saved.id;
+    appendLog(`Saved VALID manual handoff: ${borderRegionA.value} ↔ ${borderRegionB.value}`);
+    await refreshHandoffOverrides();
+  } catch (error) {
+    handoffValidationSummary.className = "bad";
+    handoffValidationSummary.textContent = `Save rejected: ${String(error)}`;
+  } finally {
+    saveHandoffBtn.disabled = !handoffValidation?.passed;
+  }
+});
+
+clearHandoffBtn.addEventListener("click", () => clearHandoffSelection(false));
+borderRegionA.addEventListener("change", () => clearHandoffSelection(false));
+borderRegionB.addEventListener("change", () => clearHandoffSelection(false));
+
 pickRouteStartBtn.addEventListener("click", () => {
   routePickMode = "start";
   pickRouteStartBtn.textContent = "Click map…";
@@ -1099,6 +1503,14 @@ fitBtn.addEventListener("click", fitActiveRegion);
 map.on("click", (event) => {
   lastMapClick = { lat: event.lngLat.lat, lng: event.lngLat.lng };
   locateBtn.disabled = !activeRegion;
+  if (handoffPickMode) {
+    const mode = handoffPickMode;
+    handoffPickMode = null;
+    pickHandoffABtn.textContent = "Pick A edge";
+    pickHandoffBBtn.textContent = "Pick B edge";
+    snapHandoff(mode, event.lngLat.lat, event.lngLat.lng).catch(error => appendLog(String(error)));
+    return;
+  }
   if (routePickMode) {
     setRoutePoint(routePickMode, event.lngLat.lat, event.lngLat.lng);
     routePickMode = null;
@@ -1152,6 +1564,7 @@ async function bootstrap(): Promise<void> {
     refreshToolchain(),
     refreshBuildStatus(),
     refreshBuilds(),
+    refreshHandoffOverrides(),
     refreshStats(),
   ]);
   setInterval(refreshStats, 3000);
