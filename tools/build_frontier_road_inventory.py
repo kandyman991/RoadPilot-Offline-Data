@@ -225,7 +225,12 @@ def heading_degrees(line: LineString, distance: float) -> float:
     dy = b.y - a.y
     if abs(dx) + abs(dy) < 1e-9:
         return 0.0
-    return math.degrees(math.atan2(dx, dy)) % 360.0
+    heading = math.degrees(math.atan2(dx, dy)) % 360.0
+    # Floating-point modulo can represent a tiny negative northward bearing
+    # as 360.0. Canonicalize the circular endpoint to strict [0, 360).
+    if heading >= 360.0 - 1e-9:
+        return 0.0
+    return heading
 
 
 def snippet_geometry(line: LineString, distance: float, backward_transform):
