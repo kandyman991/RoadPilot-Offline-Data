@@ -68,16 +68,29 @@
         "name": "dolomites-interior",
         "kind": "interior",
         "costing": "motorcycle",
-        "start": { "lat": 46.0748, "lng": 11.1217 },
-        "end": { "lat": 46.5405, "lng": 12.1357 }
+        "start": {
+          "lat": 46.0748,
+          "lng": 11.1217
+        },
+        "end": {
+          "lat": 46.5405,
+          "lng": 12.1357
+        }
       },
       {
         "name": "coccau-austria-border",
         "kind": "border",
         "costing": "motorcycle",
-        "start": { "lat": 46.501885, "lng": 13.592668 },
-        "end": { "lat": 46.592234, "lng": 13.846448 }
+        "start": {
+          "lat": 46.501885,
+          "lng": 13.592668
+        },
+        "end": {
+          "lat": 46.592234,
+          "lng": 13.846448
+        }
       }
-    ]
+    ],
+    "expectedValhallaVersion": "3.6.3"
   }
 }
