@@ -200,7 +200,6 @@ const map = new Map({
   style: "https://tiles.openfreemap.org/styles/bright",
   center: [11.8, 46.2],
   zoom: 6.2,
-  attributionControl: true,
 });
 map.addControl(new NavigationControl({ showCompass: true }), "bottom-right");
 
