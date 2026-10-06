@@ -82,6 +82,93 @@ jobs:
           print("discovered sources:", ", ".join(item["id"] for item in preview["sources"]))
           PY
 
+      - name: Smoke-test connectivity pair manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/connectivity-pair"
+          mkdir -p "$root/a" "$root/b"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "connectivity-pair"
+          fp_a = "sha256:" + "a" * 64
+          fp_b = "sha256:" + "b" * 64
+          boundary_ab = "sha256:" + "c" * 64
+          boundary_ba = "sha256:" + "d" * 64
+
+          index_a = {
+              "schema": "roadpilot-graph-index",
+              "schemaVersion": 1,
+              "regionId": "region-a",
+              "packageVersion": "2026.10.06-a",
+              "graphTileFingerprint": fp_a,
+              "internalFingerprint": "sha256:" + "e" * 64,
+              "tileCount": 1,
+              "boundaries": [
+                  {"sourceId": "country/region-b", "fingerprint": boundary_ab, "tileCount": 1}
+              ],
+              "tiles": [],
+          }
+          index_b = {
+              "schema": "roadpilot-graph-index",
+              "schemaVersion": 1,
+              "regionId": "region-b",
+              "packageVersion": "2026.10.06-b",
+              "graphTileFingerprint": fp_b,
+              "internalFingerprint": "sha256:" + "f" * 64,
+              "tileCount": 1,
+              "boundaries": [
+                  {"sourceId": "country/region-a", "fingerprint": boundary_ba, "tileCount": 1}
+              ],
+              "tiles": [],
+          }
+          manifest_a = {
+              "regionId": "region-a",
+              "packageVersion": "2026.10.06-a",
+              "graphFingerprint": fp_a,
+              "source": {"primaryGeofabrikId": "country/region-a"},
+              "graphIndex": {"fileName": "a-graph-index.json"},
+          }
+          manifest_b = {
+              "regionId": "region-b",
+              "packageVersion": "2026.10.06-b",
+              "graphFingerprint": fp_b,
+              "source": {"primaryGeofabrikId": "country/region-b"},
+              "graphIndex": {"fileName": "b-graph-index.json"},
+          }
+
+          (root / "a" / "a-graph-index.json").write_text(json.dumps(index_a))
+          (root / "a" / "a-manifest.json").write_text(json.dumps(manifest_a))
+          (root / "b" / "b-graph-index.json").write_text(json.dumps(index_b))
+          (root / "b" / "b-manifest.json").write_text(json.dumps(manifest_b))
+          PY
+
+          python tools/build_connectivity_pair_manifest.py             --from-manifest "$root/a/a-manifest.json"             --to-manifest "$root/b/b-manifest.json"             --output "$root/a__b-connectivity.json"
+
+          python tools/validate_cross_region_connectivity.py             --artifact "$root/a__b-connectivity.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "connectivity-pair"
+          artifact = json.loads((root / "a__b-connectivity.json").read_text())
+          assert artifact["pairId"] == "region-a__region-b"
+          assert artifact["fromBoundarySourceId"] == "country/region-b"
+          assert artifact["toBoundarySourceId"] == "country/region-a"
+          assert artifact["fromBoundaryFingerprint"] == "sha256:" + "c" * 64
+          assert artifact["toBoundaryFingerprint"] == "sha256:" + "d" * 64
+          assert artifact["bindingState"] == "STABLE_PHYSICAL"
+          assert artifact["validationState"] == "UNPROVEN"
+          assert artifact["candidates"] == []
+          print("connectivity pair manifest smoke test passed")
+          PY
+
       - name: Verify hosted routing toolchain
         shell: bash
         run: |
