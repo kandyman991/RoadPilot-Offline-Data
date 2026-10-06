@@ -319,9 +319,37 @@ jobs:
           import sys
 
           config = json.load(open(sys.argv[1]))
+          action = sys.argv[2]
           request = json.loads(sys.argv[3])
-          point = request["locations"][0]
           is_a = config["mjolnir"]["tile_extract"].endswith("/a.tar")
+
+          if action == "route":
+              start, end = request["locations"]
+              costing = request["costing"]
+              eastbound = end["lon"] > start["lon"]
+              passed = costing == "auto" or eastbound
+              if passed:
+                  print(json.dumps({
+                      "trip": {
+                          "status": 0,
+                          "status_message": "Found route between points",
+                          "summary": {"length": 0.12, "time": 8}
+                      }
+                  }))
+              else:
+                  print(json.dumps({
+                      "trip": {
+                          "status": 442,
+                          "status_message": "No path could be found",
+                          "summary": {}
+                      }
+                  }))
+              raise SystemExit(0)
+
+          if action != "locate":
+              raise SystemExit("unsupported fake Valhalla action: " + action)
+
+          point = request["locations"][0]
           shift = 0.0002 if is_a else -0.0002
           base = 1000 if is_a else 2000
 
@@ -454,6 +482,64 @@ jobs:
           # allowed to delete/demote the stable-way pair before route proof.
           assert best_100["candidateRank"] == 0
           print("lossless crossing candidate smoke test passed")
+          PY
+
+      - name: Smoke-test local plain-Valhalla crossing proofs
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-correlation"
+
+          PATH="$root/bin:$PATH" python tools/prove_crossing_candidates.py \
+            --candidates "$root/candidates.json" \
+            --inventory "$RUNNER_TEMP/frontier-inventory/inventory.json" \
+            --from-manifest "$root/from/manifest.json" \
+            --to-manifest "$root/to/manifest.json" \
+            --from-polygon "$RUNNER_TEMP/frontier-inventory/a.geojson" \
+            --to-polygon "$RUNNER_TEMP/frontier-inventory/b.geojson" \
+            --output "$root/proofs.json"
+
+          python tools/validate_crossing_proofs.py \
+            --artifact "$root/proofs.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          proofs = json.loads((root / "proofs.json").read_text())
+          candidates = json.loads((root / "candidates.json").read_text())
+
+          assert proofs["sourceCandidateCount"] == 18
+          assert proofs["provenCandidateCount"] == 18
+          assert proofs["rejectedCandidateCount"] == 0
+          assert proofs["inconclusiveCandidateCount"] == 0
+
+          best_candidate = next(
+              candidate for candidate in candidates["candidates"]
+              if candidate["stableWayId"] == 100 and candidate["candidateRank"] == 0
+          )
+          best_proof = next(
+              proof for proof in proofs["proofs"]
+              if proof["candidateId"] == best_candidate["id"]
+          )
+
+          assert best_candidate["toEdge"]["access"]["motorcycle"] is False
+          assert best_proof["proofState"] == "PROVEN"
+          assert best_proof["supportedDirections"] == [
+              "MOTORCYCLE_FROM_TO",
+              "CAR_FROM_TO",
+              "CAR_TO_FROM",
+          ]
+          assert best_proof["modes"]["MOTORCYCLE"]["fromTo"]["passed"] is True
+          assert best_proof["modes"]["MOTORCYCLE"]["toFrom"]["passed"] is False
+          assert best_proof["modes"]["CAR"]["fromTo"]["passed"] is True
+          assert best_proof["modes"]["CAR"]["toFrom"]["passed"] is True
+
+          # Route proof is authoritative: locate access metadata did not reject
+          # the motorcycle direction before Valhalla was asked to route it.
+          print("local plain-Valhalla crossing proof smoke test passed")
           PY
 
       - name: Verify hosted routing toolchain
