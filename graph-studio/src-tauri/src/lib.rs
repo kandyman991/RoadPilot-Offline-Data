@@ -1635,6 +1635,7 @@ fn export_border_diagnostics(
     let stamp = report
         .get("generatedAtEpochMs")
         .and_then(Value::as_u64)
+        .map(u128::from)
         .unwrap_or_else(now_epoch_ms);
     let root = reports_dir(&app)?;
     let json_path = root.join(format!("{pair}-{stamp}.json"));
