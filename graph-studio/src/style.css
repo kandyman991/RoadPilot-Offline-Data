@@ -532,3 +532,9 @@ button { cursor: pointer; }
   white-space: nowrap;
   color: #748292;
 }
+
+
+.report-path {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
