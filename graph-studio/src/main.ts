@@ -594,6 +594,23 @@ addProtocol("roadpilot-graph", async (request) => {
   return { data: new Uint8Array(data).buffer };
 });
 
+const buildGraphManifests = new globalThis.Map<string, string>();
+addProtocol("roadpilot-build-graph", async (request) => {
+  const raw = request.url.replace("roadpilot-build-graph://", "");
+  const match = raw.match(/^([^/]+)\/(\d+)\/(\d+)\/(\d+)\.mvt$/);
+  if (!match) throw new Error("Invalid retained-build graph tile URL");
+  const [, buildKey, z, x, y] = match;
+  const manifestPath = buildGraphManifests.get(buildKey);
+  if (!manifestPath) throw new Error(`Unknown retained build key: ${buildKey}`);
+  const data = await invoke<number[]>("graph_tile_for_build", {
+    manifestPath,
+    z: Number(z),
+    x: Number(x),
+    y: Number(y),
+  });
+  return { data: new Uint8Array(data).buffer };
+});
+
 const map = new MapLibreMap({
   container: "map",
   style: "https://tiles.openfreemap.org/styles/bright",
