@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/routing-pack-manifest-v1.json",
+  "title": "RoadPilot routing pack manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema","schemaVersion","regionId","regionName","packageVersion","builtAtUtc","valhallaVersion","graphFingerprint","source","artifact","validation"],
+  "properties": {
+    "schema": { "const": "roadpilot-routing-pack" },
+    "schemaVersion": { "const": 1 },
+    "regionId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "regionName": { "type": "string", "minLength": 1 },
+    "packageVersion": { "type": "string", "minLength": 1 },
+    "builtAtUtc": { "type": "string", "minLength": 1 },
+    "valhallaVersion": { "type": "string", "minLength": 1 },
+    "graphFingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primaryGeofabrikId","polygonUrl","borderBufferKm","pbfs"],
+      "properties": {
+        "primaryGeofabrikId": { "type": "string", "minLength": 1 },
+        "polygonUrl": { "type": "string", "pattern": "^https://" },
+        "borderBufferKm": { "type": "number", "exclusiveMinimum": 0 },
+        "bufferGeoJsonSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "pbfs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id","url","sizeBytes","sha256"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "url": { "type": "string", "pattern": "^https://" },
+              "sizeBytes": { "type": "integer", "minimum": 1 },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileName","sizeBytes","sha256","tileCount"],
+      "properties": {
+        "fileName": { "type": "string", "pattern": "^[A-Za-z0-9._-]+\\.tar$" },
+        "sizeBytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "tileCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["routes"],
+      "properties": {
+        "routes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name","kind","passed"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "kind": { "enum": ["interior","border"] },
+              "passed": { "const": true },
+              "summary": { "type": "object" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -51,3 +51,12 @@ dist/                    generated output (ignored by Git)
 ## Distribution rule
 
 Application CI must never download Overture source data or embed regional place databases in the APK. RoadPilot downloads published regional packs independently and verifies size, SHA-256, schema, region identity, and record count before activation.
+
+## Routing packs v1
+
+RoadPilot routing graphs are built as independent regional Valhalla tile extracts on the Legion self-hosted runner. Each routing source is expanded beyond its nominal Geofabrik polygon with a configurable border buffer before graph construction, so border-crossing roads remain usable without coupling the region to a synchronized world build.
+
+The first routing target is `italy-nord-est` with a 25 km border buffer. A routing pack is publishable only after interior and border-route validation succeeds and the immutable `.tar` tile extract has size, SHA-256, tile count, and graph fingerprint recorded in its manifest.
+
+See `docs/routing-packs-v1.md` for the production contract. Cloudflare R2 publication will consume these validated immutable artifacts; RoadPilot will continue to update regions independently.
+

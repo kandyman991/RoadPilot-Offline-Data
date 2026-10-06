@@ -1,0 +1,107 @@
+name: Build RoadPilot routing pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: Region id from config/regions
+        required: true
+        default: italy-nord-est
+        type: string
+      package_version:
+        description: Immutable package version (for example 2026.10.06-1)
+        required: true
+        type: string
+      upload_github_artifact:
+        description: Upload the large routing pack to GitHub Actions for testing
+        required: true
+        default: false
+        type: boolean
+      publish_r2:
+        description: Publish the validated immutable pack to Cloudflare R2
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 720
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Confirm Legion build prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v python3
+          command -v osmium
+          command -v valhalla_build_config
+          command -v valhalla_build_timezones
+          command -v valhalla_build_admins
+          command -v valhalla_build_tiles
+          command -v valhalla_build_extract
+          command -v valhalla_service
+
+      - name: Prepare routing builder environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv .venv-routing
+          .venv-routing/bin/python -m pip install --upgrade pip
+          .venv-routing/bin/pip install -r requirements-routing.txt
+
+      - name: Build independent buffered Valhalla graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv-routing/bin/python tools/build_routing_region.py \
+            --config "config/regions/${{ inputs.region }}.json" \
+            --package-version "${{ inputs.package_version }}" \
+            --refresh-sources
+
+      - name: Validate routing pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$(find "dist/routing/${{ inputs.region }}" -maxdepth 1 -name '*-manifest.json' -print -quit)"
+          if [[ -z "$manifest" ]]; then
+            echo "No routing manifest found" >&2
+            exit 1
+          fi
+          .venv-routing/bin/python tools/validate_routing_pack.py --manifest "$manifest"
+
+      - name: Show build outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          find "dist/routing/${{ inputs.region }}" -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+
+      - name: Upload test artifact
+        if: ${{ inputs.upload_github_artifact }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: roadpilot-routing-${{ inputs.region }}-${{ inputs.package_version }}
+          path: dist/routing/${{ inputs.region }}/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
+      - name: Publish validated pack to Cloudflare R2
+        if: ${{ inputs.publish_r2 }}
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
+        run: |
+          set -euo pipefail
+          manifest="$(find "dist/routing/${{ inputs.region }}" -maxdepth 1 -name '*-manifest.json' -print -quit)"
+          .venv-routing/bin/python tools/publish_routing_pack_r2.py --manifest "$manifest"
