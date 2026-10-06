@@ -3,17 +3,17 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-06T18:05:37.469Z",
-  "generatedByEvent": "pull_request",
+  "generatedAt": "2026-10-06T18:10:42.316Z",
+  "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
     "Treat this JSON as a mechanical snapshot, not architectural truth.",
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "877be97d1a80543d56952887154f65aeebc401a8",
-    "message": "chore: refresh chat handoff state [skip ci]",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/877be97d1a80543d56952887154f65aeebc401a8"
+    "sha": "5460c4bb369ec3ec4795d9314267660b05947e0c",
+    "message": "Avoid handoff state commits on PR updates",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/5460c4bb369ec3ec4795d9314267660b05947e0c"
   },
   "openPullRequests": [
     {
@@ -101,23 +101,23 @@
     {
       "id": 37508609851,
       "name": "Validate offline-data repository",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "graph-studio-border-inspector-v2",
       "headSha": "65694fb45b5227553b61b9af9393a2a4fa211fdf",
       "event": "pull_request",
-      "updatedAt": "2026-10-06T18:05:33Z",
+      "updatedAt": "2026-10-06T18:06:11Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37508609851"
     },
     {
       "id": 37508609652,
       "name": "Build RoadPilot Graph Studio",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "graph-studio-border-inspector-v2",
       "headSha": "65694fb45b5227553b61b9af9393a2a4fa211fdf",
       "event": "pull_request",
-      "updatedAt": "2026-10-06T18:05:33Z",
+      "updatedAt": "2026-10-06T18:09:09Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37508609652"
     },
     {
