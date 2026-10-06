@@ -12,7 +12,6 @@ import argparse
 import hashlib
 import json
 import math
-import os
 import shutil
 import subprocess
 import tempfile
@@ -94,6 +93,9 @@ def load_inventory(path: Path) -> dict[str, Any]:
         "toBoundaryFingerprint",
     ):
         required_string(inventory.get(key), f"inventory.{key}")
+    expected_pair = f"{inventory['fromRegionId']}__{inventory['toRegionId']}"
+    if inventory["pairId"] != expected_pair:
+        fail(f"inventory.pairId mismatch: expected {expected_pair}, got {inventory['pairId']}")
     roads = inventory.get("roads")
     if not isinstance(roads, list):
         fail("inventory.roads must be an array")
@@ -489,6 +491,15 @@ def main() -> int:
             lng = numeric(coordinate.get("lng"))
             if lat is None or lng is None:
                 fail(f"road[{index}] has invalid crossingCoordinate")
+            frontier_heading = numeric(road.get("headingDegrees"))
+            if frontier_heading is None or not (0.0 <= frontier_heading < 360.0):
+                fail(f"road[{index}] has invalid headingDegrees")
+            routing_tags = road.get("routingTags")
+            if not isinstance(routing_tags, dict) or not all(
+                isinstance(key, str) and isinstance(value, str)
+                for key, value in routing_tags.items()
+            ):
+                fail(f"road[{index}] has invalid routingTags")
 
             correlations.append(
                 {
@@ -499,6 +510,12 @@ def main() -> int:
                         road.get("crossingKind"), f"road[{index}].crossingKind"
                     ),
                     "frontierCoordinate": {"lat": lat, "lng": lng},
+                    "frontierHeadingDegrees": frontier_heading,
+                    "routingTags": {
+                        str(key): str(value)
+                        for key, value in sorted(routing_tags.items())
+                        if isinstance(key, str) and isinstance(value, str)
+                    },
                     "fromGraph": locate_side(from_config, lat, lng, way_id),
                     "toGraph": locate_side(to_config, lat, lng, way_id),
                 }
