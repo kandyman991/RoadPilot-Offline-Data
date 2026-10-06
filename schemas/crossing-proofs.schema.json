@@ -241,7 +241,10 @@
           "type": "string"
         },
         "expectedGraphId": {
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1
         },
         "endpointEdgePosition": {
