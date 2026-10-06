@@ -138,7 +138,9 @@
         "roadNames",
         "access",
         "roadClass",
-        "use"
+        "use",
+        "headingDegrees",
+        "linearReference"
       ],
       "properties": {
         "rank": {
@@ -263,6 +265,8 @@
         "crossingIndex",
         "crossingKind",
         "frontierCoordinate",
+        "routingTags",
+        "frontierHeadingDegrees",
         "fromGraph",
         "toGraph"
       ],
@@ -293,6 +297,17 @@
         },
         "toGraph": {
           "$ref": "#/$defs/sideCorrelation"
+        },
+        "frontierHeadingDegrees": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360
+        },
+        "routingTags": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     }
