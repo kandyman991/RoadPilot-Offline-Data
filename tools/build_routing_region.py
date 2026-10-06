@@ -283,6 +283,7 @@ def main() -> None:
             "-O",
         ]
     )
+    run(["osmium", "check-refs", buffered])
 
     tile_dir = build_root / "tiles"
     tile_extract = build_root / "tiles.tar"
@@ -318,7 +319,9 @@ def main() -> None:
 
     with timezone_db.open("wb") as output:
         run(["valhalla_build_timezones"], stdout=output)
-    run(["valhalla_build_admins", "-c", valhalla_config_path, buffered])
+    # Build admin polygons from the broader merged source. The graph itself stays clipped
+    # to the buffered regional geometry, but admin context must not be truncated at that edge.
+    run(["valhalla_build_admins", "-c", valhalla_config_path, merged])
     run(["valhalla_build_tiles", "-c", valhalla_config_path, buffered])
     run(["valhalla_build_extract", "-c", valhalla_config_path, "-O"])
 
