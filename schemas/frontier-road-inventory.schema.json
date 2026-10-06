@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.example/schemas/frontier-road-inventory-v1.json",
+  "title": "RoadPilot stable frontier road inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "pairId",
+    "fromRegionId",
+    "toRegionId",
+    "fromBoundaryFingerprint",
+    "toBoundaryFingerprint",
+    "source",
+    "generator",
+    "roads"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot.frontier-road-inventory"
+    },
+    "version": {
+      "const": 1
+    },
+    "pairId": {
+      "type": "string",
+      "minLength": 3
+    },
+    "fromRegionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toRegionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fromBoundaryFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "toBoundaryFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "osmSha256",
+        "fromPolygonSha256",
+        "toPolygonSha256"
+      ],
+      "properties": {
+        "osmSha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "fromPolygonSha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "toPolygonSha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "roads": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/road"
+      }
+    }
+  },
+  "$defs": {
+    "coordinate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lat",
+        "lng"
+      ],
+      "properties": {
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "lng": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      }
+    },
+    "lineString": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "coordinates"
+      ],
+      "properties": {
+        "type": {
+          "const": "LineString"
+        },
+        "coordinates": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "road": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "wayId",
+        "crossingIndex",
+        "crossingKind",
+        "crossingCoordinate",
+        "headingDegrees",
+        "routingTags",
+        "snippet"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^fri1-[0-9a-f]{24}$"
+        },
+        "wayId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "crossingIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "crossingKind": {
+          "enum": [
+            "CROSSING",
+            "FRONTIER_OVERLAP"
+          ]
+        },
+        "crossingCoordinate": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "headingDegrees": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360
+        },
+        "overlapLengthMeters": {
+          "type": "number",
+          "minimum": 0
+        },
+        "routingTags": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "snippet": {
+          "$ref": "#/$defs/lineString"
+        }
+      }
+    }
+  }
+}
