@@ -47,8 +47,8 @@ Each region is intended to expose independently versioned routing, visual, and s
 | Installable Graph Studio | #9 | Done | Linux Tauri app, AppImage + Debian packaging |
 | Region editor + Geofabrik discovery | #10 / PR #18 | Merged | Region creation/editing, buffer preview, automatic source discovery |
 | Standard Valhalla route planner | #12 / PR #19 | Merged | Normal routing, costing controls, route geometry, maneuvers, search expansion |
-| Border inspector + manual crossings | #11 / PR #20 | Core merged | Dual graph overlay, manual A/B edge snapping, validation, fingerprints, stale detection |
-| Exact graph/boundary diffing | #13 | Next | Internal-vs-boundary change detection and per-neighbor fingerprints |
+| Border inspector + manual crossings | #11 / PRs #20-#23 | Merged | A/B road diff, manual/automatic/learned handoffs, validation, stale detection, diagnostics export |
+| Exact graph/boundary diffing | #13 | Active | Deterministic graph-tile index, internal-vs-boundary changes, per-neighbor fingerprints |
 | Cloudflare R2 publication manager | #14 | Planned | Publish validated immutable packs and manage latest pointers |
 | Visual map production/inspection | #16 | Planned | Lightweight RoadPilot offline vector-map artifact |
 | POI/search production/inspection | #17 | Planned | Overture/SQLite offline search artifact |
@@ -121,37 +121,33 @@ standard Valhalla succeeds/fails
 then inspect RoadPilot cross-region behavior
 ~~~
 
-## Active — Border Inspector refinement
+## Completed — Border Inspector (#11)
 
-Issue #11 remains active. Border Inspector core was merged in PR #20.
+Issue #11 is complete across PRs #20-#23.
 
-Core now merged into `main`:
-- choose Graph A and Graph B;
-- overlay both independent Valhalla graphs;
-- manually select the intended crossing edge in A and in B;
-- snap each selection through Valhalla locate;
-- retain correlated coordinates, OSM way identity, percent-along, heading, directed-edge metadata and graph identity;
-- allow A and B crossing coordinates to differ;
-- validate the crossing using plain Valhalla;
-- test both graphs, both travel directions and motorcycle/auto costing;
-- refuse to save a crossing as VALID when proofs fail;
-- save crossings in a RoadPilot-owned manual handoff layer;
-- bind overrides to both regional graph fingerprints;
-- automatically mark overrides STALE after either graph changes;
-- revalidate an existing override in place;
-- delete overrides.
+Implemented:
+- independent Graph A/B overlays;
+- manual two-sided crossing selection and strict Valhalla validation;
+- common/A-only/B-only road comparison using stable OSM-way identity;
+- automatic candidate, accepted/bound, learned F8 and manual handoff overlays;
+- graph-fingerprint stale detection;
+- JSON + Markdown diagnostics export.
 
-Still remaining to fully close issue #11:
-- visualize overlap/common roads versus A-only/B-only roads;
-- render automatically discovered candidate handoffs;
-- render learned RoadPilot handoffs;
-- distinguish manual/automatic/learned handoffs on the map;
-- export/share a compact border diagnostics report;
-- polish pair-focused map fitting and inspection.
+## Active — Exact graph and boundary diffing (#13)
 
+The first #13 milestone adds a deterministic graph index for every newly built routing pack:
+- SHA-256 for every Valhalla `.gph` tile;
+- a graph-tile fingerprint independent from tar packing metadata;
+- an internal-graph fingerprint;
+- conservative per-neighbor boundary/overlap fingerprints using configured Geofabrik source polygons;
+- Build Comparison counts for added/removed/modified graph tiles;
+- explicit per-neighbor REFRESH/UNCHANGED decisions;
+- changed boundary-tile visualization on the map.
+
+Road/edge-level comparison remains the next #13 refinement. Graph-local edge IDs are not treated as stable identity across builds.
 ## Next
 
-### 1. Finish Border Inspector (#11)
+### 1. Finish exact graph and boundary diffing (#13)
 
 Goal:
 
@@ -167,24 +163,7 @@ Valhalla proof
 VALID / FAILED / STALE
 ~~~
 
-### 2. Exact graph and boundary diffing (#13)
-
-This is critical for independent regional updates.
-
-For every rebuild, Graph Studio should answer:
-- did internal routing change?
-- did a specific border/overlap change?
-- does cross-region metadata need refresh for that neighbor?
-
-Planned work:
-- deterministic graph fingerprint;
-- per-neighbor boundary/overlap fingerprint;
-- added/removed/changed edge detection where deterministic;
-- internal-road changes separated from boundary changes;
-- visualization of changed border roads;
-- invalidate/rebuild only compatibility metadata affected by a changed boundary.
-
-### 3. Build-time cross-region connectivity metadata
+### 2. Build-time cross-region connectivity metadata
 
 This is the key step for removing expensive first-route F8 discovery from phones.
 
@@ -211,7 +190,7 @@ local Valhalla detailed routing
 
 F8 remains the fallback when metadata is missing, stale or ambiguous.
 
-### 4. Cloudflare R2 publication manager (#14)
+### 3. Cloudflare R2 publication manager (#14)
 
 Required behavior:
 - immutable versioned objects;
