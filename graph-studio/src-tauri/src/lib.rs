@@ -1,6 +1,7 @@
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
+    collections::{BTreeMap, BTreeSet},
     env,
     fs,
     io::{BufRead, BufReader},
@@ -89,6 +90,10 @@ struct BuildArtifact {
     sha256: String,
     tile_count: u64,
     manifest_path: String,
+    graph_index_path: Option<String>,
+    graph_tile_fingerprint: Option<String>,
+    internal_fingerprint: Option<String>,
+    boundary_fingerprints: Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1021,12 +1026,249 @@ fn list_builds(app: AppHandle) -> Result<Vec<BuildArtifact>, String> {
                     .and_then(Value::as_u64)
                     .unwrap_or(0),
                 manifest_path: path.display().to_string(),
+                graph_index_path: value
+                    .pointer("/graphIndex/fileName")
+                    .and_then(Value::as_str)
+                    .map(|name| path.parent().unwrap_or(Path::new(".")).join(name))
+                    .filter(|index_path| index_path.is_file())
+                    .map(|index_path| index_path.display().to_string()),
+                graph_tile_fingerprint: value
+                    .pointer("/graphIndex/graphTileFingerprint")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                internal_fingerprint: value
+                    .pointer("/graphIndex/internalFingerprint")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                boundary_fingerprints: value
+                    .pointer("/graphIndex/boundaryFingerprints")
+                    .cloned()
+                    .unwrap_or_else(|| json!({})),
             });
         }
     }
 
     result.sort_by(|a, b| b.built_at_utc.cmp(&a.built_at_utc));
     Ok(result)
+}
+
+
+fn safe_build_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, String> {
+    let requested = PathBuf::from(raw)
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve build manifest {raw}: {e}"))?;
+    let root = dist_dir(app)?
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve Graph Studio build directory: {e}"))?;
+    if !requested.starts_with(&root) || !requested.is_file() {
+        return Err("Build manifest is outside the Graph Studio build workspace.".into());
+    }
+    Ok(requested)
+}
+
+fn graph_index_for_manifest(app: &AppHandle, raw: &str) -> Result<Value, String> {
+    let manifest_path = safe_build_manifest_path(app, raw)?;
+    let text = fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("Could not read {}: {e}", manifest_path.display()))?;
+    let manifest: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse {}: {e}", manifest_path.display()))?;
+    let index_name = manifest
+        .pointer("/graphIndex/fileName")
+        .and_then(Value::as_str)
+        .ok_or("Selected build predates deterministic graph indexes; rebuild it with current Graph Studio.")?;
+    let index_path = manifest_path
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join(index_name);
+    let index_text = fs::read_to_string(&index_path)
+        .map_err(|e| format!("Could not read graph index {}: {e}", index_path.display()))?;
+    let index: Value = serde_json::from_str(&index_text)
+        .map_err(|e| format!("Could not parse graph index {}: {e}", index_path.display()))?;
+    Ok(json!({"manifest": manifest, "index": index}))
+}
+
+fn graph_index_tiles(index: &Value) -> BTreeMap<String, Value> {
+    index
+        .get("tiles")
+        .and_then(Value::as_array)
+        .map(|tiles| {
+            tiles
+                .iter()
+                .filter_map(|tile| {
+                    let path = tile.get("path")?.as_str()?.to_string();
+                    Some((path, tile.clone()))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn graph_index_boundary_fingerprints(index: &Value) -> BTreeMap<String, String> {
+    index
+        .get("boundaries")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    Some((
+                        item.get("sourceId")?.as_str()?.to_string(),
+                        item.get("fingerprint")?.as_str()?.to_string(),
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn tile_boundary_ids(tile: Option<&Value>) -> BTreeSet<String> {
+    tile.and_then(|value| value.get("boundaries"))
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn tile_bounds_feature(path: &str, status: &str, boundaries: &BTreeSet<String>, tile: &Value) -> Option<Value> {
+    let bounds = tile.get("bounds")?;
+    let min_lat = bounds.get("minLat")?.as_f64()?;
+    let max_lat = bounds.get("maxLat")?.as_f64()?;
+    let min_lng = bounds.get("minLng")?.as_f64()?;
+    let max_lng = bounds.get("maxLng")?.as_f64()?;
+    Some(json!({
+        "type": "Feature",
+        "properties": {
+            "path": path,
+            "status": status,
+            "boundaries": boundaries.iter().cloned().collect::<Vec<_>>()
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [[
+                [min_lng, min_lat],
+                [max_lng, min_lat],
+                [max_lng, max_lat],
+                [min_lng, max_lat],
+                [min_lng, min_lat]
+            ]]
+        }
+    }))
+}
+
+#[tauri::command]
+fn compare_build_indexes(
+    app: AppHandle,
+    manifest_path_a: String,
+    manifest_path_b: String,
+) -> Result<Value, String> {
+    let a = graph_index_for_manifest(&app, &manifest_path_a)?;
+    let b = graph_index_for_manifest(&app, &manifest_path_b)?;
+    let manifest_a = a.get("manifest").ok_or("Build A manifest was not loaded.")?;
+    let manifest_b = b.get("manifest").ok_or("Build B manifest was not loaded.")?;
+    let region_a = manifest_a.get("regionId").and_then(Value::as_str).unwrap_or_default();
+    let region_b = manifest_b.get("regionId").and_then(Value::as_str).unwrap_or_default();
+    if region_a.is_empty() || region_a != region_b {
+        return Err("Detailed build comparison requires two builds of the same region.".into());
+    }
+
+    let index_a = a.get("index").ok_or("Build A graph index was not loaded.")?;
+    let index_b = b.get("index").ok_or("Build B graph index was not loaded.")?;
+    let tiles_a = graph_index_tiles(index_a);
+    let tiles_b = graph_index_tiles(index_b);
+    let paths: BTreeSet<String> = tiles_a.keys().chain(tiles_b.keys()).cloned().collect();
+
+    let mut added_tiles = 0_u64;
+    let mut removed_tiles = 0_u64;
+    let mut changed_tiles = 0_u64;
+    let mut internal_changed_tiles = 0_u64;
+    let mut boundary_changed_tiles = 0_u64;
+    let mut boundary_counts: BTreeMap<String, u64> = BTreeMap::new();
+    let mut changed_boundary_features = Vec::new();
+
+    for path in paths {
+        let old = tiles_a.get(&path);
+        let new = tiles_b.get(&path);
+        let old_sha = old.and_then(|tile| tile.get("sha256")).and_then(Value::as_str);
+        let new_sha = new.and_then(|tile| tile.get("sha256")).and_then(Value::as_str);
+        let status = match (old, new) {
+            (None, Some(_)) => {
+                added_tiles += 1;
+                "added"
+            }
+            (Some(_), None) => {
+                removed_tiles += 1;
+                "removed"
+            }
+            (Some(_), Some(_)) if old_sha != new_sha => {
+                changed_tiles += 1;
+                "changed"
+            }
+            _ => continue,
+        };
+
+        let boundaries: BTreeSet<String> = tile_boundary_ids(old)
+            .union(&tile_boundary_ids(new))
+            .cloned()
+            .collect();
+        if boundaries.is_empty() {
+            internal_changed_tiles += 1;
+            continue;
+        }
+        boundary_changed_tiles += 1;
+        for boundary in &boundaries {
+            *boundary_counts.entry(boundary.clone()).or_insert(0) += 1;
+        }
+        if let Some(tile) = new.or(old) {
+            if let Some(feature) = tile_bounds_feature(&path, status, &boundaries, tile) {
+                changed_boundary_features.push(feature);
+            }
+        }
+    }
+
+    let fp_a = graph_index_boundary_fingerprints(index_a);
+    let fp_b = graph_index_boundary_fingerprints(index_b);
+    let boundary_ids: BTreeSet<String> = fp_a.keys().chain(fp_b.keys()).cloned().collect();
+    let boundaries: Vec<Value> = boundary_ids
+        .into_iter()
+        .map(|source_id| {
+            let old = fp_a.get(&source_id).cloned();
+            let new = fp_b.get(&source_id).cloned();
+            json!({
+                "sourceId": source_id,
+                "oldFingerprint": old,
+                "newFingerprint": new,
+                "requiresRefresh": old != new,
+                "changedTiles": boundary_counts.get(&source_id).copied().unwrap_or(0)
+            })
+        })
+        .collect();
+
+    Ok(json!({
+        "regionId": region_a,
+        "versionA": manifest_a.get("packageVersion").cloned().unwrap_or(Value::Null),
+        "versionB": manifest_b.get("packageVersion").cloned().unwrap_or(Value::Null),
+        "graphTileFingerprintA": index_a.get("graphTileFingerprint").cloned().unwrap_or(Value::Null),
+        "graphTileFingerprintB": index_b.get("graphTileFingerprint").cloned().unwrap_or(Value::Null),
+        "internalFingerprintA": index_a.get("internalFingerprint").cloned().unwrap_or(Value::Null),
+        "internalFingerprintB": index_b.get("internalFingerprint").cloned().unwrap_or(Value::Null),
+        "counts": {
+            "addedTiles": added_tiles,
+            "removedTiles": removed_tiles,
+            "changedTiles": changed_tiles,
+            "internalChangedTiles": internal_changed_tiles,
+            "boundaryChangedTiles": boundary_changed_tiles
+        },
+        "boundaries": boundaries,
+        "changedBoundaryTiles": {
+            "type": "FeatureCollection",
+            "features": changed_boundary_features
+        }
+    }))
 }
 
 fn latest_graph_identity(app: &AppHandle, region_id: &str) -> Result<Value, String> {
@@ -2330,6 +2572,7 @@ pub fn run() {
             start_build_queue,
             cancel_build,
             list_builds,
+            compare_build_indexes,
             snap_handoff_point,
             validate_handoff_override,
             save_handoff_override,
