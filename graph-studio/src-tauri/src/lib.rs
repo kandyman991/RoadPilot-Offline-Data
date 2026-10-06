@@ -1405,6 +1405,258 @@ fn inspect_handoff_artifacts(
     }))
 }
 
+fn reports_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = workspace_root(app)?.join("reports");
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("Could not create Graph Studio reports directory: {e}"))?;
+    Ok(path)
+}
+
+fn handoff_summary(inspection: &Value) -> Value {
+    let items = inspection
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut counts = serde_json::Map::new();
+    for item in &items {
+        let kind = item.get("kind").and_then(Value::as_str).unwrap_or("unknown");
+        let status = item.get("status").and_then(Value::as_str).unwrap_or("unknown");
+        let key = format!("{kind}.{status}");
+        let next = counts.get(&key).and_then(Value::as_u64).unwrap_or(0) + 1;
+        counts.insert(key, Value::from(next));
+    }
+
+    let mut notable = Vec::new();
+    let mut current_candidates = 0usize;
+    let mut stale_candidates = 0usize;
+    for item in items {
+        let kind = item.get("kind").and_then(Value::as_str).unwrap_or_default();
+        if kind != "candidate" {
+            notable.push(item);
+            continue;
+        }
+        let status = item.get("status").and_then(Value::as_str).unwrap_or_default();
+        if status == "CURRENT" && current_candidates < 20 {
+            current_candidates += 1;
+            notable.push(item);
+        } else if status == "STALE" && stale_candidates < 20 {
+            stale_candidates += 1;
+            notable.push(item);
+        }
+    }
+
+    json!({
+        "counts": counts,
+        "recognizedArtifactFiles": inspection.get("recognizedArtifactFiles").cloned().unwrap_or(Value::from(0)),
+        "searchDirectories": inspection.get("searchDirectories").cloned().unwrap_or_else(|| json!([])),
+        "notableHandoffs": notable
+    })
+}
+
+fn markdown_scalar(value: Option<&Value>) -> String {
+    match value {
+        Some(Value::String(value)) => value.clone(),
+        Some(Value::Number(value)) => value.to_string(),
+        Some(Value::Bool(value)) => value.to_string(),
+        Some(value) if !value.is_null() => value.to_string(),
+        _ => "—".into(),
+    }
+}
+
+fn border_diagnostics_markdown(report: &Value) -> String {
+    let region_a = markdown_scalar(report.get("regionA"));
+    let region_b = markdown_scalar(report.get("regionB"));
+    let graph_a = report.get("graphA").unwrap_or(&Value::Null);
+    let graph_b = report.get("graphB").unwrap_or(&Value::Null);
+    let road = report.get("roadDiff").unwrap_or(&Value::Null);
+    let summary = report.pointer("/handoffs/counts").unwrap_or(&Value::Null);
+    let selected = report.get("selectedValidation").unwrap_or(&Value::Null);
+
+    let mut output = String::new();
+    output.push_str("# RoadPilot Border Diagnostics\n\n");
+    output.push_str(&format!("**Regions:** {region_a} ↔ {region_b}\n\n"));
+    output.push_str(&format!(
+        "**Generated epoch ms:** {}\n\n",
+        markdown_scalar(report.get("generatedAtEpochMs"))
+    ));
+
+    output.push_str("## Graph identity\n\n");
+    output.push_str("| Side | Region | Package | Graph fingerprint |\n");
+    output.push_str("| --- | --- | --- | --- |\n");
+    output.push_str(&format!(
+        "| A | {} | {} | {} |\n",
+        markdown_scalar(graph_a.get("regionId")),
+        markdown_scalar(graph_a.get("packageVersion")),
+        markdown_scalar(graph_a.get("graphFingerprint"))
+    ));
+    output.push_str(&format!(
+        "| B | {} | {} | {} |\n\n",
+        markdown_scalar(graph_b.get("regionId")),
+        markdown_scalar(graph_b.get("packageVersion")),
+        markdown_scalar(graph_b.get("graphFingerprint"))
+    ));
+
+    output.push_str("## Loaded road overlap\n\n");
+    if road.is_null() {
+        output.push_str("Road diff was not calculated when this report was exported.\n\n");
+    } else {
+        output.push_str(&format!(
+            "- Common OSM ways: {}\n- Graph A only: {}\n- Graph B only: {}\n- Loaded A edges: {}\n- Loaded B edges: {}\n- Edges without OSM id: A {} / B {}\n\n",
+            markdown_scalar(road.get("commonWays")),
+            markdown_scalar(road.get("aOnlyWays")),
+            markdown_scalar(road.get("bOnlyWays")),
+            markdown_scalar(road.get("loadedEdgesA")),
+            markdown_scalar(road.get("loadedEdgesB")),
+            markdown_scalar(road.get("unidentifiedA")),
+            markdown_scalar(road.get("unidentifiedB"))
+        ));
+    }
+
+    output.push_str("## Handoff artifacts\n\n");
+    let count = |key: &str| markdown_scalar(summary.get(key));
+    output.push_str(&format!(
+        "- Candidate: {} current / {} stale\n- Accepted/bound: {} current / {} stale\n- Learned F8 proof: {} current / {} stale\n- Manual: {} valid / {} stale\n- Recognized artifact files: {}\n\n",
+        count("candidate.CURRENT"),
+        count("candidate.STALE"),
+        count("accepted.CURRENT"),
+        count("accepted.STALE"),
+        count("learned.CURRENT"),
+        count("learned.STALE"),
+        count("manual.VALID"),
+        count("manual.STALE"),
+        markdown_scalar(report.pointer("/handoffs/recognizedArtifactFiles"))
+    ));
+
+    output.push_str("## Selected crossing proof\n\n");
+    if selected.is_null() {
+        output.push_str("No selected crossing validation was attached.\n\n");
+    } else {
+        output.push_str(&format!(
+            "**Overall:** {}\n\n",
+            if selected.get("passed").and_then(Value::as_bool) == Some(true) {
+                "PASS"
+            } else {
+                "FAIL"
+            }
+        ));
+        if let Some(probes) = selected.get("probes").and_then(Value::as_object) {
+            for (name, result) in probes {
+                let passed = result.get("passed").and_then(Value::as_bool) == Some(true);
+                let elapsed = markdown_scalar(result.get("elapsedMs"));
+                let error = result.get("error").and_then(Value::as_str).unwrap_or("");
+                if error.is_empty() {
+                    output.push_str(&format!(
+                        "- {}: {} ({} ms)\n",
+                        name,
+                        if passed { "PASS" } else { "FAIL" },
+                        elapsed
+                    ));
+                } else {
+                    output.push_str(&format!(
+                        "- {}: FAIL — {}\n",
+                        name,
+                        error.replace('\n', " ")
+                    ));
+                }
+            }
+            output.push('\n');
+        }
+    }
+
+    output.push_str("## Notable handoffs\n\n");
+    if let Some(items) = report
+        .pointer("/handoffs/notableHandoffs")
+        .and_then(Value::as_array)
+    {
+        if items.is_empty() {
+            output.push_str("No handoff artifacts were available for this pair.\n");
+        } else {
+            output.push_str("| Kind | Status | Direction | Id | Modes |\n");
+            output.push_str("| --- | --- | --- | --- | --- |\n");
+            for item in items {
+                let modes = item
+                    .get("modes")
+                    .and_then(Value::as_array)
+                    .map(|values| {
+                        values
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+                    .unwrap_or_default();
+                output.push_str(&format!(
+                    "| {} | {} | {} → {} | {} | {} |\n",
+                    markdown_scalar(item.get("kind")),
+                    markdown_scalar(item.get("status")),
+                    markdown_scalar(item.get("fromRegionId")),
+                    markdown_scalar(item.get("toRegionId")),
+                    markdown_scalar(item.get("id")).replace('|', "/"),
+                    modes.replace('|', "/")
+                ));
+            }
+        }
+    }
+    output
+}
+
+#[tauri::command]
+fn export_border_diagnostics(
+    app: AppHandle,
+    region_a: String,
+    region_b: String,
+    road_diff: Option<Value>,
+    selected_validation: Option<Value>,
+) -> Result<Value, String> {
+    handoff_pair_key(&region_a, &region_b)?;
+    let inspection = inspect_handoff_artifacts(
+        app.clone(),
+        region_a.clone(),
+        region_b.clone(),
+    )?;
+    let report = json!({
+        "schema": "roadpilot.border-diagnostics",
+        "version": 1,
+        "generatedAtEpochMs": now_epoch_ms(),
+        "regionA": region_a,
+        "regionB": region_b,
+        "graphA": inspection.get("graphA").cloned().unwrap_or(Value::Null),
+        "graphB": inspection.get("graphB").cloned().unwrap_or(Value::Null),
+        "roadDiff": road_diff.unwrap_or(Value::Null),
+        "handoffs": handoff_summary(&inspection),
+        "selectedValidation": selected_validation.unwrap_or(Value::Null)
+    });
+
+    let pair = handoff_pair_key(
+        report.get("regionA").and_then(Value::as_str).unwrap_or("a"),
+        report.get("regionB").and_then(Value::as_str).unwrap_or("b"),
+    )?;
+    let stamp = report
+        .get("generatedAtEpochMs")
+        .and_then(Value::as_u64)
+        .unwrap_or_else(now_epoch_ms);
+    let root = reports_dir(&app)?;
+    let json_path = root.join(format!("{pair}-{stamp}.json"));
+    let markdown_path = root.join(format!("{pair}-{stamp}.md"));
+
+    fs::write(
+        &json_path,
+        serde_json::to_string_pretty(&report)
+            .map_err(|e| format!("Could not serialize diagnostics report: {e}"))?
+            + "\n",
+    )
+    .map_err(|e| format!("Could not write {}: {e}", json_path.display()))?;
+    fs::write(&markdown_path, border_diagnostics_markdown(&report))
+        .map_err(|e| format!("Could not write {}: {e}", markdown_path.display()))?;
+
+    Ok(json!({
+        "jsonPath": json_path.display().to_string(),
+        "markdownPath": markdown_path.display().to_string(),
+        "report": report
+    }))
+}
+
 fn handoff_pair_key(region_a: &str, region_b: &str) -> Result<String, String> {
     if !safe_token(region_a) || !safe_token(region_b) || region_a == region_b {
         return Err("Manual handoff requires two different valid region ids.".into());
@@ -2083,6 +2335,7 @@ pub fn run() {
             list_handoff_overrides,
             delete_handoff_override,
             inspect_handoff_artifacts,
+            export_border_diagnostics,
             plan_route,
             route_expansion,
             inspect_locate,
