@@ -28,33 +28,30 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 **Graph Studio build-time cross-region connectivity metadata**, issue #26.
 
-Issue #13 is complete. PR #24 added deterministic graph/boundary fingerprints and PR #25 added
-retained-build road-level boundary diffing.
-
+Issue #13 is complete. PRs #24-#25 delivered deterministic graph/boundary diffing.
 PR #27 merged the fingerprint-bound pair-manifest foundation.
 PR #28 merged stable OSM frontier-road inventory generation.
-
 PR #29 merged independent Graph A/B Valhalla correlation.
+PR #30 merged lossless Graph A × Graph B crossing-candidate generation.
 
-Current #26 milestone branch: `connectivity-crossing-candidates-m4`.
+Current #26 milestone branch: `connectivity-valhalla-proof-m5`.
 
-Current implementation:
-- `roadpilot.cross-region-connectivity` v1 pair contract;
-- stable physical frontier inventory from real OSM `highway` geometry entering both nominal regions;
-- border-following roads retained as `FRONTIER_OVERLAP`;
-- graph-bound correlation artifact for independent Graph A / Graph B Valhalla `locate` results;
-- all usable locate candidates retained; stable OSM-way identity is ranking evidence, not a rejection gate;
-- A/B correlated coordinates are explicitly allowed to differ;
-- correlation refuses stale boundary fingerprints and verifies each retained graph artifact SHA;
-- frontier heading is OSM-geometry evidence only, not inferred journey direction and not a hard threshold.
+Current proof architecture:
+- candidate artifacts remain `UNPROVEN` until this stage;
+- proof does NOT repeat the old cross-snap-inside-every-graph experiment;
+- for a normal crossing, Graph A proves its own nominal-region interior probe ↔ A snap and Graph B independently proves B snap ↔ its own interior probe;
+- A→B and B→A are assembled from the corresponding local approach/exit legs;
+- motorcycle and auto are proven independently in both directions;
+- locate heading/access metadata never pre-rejects a candidate;
+- each successful local route is walked back through Valhalla `trace_attributes` with `shape_match=edge_walk`;
+- the route must actually start/end on the candidate's exact fingerprint-bound `graphId`; GPS re-correlation onto another nearby edge fails proof;
+- one-way support is represented per mode/direction rather than forcing a globally valid/invalid crossing;
+- duplicate local route legs are cached across the Cartesian candidate set.
 
 Architectural split for #26:
 - stable physical discovery evidence is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;
-- exact graph-local correlation evidence is bound to the exact graph fingerprint;
-- physical crossing candidates are now generated as the full Graph A × Graph B candidate product for each frontier road;
-- evidence ranks candidates but does not delete them;
-- candidate artifacts are explicitly `validationState=UNPROVEN`;
-- direction/access become proof criteria only in later plain-Valhalla validation;
+- graph-local correlation/proof evidence is valid only for the exact graph fingerprints;
+- only plain-Valhalla route + exact-edge evidence may promote a candidate;
 - F8 remains runtime fallback for missing/stale/ambiguous metadata.
 ## Critical architectural decisions
 
@@ -76,11 +73,11 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get the #26 lossless physical crossing-candidate milestone green and merged.
-2. Validate candidate pairs with plain Valhalla for motorcycle/auto and both travel directions.
-3. Compile only proven candidates into the compact RoadPilot runtime connectivity artifact.
-4. Add multi-hop region-chain composition.
-5. Use boundary fingerprints for surgical stale detection/rebuild; keep F8 as fallback.
+1. Get the #26 local plain-Valhalla exact-edge proof milestone green and merged.
+2. Compile only proven mode/direction candidates into the compact RoadPilot runtime connectivity artifact.
+3. Add multi-hop region-chain composition over validated neighboring-pair artifacts.
+4. Use boundary fingerprints for surgical stale detection/rebuild.
+5. Keep F8 as runtime fallback for missing, stale or ambiguous metadata.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
