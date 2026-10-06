@@ -156,14 +156,106 @@ def derive_probes(
     }
 
 
+def trace_route_endpoint(
+    config: Path,
+    encoded_polyline: str,
+    costing: str,
+    endpoint_edge_position: str,
+) -> tuple[int | None, str | None]:
+    request = json.dumps(
+        {
+            "encoded_polyline": encoded_polyline,
+            "costing": costing,
+            "shape_match": "edge_walk",
+            "filters": {
+                "attributes": ["edge.id", "edge.way_id"],
+                "action": "include",
+            },
+        },
+        separators=(",", ":"),
+    )
+    try:
+        result = subprocess.run(
+            ["valhalla_service", str(config), "trace_attributes", request],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+    except OSError as exc:
+        return None, f"Could not execute Valhalla trace_attributes: {exc}"
+
+    if result.returncode != 0:
+        return None, (
+            result.stderr.strip()
+            or result.stdout.strip()
+            or "Valhalla trace_attributes failed"
+        )
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        return None, f"Valhalla trace_attributes returned invalid JSON: {exc}"
+    if not isinstance(payload, dict):
+        return None, "Valhalla trace_attributes response must be an object"
+    edges = payload.get("edges")
+    if not isinstance(edges, list) or not edges:
+        return None, "Valhalla trace_attributes returned no route edges"
+
+    graph_ids: list[int] = []
+    for edge in edges:
+        if not isinstance(edge, dict):
+            continue
+        edge_id = edge.get("id")
+        if isinstance(edge_id, int) and not isinstance(edge_id, bool) and edge_id > 0:
+            graph_ids.append(edge_id)
+        elif isinstance(edge_id, str):
+            try:
+                parsed = int(edge_id)
+            except ValueError:
+                continue
+            if parsed > 0:
+                graph_ids.append(parsed)
+    if not graph_ids:
+        return None, "Valhalla trace_attributes returned no valid edge.id values"
+
+    if endpoint_edge_position == "START":
+        return graph_ids[0], None
+    if endpoint_edge_position == "END":
+        return graph_ids[-1], None
+    return None, f"Unsupported endpoint edge position: {endpoint_edge_position}"
+
+
 def leg_result(
     config: Path,
     region_id: str,
     start: dict[str, float],
     end: dict[str, float],
     costing: str,
+    expected_graph_id: int | None,
+    endpoint_edge_position: str,
 ) -> dict[str, Any]:
     direct = haversine_meters(start["lat"], start["lng"], end["lat"], end["lng"])
+    base = {
+        "regionId": region_id,
+        "start": start,
+        "end": end,
+        "directDistanceMeters": direct,
+        "expectedGraphId": expected_graph_id,
+        "endpointEdgePosition": endpoint_edge_position,
+        "actualEndpointGraphId": None,
+        "edgeMatched": False,
+    }
+    if expected_graph_id is None or expected_graph_id <= 0:
+        return {
+            "status": "ERROR",
+            **base,
+            "elapsedMs": 0,
+            "routeLengthKm": None,
+            "routeTimeSeconds": None,
+            "error": "Candidate has no exact graphId to prove.",
+        }
+
     request = json.dumps(
         {
             "locations": [
@@ -189,10 +281,7 @@ def leg_result(
         elapsed = (time.perf_counter_ns() - started) // 1_000_000
         return {
             "status": "ERROR",
-            "regionId": region_id,
-            "start": start,
-            "end": end,
-            "directDistanceMeters": direct,
+            **base,
             "elapsedMs": elapsed,
             "routeLengthKm": None,
             "routeTimeSeconds": None,
@@ -203,10 +292,7 @@ def leg_result(
     if result.returncode != 0:
         return {
             "status": "FAILED",
-            "regionId": region_id,
-            "start": start,
-            "end": end,
-            "directDistanceMeters": direct,
+            **base,
             "elapsedMs": elapsed,
             "routeLengthKm": None,
             "routeTimeSeconds": None,
@@ -218,10 +304,7 @@ def leg_result(
     except json.JSONDecodeError as exc:
         return {
             "status": "ERROR",
-            "regionId": region_id,
-            "start": start,
-            "end": end,
-            "directDistanceMeters": direct,
+            **base,
             "elapsedMs": elapsed,
             "routeLengthKm": None,
             "routeTimeSeconds": None,
@@ -231,10 +314,7 @@ def leg_result(
     if not isinstance(trip, dict):
         return {
             "status": "ERROR",
-            "regionId": region_id,
-            "start": start,
-            "end": end,
-            "directDistanceMeters": direct,
+            **base,
             "elapsedMs": elapsed,
             "routeLengthKm": None,
             "routeTimeSeconds": None,
@@ -253,22 +333,67 @@ def leg_result(
     if status != 0:
         return {
             "status": "FAILED",
-            "regionId": region_id,
-            "start": start,
-            "end": end,
-            "directDistanceMeters": direct,
+            **base,
             "elapsedMs": elapsed,
             "routeLengthKm": length_value,
             "routeTimeSeconds": time_value,
             "error": str(trip.get("status_message") or f"Valhalla status {status}"),
         }
 
+    legs = trip.get("legs")
+    if not isinstance(legs, list) or len(legs) != 1 or not isinstance(legs[0], dict):
+        return {
+            "status": "ERROR",
+            **base,
+            "elapsedMs": elapsed,
+            "routeLengthKm": length_value,
+            "routeTimeSeconds": time_value,
+            "error": "Local Valhalla proof route did not return exactly one leg.",
+        }
+    encoded_shape = legs[0].get("shape")
+    if not isinstance(encoded_shape, str) or not encoded_shape:
+        return {
+            "status": "ERROR",
+            **base,
+            "elapsedMs": elapsed,
+            "routeLengthKm": length_value,
+            "routeTimeSeconds": time_value,
+            "error": "Local Valhalla proof route did not return an encoded shape.",
+        }
+
+    actual_graph_id, trace_error = trace_route_endpoint(
+        config, encoded_shape, costing, endpoint_edge_position
+    )
+    traced = {
+        **base,
+        "actualEndpointGraphId": actual_graph_id,
+        "edgeMatched": actual_graph_id == expected_graph_id,
+    }
+    if trace_error is not None:
+        return {
+            "status": "ERROR",
+            **traced,
+            "elapsedMs": elapsed,
+            "routeLengthKm": length_value,
+            "routeTimeSeconds": time_value,
+            "error": trace_error,
+        }
+    if actual_graph_id != expected_graph_id:
+        return {
+            "status": "FAILED",
+            **traced,
+            "elapsedMs": elapsed,
+            "routeLengthKm": length_value,
+            "routeTimeSeconds": time_value,
+            "error": (
+                f"Valhalla route used endpoint edge {actual_graph_id}, "
+                f"not candidate edge {expected_graph_id}."
+            ),
+        }
+
     return {
         "status": "PASSED",
-        "regionId": region_id,
-        "start": start,
-        "end": end,
-        "directDistanceMeters": direct,
+        **traced,
         "elapsedMs": elapsed,
         "routeLengthKm": length_value,
         "routeTimeSeconds": time_value,
@@ -283,6 +408,8 @@ def cached_leg(
     start: dict[str, float],
     end: dict[str, float],
     costing: str,
+    expected_graph_id: int | None,
+    endpoint_edge_position: str,
 ) -> dict[str, Any]:
     key = (
         graph_label,
@@ -291,9 +418,19 @@ def cached_leg(
         round(start["lng"], 7),
         round(end["lat"], 7),
         round(end["lng"], 7),
+        expected_graph_id,
+        endpoint_edge_position,
     )
     if key not in cache:
-        cache[key] = leg_result(config, region_id, start, end, costing)
+        cache[key] = leg_result(
+            config,
+            region_id,
+            start,
+            end,
+            costing,
+            expected_graph_id,
+            endpoint_edge_position,
+        )
     return dict(cache[key])
 
 
@@ -309,20 +446,54 @@ def direction_proof(
     to_probe: dict[str, float],
     from_snap: dict[str, float],
     to_snap: dict[str, float],
+    from_graph_id: int | None,
+    to_graph_id: int | None,
 ) -> dict[str, Any]:
     if direction == "FROM_TO":
         graph_a = cached_leg(
-            cache, "A", from_config, from_region, from_probe, from_snap, costing
+            cache,
+            "A",
+            from_config,
+            from_region,
+            from_probe,
+            from_snap,
+            costing,
+            from_graph_id,
+            "END",
         )
         graph_b = cached_leg(
-            cache, "B", to_config, to_region, to_snap, to_probe, costing
+            cache,
+            "B",
+            to_config,
+            to_region,
+            to_snap,
+            to_probe,
+            costing,
+            to_graph_id,
+            "START",
         )
     else:
         graph_a = cached_leg(
-            cache, "A", from_config, from_region, from_snap, from_probe, costing
+            cache,
+            "A",
+            from_config,
+            from_region,
+            from_snap,
+            from_probe,
+            costing,
+            from_graph_id,
+            "START",
         )
         graph_b = cached_leg(
-            cache, "B", to_config, to_region, to_probe, to_snap, costing
+            cache,
+            "B",
+            to_config,
+            to_region,
+            to_probe,
+            to_snap,
+            costing,
+            to_graph_id,
+            "END",
         )
     return {
         "passed": graph_a["status"] == "PASSED" and graph_b["status"] == "PASSED",
@@ -451,6 +622,12 @@ def main() -> int:
                 fail(f"candidate[{index}] is missing edge correlations")
             from_snap = coordinate(from_edge.get("correlatedCoordinate"), "fromEdge.correlatedCoordinate")
             to_snap = coordinate(to_edge.get("correlatedCoordinate"), "toEdge.correlatedCoordinate")
+            from_graph_id = from_edge.get("graphId")
+            if not isinstance(from_graph_id, int) or isinstance(from_graph_id, bool) or from_graph_id <= 0:
+                from_graph_id = None
+            to_graph_id = to_edge.get("graphId")
+            if not isinstance(to_graph_id, int) or isinstance(to_graph_id, bool) or to_graph_id <= 0:
+                to_graph_id = None
 
             modes: dict[str, Any] = {}
             supported: list[str] = []
@@ -468,6 +645,8 @@ def main() -> int:
                     probe["toProbe"],
                     from_snap,
                     to_snap,
+                    from_graph_id,
+                    to_graph_id,
                 )
                 to_from = direction_proof(
                     route_cache,
@@ -481,6 +660,8 @@ def main() -> int:
                     probe["toProbe"],
                     from_snap,
                     to_snap,
+                    from_graph_id,
+                    to_graph_id,
                 )
                 modes[output_mode] = {"fromTo": from_to, "toFrom": to_from}
                 if from_to["passed"]:
