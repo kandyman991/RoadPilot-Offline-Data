@@ -1,7 +1,7 @@
 import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Map as MapLibreMap, NavigationControl, addProtocol, setWorkerUrl } from "maplibre-gl";
+import { Map as MapLibreMap, Marker, NavigationControl, addProtocol, setWorkerUrl } from "maplibre-gl";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
@@ -62,6 +62,37 @@ type RegionPreviewSource = {
   primary: boolean;
   intersectionArea: number;
   geometry: Geometry;
+};
+type RoutePlanResult = {
+  elapsedMs: number;
+  geometry: Geometry;
+  response: {
+    trip?: {
+      summary?: {
+        length?: number;
+        time?: number;
+        has_toll?: boolean;
+        has_highway?: boolean;
+        has_ferry?: boolean;
+      };
+      legs?: Array<{
+        maneuvers?: Array<{
+          instruction?: string;
+          verbal_pre_transition_instruction?: string;
+          length?: number;
+          time?: number;
+        }>;
+      }>;
+      status?: number;
+      status_message?: string;
+      units?: string;
+    };
+  };
+};
+type ExpansionResult = {
+  elapsedMs: number;
+  featureCount: number;
+  geojson: FeatureCollection;
 };
 type RegionPreview = {
   geofabrikId: string;
@@ -185,6 +216,49 @@ app.innerHTML = `
         </div>
       </section>
       <section class="section">
+        <h2>Valhalla route planner</h2>
+        <div class="field">
+          <label for="routeCosting">Costing</label>
+          <select id="routeCosting">
+            <option value="motorcycle">Motorcycle</option>
+            <option value="auto">Auto</option>
+            <option value="bicycle">Bicycle</option>
+            <option value="pedestrian">Pedestrian</option>
+          </select>
+        </div>
+        <div class="coord-grid">
+          <div class="field"><label for="routeStartLat">Start lat</label><input id="routeStartLat" type="number" step="0.000001" /></div>
+          <div class="field"><label for="routeStartLng">Start lng</label><input id="routeStartLng" type="number" step="0.000001" /></div>
+          <div class="field"><label for="routeEndLat">End lat</label><input id="routeEndLat" type="number" step="0.000001" /></div>
+          <div class="field"><label for="routeEndLng">End lng</label><input id="routeEndLng" type="number" step="0.000001" /></div>
+        </div>
+        <div class="actions">
+          <button id="pickRouteStartBtn" class="btn" type="button">Pick start</button>
+          <button id="pickRouteEndBtn" class="btn" type="button">Pick end</button>
+          <button id="runRouteBtn" class="btn primary" type="button">Route</button>
+        </div>
+        <div class="field inline-field">
+          <label><input id="routeExpansionToggle" type="checkbox" /> Show search expansion</label>
+        </div>
+        <details class="route-options">
+          <summary>Costing options</summary>
+          <div class="field">
+            <label for="routeUseHighways">Use highways <span id="routeUseHighwaysValue">1.0</span></label>
+            <input id="routeUseHighways" type="range" min="0" max="1" step="0.1" value="1" />
+          </div>
+          <div class="field">
+            <label for="routeUseTolls">Use tolls <span id="routeUseTollsValue">1.0</span></label>
+            <input id="routeUseTolls" type="range" min="0" max="1" step="0.1" value="1" />
+          </div>
+          <div class="field">
+            <label for="routeUseFerry">Use ferries <span id="routeUseFerryValue">1.0</span></label>
+            <input id="routeUseFerry" type="range" min="0" max="1" step="0.1" value="1" />
+          </div>
+        </details>
+        <div id="routeSummary" class="empty">Build/select a graph, then choose start and destination.</div>
+        <div id="routeManeuvers" class="maneuver-list"></div>
+      </section>
+      <section class="section">
         <h2>Build comparison</h2>
         <div class="field">
           <label for="compareA">Build A</label>
@@ -243,6 +317,23 @@ const cancelBtn = document.querySelector<HTMLButtonElement>("#cancelBtn")!;
 const graphLayerBtn = document.querySelector<HTMLButtonElement>("#graphLayerBtn")!;
 const fitBtn = document.querySelector<HTMLButtonElement>("#fitBtn")!;
 const locateBtn = document.querySelector<HTMLButtonElement>("#locateBtn")!;
+const routeCosting = document.querySelector<HTMLSelectElement>("#routeCosting")!;
+const routeStartLat = document.querySelector<HTMLInputElement>("#routeStartLat")!;
+const routeStartLng = document.querySelector<HTMLInputElement>("#routeStartLng")!;
+const routeEndLat = document.querySelector<HTMLInputElement>("#routeEndLat")!;
+const routeEndLng = document.querySelector<HTMLInputElement>("#routeEndLng")!;
+const pickRouteStartBtn = document.querySelector<HTMLButtonElement>("#pickRouteStartBtn")!;
+const pickRouteEndBtn = document.querySelector<HTMLButtonElement>("#pickRouteEndBtn")!;
+const runRouteBtn = document.querySelector<HTMLButtonElement>("#runRouteBtn")!;
+const routeExpansionToggle = document.querySelector<HTMLInputElement>("#routeExpansionToggle")!;
+const routeUseHighways = document.querySelector<HTMLInputElement>("#routeUseHighways")!;
+const routeUseTolls = document.querySelector<HTMLInputElement>("#routeUseTolls")!;
+const routeUseFerry = document.querySelector<HTMLInputElement>("#routeUseFerry")!;
+const routeUseHighwaysValue = document.querySelector<HTMLSpanElement>("#routeUseHighwaysValue")!;
+const routeUseTollsValue = document.querySelector<HTMLSpanElement>("#routeUseTollsValue")!;
+const routeUseFerryValue = document.querySelector<HTMLSpanElement>("#routeUseFerryValue")!;
+const routeSummary = document.querySelector<HTMLDivElement>("#routeSummary")!;
+const routeManeuvers = document.querySelector<HTMLDivElement>("#routeManeuvers")!;
 const activeRegionBadge = document.querySelector<HTMLSpanElement>("#activeRegionBadge")!;
 const featureJson = document.querySelector<HTMLPreElement>("#featureJson")!;
 const inspectorSummary = document.querySelector<HTMLDivElement>("#inspectorSummary")!;
@@ -257,6 +348,9 @@ let editorPreview: RegionPreview | null = null;
 let editorExistingConfig: Record<string, unknown> | null = null;
 let activeRegion: RegionSummary | null = null;
 let graphVisible = false;
+let routePickMode: "start" | "end" | null = null;
+let routeStartMarker: Marker | null = null;
+let routeEndMarker: Marker | null = null;
 let lastMapClick: { lat: number; lng: number } | null = null;
 const selected = new Set<string>();
 
@@ -347,6 +441,175 @@ function showEditorPreview(preview: RegionPreview): void {
   );
 }
 
+const routeSourceId = "roadpilot-route";
+const routeLayerId = "roadpilot-route-line";
+const expansionSourceId = "roadpilot-expansion";
+const expansionLayerId = "roadpilot-expansion-line";
+
+function removeRouteLayers(): void {
+  if (map.getLayer(expansionLayerId)) map.removeLayer(expansionLayerId);
+  if (map.getSource(expansionSourceId)) map.removeSource(expansionSourceId);
+  if (map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
+  if (map.getSource(routeSourceId)) map.removeSource(routeSourceId);
+}
+
+function showRouteGeometry(geometry: Geometry): void {
+  if (map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
+  if (map.getSource(routeSourceId)) map.removeSource(routeSourceId);
+  map.addSource(routeSourceId, {
+    type: "geojson",
+    data: { type: "Feature", properties: {}, geometry } as Feature,
+  });
+  map.addLayer({
+    id: routeLayerId,
+    type: "line",
+    source: routeSourceId,
+    paint: {
+      "line-color": "#276fbf",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 6, 4, 14, 7],
+      "line-opacity": 0.95,
+    },
+  });
+  const line = geometry.type === "LineString" ? geometry.coordinates : [];
+  if (line.length >= 2) {
+    const lngs = line.map(point => Number(point[0]));
+    const lats = line.map(point => Number(point[1]));
+    map.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: 70, duration: 400 },
+    );
+  }
+}
+
+function showExpansion(expansion: FeatureCollection): void {
+  if (map.getLayer(expansionLayerId)) map.removeLayer(expansionLayerId);
+  if (map.getSource(expansionSourceId)) map.removeSource(expansionSourceId);
+  map.addSource(expansionSourceId, { type: "geojson", data: expansion });
+  map.addLayer({
+    id: expansionLayerId,
+    type: "line",
+    source: expansionSourceId,
+    paint: {
+      "line-color": "#d68c45",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1, 14, 2],
+      "line-opacity": 0.45,
+    },
+  }, routeLayerId);
+}
+
+function routeCoordinate(field: HTMLInputElement, label: string, min: number, max: number): number {
+  const value = Number(field.value);
+  if (!Number.isFinite(value) || value < min || value > max) {
+    throw new Error(`${label} is invalid.`);
+  }
+  return value;
+}
+
+function routeCostingOptions(): Record<string, unknown> {
+  const costing = routeCosting.value;
+  if (costing !== "motorcycle" && costing !== "auto") return {};
+  return {
+    [costing]: {
+      use_highways: Number(routeUseHighways.value),
+      use_tolls: Number(routeUseTolls.value),
+      use_ferry: Number(routeUseFerry.value),
+    },
+  };
+}
+
+function formatDuration(seconds: number | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds)) return "—";
+  const rounded = Math.round(seconds);
+  const hours = Math.floor(rounded / 3600);
+  const minutes = Math.floor((rounded % 3600) / 60);
+  const secs = rounded % 60;
+  return hours > 0 ? `${hours}h ${minutes}m` : minutes > 0 ? `${minutes}m ${secs}s` : `${secs}s`;
+}
+
+function setRoutePoint(kind: "start" | "end", lat: number, lng: number): void {
+  const latField = kind === "start" ? routeStartLat : routeEndLat;
+  const lngField = kind === "start" ? routeStartLng : routeEndLng;
+  latField.value = lat.toFixed(6);
+  lngField.value = lng.toFixed(6);
+  const current = kind === "start" ? routeStartMarker : routeEndMarker;
+  current?.remove();
+  const marker = new Marker({ color: kind === "start" ? "#2d8a5c" : "#b94b4b" })
+    .setLngLat([lng, lat])
+    .addTo(map);
+  if (kind === "start") routeStartMarker = marker;
+  else routeEndMarker = marker;
+}
+
+function renderRouteResult(result: RoutePlanResult, expansion?: ExpansionResult): void {
+  const trip = result.response.trip;
+  const summary = trip?.summary;
+  routeSummary.className = "kv";
+  routeSummary.innerHTML = `
+    <dt>Graph</dt><dd>${activeRegion?.id ?? "—"}</dd>
+    <dt>Costing</dt><dd>${routeCosting.value}</dd>
+    <dt>Distance</dt><dd>${summary?.length == null ? "—" : summary.length.toFixed(2) + " km"}</dd>
+    <dt>Duration</dt><dd>${formatDuration(summary?.time)}</dd>
+    <dt>Valhalla time</dt><dd>${result.elapsedMs} ms</dd>
+    <dt>Highway</dt><dd>${summary?.has_highway ? "yes" : "no"}</dd>
+    <dt>Toll</dt><dd>${summary?.has_toll ? "yes" : "no"}</dd>
+    <dt>Ferry</dt><dd>${summary?.has_ferry ? "yes" : "no"}</dd>
+    ${expansion ? `<dt>Expanded edges</dt><dd>${expansion.featureCount} in ${expansion.elapsedMs} ms</dd>` : ""}
+  `;
+  const maneuvers = trip?.legs?.flatMap(leg => leg.maneuvers ?? []) ?? [];
+  routeManeuvers.innerHTML = maneuvers.slice(0, 80).map((maneuver, index) => {
+    const instruction = maneuver.instruction || maneuver.verbal_pre_transition_instruction || "Maneuver";
+    const meta = [
+      maneuver.length == null ? null : `${maneuver.length.toFixed(2)} km`,
+      maneuver.time == null ? null : formatDuration(maneuver.time),
+    ].filter(Boolean).join(" • ");
+    return `<div class="maneuver-row"><b>${index + 1}. ${instruction}</b><span>${meta}</span></div>`;
+  }).join("");
+}
+
+async function runStandardRoute(): Promise<void> {
+  if (!activeRegion) {
+    routeSummary.className = "bad";
+    routeSummary.textContent = "Select a region first.";
+    return;
+  }
+  runRouteBtn.disabled = true;
+  routeSummary.className = "empty";
+  routeSummary.textContent = "Calculating standard Valhalla route…";
+  routeManeuvers.innerHTML = "";
+  try {
+    const payload = {
+      regionId: activeRegion.id,
+      startLat: routeCoordinate(routeStartLat, "Start latitude", -90, 90),
+      startLng: routeCoordinate(routeStartLng, "Start longitude", -180, 180),
+      endLat: routeCoordinate(routeEndLat, "End latitude", -90, 90),
+      endLng: routeCoordinate(routeEndLng, "End longitude", -180, 180),
+      costing: routeCosting.value,
+      costingOptions: routeCostingOptions(),
+    };
+    removeRouteLayers();
+    const result = await invoke<RoutePlanResult>("plan_route", payload);
+    showRouteGeometry(result.geometry);
+    let expansion: ExpansionResult | undefined;
+    if (routeExpansionToggle.checked) {
+      expansion = await invoke<ExpansionResult>("route_expansion", payload);
+      showExpansion(expansion.geojson);
+    }
+    renderRouteResult(result, expansion);
+  } catch (error) {
+    routeSummary.className = "bad";
+    routeSummary.textContent = `Route failed: ${String(error)}`;
+    appendLog(`Valhalla route failed: ${String(error)}`);
+  } finally {
+    runRouteBtn.disabled = false;
+  }
+}
+
+function syncRouteSlider(input: HTMLInputElement, label: HTMLSpanElement): void {
+  const update = () => label.textContent = Number(input.value).toFixed(1);
+  input.addEventListener("input", update);
+  update();
+}
+
 function graphSourceId(): string { return "roadpilot-graph-source"; }
 const graphLayers = ["rp-graph-edges", "rp-graph-shortcuts", "rp-graph-nodes", "rp-graph-restrictions"];
 
@@ -415,6 +678,11 @@ function setActiveRegion(region: RegionSummary): void {
   featureJson.textContent = "No graph feature selected.";
   inspectorSummary.textContent = `${region.id} • ${region.border_buffer_km} km border buffer • Valhalla ${region.expected_valhalla_version}`;
   removeGraphLayer();
+  removeRouteLayers();
+  routeStartMarker?.remove();
+  routeEndMarker?.remove();
+  routeStartMarker = null;
+  routeEndMarker = null;
   fitActiveRegion();
   renderRegions();
 }
@@ -806,6 +1074,21 @@ cancelBtn.addEventListener("click", async () => {
   appendLog("Cancellation requested.");
 });
 
+pickRouteStartBtn.addEventListener("click", () => {
+  routePickMode = "start";
+  pickRouteStartBtn.textContent = "Click map…";
+  pickRouteEndBtn.textContent = "Pick end";
+});
+pickRouteEndBtn.addEventListener("click", () => {
+  routePickMode = "end";
+  pickRouteEndBtn.textContent = "Click map…";
+  pickRouteStartBtn.textContent = "Pick start";
+});
+runRouteBtn.addEventListener("click", runStandardRoute);
+syncRouteSlider(routeUseHighways, routeUseHighwaysValue);
+syncRouteSlider(routeUseTolls, routeUseTollsValue);
+syncRouteSlider(routeUseFerry, routeUseFerryValue);
+
 graphLayerBtn.addEventListener("click", () => {
   if (!activeRegion) return;
   if (graphVisible) removeGraphLayer();
@@ -816,6 +1099,13 @@ fitBtn.addEventListener("click", fitActiveRegion);
 map.on("click", (event) => {
   lastMapClick = { lat: event.lngLat.lat, lng: event.lngLat.lng };
   locateBtn.disabled = !activeRegion;
+  if (routePickMode) {
+    setRoutePoint(routePickMode, event.lngLat.lat, event.lngLat.lng);
+    routePickMode = null;
+    pickRouteStartBtn.textContent = "Pick start";
+    pickRouteEndBtn.textContent = "Pick end";
+    return;
+  }
   if (!graphVisible) return;
   const features = map.queryRenderedFeatures(event.point, { layers: graphLayers.filter(id => !!map.getLayer(id)) });
   if (!features.length) {
