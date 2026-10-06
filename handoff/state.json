@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-06T18:17:23.759Z",
+  "generatedAt": "2026-10-06T18:17:35.751Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,9 +11,9 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "98035977f30503d04ffcb714dcd4d3899a0e00a9",
-    "message": "Update roadmap after Border Inspector core merge",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/98035977f30503d04ffcb714dcd4d3899a0e00a9"
+    "sha": "ed1b437bfa441e7cda14819c319234b2d2f2a2aa",
+    "message": "chore: refresh chat handoff state [skip ci]",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/ed1b437bfa441e7cda14819c319234b2d2f2a2aa"
   },
   "openPullRequests": [
     {
