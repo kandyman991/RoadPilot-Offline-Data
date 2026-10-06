@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-06T18:16:49.239Z",
+  "generatedAt": "2026-10-06T18:17:23.759Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,9 +11,9 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "b230cd2159356aecdc35ddf687e364a3c4691166",
-    "message": "Add Graph Studio border inspector and manual crossing overrides (#20)\n\n* Add manual border handoff override backend\n\n* Add dual-graph border inspector and manual handoff UI\n\n* Style border inspector and manual overrides\n\n* Revalidate saved handoff overrides in place",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/b230cd2159356aecdc35ddf687e364a3c4691166"
+    "sha": "98035977f30503d04ffcb714dcd4d3899a0e00a9",
+    "message": "Update roadmap after Border Inspector core merge",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/98035977f30503d04ffcb714dcd4d3899a0e00a9"
   },
   "openPullRequests": [
     {
