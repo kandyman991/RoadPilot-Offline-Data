@@ -56,6 +56,10 @@ jobs:
         working-directory: graph-studio
         run: npm run build
 
+      - name: Generate Graph Studio icons
+        working-directory: graph-studio
+        run: npm run prepare:icons
+
       - name: Compile Tauri backend
         working-directory: graph-studio/src-tauri
         run: cargo check --locked || cargo check
