@@ -67,6 +67,45 @@ def feature_id(feature: dict[str, Any]) -> str:
     return str(feature.get("properties", {}).get("id") or "").strip()
 
 
+ROOT_CONTAINERS = {
+    "africa",
+    "asia",
+    "australia-oceania",
+    "central-america",
+    "europe",
+    "north-america",
+    "south-america",
+}
+
+
+def canonical_id(node_id: str, nodes: dict[str, dict[str, Any]]) -> str:
+    parts: list[str] = []
+    current_id = node_id
+    seen: set[str] = set()
+    while current_id and current_id not in seen:
+        seen.add(current_id)
+        parts.append(current_id)
+        feature = nodes.get(current_id)
+        if feature is None:
+            break
+        current_id = str(feature.get("properties", {}).get("parent") or "").strip()
+    parts.reverse()
+    if len(parts) > 1 and parts[0] in ROOT_CONTAINERS:
+        parts = parts[1:]
+    return "/".join(parts)
+
+
+def canonical_lookup(nodes: dict[str, dict[str, Any]]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for raw_id in nodes:
+        canonical = canonical_id(raw_id, nodes)
+        if canonical:
+            if canonical in result and result[canonical] != raw_id:
+                fail(f"Duplicate canonical Geofabrik id: {canonical}")
+            result[canonical] = raw_id
+    return result
+
+
 def pbf_url(feature: dict[str, Any]) -> str | None:
     value = feature.get("properties", {}).get("urls", {}).get("pbf")
     return str(value).strip() if value else None
@@ -186,6 +225,7 @@ def catalog_payload(root: dict[str, Any]) -> list[dict[str, Any]]:
     result = []
     for node_id in downloadable_leaf_ids(nodes, children):
         feature = nodes[node_id]
+        public_id = canonical_id(node_id, nodes)
         url = pbf_url(feature)
         if not url:
             continue
@@ -194,7 +234,8 @@ def catalog_payload(root: dict[str, Any]) -> list[dict[str, Any]]:
         props = feature.get("properties", {})
         result.append(
             {
-                "id": node_id,
+                "id": public_id,
+                "indexId": node_id,
                 "name": str(props.get("name") or node_id),
                 "parent": str(props.get("parent") or "") or None,
                 "pbfUrl": url,
@@ -231,10 +272,15 @@ def preview_payload(
 ) -> dict[str, Any]:
     nodes = nodes_by_id(root)
     children = children_by_parent(nodes)
-    primary = nodes.get(region_id)
-    if primary is None:
+    lookup = canonical_lookup(nodes)
+    primary_raw_id = lookup.get(region_id)
+    if primary_raw_id is None and region_id in nodes:
+        primary_raw_id = region_id
+        region_id = canonical_id(primary_raw_id, nodes)
+    if primary_raw_id is None:
         fail(f"Unknown Geofabrik region: {region_id}")
-    if region_id not in set(downloadable_leaf_ids(nodes, children)):
+    primary = nodes[primary_raw_id]
+    if primary_raw_id not in set(downloadable_leaf_ids(nodes, children)):
         fail(
             f"{region_id} is not a smallest downloadable Geofabrik extract. "
             "Graph Studio only creates independent packs from leaf extracts."
@@ -247,6 +293,7 @@ def preview_payload(
     sources = []
     for candidate_id in leaf_ids:
         feature = nodes[candidate_id]
+        candidate_public_id = canonical_id(candidate_id, nodes)
         candidate_geometry = geometry_for(feature)
         if not candidate_geometry.intersects(buffered):
             continue
@@ -256,11 +303,12 @@ def preview_payload(
         intersection = candidate_geometry.intersection(buffered)
         sources.append(
             {
-                "id": candidate_id,
+                "id": candidate_public_id,
+                "indexId": candidate_id,
                 "name": str(feature.get("properties", {}).get("name") or candidate_id),
                 "pbfUrl": url,
                 "polygonUrl": poly_url_for_pbf(url),
-                "primary": candidate_id == region_id,
+                "primary": candidate_id == primary_raw_id,
                 "intersectionArea": float(intersection.area) if not intersection.is_empty else 0.0,
                 "geometry": mapping(candidate_geometry),
             }
