@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "prepare:icons": "tauri icon app-icon.svg",
+    "pretauri": "tauri icon app-icon.svg"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
