@@ -326,6 +326,7 @@ jobs:
           base = 1000 if is_a else 2000
 
           def edge(way_id, offset, graph_id, heading):
+              motorcycle = not (way_id == 100 and not is_a)
               return {
                   "edge_id": {"value": graph_id},
                   "edge_info": {
@@ -334,7 +335,7 @@ jobs:
                   },
                   "edge": {
                       "classification": {"classification": "primary"},
-                      "access": {"car": True, "motorcycle": True},
+                      "access": {"car": True, "motorcycle": motorcycle},
                       "use": "road",
                   },
                   "percent_along": 0.5,
@@ -350,7 +351,7 @@ jobs:
               "input_lon": point["lon"],
               "edges": [
                   edge(999, 0.00001, base + 1, 5),
-                  edge(100, shift, base + 2, 275),
+                  edge(100, shift, base + 2, 275 if is_a else 95),
                   edge(102, shift * 1.5, base + 3, 95),
               ],
           }]
@@ -396,6 +397,62 @@ jobs:
           # pre-Valhalla rejection criterion in this stage.
           assert by_way[100]["fromGraph"]["candidates"][0]["headingDegrees"] == 275
           print("independent Valhalla frontier correlation smoke test passed")
+          PY
+
+      - name: Smoke-test lossless crossing candidate generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-correlation"
+
+          python tools/build_crossing_candidates.py \
+            --correlations "$root/correlations.json" \
+            --output "$root/candidates.json"
+
+          python tools/validate_crossing_candidates.py \
+            --artifact "$root/candidates.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from collections import Counter
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          data = json.loads((root / "candidates.json").read_text())
+          assert data["frontierRoadCount"] == 2
+          assert data["candidateCount"] == 18
+          assert data["unresolvedFrontierRoadIds"] == []
+
+          counts = Counter(candidate["stableWayId"] for candidate in data["candidates"])
+          assert counts == {100: 9, 102: 9}
+
+          for way_id in (100, 102):
+              group = [candidate for candidate in data["candidates"] if candidate["stableWayId"] == way_id]
+              assert [candidate["candidateRank"] for candidate in group] == list(range(9))
+              best = group[0]
+              assert best["fromEdge"]["wayId"] == way_id
+              assert best["toEdge"]["wayId"] == way_id
+              assert best["evidence"]["bothMatchStableWay"] is True
+              assert best["evidence"]["tier"] == 0
+
+              # All 3x3 combinations survive, including mismatched OSM ways.
+              pairs = {
+                  (candidate["fromEdge"]["wayId"], candidate["toEdge"]["wayId"])
+                  for candidate in group
+              }
+              assert (999, 999) in pairs
+              assert (way_id, 999) in pairs
+              assert (999, way_id) in pairs
+
+          best_100 = [candidate for candidate in data["candidates"] if candidate["stableWayId"] == 100][0]
+          assert best_100["evidence"]["headingDeltaDegrees"] == 180
+          assert best_100["toEdge"]["access"]["motorcycle"] is False
+
+          # Neither the 180-degree heading disagreement nor access metadata is
+          # allowed to delete/demote the stable-way pair before route proof.
+          assert best_100["candidateRank"] == 0
+          print("lossless crossing candidate smoke test passed")
           PY
 
       - name: Verify hosted routing toolchain
