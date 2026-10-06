@@ -171,7 +171,10 @@ Milestones:
   - same-OSM-way identity is ranking evidence, not a hard filter;
   - A/B coordinates may differ;
   - OSM frontier heading is evidence only, never inferred journey direction.
-- physical crossing candidate generation — active;\n  - retain the complete Graph A × Graph B candidate product per frontier road;\n  - rank by evidence only; never filter by heading/access/direction here;\n  - emit explicit `UNPROVEN` state until Valhalla route proof;
+- physical crossing candidate generation — active;
+  - retain the complete Graph A × Graph B candidate product per frontier road;
+  - rank by evidence only; never filter by heading/access/direction here;
+  - emit explicit `UNPROVEN` state until Valhalla route proof;
 - plain-Valhalla motorcycle/auto direction proofs;
 - compact validated connectivity artifact for RoadPilot;
 - multi-hop region-chain composition;
