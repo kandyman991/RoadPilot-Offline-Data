@@ -1931,8 +1931,8 @@ saveHandoffBtn.addEventListener("click", async () => {
 });
 
 clearHandoffBtn.addEventListener("click", () => clearHandoffSelection(false));
-borderRegionA.addEventListener("change", () => clearHandoffSelection(false));
-borderRegionB.addEventListener("change", () => clearHandoffSelection(false));
+borderRegionA.addEventListener("change", () => clearHandoffSelection(true));
+borderRegionB.addEventListener("change", () => clearHandoffSelection(true));
 
 pickRouteStartBtn.addEventListener("click", () => {
   routePickMode = "start";
