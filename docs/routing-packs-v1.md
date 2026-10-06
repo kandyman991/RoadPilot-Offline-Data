@@ -46,7 +46,7 @@ A pack is not publishable unless:
 4. at least one configured route crosses the nominal Geofabrik boundary;
 5. the graph fingerprint is the SHA-256 identity of the immutable published tile extract.
 
-Cloudflare publication is intentionally a later step. The first milestone proves reproducible build + validation on the Legion before any public object is replaced.
+Cloudflare publication remains a manual gate. The build must also use the exact Valhalla version declared by the region config; Italy Nord-Est is pinned to Valhalla 3.6.3 to match RoadPilot's current Valhalla Mobile runtime.
 
 
 ## Cloudflare R2 publication
