@@ -217,20 +217,23 @@ F8 remains the fallback when metadata is missing, stale or ambiguous.
 
 Add a sparse hierarchical routing layer on top of completed #26 connectivity.
 
-Required behavior:
-- collect all validated border anchors for each regional graph and supported mode;
-- derive usable entry and exit states from already-proven direction metadata;
-- use plain Valhalla many-to-many / sources-to-targets to prove reachability through the region;
-- store sparse entry→exit distance and time/cost bound to the exact graph fingerprint;
-- preserve explicit unreachable pairs rather than assigning heuristic penalties;
-- rank FASTER/SHORTER multi-region chains using full intermediate-region traversal costs;
-- retain multiple plausible sparse chains and let detailed Valhalla select/verify the final journey;
-- graph-only rebuild refreshes only that region's graph-bound matrix;
-- relevant frontier-set changes refresh only affected anchors/rows/columns or deterministically rebuild the region matrix;
-- expose matrix topology, weights and freshness in Graph Studio.
+Milestones:
+- M1 — deterministic graph-bound connector anchor inventories — merged in PR #36;
+- M2 — Motorcycle/Car entry→exit Valhalla matrices with exact start/end DirectedEdge proof — merged in PR #37;
+- M3 — matrix-backed sparse hierarchical chain composition — active;
+- M4 — Graph Studio matrix/topology/freshness inspection and final lifecycle integration.
+
+M3 rules:
+- cross-border edges come only from VALIDATED #26 runtime connectivity;
+- intermediate-region edges come only from `REACHABLE` exact-edge matrix cells;
+- `UNREACHABLE` and `INCONCLUSIVE` matrix cells are never assigned heuristic penalties;
+- border proof probe distance/time is not treated as journey cost;
+- FASTER/SHORTER score only proven traversal through intermediate regions at build time;
+- score scope is explicit: actual origin→first-exit and last-entry→destination legs remain query-time Valhalla work;
+- retain multiple sparse candidate chains for detailed Valhalla final selection;
+- missing/stale matrices mean the precomputed chain is unavailable; F8 remains fallback.
 
 Do not reintroduce fixed seams, F6, hard heading/separation filters, or graph-local ids as cross-build identity.
-
 ### 2. Cloudflare R2 publication manager (#14)
 
 Required behavior:
