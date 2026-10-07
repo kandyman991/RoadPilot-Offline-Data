@@ -15,6 +15,7 @@ on:
       - "requirements-visual.txt"
       - "visual/**"
       - "docs/routing-packs-v1.md"
+      - "docs/visual-packs-v1.md"
 
 permissions:
   contents: read
