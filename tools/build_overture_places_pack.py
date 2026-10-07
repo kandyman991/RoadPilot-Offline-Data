@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import sqlite3
 import unicodedata
@@ -37,6 +38,8 @@ def main() -> None:
     parser.add_argument("--output", required=True)
     parser.add_argument("--region-id", required=True)
     parser.add_argument("--country", default="")
+    parser.add_argument("--source-release", default="unknown")
+    parser.add_argument("--source-client-version", default="unknown")
     args = parser.parse_args()
 
     output = Path(args.output)
@@ -117,6 +120,8 @@ def main() -> None:
             if inserted and inserted % 5000 == 0:
                 db.commit()
 
+    input_path = Path(args.input)
+    source_input_sha256 = hashlib.sha256(input_path.read_bytes()).hexdigest()
     db.executemany(
         "INSERT INTO meta(key, value) VALUES (?, ?)",
         [
@@ -124,6 +129,10 @@ def main() -> None:
             ("source", "Overture Maps Foundation Places"),
             ("schema", DATABASE_SCHEMA),
             ("record_count", str(inserted)),
+            ("source_release", args.source_release.strip() or "unknown"),
+            ("source_client", "overturemaps"),
+            ("source_client_version", args.source_client_version.strip() or "unknown"),
+            ("source_input_sha256", source_input_sha256),
         ],
     )
     db.commit()
