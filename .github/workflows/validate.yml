@@ -1103,7 +1103,7 @@ jobs:
               json.dumps(stale, indent=2) + "\n"
           )
 
-          inventory = json.loads((root / "region-b-connectors-matrix.json").read_text())
+          inventory = json.loads((root / "region-b-connectors.json").read_text())
           ab = json.loads((root / "runtime-connectivity.json").read_text())
           ab_crossing = next(
               crossing for crossing in ab["crossings"]
