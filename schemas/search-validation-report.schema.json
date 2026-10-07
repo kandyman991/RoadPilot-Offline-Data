@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/search-validation-report-v1.json",
+  "title": "RoadPilot search regression validation report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "regionId",
+    "databaseSchema",
+    "runtimeContract",
+    "recordCount",
+    "passed",
+    "results"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot-search-validation"
+    },
+    "version": {
+      "const": 1
+    },
+    "regionId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "databaseSchema": {
+      "const": "roadpilot-overture-v1"
+    },
+    "runtimeContract": {
+      "const": "android-overture-place-search-v1"
+    },
+    "recordCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "passed": {
+      "const": true
+    },
+    "results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "search-pack-manifest.schema.json#/$defs/result"
+      }
+    }
+  }
+}
