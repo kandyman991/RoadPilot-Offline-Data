@@ -303,11 +303,11 @@ fn r2_credentials_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn validate_r2_credentials(value: &R2CredentialFile) -> Result<(), String> {
-    if value.account_id.trim().is_empty() {
-        return Err("Cloudflare account ID is required.".into());
+    if value.account_id.trim().is_empty() || !safe_token(value.account_id.trim()) {
+        return Err("Cloudflare account ID is invalid.".into());
     }
-    if value.bucket.trim().is_empty() {
-        return Err("R2 bucket is required.".into());
+    if value.bucket.trim().is_empty() || !safe_token(value.bucket.trim()) {
+        return Err("R2 bucket name is invalid.".into());
     }
     if value.access_key_id.trim().is_empty() {
         return Err("R2 access key ID is required.".into());
@@ -362,33 +362,33 @@ fn write_r2_credentials(app: &AppHandle, value: &R2CredentialFile) -> Result<(),
 }
 
 fn r2_credential_status_for(app: &AppHandle) -> Result<R2CredentialStatus, String> {
-    match read_r2_credentials(app) {
-        Ok(value) => {
-            let suffix: String = value
-                .access_key_id
-                .chars()
-                .rev()
-                .take(4)
-                .collect::<String>()
-                .chars()
-                .rev()
-                .collect();
-            Ok(R2CredentialStatus {
-                configured: true,
-                account_id: Some(value.account_id),
-                bucket: Some(value.bucket),
-                access_key_suffix: Some(suffix),
-                endpoint_url: value.endpoint_url.filter(|value| !value.is_empty()),
-            })
-        }
-        Err(_) => Ok(R2CredentialStatus {
+    let path = r2_credentials_path(app)?;
+    if !path.is_file() {
+        return Ok(R2CredentialStatus {
             configured: false,
             account_id: None,
             bucket: None,
             access_key_suffix: None,
             endpoint_url: None,
-        }),
+        });
     }
+    let value = read_r2_credentials(app)?;
+    let suffix: String = value
+        .access_key_id
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+    Ok(R2CredentialStatus {
+        configured: true,
+        account_id: Some(value.account_id),
+        bucket: Some(value.bucket),
+        access_key_suffix: Some(suffix),
+        endpoint_url: value.endpoint_url.filter(|value| !value.is_empty()),
+    })
 }
 
 fn apply_r2_env(command: &mut Command, credentials: &R2CredentialFile) {
