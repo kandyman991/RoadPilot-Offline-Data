@@ -1316,7 +1316,9 @@ fn latest_graph_identity(app: &AppHandle, region_id: &str) -> Result<Value, Stri
         "regionId": region_id,
         "packageVersion": manifest.get("packageVersion").cloned().unwrap_or(Value::Null),
         "builtAtUtc": manifest.get("builtAtUtc").cloned().unwrap_or(Value::Null),
-        "graphFingerprint": manifest.get("graphFingerprint").cloned().unwrap_or(Value::Null)
+        "graphFingerprint": manifest.get("graphFingerprint").cloned().unwrap_or(Value::Null),
+        "primaryGeofabrikId": manifest.pointer("/source/primaryGeofabrikId").cloned().unwrap_or(Value::Null),
+        "boundaryFingerprints": manifest.pointer("/graphIndex/boundaryFingerprints").cloned().unwrap_or_else(|| json!({}))
     }))
 }
 
@@ -1330,12 +1332,19 @@ fn handoff_dir(app: &AppHandle) -> Result<PathBuf, String> {
 fn transition_artifact_dirs(app: &AppHandle) -> Result<Vec<PathBuf>, String> {
     let workspace = workspace_root(app)?;
     let transitions = workspace.join("transitions");
-    let imports = workspace.join("imports/handoffs");
-    fs::create_dir_all(&transitions)
-        .map_err(|e| format!("Could not create transition artifact directory: {e}"))?;
-    fs::create_dir_all(&imports)
-        .map_err(|e| format!("Could not create handoff import directory: {e}"))?;
-    Ok(vec![transitions, imports])
+    let handoff_imports = workspace.join("imports/handoffs");
+    let connectivity = workspace.join("connectivity");
+    let connectivity_imports = workspace.join("imports/connectivity");
+    for (path, label) in [
+        (&transitions, "transition artifact"),
+        (&handoff_imports, "handoff import"),
+        (&connectivity, "connectivity artifact"),
+        (&connectivity_imports, "connectivity import"),
+    ] {
+        fs::create_dir_all(path)
+            .map_err(|e| format!("Could not create Graph Studio {label} directory: {e}"))?;
+    }
+    Ok(vec![transitions, handoff_imports, connectivity, connectivity_imports])
 }
 
 fn collect_json_files(root: &Path, depth: usize, output: &mut Vec<PathBuf>) {
@@ -1390,6 +1399,60 @@ fn coordinate_value(value: Option<&Value>) -> Option<Value> {
     Some(json!({"lat": lat, "lng": lng}))
 }
 
+fn artifact_graph_fingerprint<'a>(document: &'a Value, side: &str) -> Option<&'a str> {
+    let direct = match side {
+        "from" => "fromGraphFingerprint",
+        "to" => "toGraphFingerprint",
+        _ => return None,
+    };
+    document
+        .get(direct)
+        .and_then(Value::as_str)
+        .or_else(|| document.pointer(&format!("/{side}Graph/graphFingerprint")).and_then(Value::as_str))
+}
+
+fn artifact_primary_id<'a>(document: &'a Value, side: &str) -> Option<&'a str> {
+    document
+        .pointer(&format!("/{side}Graph/primaryGeofabrikId"))
+        .and_then(Value::as_str)
+}
+
+fn artifact_boundary_fingerprint<'a>(document: &'a Value, side: &str) -> Option<&'a str> {
+    document
+        .get(match side {
+            "from" => "fromBoundaryFingerprint",
+            "to" => "toBoundaryFingerprint",
+            _ => return None,
+        })
+        .and_then(Value::as_str)
+}
+
+fn artifact_side_current(
+    document: &Value,
+    side: &str,
+    opposite_side: &str,
+    current: &Value,
+) -> bool {
+    let bound_graph = artifact_graph_fingerprint(document, side);
+    let current_graph = current.get("graphFingerprint").and_then(Value::as_str);
+    if bound_graph != current_graph {
+        return false;
+    }
+
+    let Some(bound_boundary) = artifact_boundary_fingerprint(document, side) else {
+        return true;
+    };
+    let Some(neighbor_primary) = artifact_primary_id(document, opposite_side) else {
+        return false;
+    };
+    current
+        .pointer("/boundaryFingerprints")
+        .and_then(Value::as_object)
+        .and_then(|values| values.get(neighbor_primary))
+        .and_then(Value::as_str)
+        == Some(bound_boundary)
+}
+
 fn artifact_fingerprint_status(
     document: &Value,
     current_a: &Value,
@@ -1399,14 +1462,12 @@ fn artifact_fingerprint_status(
 ) -> &'static str {
     let from = document.get("fromRegionId").and_then(Value::as_str).unwrap_or_default();
     let to = document.get("toRegionId").and_then(Value::as_str).unwrap_or_default();
-    let from_fp = document.get("fromGraphFingerprint").and_then(Value::as_str);
-    let to_fp = document.get("toGraphFingerprint").and_then(Value::as_str);
-    let current_a_fp = current_a.get("graphFingerprint").and_then(Value::as_str);
-    let current_b_fp = current_b.get("graphFingerprint").and_then(Value::as_str);
     let matches = if from == region_a && to == region_b {
-        from_fp == current_a_fp && to_fp == current_b_fp
+        artifact_side_current(document, "from", "to", current_a)
+            && artifact_side_current(document, "to", "from", current_b)
     } else if from == region_b && to == region_a {
-        from_fp == current_b_fp && to_fp == current_a_fp
+        artifact_side_current(document, "from", "to", current_b)
+            && artifact_side_current(document, "to", "from", current_a)
     } else {
         false
     };
