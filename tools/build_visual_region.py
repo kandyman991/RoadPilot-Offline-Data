@@ -63,26 +63,34 @@ def profile_fingerprint(config_path: Path, process_path: Path, toolchain_path: P
 
 
 def source_descriptor(region: dict[str, Any], pbf_path: Path) -> dict[str, Any]:
-    routing = region.get("routing")
-    source = routing.get("source") if isinstance(routing, dict) else None
-    if not isinstance(source, dict):
-        fail("Region config routing.source is required for visual build source identity")
-    primary = str(source.get("primaryGeofabrikId") or "")
-    pbfs = source.get("pbfs")
-    if not primary or not isinstance(pbfs, list):
-        fail("Region config routing.source primaryGeofabrikId/pbfs are required")
-    match = next(
-        (
-            item for item in pbfs
-            if isinstance(item, dict) and str(item.get("id") or "") == primary
-        ),
-        None,
-    )
-    if match is None:
-        fail(f"Primary Geofabrik source {primary!r} is not present in routing.source.pbfs")
-    url = str(match.get("url") or "")
-    if not url.startswith("https://"):
-        fail("Primary Geofabrik source URL must use https://")
+    visual = region.get("visual")
+    visual_source = visual.get("source") if isinstance(visual, dict) and visual.get("enabled") is True else None
+    if isinstance(visual_source, dict):
+        primary = str(visual_source.get("primaryGeofabrikId") or "")
+        url = str(visual_source.get("url") or "")
+        if not primary or not url.startswith("https://"):
+            fail("visual.source primaryGeofabrikId and HTTPS url are required")
+    else:
+        routing = region.get("routing")
+        source = routing.get("source") if isinstance(routing, dict) else None
+        if not isinstance(source, dict):
+            fail("Region routing.source is required when visual.source is not configured")
+        primary = str(source.get("primaryGeofabrikId") or "")
+        pbfs = source.get("pbfs")
+        if not primary or not isinstance(pbfs, list):
+            fail("Region routing.source primaryGeofabrikId/pbfs are required")
+        match = next(
+            (
+                item for item in pbfs
+                if isinstance(item, dict) and str(item.get("id") or "") == primary
+            ),
+            None,
+        )
+        if match is None:
+            fail(f"Primary Geofabrik source {primary!r} is not present in routing.source.pbfs")
+        url = str(match.get("url") or "")
+        if not url.startswith("https://"):
+            fail("Primary Geofabrik source URL must use https://")
     size = pbf_path.stat().st_size
     if size <= 0:
         fail(f"OSM PBF is empty: {pbf_path}")
@@ -213,8 +221,18 @@ def main() -> int:
 
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    package_name = f"{region_id}-visual-{version}.pmtiles"
-    manifest_name = f"{region_id}-visual-{version}-manifest.json"
+    visual = region.get("visual")
+    visual_package = visual.get("package") if isinstance(visual, dict) and visual.get("enabled") is True else None
+    if isinstance(visual_package, dict):
+        package_template = str(visual_package.get("fileNameTemplate") or "")
+        manifest_template = str(visual_package.get("manifestFileNameTemplate") or "")
+        if "{version}" not in package_template or "{version}" not in manifest_template:
+            fail("visual package templates must contain {version}")
+        package_name = package_template.replace("{version}", version)
+        manifest_name = manifest_template.replace("{version}", version)
+    else:
+        package_name = f"{region_id}-visual-{version}.pmtiles"
+        manifest_name = f"{region_id}-visual-{version}-manifest.json"
     package_path = output_dir / package_name
     manifest_path = output_dir / manifest_name
 
