@@ -116,8 +116,8 @@ def verify_tilemaker_version(
 
     if tilemaker_bin:
         executable = shutil.which(tilemaker_bin) or tilemaker_bin
-        output = run_checked([executable, "--version"], "tilemaker --version")
-        if expected not in output:
+        output = run_checked([executable, "--help"], "tilemaker --help")
+        if f"tilemaker {expected}" not in output:
             fail(f"Native tilemaker version does not match pinned {expected}: {output.strip()}")
         return expected, [executable]
 
@@ -129,10 +129,10 @@ def verify_tilemaker_version(
             "Install Docker or pass --tilemaker-bin pointing to native tilemaker."
         )
     output = run_checked(
-        ["docker", "run", "--rm", image, "--version"],
+        ["docker", "run", "--rm", image, "--help"],
         "pinned tilemaker container version check",
     )
-    if expected not in output:
+    if f"tilemaker {expected}" not in output:
         fail(f"Pinned tilemaker container is not version {expected}: {output.strip()}")
     return expected, ["docker", "run", "--rm", image]
 
