@@ -26,16 +26,32 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Issue #16 — visual map production/inspection, milestone 2: regional build lifecycle.**
+**Issue #16 — visual map production/inspection, milestone 3: Graph Studio exact-PMTiles inspector.**
 
 Issue #14 is complete and closed:
 - PR #40 — immutable publication contract;
 - PR #41 — plan-backed R2 upload/verification/history/rollback;
 - PR #42 — Graph Studio R2 publication manager.
 
-Current branch: `visual-map-regional-build-m2`.
+Current branch: `visual-map-inspector-m3`.
 
 M1 is merged in PR #43.
+M2 is merged in PR #44.
+
+M3 Graph Studio inspector:
+- selected-region build queue now invokes the independent M2 visual build after routing validation when visual.enabled is true;
+- retained visual builds live under Graph Studio's visual-build store, separate from routing builds;
+- AppImage/DEB resources now include requirements-visual.txt and visual/tilemaker;
+- toolchain readiness checks exact tilemaker 3.2.0 compatibility;
+- list_visual_builds exposes retained PMTiles metadata and road validation counts;
+- visual_archive_range permits only bounded byte reads from the exact PMTiles named by a retained visual manifest;
+- the frontend uses the official pmtiles 4.5.0 decoder over those Tauri range reads;
+- RoadPilot visual layers render directly from the exact user-download PMTiles;
+- online OpenFreeMap remains an independently toggleable reference layer;
+- one map-layer control surface toggles offline visual, reference, Valhalla edges/nodes/shortcuts/access restrictions, buffer, Graph A/B, route, expansion and handoffs;
+- visual inspector shows size, tile count, zoom/coverage, SHA, source/profile fingerprints, layers and major/border/missing road counts;
+- visual A/B comparison uses original OSM feature IDs and currently loaded exact-PMTiles tiles to classify unchanged/removed/added/changed roads;
+- region editor regenerates visual source/package configuration whenever the primary Geofabrik region changes.
 
 M2 regional lifecycle:
 - visual source is independently configured with primary Geofabrik PBF + nominal polygon;
@@ -60,8 +76,6 @@ M1 visual architecture:
 - validator opens the exact PMTiles archive, verifies header/metadata/counts/bounds/zooms, decodes real MVT tiles, proves required layers and rejects forbidden dense layers;
 - CI builds the same synthetic OSM fixture twice and requires byte-identical PMTiles, then proves a truncated archive fails validation.
 
-M2 will integrate the same contract with real regional source download/cache, retained visual builds, road-content validation and refresh lifecycle.
-M3 will render/compare the exact user-download PMTiles in Graph Studio.
 M4 will publish visual artifacts independently through the R2 contract.
 ## Critical architectural decisions
 
@@ -83,10 +97,10 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get #16 M2 regional visual lifecycle CI green and merge it.
-2. M3: Graph Studio exact-PMTiles rendering, reference-map comparison, layer toggles and changed/missing visual road diff.
-4. M4: independent visual artifact R2 publication.
-5. Keep #17 POI/search separate.
+1. Get #16 M3 Graph Studio exact-PMTiles inspector CI green and merge it.
+2. M4: publish visual artifacts independently through the immutable R2 contract and add Graph Studio visual publication status/control.
+3. Verify issue #16 acceptance and close it after M4.
+4. Keep #17 POI/search separate.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
