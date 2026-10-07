@@ -1,10 +1,10 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::{BTreeMap, BTreeSet},
     env,
-    fs,
-    io::{BufRead, BufReader},
+    fs::{self, OpenOptions},
+    io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
@@ -14,6 +14,8 @@ use std::{
     thread,
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
+#[cfg(unix)]
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Debug, Clone, Serialize)]
@@ -118,6 +120,79 @@ impl Default for BuildState {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct R2CredentialFile {
+    account_id: String,
+    bucket: String,
+    access_key_id: String,
+    secret_access_key: String,
+    endpoint_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct R2CredentialStatus {
+    configured: bool,
+    account_id: Option<String>,
+    bucket: Option<String>,
+    access_key_suffix: Option<String>,
+    endpoint_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicationStatus {
+    running: bool,
+    region_id: Option<String>,
+    package_version: Option<String>,
+    stage: String,
+    current_key: Option<String>,
+    bytes_transferred: u64,
+    total_bytes: u64,
+    last_error: Option<String>,
+}
+
+impl Default for PublicationStatus {
+    fn default() -> Self {
+        Self {
+            running: false,
+            region_id: None,
+            package_version: None,
+            stage: "Publication idle".into(),
+            current_key: None,
+            bytes_transferred: 0,
+            total_bytes: 0,
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct PublicationState {
+    status: Arc<Mutex<PublicationStatus>>,
+}
+
+impl Default for PublicationState {
+    fn default() -> Self {
+        Self {
+            status: Arc::new(Mutex::new(PublicationStatus::default())),
+        }
+    }
+}
+
+fn emit_publication_status(app: &AppHandle, state: &PublicationState) {
+    let snapshot = state
+        .status
+        .lock()
+        .expect("publication status poisoned")
+        .clone();
+    let _ = app.emit("graph-studio://publication-status", snapshot);
+}
+
+fn emit_publication_event(app: &AppHandle, event: &Value) {
+    let _ = app.emit("graph-studio://publication-event", event.clone());
+}
+
 fn now_epoch_ms() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -215,6 +290,125 @@ fn workspace_root(app: &AppHandle) -> Result<PathBuf, String> {
         .join("RoadPilotGraphStudio");
     fs::create_dir_all(&root).map_err(|e| format!("Could not create workspace: {e}"))?;
     Ok(root)
+}
+
+fn r2_credentials_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Could not resolve Graph Studio app-data directory: {e}"))?;
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Could not create Graph Studio app-data directory: {e}"))?;
+    Ok(dir.join("r2-credentials.json"))
+}
+
+fn validate_r2_credentials(value: &R2CredentialFile) -> Result<(), String> {
+    if value.account_id.trim().is_empty() {
+        return Err("Cloudflare account ID is required.".into());
+    }
+    if value.bucket.trim().is_empty() {
+        return Err("R2 bucket is required.".into());
+    }
+    if value.access_key_id.trim().is_empty() {
+        return Err("R2 access key ID is required.".into());
+    }
+    if value.secret_access_key.trim().is_empty() {
+        return Err("R2 secret access key is required.".into());
+    }
+    if let Some(endpoint) = value.endpoint_url.as_deref() {
+        if !endpoint.is_empty() && !endpoint.starts_with("https://") {
+            return Err("Custom R2 endpoint must use https://.".into());
+        }
+    }
+    Ok(())
+}
+
+fn read_r2_credentials(app: &AppHandle) -> Result<R2CredentialFile, String> {
+    let path = r2_credentials_path(app)?;
+    let text = fs::read_to_string(&path)
+        .map_err(|_| "R2 credentials are not configured in Graph Studio.".to_string())?;
+    let value: R2CredentialFile = serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse local R2 credentials: {e}"))?;
+    validate_r2_credentials(&value)?;
+    Ok(value)
+}
+
+fn write_r2_credentials(app: &AppHandle, value: &R2CredentialFile) -> Result<(), String> {
+    validate_r2_credentials(value)?;
+    let path = r2_credentials_path(app)?;
+    let body = serde_json::to_vec_pretty(value)
+        .map_err(|e| format!("Could not serialize R2 credentials: {e}"))?;
+
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        options.mode(0o600);
+    }
+    let mut file = options
+        .open(&path)
+        .map_err(|e| format!("Could not open local R2 credential file: {e}"))?;
+    file.write_all(&body)
+        .and_then(|_| file.write_all(b"\n"))
+        .map_err(|e| format!("Could not write local R2 credentials: {e}"))?;
+    file.sync_all()
+        .map_err(|e| format!("Could not sync local R2 credentials: {e}"))?;
+    #[cfg(unix)]
+    {
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("Could not protect local R2 credential file: {e}"))?;
+    }
+    Ok(())
+}
+
+fn r2_credential_status_for(app: &AppHandle) -> Result<R2CredentialStatus, String> {
+    match read_r2_credentials(app) {
+        Ok(value) => {
+            let suffix: String = value
+                .access_key_id
+                .chars()
+                .rev()
+                .take(4)
+                .collect::<String>()
+                .chars()
+                .rev()
+                .collect();
+            Ok(R2CredentialStatus {
+                configured: true,
+                account_id: Some(value.account_id),
+                bucket: Some(value.bucket),
+                access_key_suffix: Some(suffix),
+                endpoint_url: value.endpoint_url.filter(|value| !value.is_empty()),
+            })
+        }
+        Err(_) => Ok(R2CredentialStatus {
+            configured: false,
+            account_id: None,
+            bucket: None,
+            access_key_suffix: None,
+            endpoint_url: None,
+        }),
+    }
+}
+
+fn apply_r2_env(command: &mut Command, credentials: &R2CredentialFile) {
+    command
+        .env("CLOUDFLARE_ACCOUNT_ID", &credentials.account_id)
+        .env("R2_ACCESS_KEY_ID", &credentials.access_key_id)
+        .env("R2_SECRET_ACCESS_KEY", &credentials.secret_access_key)
+        .env("R2_BUCKET", &credentials.bucket);
+    if let Some(endpoint) = credentials.endpoint_url.as_deref().filter(|value| !value.is_empty()) {
+        command.env("R2_ENDPOINT_URL", endpoint);
+    } else {
+        command.env_remove("R2_ENDPOINT_URL");
+    }
+}
+
+fn publication_cache_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = workspace_root(app)?.join("publication");
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("Could not create publication workspace: {e}"))?;
+    Ok(path)
 }
 
 fn region_config_dir(app: &AppHandle) -> Result<PathBuf, String> {
