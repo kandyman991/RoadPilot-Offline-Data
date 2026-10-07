@@ -2,6 +2,8 @@ import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Map as MapLibreMap, Marker, NavigationControl, addProtocol, setWorkerUrl } from "maplibre-gl";
+import { PMTiles } from "pmtiles";
+import type { RangeResponse, Source as PMTilesSource } from "pmtiles";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
@@ -48,6 +50,27 @@ type BuildArtifact = {
   internal_fingerprint: string | null;
   boundary_fingerprints: Record<string, string>;
 };
+type VisualBuildArtifact = {
+  region_id: string;
+  version: string;
+  built_at_utc: string;
+  artifact_file: string;
+  size_bytes: number;
+  sha256: string;
+  tile_count: number;
+  min_zoom: number;
+  max_zoom: number;
+  bounds: { minLat?: number; maxLat?: number; minLng?: number; maxLng?: number };
+  source_fingerprint: string;
+  profile_fingerprint: string;
+  manifest_path: string;
+  layers: string[];
+  road_index_file: string | null;
+  major_road_count: number;
+  border_road_count: number;
+  missing_road_count: number;
+};
+
 type R2CredentialStatus = {
   configured: boolean;
   accountId: string | null;
@@ -377,7 +400,7 @@ app.innerHTML = `
           <button id="buildBtn" class="btn primary" type="button">Build selected</button>
           <button id="cancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
-        <p>Builds run sequentially and keep source/cache data in Graph Studio's local workspace.</p>
+        <p>Builds run sequentially. Each selected region produces its routing pack and, when enabled, an independently versioned visual PMTiles pack using shared cached source data.</p>
       </section>
       <section class="section">
         <h2>R2 publication</h2>
@@ -481,6 +504,52 @@ app.innerHTML = `
         <div class="actions">
           <button id="saveRegionBtn" class="btn primary" type="button" disabled>Save region</button>
           <button id="closeRegionEditorBtn" class="btn" type="button">Close</button>
+        </div>
+      </section>
+      <section class="section">
+        <h2>Visual map inspector</h2>
+        <div class="field">
+          <label for="visualBuildSelect">RoadPilot visual build</label>
+          <select id="visualBuildSelect"></select>
+        </div>
+        <div class="actions">
+          <button id="loadVisualBuildBtn" class="btn primary" type="button" disabled>Load exact PMTiles</button>
+          <button id="fitVisualBuildBtn" class="btn" type="button" disabled>Fit visual</button>
+        </div>
+        <div id="visualBuildSummary" class="empty" style="margin-top:8px">No retained visual build selected.</div>
+
+        <details class="route-options" open style="margin-top:10px">
+          <summary>Map layers</summary>
+          <div id="mapLayerToggles" class="layer-toggle-grid">
+            <label><input type="checkbox" data-layer-toggle="offlineVisual" checked /> RoadPilot offline visual</label>
+            <label><input type="checkbox" data-layer-toggle="onlineReference" checked /> Online reference</label>
+            <label><input type="checkbox" data-layer-toggle="graphEdges" checked /> Valhalla edges</label>
+            <label><input type="checkbox" data-layer-toggle="graphNodes" checked /> Valhalla nodes</label>
+            <label><input type="checkbox" data-layer-toggle="shortcuts" checked /> Shortcuts</label>
+            <label><input type="checkbox" data-layer-toggle="restrictions" checked /> Access restrictions</label>
+            <label><input type="checkbox" data-layer-toggle="borderBuffer" checked /> Border buffer</label>
+            <label><input type="checkbox" data-layer-toggle="graphA" checked /> Graph A</label>
+            <label><input type="checkbox" data-layer-toggle="graphB" checked /> Graph B</label>
+            <label><input type="checkbox" data-layer-toggle="route" checked /> Calculated route</label>
+            <label><input type="checkbox" data-layer-toggle="expansion" checked /> Route-search expansion</label>
+            <label><input type="checkbox" data-layer-toggle="handoffs" checked /> Candidate / learned / manual handoffs</label>
+          </div>
+        </details>
+
+        <h2 style="margin-top:16px">Visual build comparison</h2>
+        <div class="coord-grid">
+          <div class="field"><label for="visualCompareA">Visual A</label><select id="visualCompareA"></select></div>
+          <div class="field"><label for="visualCompareB">Visual B</label><select id="visualCompareB"></select></div>
+        </div>
+        <div class="actions">
+          <button id="compareVisualBuildsBtn" class="btn" type="button" disabled>Compare visible roads</button>
+        </div>
+        <div id="visualComparisonSummary" class="empty">Choose two visual builds of the same region.</div>
+        <div class="border-diff-legend" style="margin-top:8px">
+          <span><i class="legend-common"></i>Unchanged</span>
+          <span><i class="legend-a"></i>Removed / A only</span>
+          <span><i class="legend-b"></i>Added / B only</span>
+          <span><i class="artifact-candidate"></i>Changed</span>
         </div>
       </section>
       <section class="section">
@@ -696,6 +765,15 @@ const publicationVersionSummary = document.querySelector<HTMLDivElement>("#publi
 const publicationProgress = document.querySelector<HTMLDivElement>("#publicationProgress")!;
 const publicationProgressText = document.querySelector<HTMLDivElement>("#publicationProgressText")!;
 const publicationHistory = document.querySelector<HTMLDivElement>("#publicationHistory")!;
+const visualBuildSelect = document.querySelector<HTMLSelectElement>("#visualBuildSelect")!;
+const loadVisualBuildBtn = document.querySelector<HTMLButtonElement>("#loadVisualBuildBtn")!;
+const fitVisualBuildBtn = document.querySelector<HTMLButtonElement>("#fitVisualBuildBtn")!;
+const visualBuildSummary = document.querySelector<HTMLDivElement>("#visualBuildSummary")!;
+const mapLayerToggles = document.querySelector<HTMLDivElement>("#mapLayerToggles")!;
+const visualCompareA = document.querySelector<HTMLSelectElement>("#visualCompareA")!;
+const visualCompareB = document.querySelector<HTMLSelectElement>("#visualCompareB")!;
+const compareVisualBuildsBtn = document.querySelector<HTMLButtonElement>("#compareVisualBuildsBtn")!;
+const visualComparisonSummary = document.querySelector<HTMLDivElement>("#visualComparisonSummary")!;
 const graphLayerBtn = document.querySelector<HTMLButtonElement>("#graphLayerBtn")!;
 const fitBtn = document.querySelector<HTMLButtonElement>("#fitBtn")!;
 const locateBtn = document.querySelector<HTMLButtonElement>("#locateBtn")!;
@@ -750,11 +828,14 @@ const comparison = document.querySelector<HTMLDivElement>("#comparison")!;
 
 let regions: RegionSummary[] = [];
 let artifacts: BuildArtifact[] = [];
+let visualArtifacts: VisualBuildArtifact[] = [];
 let geofabrikCatalog: GeofabrikCatalogItem[] = [];
 let editorPreview: RegionPreview | null = null;
 let editorExistingConfig: Record<string, unknown> | null = null;
 let activeRegion: RegionSummary | null = null;
 let graphVisible = false;
+let activeVisualBuild: VisualBuildArtifact | null = null;
+let referenceLayerIds: string[] = [];
 let lastBorderDiffMetrics: BorderRoadDiffMetrics | null = null;
 let handoffPickMode: "A" | "B" | null = null;
 let editingHandoffId: string | null = null;
@@ -765,6 +846,7 @@ let connectorInspection: ConnectorMatrixInspection | null = null;
 let r2Credentials: R2CredentialStatus | null = null;
 let remotePublication: R2RegionPublicationStatus | null = null;
 let currentPublicationStatus: PublicationStatus | null = null;
+let toolchainReady = false;
 let handoffMarkerA: Marker | null = null;
 let handoffMarkerB: Marker | null = null;
 let routePickMode: "start" | "end" | null = null;
@@ -1043,6 +1125,62 @@ addProtocol("roadpilot-build-graph", async (request) => {
   return { data: new Uint8Array(data).buffer };
 });
 
+class TauriPmtilesSource implements PMTilesSource {
+  constructor(
+    private readonly manifestPath: string,
+    private readonly key: string,
+  ) {}
+
+  getKey(): string {
+    return this.key;
+  }
+
+  async getBytes(
+    offset: number,
+    length: number,
+    signal?: AbortSignal,
+  ): Promise<RangeResponse> {
+    signal?.throwIfAborted();
+    const data = await invoke<number[]>("visual_archive_range", {
+      manifestPath: this.manifestPath,
+      offset,
+      length,
+    });
+    signal?.throwIfAborted();
+    return { data: new Uint8Array(data).buffer };
+  }
+}
+
+const visualArchives = new globalThis.Map<string, PMTiles>();
+
+function visualArchiveKey(build: VisualBuildArtifact): string {
+  return build.sha256;
+}
+
+function ensureVisualArchive(build: VisualBuildArtifact): PMTiles {
+  const key = visualArchiveKey(build);
+  const existing = visualArchives.get(key);
+  if (existing) return existing;
+  const source = new TauriPmtilesSource(
+    build.manifest_path,
+    `roadpilot-local-pmtiles:${key}`,
+  );
+  const archive = new PMTiles(source);
+  visualArchives.set(key, archive);
+  return archive;
+}
+
+addProtocol("roadpilot-visual", async (request) => {
+  const raw = request.url.replace("roadpilot-visual://", "");
+  const match = raw.match(/^([0-9a-f]{64})\/(\d+)\/(\d+)\/(\d+)\.mvt$/);
+  if (!match) throw new Error("Invalid RoadPilot visual tile URL");
+  const [, key, z, x, y] = match;
+  const archive = visualArchives.get(key);
+  if (!archive) throw new Error(`Unknown retained visual archive: ${key}`);
+  const tile = await archive.getZxy(Number(z), Number(x), Number(y));
+  return { data: tile?.data ?? new ArrayBuffer(0) };
+});
+
 const map = new MapLibreMap({
   container: "map",
   style: "https://tiles.openfreemap.org/styles/bright",
@@ -1050,6 +1188,221 @@ const map = new MapLibreMap({
   zoom: 6.2,
 });
 map.addControl(new NavigationControl({ showCompass: true }), "bottom-right");
+
+const visualSourceId = "roadpilot-offline-visual";
+const visualLayerIds = [
+  "rp-visual-water",
+  "rp-visual-waterway",
+  "rp-visual-boundary",
+  "rp-visual-roads",
+  "rp-visual-road-labels",
+  "rp-visual-places",
+  "rp-visual-mountains",
+];
+
+function setLayerVisibility(ids: string[], visible: boolean): void {
+  for (const id of ids) {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+    }
+  }
+}
+
+function layerToggleChecked(name: string): boolean {
+  const input = mapLayerToggles.querySelector<HTMLInputElement>(
+    `input[data-layer-toggle="${name}"]`,
+  );
+  return input?.checked !== false;
+}
+
+function applyMapLayerToggles(): void {
+  setLayerVisibility(visualLayerIds, layerToggleChecked("offlineVisual"));
+  setLayerVisibility(referenceLayerIds, layerToggleChecked("onlineReference"));
+  setLayerVisibility(["rp-graph-edges"], layerToggleChecked("graphEdges"));
+  setLayerVisibility(["rp-graph-nodes"], layerToggleChecked("graphNodes"));
+  setLayerVisibility(["rp-graph-shortcuts"], layerToggleChecked("shortcuts"));
+  setLayerVisibility(["rp-graph-restrictions"], layerToggleChecked("restrictions"));
+  setLayerVisibility(
+    ["rp-editor-buffer-fill", "rp-editor-buffer-line"],
+    layerToggleChecked("borderBuffer"),
+  );
+  setLayerVisibility(["roadpilot-border-a-edges"], layerToggleChecked("graphA"));
+  setLayerVisibility(["roadpilot-border-b-edges"], layerToggleChecked("graphB"));
+  setLayerVisibility(["roadpilot-route-line"], layerToggleChecked("route"));
+  setLayerVisibility(["roadpilot-expansion-line"], layerToggleChecked("expansion"));
+  setLayerVisibility(
+    [
+      "roadpilot-handoff-candidate",
+      "roadpilot-handoff-accepted",
+      "roadpilot-handoff-learned",
+      "roadpilot-handoff-manual",
+      "roadpilot-handoff-endpoints",
+    ],
+    layerToggleChecked("handoffs"),
+  );
+}
+
+mapLayerToggles.querySelectorAll<HTMLInputElement>("input[data-layer-toggle]").forEach(input => {
+  input.addEventListener("change", applyMapLayerToggles);
+});
+
+map.on("load", () => {
+  referenceLayerIds = (map.getStyle().layers ?? []).map(layer => layer.id);
+  applyMapLayerToggles();
+});
+
+function removeVisualBuildLayer(): void {
+  for (const id of visualLayerIds) if (map.getLayer(id)) map.removeLayer(id);
+  if (map.getSource(visualSourceId)) map.removeSource(visualSourceId);
+  activeVisualBuild = null;
+}
+
+function addVisualBuildLayer(build: VisualBuildArtifact): void {
+  removeVisualBuildLayer();
+  ensureVisualArchive(build);
+  map.addSource(visualSourceId, {
+    type: "vector",
+    tiles: [
+      `roadpilot-visual://${visualArchiveKey(build)}/{z}/{x}/{y}.mvt`,
+    ],
+    minzoom: build.min_zoom,
+    maxzoom: build.max_zoom,
+  });
+
+  map.addLayer({
+    id: "rp-visual-water",
+    type: "fill",
+    source: visualSourceId,
+    "source-layer": "water",
+    paint: { "fill-color": "#7fb5d8", "fill-opacity": 0.72 },
+  });
+  map.addLayer({
+    id: "rp-visual-waterway",
+    type: "line",
+    source: visualSourceId,
+    "source-layer": "waterway",
+    paint: {
+      "line-color": "#6ca8cf",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.7, 14, 2.2],
+      "line-opacity": 0.9,
+    },
+  });
+  map.addLayer({
+    id: "rp-visual-boundary",
+    type: "line",
+    source: visualSourceId,
+    "source-layer": "boundary",
+    paint: {
+      "line-color": "#8b78a9",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.7, 12, 1.8],
+      "line-dasharray": [3, 2],
+      "line-opacity": 0.8,
+    },
+  });
+  map.addLayer({
+    id: "rp-visual-roads",
+    type: "line",
+    source: visualSourceId,
+    "source-layer": "transportation",
+    paint: {
+      "line-color": [
+        "match",
+        ["get", "class"],
+        "motorway", "#e7a04a",
+        "trunk", "#e5b35a",
+        "primary", "#f2d07a",
+        "secondary", "#ded6bc",
+        "#b9bec4",
+      ],
+      "line-width": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        5, 0.6,
+        9, 1.3,
+        14, 4.2,
+      ],
+      "line-opacity": 0.95,
+    },
+  });
+  map.addLayer({
+    id: "rp-visual-road-labels",
+    type: "symbol",
+    source: visualSourceId,
+    "source-layer": "transportation_name",
+    minzoom: 7,
+    layout: {
+      "symbol-placement": "line",
+      "text-field": ["coalesce", ["get", "name"], ["get", "ref"]],
+      "text-size": ["interpolate", ["linear"], ["zoom"], 7, 9, 14, 12],
+      "text-max-angle": 30,
+    },
+    paint: {
+      "text-color": "#37404a",
+      "text-halo-color": "#f7f3e8",
+      "text-halo-width": 1.2,
+    },
+  });
+  map.addLayer({
+    id: "rp-visual-places",
+    type: "symbol",
+    source: visualSourceId,
+    "source-layer": "place",
+    layout: {
+      "text-field": ["coalesce", ["get", "name"], ["get", "name_en"]],
+      "text-size": [
+        "match",
+        ["get", "class"],
+        "city", 15,
+        "town", 12,
+        10,
+      ],
+      "text-offset": [0, 0.5],
+    },
+    paint: {
+      "text-color": "#27313a",
+      "text-halo-color": "#f7f3e8",
+      "text-halo-width": 1.3,
+    },
+  });
+  map.addLayer({
+    id: "rp-visual-mountains",
+    type: "symbol",
+    source: visualSourceId,
+    "source-layer": "mountain_peak",
+    minzoom: 9,
+    layout: {
+      "text-field": [
+        "case",
+        ["has", "ele"],
+        ["concat", ["coalesce", ["get", "name"], ""], " ", ["to-string", ["get", "ele"]], " m"],
+        ["coalesce", ["get", "name"], ""],
+      ],
+      "text-size": 10,
+      "text-offset": [0, 0.8],
+    },
+    paint: {
+      "text-color": "#665b52",
+      "text-halo-color": "#f7f3e8",
+      "text-halo-width": 1,
+    },
+  });
+  activeVisualBuild = build;
+  applyMapLayerToggles();
+}
+
+function fitVisualBuild(build: VisualBuildArtifact): void {
+  const b = build.bounds;
+  if (
+    Number.isFinite(b.minLng) && Number.isFinite(b.minLat)
+    && Number.isFinite(b.maxLng) && Number.isFinite(b.maxLat)
+  ) {
+    map.fitBounds(
+      [[Number(b.minLng), Number(b.minLat)], [Number(b.maxLng), Number(b.maxLat)]],
+      { padding: 48, duration: 450 },
+    );
+  }
+}
 
 const editorOverlaySourceIds = ["rp-editor-primary", "rp-editor-buffer", "rp-editor-sources"];
 const editorOverlayLayerIds = ["rp-editor-primary-fill", "rp-editor-primary-line", "rp-editor-buffer-fill", "rp-editor-buffer-line", "rp-editor-sources-line"];
@@ -1089,6 +1442,7 @@ function showEditorPreview(preview: RegionPreview): void {
     [[preview.bounds.minLng, preview.bounds.minLat], [preview.bounds.maxLng, preview.bounds.maxLat]],
     { padding: 60, duration: 450 },
   );
+  applyMapLayerToggles();
 }
 
 const borderSourceA = "roadpilot-border-a";
@@ -1600,6 +1954,7 @@ function showBorderPairLayers(regionA: string, regionB: string): void {
   exportBorderDiagnosticsBtn.disabled = false;
   borderDiffSummary.className = "empty";
   borderDiffSummary.textContent = "Loading OSM way identities from both graph tile sets…";
+  applyMapLayerToggles();
   map.once("idle", scheduleBorderRoadDiff);
   refreshHandoffArtifactOverlay().catch(error => appendLog(String(error)));
 }
@@ -1957,6 +2312,7 @@ function renderHandoffArtifactOverlay(result: HandoffArtifactInspection): void {
       </div>
     `;
   }
+  applyMapLayerToggles();
 }
 
 async function refreshHandoffArtifactOverlay(): Promise<void> {
@@ -2204,6 +2560,7 @@ function showRouteGeometry(geometry: Geometry): void {
       { padding: 70, duration: 400 },
     );
   }
+  applyMapLayerToggles();
 }
 
 function showExpansion(expansion: FeatureCollection): void {
@@ -2220,6 +2577,7 @@ function showExpansion(expansion: FeatureCollection): void {
       "line-opacity": 0.45,
     },
   }, routeLayerId);
+  applyMapLayerToggles();
 }
 
 function routeCoordinate(field: HTMLInputElement, label: string, min: number, max: number): number {
@@ -2385,6 +2743,7 @@ function addGraphLayer(region: RegionSummary): void {
   });
   graphVisible = true;
   graphLayerBtn.textContent = "Hide graph";
+  applyMapLayerToggles();
 }
 
 function fitActiveRegion(): void {
@@ -2414,6 +2773,7 @@ function setActiveRegion(region: RegionSummary): void {
   }
   fitActiveRegion();
   renderRegions();
+  renderVisualBuildSelectors();
 }
 
 function renderRegions(): void {
@@ -2569,6 +2929,8 @@ function configFromEditor(): Record<string, unknown> {
   const existing = editorExistingConfig ? structuredClone(editorExistingConfig) : {};
   const existingOverture = existing["overture"];
   const existingRouting = (existing["routing"] ?? {}) as Record<string, unknown>;
+  const existingVisual = (existing["visual"] ?? {}) as Record<string, unknown>;
+  const existingVisualValidation = (existingVisual.validation ?? {}) as Record<string, unknown>;
   const existingRoutes = Array.isArray(existingRouting.validationRoutes)
     ? existingRouting.validationRoutes as Array<Record<string, unknown>>
     : [];
@@ -2607,6 +2969,28 @@ function configFromEditor(): Record<string, unknown> {
         manifestFileNameTemplate: `${regionId}-routing-{version}-manifest.json`,
       },
       validationRoutes,
+    },
+    visual: {
+      ...existingVisual,
+      enabled: true,
+      source: {
+        primaryGeofabrikId: editorPreview.geofabrikId,
+        url: editorPreview.pbfUrl,
+        polygonUrl: editorPreview.polygonUrl,
+      },
+      buildThreads: Number(existingVisual.buildThreads ?? 4),
+      package: {
+        fileNameTemplate: `${regionId}-visual-{version}.pmtiles`,
+        manifestFileNameTemplate: `${regionId}-visual-{version}-manifest.json`,
+        roadIndexFileNameTemplate: `${regionId}-visual-{version}-road-index.json`,
+      },
+      validation: {
+        ...existingVisualValidation,
+        majorRoadClasses: Array.isArray(existingVisualValidation.majorRoadClasses)
+          ? existingVisualValidation.majorRoadClasses
+          : ["motorway", "trunk", "primary", "secondary"],
+        borderToleranceMeters: Number(existingVisualValidation.borderToleranceMeters ?? 75),
+      },
     },
   };
   if (existingOverture) config["overture"] = existingOverture;
@@ -2691,7 +3075,8 @@ async function refreshToolchain(): Promise<void> {
     row.append(name, state);
     toolHost.appendChild(row);
   }
-  buildBtn.disabled = !status.ready;
+  toolchainReady = status.ready;
+  buildBtn.disabled = !toolchainReady;
 }
 
 async function refreshStats(): Promise<void> {
@@ -2712,11 +3097,273 @@ function renderBuildStatus(status: BuildStatus): void {
   document.querySelector("#statusQueue")!.textContent = status.queue.length ? `Queue: ${status.queue.join(" → ")}` : "";
   document.querySelector("#progress")!.classList.toggle("idle", !status.running);
   cancelBtn.disabled = !status.running;
-  buildBtn.disabled = status.running;
+  buildBtn.disabled = status.running || !toolchainReady;
 }
 
 async function refreshBuildStatus(): Promise<void> {
   renderBuildStatus(await invoke<BuildStatus>("build_status"));
+}
+
+function selectedVisualBuild(): VisualBuildArtifact | null {
+  const manifestPath = visualBuildSelect.value;
+  return visualArtifacts.find(item => item.manifest_path === manifestPath) ?? null;
+}
+
+function visualBuildOption(build: VisualBuildArtifact, index: number): string {
+  return `<option value="${index}">${escapeHtml(build.region_id)} • ${escapeHtml(build.version)}</option>`;
+}
+
+function renderVisualBuildSelectors(): void {
+  const selectedManifest = visualBuildSelect.value;
+  const previousA = visualCompareA.value;
+  const previousB = visualCompareB.value;
+
+  visualBuildSelect.innerHTML = '<option value="">Choose visual build…</option>';
+  for (const build of visualArtifacts) {
+    const option = document.createElement("option");
+    option.value = build.manifest_path;
+    option.textContent = `${build.region_id} • ${build.version}`;
+    visualBuildSelect.appendChild(option);
+  }
+  if ([...visualBuildSelect.options].some(option => option.value === selectedManifest)) {
+    visualBuildSelect.value = selectedManifest;
+  } else if (activeRegion) {
+    const newest = visualArtifacts.find(item => item.region_id === activeRegion?.id);
+    if (newest) visualBuildSelect.value = newest.manifest_path;
+  }
+
+  const options = visualArtifacts.map(visualBuildOption).join("");
+  visualCompareA.innerHTML = `<option value="">Choose A…</option>${options}`;
+  visualCompareB.innerHTML = `<option value="">Choose B…</option>${options}`;
+  if ([...visualCompareA.options].some(option => option.value === previousA)) visualCompareA.value = previousA;
+  if ([...visualCompareB.options].some(option => option.value === previousB)) visualCompareB.value = previousB;
+
+  const build = selectedVisualBuild();
+  loadVisualBuildBtn.disabled = build == null;
+  fitVisualBuildBtn.disabled = build == null;
+  compareVisualBuildsBtn.disabled = !(visualCompareA.value && visualCompareB.value);
+  renderVisualBuildSummary(build);
+}
+
+function renderVisualBuildSummary(build: VisualBuildArtifact | null): void {
+  if (!build) {
+    visualBuildSummary.className = "empty";
+    visualBuildSummary.textContent = "No retained visual build selected.";
+    return;
+  }
+  const b = build.bounds;
+  visualBuildSummary.className = "kv";
+  visualBuildSummary.innerHTML = `
+    <dt>Region / version</dt><dd>${escapeHtml(build.region_id)} • ${escapeHtml(build.version)}</dd>
+    <dt>Artifact</dt><dd>${escapeHtml(build.artifact_file)}</dd>
+    <dt>Size</dt><dd>${bytes(build.size_bytes)}</dd>
+    <dt>Tiles</dt><dd>${build.tile_count}</dd>
+    <dt>Zoom</dt><dd>${build.min_zoom}–${build.max_zoom}</dd>
+    <dt>Coverage</dt><dd>${Number(b.minLat ?? 0).toFixed(4)}, ${Number(b.minLng ?? 0).toFixed(4)} → ${Number(b.maxLat ?? 0).toFixed(4)}, ${Number(b.maxLng ?? 0).toFixed(4)}</dd>
+    <dt>SHA-256</dt><dd><code>${escapeHtml(build.sha256)}</code></dd>
+    <dt>Source fingerprint</dt><dd><code>${escapeHtml(build.source_fingerprint)}</code></dd>
+    <dt>Profile fingerprint</dt><dd><code>${escapeHtml(build.profile_fingerprint)}</code></dd>
+    <dt>Layers</dt><dd>${build.layers.map(escapeHtml).join(", ")}</dd>
+    <dt>Major / border roads</dt><dd>${build.major_road_count} / ${build.border_road_count}</dd>
+    <dt>Missing required roads</dt><dd class="${build.missing_road_count ? "bad" : "ok"}">${build.missing_road_count}</dd>
+  `;
+}
+
+async function refreshVisualBuilds(): Promise<void> {
+  visualArtifacts = await invoke<VisualBuildArtifact[]>("list_visual_builds");
+  renderVisualBuildSelectors();
+}
+
+const visualCompareSourceA = "roadpilot-visual-compare-a";
+const visualCompareSourceB = "roadpilot-visual-compare-b";
+const visualCompareHiddenA = "roadpilot-visual-compare-a-hidden";
+const visualCompareHiddenB = "roadpilot-visual-compare-b-hidden";
+const visualDiffSource = "roadpilot-visual-road-diff";
+const visualDiffLayers = [
+  "roadpilot-visual-diff-unchanged",
+  "roadpilot-visual-diff-removed",
+  "roadpilot-visual-diff-added",
+  "roadpilot-visual-diff-changed",
+];
+
+function removeVisualComparison(): void {
+  for (const id of visualDiffLayers) if (map.getLayer(id)) map.removeLayer(id);
+  for (const id of [visualCompareHiddenA, visualCompareHiddenB]) if (map.getLayer(id)) map.removeLayer(id);
+  for (const id of [visualDiffSource, visualCompareSourceA, visualCompareSourceB]) {
+    if (map.getSource(id)) map.removeSource(id);
+  }
+}
+
+function visualFeatureId(feature: { id?: string | number | undefined }): string | null {
+  if (feature.id == null) return null;
+  const value = String(feature.id);
+  return value && value !== "0" ? value : null;
+}
+
+function stableVisualRoadProperties(properties: Record<string, unknown> | null | undefined): string {
+  const keys = ["class", "subclass", "name", "name_en", "ref", "surface", "oneway", "bridge", "tunnel", "layer"];
+  const value: Record<string, unknown> = {};
+  for (const key of keys) {
+    const item = properties?.[key];
+    if (item !== undefined && item !== null && item !== "") value[key] = item;
+  }
+  return JSON.stringify(value);
+}
+
+function visualRoadGroups(features: ReturnType<typeof map.querySourceFeatures>): Map<string, {
+  signatures: Set<string>;
+  features: typeof features;
+}> {
+  const groups = new Map<string, { signatures: Set<string>; features: typeof features }>();
+  for (const feature of features) {
+    const id = visualFeatureId(feature);
+    if (!id) continue;
+    let group = groups.get(id);
+    if (!group) {
+      group = { signatures: new Set<string>(), features: [] };
+      groups.set(id, group);
+    }
+    const signature = `${stableVisualRoadProperties(feature.properties)}|${JSON.stringify(feature.geometry)}`;
+    group.signatures.add(signature);
+    if (!group.features.some(existing => JSON.stringify(existing.geometry) === JSON.stringify(feature.geometry))) {
+      group.features.push(feature);
+    }
+  }
+  return groups;
+}
+
+function addVisualDiffFeatures(
+  output: Feature[],
+  groups: Map<string, { signatures: Set<string>; features: ReturnType<typeof map.querySourceFeatures> }>,
+  ids: Set<string>,
+  classification: "unchanged" | "removed" | "added" | "changed",
+): void {
+  const seen = new Set<string>();
+  for (const id of ids) {
+    const group = groups.get(id);
+    if (!group) continue;
+    for (const feature of group.features) {
+      const geometry = feature.geometry as Geometry;
+      const key = `${id}:${JSON.stringify(geometry)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      output.push({
+        type: "Feature",
+        geometry,
+        properties: {
+          osm_id: id,
+          classification,
+          ...feature.properties,
+        },
+      });
+    }
+  }
+}
+
+function classifyVisualRoadComparison(a: VisualBuildArtifact, b: VisualBuildArtifact): void {
+  const featuresA = map.querySourceFeatures(visualCompareSourceA, { sourceLayer: "transportation" });
+  const featuresB = map.querySourceFeatures(visualCompareSourceB, { sourceLayer: "transportation" });
+  if (!featuresA.length && !featuresB.length) {
+    visualComparisonSummary.className = "empty";
+    visualComparisonSummary.textContent = "Visual tiles are still loading. Move/zoom the map or compare again.";
+    return;
+  }
+
+  const groupsA = visualRoadGroups(featuresA);
+  const groupsB = visualRoadGroups(featuresB);
+  const idsA = new Set(groupsA.keys());
+  const idsB = new Set(groupsB.keys());
+  const unchanged = new Set<string>();
+  const changed = new Set<string>();
+  const removed = new Set([...idsA].filter(id => !idsB.has(id)));
+  const added = new Set([...idsB].filter(id => !idsA.has(id)));
+  for (const id of idsA) {
+    const ga = groupsA.get(id);
+    const gb = groupsB.get(id);
+    if (!ga || !gb) continue;
+    const aSignatures = [...ga.signatures].sort().join("\n");
+    const bSignatures = [...gb.signatures].sort().join("\n");
+    (aSignatures === bSignatures ? unchanged : changed).add(id);
+  }
+
+  const output: Feature[] = [];
+  addVisualDiffFeatures(output, groupsA, unchanged, "unchanged");
+  addVisualDiffFeatures(output, groupsA, removed, "removed");
+  addVisualDiffFeatures(output, groupsB, added, "added");
+  addVisualDiffFeatures(output, groupsB, changed, "changed");
+
+  map.addSource(visualDiffSource, {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: output } as FeatureCollection,
+  });
+  for (const [id, classification, color, width, opacity] of [
+    ["roadpilot-visual-diff-unchanged", "unchanged", "#42c58a", 2.4, 0.5],
+    ["roadpilot-visual-diff-removed", "removed", "#e35d5b", 4.0, 0.95],
+    ["roadpilot-visual-diff-added", "added", "#4b9ee8", 4.0, 0.95],
+    ["roadpilot-visual-diff-changed", "changed", "#d99a3e", 4.5, 0.95],
+  ] as const) {
+    map.addLayer({
+      id,
+      type: "line",
+      source: visualDiffSource,
+      filter: ["==", ["get", "classification"], classification],
+      paint: { "line-color": color, "line-width": width, "line-opacity": opacity },
+    });
+  }
+
+  visualComparisonSummary.className = "kv";
+  visualComparisonSummary.innerHTML = `
+    <dt>Versions</dt><dd>${escapeHtml(a.version)} → ${escapeHtml(b.version)}</dd>
+    <dt>Visible unchanged roads</dt><dd class="ok">${unchanged.size}</dd>
+    <dt>Visible removed roads</dt><dd class="${removed.size ? "warn" : "ok"}">${removed.size}</dd>
+    <dt>Visible added roads</dt><dd class="${added.size ? "warn" : "ok"}">${added.size}</dd>
+    <dt>Visible changed roads</dt><dd class="${changed.size ? "warn" : "ok"}">${changed.size}</dd>
+    <dt>Scope</dt><dd>currently loaded map tiles / viewport</dd>
+    <dt>Package SHA changed</dt><dd class="${a.sha256 === b.sha256 ? "ok" : "warn"}">${a.sha256 === b.sha256 ? "no" : "yes"}</dd>
+  `;
+}
+
+function compareVisualBuilds(): void {
+  removeVisualComparison();
+  const a = visualArtifacts[Number(visualCompareA.value)];
+  const b = visualArtifacts[Number(visualCompareB.value)];
+  if (!a || !b) return;
+  if (a.region_id !== b.region_id) {
+    visualComparisonSummary.className = "bad";
+    visualComparisonSummary.textContent = "Visual builds must be from the same region.";
+    return;
+  }
+  ensureVisualArchive(a);
+  ensureVisualArchive(b);
+  map.addSource(visualCompareSourceA, {
+    type: "vector",
+    tiles: [`roadpilot-visual://${visualArchiveKey(a)}/{z}/{x}/{y}.mvt`],
+    minzoom: a.min_zoom,
+    maxzoom: a.max_zoom,
+  });
+  map.addSource(visualCompareSourceB, {
+    type: "vector",
+    tiles: [`roadpilot-visual://${visualArchiveKey(b)}/{z}/{x}/{y}.mvt`],
+    minzoom: b.min_zoom,
+    maxzoom: b.max_zoom,
+  });
+  map.addLayer({
+    id: visualCompareHiddenA,
+    type: "line",
+    source: visualCompareSourceA,
+    "source-layer": "transportation",
+    paint: { "line-opacity": 0.001, "line-width": 0.5 },
+  });
+  map.addLayer({
+    id: visualCompareHiddenB,
+    type: "line",
+    source: visualCompareSourceB,
+    "source-layer": "transportation",
+    paint: { "line-opacity": 0.001, "line-width": 0.5 },
+  });
+  visualComparisonSummary.className = "empty";
+  visualComparisonSummary.textContent = "Loading exact PMTiles road features from both builds…";
+  map.once("idle", () => classifyVisualRoadComparison(a, b));
 }
 
 async function refreshBuilds(): Promise<void> {
@@ -2819,6 +3466,36 @@ async function renderComparison(): Promise<void> {
 }
 compareA.addEventListener("change", () => { void renderComparison(); });
 compareB.addEventListener("change", () => { void renderComparison(); });
+
+visualBuildSelect.addEventListener("change", () => {
+  const build = selectedVisualBuild();
+  loadVisualBuildBtn.disabled = build == null;
+  fitVisualBuildBtn.disabled = build == null;
+  renderVisualBuildSummary(build);
+});
+loadVisualBuildBtn.addEventListener("click", () => {
+  const build = selectedVisualBuild();
+  if (!build) return;
+  try {
+    addVisualBuildLayer(build);
+    fitVisualBuild(build);
+    appendLog(`Loaded exact visual PMTiles: ${build.region_id} • ${build.version}`);
+  } catch (error) {
+    visualBuildSummary.className = "bad";
+    visualBuildSummary.textContent = `Could not load visual PMTiles: ${String(error)}`;
+  }
+});
+fitVisualBuildBtn.addEventListener("click", () => {
+  const build = selectedVisualBuild();
+  if (build) fitVisualBuild(build);
+});
+visualCompareA.addEventListener("change", () => {
+  compareVisualBuildsBtn.disabled = !(visualCompareA.value && visualCompareB.value);
+});
+visualCompareB.addEventListener("change", () => {
+  compareVisualBuildsBtn.disabled = !(visualCompareA.value && visualCompareB.value);
+});
+compareVisualBuildsBtn.addEventListener("click", compareVisualBuilds);
 
 saveR2CredentialsBtn.addEventListener("click", async () => {
   saveR2CredentialsBtn.disabled = true;
@@ -3141,7 +3818,10 @@ async function bootstrap(): Promise<void> {
   await listen<{ line: string }>("graph-studio://build-log", event => appendLog(event.payload.line));
   await listen<BuildStatus>("graph-studio://build-status", event => {
     renderBuildStatus(event.payload);
-    if (!event.payload.running) refreshBuilds().catch(() => {});
+    if (!event.payload.running) {
+      refreshBuilds().catch(() => {});
+      refreshVisualBuilds().catch(() => {});
+    }
   });
   await listen<PublicationStatus>("graph-studio://publication-status", event => {
     renderPublicationStatus(event.payload);
@@ -3158,6 +3838,7 @@ async function bootstrap(): Promise<void> {
     refreshToolchain(),
     refreshBuildStatus(),
     refreshBuilds(),
+    refreshVisualBuilds(),
     refreshHandoffOverrides(),
     refreshStats(),
     refreshR2CredentialStatus(),

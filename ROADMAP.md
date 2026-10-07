@@ -284,8 +284,8 @@ Build and inspect the exact lightweight RoadPilot offline visual package indepen
 
 Milestones:
 - M1 — PMTiles v3 artifact/profile/toolchain contract plus deterministic real-artifact validation — merged in PR #43;
-- M2 — real regional source/cache/build pipeline, road-content validation and visual rebuild lifecycle — active;
-- M3 — Graph Studio exact-PMTiles rendering, online-reference comparison, layer toggles and visual-build diff;
+- M2 — real regional source/cache/build pipeline, road-content validation and visual rebuild lifecycle — merged in PR #44;
+- M3 — Graph Studio exact-PMTiles rendering, online-reference comparison, layer toggles and visual-build diff — active;
 - M4 — independent immutable R2 visual publication.
 
 M1 contract:
@@ -298,6 +298,17 @@ M1 contract:
 - actual MVT tile decoding to prove required layers;
 - identical source/profile builds must produce byte-identical PMTiles;
 - truncated/corrupt PMTiles must be rejected.
+
+M3 integrates the M1/M2 artifact into Graph Studio:
+- the normal selected-region build queue also builds the independent visual package when visual.enabled is true;
+- Graph Studio stores retained visual versions separately from routing builds;
+- the installed AppImage/DEB bundles requirements-visual.txt and the pinned visual/tilemaker profile;
+- toolchain readiness verifies the pinned tilemaker version;
+- the frontend reads the exact retained PMTiles through bounded Tauri byte ranges and the official PMTiles decoder;
+- RoadPilot offline visual and online reference basemap are independently toggleable;
+- routing edges/nodes/shortcuts/restrictions, border buffer, Graph A/B, route, expansion and handoffs have unified visibility toggles;
+- the visual inspector reports file/version/size/tile count/coverage/SHA/source/profile fingerprints and road-validation counts;
+- two retained visual builds can be compared by original OSM feature ID, highlighting visible unchanged/removed/added/changed roads.
 
 POI/search remains separate in #17.
 

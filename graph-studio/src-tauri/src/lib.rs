@@ -4,7 +4,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     env,
     fs::{self, OpenOptions},
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
@@ -96,6 +96,28 @@ struct BuildArtifact {
     graph_tile_fingerprint: Option<String>,
     internal_fingerprint: Option<String>,
     boundary_fingerprints: Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct VisualBuildArtifact {
+    region_id: String,
+    version: String,
+    built_at_utc: String,
+    artifact_file: String,
+    size_bytes: u64,
+    sha256: String,
+    tile_count: u64,
+    min_zoom: u64,
+    max_zoom: u64,
+    bounds: Value,
+    source_fingerprint: String,
+    profile_fingerprint: String,
+    manifest_path: String,
+    layers: Vec<String>,
+    road_index_file: Option<String>,
+    major_road_count: u64,
+    border_road_count: u64,
+    missing_road_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -462,6 +484,13 @@ fn dist_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn visual_dist_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = workspace_root(app)?.join("visual-builds");
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("Could not create visual build directory: {e}"))?;
+    Ok(path)
+}
+
 fn python_env_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let path = app
         .path()
@@ -488,7 +517,8 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
     let env_dir = python_env_dir(app)?;
     let python = env_dir.join("bin/python");
     let pipeline = pipeline_root(app)?;
-    let requirements = pipeline.join("requirements-routing.txt");
+    let routing_requirements = pipeline.join("requirements-routing.txt");
+    let visual_requirements = pipeline.join("requirements-visual.txt");
 
     if !python.is_file() {
         emit_log(app, "Preparing Graph Studio Python environment…");
@@ -505,12 +535,18 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
     }
 
     let marker = env_dir.join(".roadpilot-requirements-ready");
-    let requirements_stamp = fs::metadata(&requirements)
-        .and_then(|m| m.modified())
-        .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_secs().to_string())
-        .unwrap_or_default();
+    let requirements_stamp = [&routing_requirements, &visual_requirements]
+        .iter()
+        .map(|path| {
+            fs::metadata(path)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs().to_string())
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>()
+        .join(":");
     let marker_value = fs::read_to_string(&marker).unwrap_or_default();
 
     if marker_value.trim() != requirements_stamp {
@@ -523,13 +559,18 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
             return Err("pip upgrade failed.".into());
         }
 
-        let status = Command::new(&python)
-            .args(["-m", "pip", "install", "-r"])
-            .arg(&requirements)
-            .status()
-            .map_err(|e| format!("Could not install Python requirements: {e}"))?;
-        if !status.success() {
-            return Err("Installing Graph Studio Python requirements failed.".into());
+        for requirements in [&routing_requirements, &visual_requirements] {
+            let status = Command::new(&python)
+                .args(["-m", "pip", "install", "-r"])
+                .arg(requirements)
+                .status()
+                .map_err(|e| format!("Could not install Python requirements: {e}"))?;
+            if !status.success() {
+                return Err(format!(
+                    "Installing Graph Studio Python requirements failed: {}",
+                    requirements.display()
+                ));
+            }
         }
         fs::write(&marker, &requirements_stamp)
             .map_err(|e| format!("Could not write Python environment marker: {e}"))?;
@@ -765,7 +806,7 @@ fn save_region_config(
 }
 
 #[tauri::command]
-fn toolchain_status() -> ToolchainStatus {
+fn toolchain_status(app: AppHandle) -> ToolchainStatus {
     let names = [
         "python3",
         "osmium",
@@ -787,6 +828,45 @@ fn toolchain_status() -> ToolchainStatus {
                 .unwrap_or_else(|| "missing".into()),
         });
     }
+
+    let tilemaker_path = executable_path("tilemaker");
+    let expected_tilemaker = pipeline_root(&app)
+        .ok()
+        .and_then(|root| fs::read_to_string(root.join("visual/tilemaker/toolchain.json")).ok())
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|value| value.get("tilemakerVersion").and_then(Value::as_str).map(str::to_string))
+        .unwrap_or_else(|| "3.2.0".into());
+    let (tilemaker_ready, tilemaker_detail) = match tilemaker_path {
+        Some(path) => {
+            let output = Command::new(&path)
+                .arg("--help")
+                .output()
+                .ok()
+                .map(|output| {
+                    let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+                    text.push_str(&String::from_utf8_lossy(&output.stderr));
+                    text
+                })
+                .unwrap_or_default();
+            let marker_a = format!("tilemaker {expected_tilemaker}");
+            let marker_b = format!("tilemaker v{expected_tilemaker}");
+            let matches = output.contains(&marker_a) || output.contains(&marker_b);
+            (
+                matches,
+                if matches {
+                    format!("{} • {}", path.display(), expected_tilemaker)
+                } else {
+                    format!("{} • expected {}, version mismatch", path.display(), expected_tilemaker)
+                },
+            )
+        }
+        None => (false, format!("missing • expected {expected_tilemaker}")),
+    };
+    tools.push(ToolStatus {
+        name: "tilemaker".into(),
+        available: tilemaker_ready,
+        detail: tilemaker_detail,
+    });
 
     let venv_ready = Command::new("python3")
         .args(["-m", "venv", "--help"])
@@ -915,6 +995,12 @@ fn stage_for_log(line: &str) -> Option<&'static str> {
         Some("Packing Valhalla tile extract")
     } else if line.contains("validation passed:") {
         Some("Validating routes")
+    } else if line.contains("visual pack:") {
+        Some("Building visual PMTiles")
+    } else if line.contains("visual road index:") {
+        Some("Validating visual road coverage")
+    } else if line.contains("retained visual build:") {
+        Some("Retaining visual package")
     } else if line.starts_with("built:") {
         Some("Finalizing package")
     } else {
@@ -997,6 +1083,7 @@ fn run_build_queue(
     let python = ensure_python_env(&app)?;
     let work = work_dir(&app)?;
     let dist = dist_dir(&app)?;
+    let visual_dist = visual_dist_dir(&app)?;
 
     for (index, region_id) in region_ids.iter().enumerate() {
         if state.cancel.load(Ordering::SeqCst) {
@@ -1025,7 +1112,7 @@ fn run_build_queue(
         command
             .arg(pipeline.join("tools/build_routing_region.py"))
             .arg("--config")
-            .arg(config)
+            .arg(&config)
             .arg("--package-version")
             .arg(&package_version)
             .arg("--work-dir")
@@ -1061,6 +1148,37 @@ fn run_build_queue(
             .map_err(|e| format!("Could not validate completed package: {e}"))?;
         if !status.success() {
             return Err(format!("Routing pack validation failed for {region_id}."));
+        }
+
+        let config_value: Value = serde_json::from_str(
+            &fs::read_to_string(&config)
+                .map_err(|e| format!("Could not read region config for visual build: {e}"))?,
+        )
+        .map_err(|e| format!("Could not parse region config for visual build: {e}"))?;
+        let visual_enabled = config_value
+            .pointer("/visual/enabled")
+            .and_then(Value::as_bool)
+            == Some(true);
+
+        if visual_enabled {
+            set_stage(&app, &state, "Building retained visual package");
+            emit_log(&app, format!("→ {region_id}: building visual PMTiles…"));
+            let mut visual_command = Command::new(&python);
+            visual_command
+                .arg(pipeline.join("tools/build_visual_region_pack.py"))
+                .arg("--config")
+                .arg(&config)
+                .arg("--package-version")
+                .arg(&package_version)
+                .arg("--work-dir")
+                .arg(work.join("visual"))
+                .arg("--dist-dir")
+                .arg(&visual_dist);
+            if refresh_sources {
+                visual_command.arg("--refresh-sources");
+            }
+            run_process_streaming(&app, &state, visual_command)?;
+            emit_log(&app, format!("✓ {region_id} visual package validated."));
         }
 
         let cache = work.join("inspector-cache").join(region_id);
@@ -1246,6 +1364,150 @@ fn list_builds(app: AppHandle) -> Result<Vec<BuildArtifact>, String> {
     Ok(result)
 }
 
+
+#[tauri::command]
+fn list_visual_builds(app: AppHandle) -> Result<Vec<VisualBuildArtifact>, String> {
+    let root = visual_dist_dir(&app)?;
+    let mut result = Vec::new();
+    let Ok(regions) = fs::read_dir(&root) else {
+        return Ok(result);
+    };
+
+    for region_dir in regions.flatten().filter(|entry| entry.path().is_dir()) {
+        let Ok(versions) = fs::read_dir(region_dir.path()) else {
+            continue;
+        };
+        for version_dir in versions.flatten().filter(|entry| entry.path().is_dir()) {
+            let Ok(files) = fs::read_dir(version_dir.path()) else {
+                continue;
+            };
+            for entry in files.flatten() {
+                let path = entry.path();
+                let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                    continue;
+                };
+                if !name.ends_with("-manifest.json") {
+                    continue;
+                }
+                let Ok(text) = fs::read_to_string(&path) else {
+                    continue;
+                };
+                let Ok(value) = serde_json::from_str::<Value>(&text) else {
+                    continue;
+                };
+                if value.get("schema").and_then(Value::as_str) != Some("roadpilot-visual-pack") {
+                    continue;
+                }
+                let Some(artifact) = value.get("artifact") else {
+                    continue;
+                };
+                let layers = value
+                    .get("layers")
+                    .and_then(Value::as_array)
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_string)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                result.push(VisualBuildArtifact {
+                    region_id: value.get("regionId").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    version: value.get("packageVersion").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    built_at_utc: value.get("builtAtUtc").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    artifact_file: artifact.get("fileName").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    size_bytes: artifact.get("sizeBytes").and_then(Value::as_u64).unwrap_or(0),
+                    sha256: artifact.get("sha256").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    tile_count: artifact.get("tileCount").and_then(Value::as_u64).unwrap_or(0),
+                    min_zoom: artifact.get("minZoom").and_then(Value::as_u64).unwrap_or(0),
+                    max_zoom: artifact.get("maxZoom").and_then(Value::as_u64).unwrap_or(0),
+                    bounds: artifact.get("bounds").cloned().unwrap_or_else(|| json!({})),
+                    source_fingerprint: value.get("sourceFingerprint").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    profile_fingerprint: value.get("profileFingerprint").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    manifest_path: path.display().to_string(),
+                    layers,
+                    road_index_file: value.pointer("/roadIndex/fileName").and_then(Value::as_str).map(str::to_string),
+                    major_road_count: value.pointer("/roadIndex/majorRoadCount").and_then(Value::as_u64).unwrap_or(0),
+                    border_road_count: value.pointer("/roadIndex/borderRoadCount").and_then(Value::as_u64).unwrap_or(0),
+                    missing_road_count: value.pointer("/roadIndex/missingRoadCount").and_then(Value::as_u64).unwrap_or(0),
+                });
+            }
+        }
+    }
+    result.sort_by(|a, b| b.built_at_utc.cmp(&a.built_at_utc));
+    Ok(result)
+}
+
+fn safe_visual_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, String> {
+    let requested = PathBuf::from(raw)
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve visual manifest {raw}: {e}"))?;
+    let root = visual_dist_dir(app)?
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve Graph Studio visual build directory: {e}"))?;
+    if !requested.starts_with(&root) || !requested.is_file() {
+        return Err("Visual manifest is outside the Graph Studio visual-build workspace.".into());
+    }
+    let text = fs::read_to_string(&requested)
+        .map_err(|e| format!("Could not read visual manifest: {e}"))?;
+    let value: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse visual manifest: {e}"))?;
+    if value.get("schema").and_then(Value::as_str) != Some("roadpilot-visual-pack") {
+        return Err("Selected manifest is not a RoadPilot visual pack.".into());
+    }
+    Ok(requested)
+}
+
+#[tauri::command]
+fn visual_archive_range(
+    app: AppHandle,
+    manifest_path: String,
+    offset: u64,
+    length: u64,
+) -> Result<Vec<u8>, String> {
+    const MAX_RANGE: u64 = 4 * 1024 * 1024;
+    if length == 0 || length > MAX_RANGE {
+        return Err(format!("Visual archive range length must be 1..={MAX_RANGE} bytes."));
+    }
+    let manifest_path = safe_visual_manifest_path(&app, &manifest_path)?;
+    let text = fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("Could not read visual manifest: {e}"))?;
+    let value: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse visual manifest: {e}"))?;
+    let file_name = value
+        .pointer("/artifact/fileName")
+        .and_then(Value::as_str)
+        .ok_or("Visual manifest is missing artifact.fileName.")?;
+    let parent = manifest_path.parent().ok_or("Visual manifest has no parent directory.")?;
+    let package = parent
+        .join(file_name)
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve visual PMTiles artifact: {e}"))?;
+    if !package.starts_with(parent) || !package.is_file() {
+        return Err("Visual PMTiles artifact is outside its retained build directory.".into());
+    }
+
+    let mut file = fs::File::open(&package)
+        .map_err(|e| format!("Could not open visual PMTiles artifact: {e}"))?;
+    let file_len = file
+        .metadata()
+        .map_err(|e| format!("Could not stat visual PMTiles artifact: {e}"))?
+        .len();
+    if offset >= file_len {
+        return Err(format!(
+            "Visual archive range starts outside artifact bounds: offset={offset} size={file_len}"
+        ));
+    }
+    let available = file_len - offset;
+    let read_length = length.min(available);
+    file.seek(SeekFrom::Start(offset))
+        .map_err(|e| format!("Could not seek visual PMTiles artifact: {e}"))?;
+    let mut bytes = vec![0_u8; read_length as usize];
+    file.read_exact(&mut bytes)
+        .map_err(|e| format!("Could not read visual PMTiles range: {e}"))?;
+    Ok(bytes)
+}
 
 fn safe_build_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, String> {
     let requested = PathBuf::from(raw)
@@ -3635,6 +3897,8 @@ pub fn run() {
             start_build_queue,
             cancel_build,
             list_builds,
+            list_visual_builds,
+            visual_archive_range,
             r2_credential_status,
             save_r2_credentials,
             clear_r2_credentials,

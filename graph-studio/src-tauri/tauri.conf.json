@@ -32,13 +32,15 @@
       "deb"
     ],
     "category": "DeveloperTool",
-    "shortDescription": "Build, validate and inspect RoadPilot Valhalla regional graphs.",
-    "longDescription": "RoadPilot Graph Studio is the production workstation for independently building, validating, inspecting, comparing and publishing RoadPilot regional Valhalla routing graphs.",
+    "shortDescription": "Build, validate and inspect RoadPilot regional routing and visual maps.",
+    "longDescription": "RoadPilot Graph Studio is the production workstation for independently building, validating, inspecting, comparing and publishing RoadPilot regional Valhalla routing graphs and PMTiles visual maps.",
     "resources": {
       "../../config/": "pipeline/config/",
       "../../tools/": "pipeline/tools/",
       "../../schemas/": "pipeline/schemas/",
-      "../../requirements-routing.txt": "pipeline/requirements-routing.txt"
+      "../../requirements-routing.txt": "pipeline/requirements-routing.txt",
+      "../../requirements-visual.txt": "pipeline/requirements-visual.txt",
+      "../../visual/": "pipeline/visual/"
     },
     "icon": [
       "icons/32x32.png",
