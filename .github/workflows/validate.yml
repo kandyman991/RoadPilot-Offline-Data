@@ -407,10 +407,17 @@ jobs:
               if not near_frontier:
                   raise SystemExit("fake trace had no frontier endpoint")
 
-              # For normal crossings only the snap is near lon=1. For a
-              # FRONTIER_OVERLAP probe both points are near lon=1, so the
-              # non-zero offset identifies the correlated snap.
-              delta = near_frontier[-1][0]
+              # The stable snippet is intentionally short, so a normal
+              # crossing's interior probe can also be within 0.01 degrees of
+              # the frontier. Distinguish it from FRONTIER_OVERLAP by scale:
+              # normal crossing -> probe is much farther from lon=1 than snap;
+              # frontier overlap -> probe lies on lon=1 and snap is the
+              # non-zero offset.
+              deltas = [item[0] for item in near_frontier]
+              if max(deltas) > 0.001:
+                  delta = min(deltas)
+              else:
+                  delta = max(deltas)
               if delta < 0.00005:
                   # Candidate 999 is deliberately re-correlated by the route to
                   # edge +2. This must fail exact candidate-edge proof.
