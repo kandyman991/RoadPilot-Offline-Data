@@ -967,6 +967,8 @@ function updatePublicationControls(): void {
   const hasBuild = selectedPublicationBuild() != null;
   const configured = r2Credentials?.configured === true;
   const running = currentPublicationStatus?.running === true;
+  publicationKind.disabled = running;
+  publishBuildSelect.disabled = running;
   publishBuildBtn.disabled = !hasBuild || !configured || running;
   refreshPublicationBtn.disabled = !hasBuild || !configured || running;
   testR2CredentialsBtn.disabled = !configured || running;
@@ -1057,10 +1059,12 @@ function renderPublicationRemoteStatus(): void {
   const latest = remote?.latest ?? null;
   const state = !latest
     ? "NOT PUBLISHED"
-    : latest.packageVersion === local.version
-      ? "CURRENT"
-      : "DIFFERENT";
-  const stateClass = state === "CURRENT" ? "ok" : state === "NOT PUBLISHED" ? "warn" : "warn";
+    : latest.artifactKind !== local.artifactKind
+      ? "WRONG ARTIFACT"
+      : latest.packageVersion === local.version
+        ? "CURRENT"
+        : "DIFFERENT";
+  const stateClass = state === "CURRENT" ? "ok" : state === "WRONG ARTIFACT" ? "bad" : "warn";
   publicationVersionSummary.className = "kv";
   publicationVersionSummary.innerHTML = `
     <dt>Artifact</dt><dd>${escapeHtml(local.artifactKind)}</dd>
