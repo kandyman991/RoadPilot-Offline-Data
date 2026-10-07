@@ -15,6 +15,12 @@ on:
     branches: [main]
     paths:
       - "graph-studio/**"
+      - "config/**"
+      - "schemas/**"
+      - "tools/**"
+      - "visual/**"
+      - "requirements-routing.txt"
+      - "requirements-visual.txt"
       - ".github/workflows/graph-studio.yml"
   workflow_dispatch:
 
