@@ -400,7 +400,7 @@ app.innerHTML = `
           <button id="buildBtn" class="btn primary" type="button">Build selected</button>
           <button id="cancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
-        <p>Builds run sequentially and keep source/cache data in Graph Studio's local workspace.</p>
+        <p>Builds run sequentially. Each selected region produces its routing pack and, when enabled, an independently versioned visual PMTiles pack using shared cached source data.</p>
       </section>
       <section class="section">
         <h2>R2 publication</h2>
@@ -1441,6 +1441,7 @@ function showEditorPreview(preview: RegionPreview): void {
     [[preview.bounds.minLng, preview.bounds.minLat], [preview.bounds.maxLng, preview.bounds.maxLat]],
     { padding: 60, duration: 450 },
   );
+  applyMapLayerToggles();
 }
 
 const borderSourceA = "roadpilot-border-a";
@@ -1952,6 +1953,7 @@ function showBorderPairLayers(regionA: string, regionB: string): void {
   exportBorderDiagnosticsBtn.disabled = false;
   borderDiffSummary.className = "empty";
   borderDiffSummary.textContent = "Loading OSM way identities from both graph tile sets…";
+  applyMapLayerToggles();
   map.once("idle", scheduleBorderRoadDiff);
   refreshHandoffArtifactOverlay().catch(error => appendLog(String(error)));
 }
@@ -2309,6 +2311,7 @@ function renderHandoffArtifactOverlay(result: HandoffArtifactInspection): void {
       </div>
     `;
   }
+  applyMapLayerToggles();
 }
 
 async function refreshHandoffArtifactOverlay(): Promise<void> {
@@ -2556,6 +2559,7 @@ function showRouteGeometry(geometry: Geometry): void {
       { padding: 70, duration: 400 },
     );
   }
+  applyMapLayerToggles();
 }
 
 function showExpansion(expansion: FeatureCollection): void {
@@ -2572,6 +2576,7 @@ function showExpansion(expansion: FeatureCollection): void {
       "line-opacity": 0.45,
     },
   }, routeLayerId);
+  applyMapLayerToggles();
 }
 
 function routeCoordinate(field: HTMLInputElement, label: string, min: number, max: number): number {
@@ -2737,6 +2742,7 @@ function addGraphLayer(region: RegionSummary): void {
   });
   graphVisible = true;
   graphLayerBtn.textContent = "Hide graph";
+  applyMapLayerToggles();
 }
 
 function fitActiveRegion(): void {
