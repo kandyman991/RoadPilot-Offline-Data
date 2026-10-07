@@ -1505,6 +1505,110 @@ fn normalize_transition_document(
     let path_text = path.display().to_string();
 
     match schema {
+        "roadpilot.crossing-candidates" => {
+            let validation_state = document
+                .get("validationState")
+                .cloned()
+                .unwrap_or(Value::String("UNPROVEN".into()));
+            for candidate in document
+                .get("candidates")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let Some(from_coordinate) =
+                    coordinate_value(candidate.pointer("/fromEdge/correlatedCoordinate"))
+                else {
+                    continue;
+                };
+                let Some(to_coordinate) =
+                    coordinate_value(candidate.pointer("/toEdge/correlatedCoordinate"))
+                else {
+                    continue;
+                };
+                let tier = candidate.pointer("/evidence/tier").and_then(Value::as_u64);
+                let mut evidence = vec![Value::String("GENERATED_CANDIDATE".into())];
+                if let Some(tier) = tier {
+                    evidence.push(Value::String(format!("EVIDENCE_TIER_{tier}")));
+                }
+                if candidate.pointer("/evidence/bothMatchStableWay").and_then(Value::as_bool) == Some(true) {
+                    evidence.push(Value::String("BOTH_MATCH_STABLE_OSM_WAY".into()));
+                }
+                if candidate.pointer("/evidence/sameCorrelatedWay").and_then(Value::as_bool) == Some(true) {
+                    evidence.push(Value::String("SAME_CORRELATED_OSM_WAY".into()));
+                }
+                output.push(json!({
+                    "kind": "candidate",
+                    "id": candidate.get("id").cloned().unwrap_or(Value::Null),
+                    "status": status,
+                    "validationState": validation_state,
+                    "fromRegionId": from_region,
+                    "toRegionId": to_region,
+                    "from": from_coordinate,
+                    "to": to_coordinate,
+                    "fromWayId": candidate.pointer("/fromEdge/wayId").cloned().unwrap_or(Value::Null),
+                    "toWayId": candidate.pointer("/toEdge/wayId").cloned().unwrap_or(Value::Null),
+                    "modes": [],
+                    "evidence": evidence,
+                    "separationMeters": candidate.pointer("/evidence/separationMeters").cloned().unwrap_or(Value::Null),
+                    "artifactPath": path_text
+                }));
+            }
+        }
+        "roadpilot.runtime-connectivity" => {
+            let validation_state = document
+                .get("validationState")
+                .cloned()
+                .unwrap_or(Value::String("VALIDATED".into()));
+            for crossing in document
+                .get("crossings")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let Some(from_coordinate) =
+                    coordinate_value(crossing.pointer("/fromAnchor/coordinate"))
+                else {
+                    continue;
+                };
+                let Some(to_coordinate) =
+                    coordinate_value(crossing.pointer("/toAnchor/coordinate"))
+                else {
+                    continue;
+                };
+                let mut modes: Vec<Value> = Vec::new();
+                for (mode_name, mode_key) in [("MOTORCYCLE", "MOTORCYCLE"), ("CAR", "CAR")] {
+                    if let Some(mode) = crossing.pointer(&format!("/modes/{mode_key}")).and_then(Value::as_object) {
+                        if mode.get("fromTo").and_then(Value::as_bool) == Some(true) {
+                            modes.push(Value::String(format!("{mode_name}_FROM_TO")));
+                        }
+                        if mode.get("toFrom").and_then(Value::as_bool) == Some(true) {
+                            modes.push(Value::String(format!("{mode_name}_TO_FROM")));
+                        }
+                    }
+                }
+                let tier = crossing.get("evidenceTier").and_then(Value::as_u64);
+                let mut evidence = vec![Value::String("VALHALLA_PROVEN_RUNTIME".into())];
+                if let Some(tier) = tier {
+                    evidence.push(Value::String(format!("EVIDENCE_TIER_{tier}")));
+                }
+                output.push(json!({
+                    "kind": "accepted",
+                    "id": crossing.get("candidateId").cloned().unwrap_or(Value::Null),
+                    "status": status,
+                    "validationState": validation_state,
+                    "fromRegionId": from_region,
+                    "toRegionId": to_region,
+                    "from": from_coordinate,
+                    "to": to_coordinate,
+                    "fromWayId": crossing.pointer("/fromAnchor/wayId").cloned().unwrap_or(Value::Null),
+                    "toWayId": crossing.pointer("/toAnchor/wayId").cloned().unwrap_or(Value::Null),
+                    "modes": modes,
+                    "evidence": evidence,
+                    "artifactPath": path_text
+                }));
+            }
+        }
         "roadpilot.transition-candidates" => {
             for candidate in document
                 .get("candidates")
@@ -1526,6 +1630,7 @@ fn normalize_transition_document(
                     "kind": "candidate",
                     "id": candidate.get("id").cloned().unwrap_or(Value::Null),
                     "status": status,
+                    "validationState": Value::Null,
                     "fromRegionId": from_region,
                     "toRegionId": to_region,
                     "from": from_coordinate,
@@ -1675,6 +1780,7 @@ fn inspect_handoff_artifacts(
             "kind": "manual",
             "id": override_record.get("id").cloned().unwrap_or(Value::Null),
             "status": override_record.get("status").cloned().unwrap_or(Value::String("STALE".into())),
+            "validationState": "VALIDATED",
             "fromRegionId": override_record.get("regionA").cloned().unwrap_or(Value::Null),
             "toRegionId": override_record.get("regionB").cloned().unwrap_or(Value::Null),
             "from": from_coordinate,
