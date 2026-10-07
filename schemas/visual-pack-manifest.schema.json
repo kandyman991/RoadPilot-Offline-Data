@@ -208,6 +208,43 @@
           }
         }
       }
+    },
+    "roadIndex": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fileName",
+        "sha256",
+        "sourceRoadCount",
+        "majorRoadCount",
+        "borderRoadCount",
+        "missingRoadCount"
+      ],
+      "properties": {
+        "fileName": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+-road-index\\.json$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceRoadCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "majorRoadCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "borderRoadCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missingRoadCount": {
+          "const": 0
+        }
+      }
     }
   }
 }

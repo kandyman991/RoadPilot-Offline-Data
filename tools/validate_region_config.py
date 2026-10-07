@@ -65,6 +65,87 @@ def validate_overture(overture) -> bool:
     return True
 
 
+def validate_visual(visual, routing) -> bool:
+    if not isinstance(visual, dict) or visual.get("enabled") is not True:
+        return False
+
+    source = visual.get("source")
+    if not isinstance(source, dict):
+        fail("visual.source is required")
+    primary_id = str(source.get("primaryGeofabrikId") or "")
+    url = str(source.get("url") or "")
+    polygon_url = str(source.get("polygonUrl") or "")
+    if not primary_id:
+        fail("visual.source.primaryGeofabrikId is required")
+    if not url.startswith("https://") or not url.endswith(".osm.pbf"):
+        fail("visual.source.url must be an HTTPS .osm.pbf URL")
+    if not polygon_url.startswith("https://") or not polygon_url.endswith(".poly"):
+        fail("visual.source.polygonUrl must be an HTTPS .poly URL")
+
+    threads = visual.get("buildThreads", 1)
+    if not isinstance(threads, int) or not (1 <= threads <= 64):
+        fail("visual.buildThreads must be an integer from 1 to 64")
+
+    package = visual.get("package")
+    if not isinstance(package, dict):
+        fail("visual.package is required")
+    templates = {
+        "fileNameTemplate": ".pmtiles",
+        "manifestFileNameTemplate": "-manifest.json",
+        "roadIndexFileNameTemplate": "-road-index.json",
+    }
+    for key, suffix in templates.items():
+        value = str(package.get(key) or "")
+        if "{version}" not in value or not value.endswith(suffix):
+            fail(f"visual.package.{key} must contain {{version}} and end in {suffix}")
+        if not SAFE_FILE.fullmatch(value):
+            fail(f"visual.package.{key} contains unsafe characters")
+
+    validation = visual.get("validation")
+    if not isinstance(validation, dict):
+        fail("visual.validation is required")
+    classes = validation.get("majorRoadClasses")
+    allowed = {
+        "motorway", "trunk", "primary", "secondary",
+        "motorway_link", "trunk_link", "primary_link", "secondary_link",
+    }
+    if (
+        not isinstance(classes, list)
+        or not classes
+        or any(not isinstance(item, str) or item not in allowed for item in classes)
+        or len(classes) != len(set(classes))
+    ):
+        fail("visual.validation.majorRoadClasses must be a unique non-empty supported class list")
+    try:
+        tolerance = float(validation["borderToleranceMeters"])
+    except (KeyError, TypeError, ValueError):
+        fail("visual.validation.borderToleranceMeters must be numeric")
+    if not (0 <= tolerance <= 1000):
+        fail("visual.validation.borderToleranceMeters must be from 0 to 1000")
+
+    if isinstance(routing, dict) and routing.get("enabled") is True:
+        routing_source = routing.get("source")
+        if not isinstance(routing_source, dict):
+            fail("routing.source is required when visual is enabled")
+        routing_primary = str(routing_source.get("primaryGeofabrikId") or "")
+        if routing_primary != primary_id:
+            fail("visual primary Geofabrik id must match routing primary Geofabrik id")
+        pbfs = routing_source.get("pbfs")
+        match = next(
+            (
+                item for item in (pbfs or [])
+                if isinstance(item, dict) and str(item.get("id") or "") == primary_id
+            ),
+            None,
+        )
+        if match is None or str(match.get("url") or "") != url:
+            fail("visual source URL must match the routing primary PBF URL")
+        routing_polygon = str(routing_source.get("polygonUrl") or "")
+        if routing_polygon and routing_polygon != polygon_url:
+            fail("visual source polygonUrl must match the routing nominal polygon URL")
+    return True
+
+
 def validate_routing(routing) -> bool:
     if not isinstance(routing, dict) or routing.get("enabled") is not True:
         return False
@@ -163,7 +244,8 @@ def main() -> None:
 
     overture_enabled = validate_overture(config.get("overture"))
     routing_enabled = validate_routing(config.get("routing"))
-    if not overture_enabled and not routing_enabled:
+    visual_enabled = validate_visual(config.get("visual"), config.get("routing"))
+    if not overture_enabled and not routing_enabled and not visual_enabled:
         fail("region config must enable at least one supported dataset")
 
     enabled = []
@@ -171,6 +253,8 @@ def main() -> None:
         enabled.append("overture")
     if routing_enabled:
         enabled.append("routing")
+    if visual_enabled:
+        enabled.append("visual")
     print(f"{region_id}: region config is valid ({', '.join(enabled)})")
 
 

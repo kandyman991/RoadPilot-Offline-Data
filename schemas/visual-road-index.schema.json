@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/visual-road-index-v1.json",
+  "title": "RoadPilot visual road coverage index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schemaVersion",
+    "regionId",
+    "packageVersion",
+    "sourceFingerprint",
+    "visualFingerprint",
+    "majorRoadClasses",
+    "borderToleranceMeters",
+    "sourceRoadCount",
+    "majorRoadCount",
+    "borderRoadCount",
+    "observedRoadCount",
+    "missingRoadCount",
+    "roads"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot-visual-road-index"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "regionId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "packageVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "visualFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "majorRoadClasses": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "motorway",
+          "trunk",
+          "primary",
+          "secondary",
+          "motorway_link",
+          "trunk_link",
+          "primary_link",
+          "secondary_link"
+        ]
+      }
+    },
+    "borderToleranceMeters": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1000
+    },
+    "sourceRoadCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "majorRoadCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "borderRoadCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "observedRoadCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "missingRoadCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "roads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "osmWayId",
+          "highway",
+          "name",
+          "ref",
+          "categories",
+          "presentInVisual"
+        ],
+        "properties": {
+          "osmWayId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "highway": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "categories": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "MAJOR",
+                "BORDER"
+              ]
+            }
+          },
+          "presentInVisual": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

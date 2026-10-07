@@ -86,3 +86,44 @@ M2 will turn this artifact contract into the real regional production pipeline w
 M3 will make Graph Studio display and compare the exact PMTiles files RoadPilot downloads.
 
 M4 will publish visual packs through the independent immutable R2 publication path.
+
+## Regional production lifecycle
+
+The regional production command is:
+
+```bash
+python tools/build_visual_region_pack.py \
+  --config config/regions/italy-nord-est.json \
+  --package-version 2026.10.07-1 \
+  --tilemaker-bin /path/to/tilemaker
+```
+
+It owns the full lifecycle:
+
+1. validate the region config;
+2. cache the configured primary visual PBF and nominal Geofabrik polygon;
+3. build/canonicalize the PMTiles artifact;
+4. extract source major/border roads from the same PBF;
+5. prove those OSM way IDs are present in the PMTiles transportation layer;
+6. attach the road-index SHA/counts to the visual manifest;
+7. validate the complete package again;
+8. atomically retain it under `dist/visual/<region>/<version>/`.
+
+Retained version directories are immutable. Reusing the same package version is refused.
+
+### Road coverage validation
+
+Each production visual pack has a `roadpilot-visual-road-index` containing the configured major road classes plus all source highways intersecting a configurable corridor around the nominal region boundary.
+
+The build fails when any required source road is missing from the generated visual PMTiles. The index is bound to both `sourceFingerprint` and `visualFingerprint`.
+
+### Refresh planning
+
+`tools/plan_visual_refresh.py` compares a retained build with the current source/profile/config and chooses the cheapest safe action:
+
+- `NONE` — source, profile and road-validation criteria still match;
+- `REVALIDATE_ROADS` — PMTiles can be retained but road-validation criteria changed or the road index is missing;
+- `REBUILD_PROFILE` — the tilemaker visual profile/toolchain changed;
+- `REBUILD_SOURCE` — the source PBF bytes/identity changed.
+
+Source changes outrank profile changes, which outrank road-only revalidation.

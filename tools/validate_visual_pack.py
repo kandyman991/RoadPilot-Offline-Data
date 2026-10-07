@@ -15,6 +15,7 @@ from visual_pack import VisualPackError, inspect_pmtiles, load_json_object
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SCHEMA = REPO_ROOT / "schemas" / "visual-pack-manifest.schema.json"
+ROAD_INDEX_SCHEMA = REPO_ROOT / "schemas" / "visual-road-index.schema.json"
 PROFILE_DIR = REPO_ROOT / "visual" / "tilemaker"
 FORBIDDEN_LAYERS = {"building", "poi", "poi_detail"}
 
@@ -71,6 +72,42 @@ def validate_schema(manifest: dict[str, Any], schema_path: Path) -> None:
             for error in errors[:20]
         )
         fail(f"Visual manifest schema validation failed:\n{detail}")
+
+
+def validate_road_index(manifest: dict[str, Any], manifest_path: Path) -> None:
+    descriptor = manifest.get("roadIndex")
+    if descriptor is None:
+        return
+    if not isinstance(descriptor, dict):
+        fail("roadIndex must be an object")
+    path = manifest_path.parent / str(descriptor.get("fileName") or "")
+    if not path.is_file():
+        fail(f"Visual road index does not exist: {path}")
+    actual_sha = sha256_file(path)
+    if actual_sha != descriptor.get("sha256"):
+        fail(
+            f"Visual road index SHA mismatch: manifest={descriptor.get('sha256')} actual={actual_sha}"
+        )
+    value = load_json_object(path, "visual road index")
+    schema = load_json_object(ROAD_INDEX_SCHEMA, "visual road index schema")
+    errors = sorted(
+        Draft202012Validator(schema).iter_errors(value),
+        key=lambda err: list(err.path),
+    )
+    if errors:
+        detail = "\n".join(
+            f"- {'.'.join(str(part) for part in error.path) or '<root>'}: {error.message}"
+            for error in errors[:20]
+        )
+        fail(f"Visual road index schema validation failed:\n{detail}")
+    for key in ("regionId", "packageVersion", "sourceFingerprint", "visualFingerprint"):
+        if value.get(key) != manifest.get(key):
+            fail(f"Visual road index {key} does not match manifest")
+    for key in ("sourceRoadCount", "majorRoadCount", "borderRoadCount", "missingRoadCount"):
+        if value.get(key) != descriptor.get(key):
+            fail(f"Visual road index {key} summary does not match manifest")
+    if value.get("missingRoadCount") != 0:
+        fail("Visual road index reports missing required roads")
 
 
 def approx_equal(a: float, b: float, tolerance: float = 1e-7) -> bool:
@@ -193,6 +230,8 @@ def main() -> int:
             "Generated PMTiles contains forbidden dense layers: "
             + ", ".join(forbidden_archive)
         )
+
+    validate_road_index(manifest, args.manifest.resolve())
 
     print(
         f"valid visual pack: {manifest['regionId']} {manifest['packageVersion']} "

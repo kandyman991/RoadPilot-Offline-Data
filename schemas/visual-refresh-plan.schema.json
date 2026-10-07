@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/visual-refresh-plan-v1.json",
+  "title": "RoadPilot visual refresh plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "regionId",
+    "packageVersion",
+    "status",
+    "action",
+    "reasons",
+    "source",
+    "profile",
+    "roadValidation"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot.visual-refresh-plan"
+    },
+    "version": {
+      "const": 1
+    },
+    "regionId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "packageVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "CURRENT",
+        "STALE"
+      ]
+    },
+    "action": {
+      "enum": [
+        "NONE",
+        "REVALIDATE_ROADS",
+        "REBUILD_PROFILE",
+        "REBUILD_SOURCE"
+      ]
+    },
+    "reasons": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boundFingerprint",
+        "currentFingerprint",
+        "matches"
+      ],
+      "properties": {
+        "boundFingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "currentFingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "matches": {
+          "type": "boolean"
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boundFingerprint",
+        "currentFingerprint",
+        "matches"
+      ],
+      "properties": {
+        "boundFingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "currentFingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "matches": {
+          "type": "boolean"
+        }
+      }
+    },
+    "roadValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "present",
+        "criteriaMatch",
+        "majorRoadClasses",
+        "borderToleranceMeters"
+      ],
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "criteriaMatch": {
+          "type": "boolean"
+        },
+        "majorRoadClasses": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "borderToleranceMeters": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      }
+    }
+  }
+}

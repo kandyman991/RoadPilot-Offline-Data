@@ -283,8 +283,8 @@ Cloudflare R2 is not connected to a real bucket yet; live credentials have not b
 Build and inspect the exact lightweight RoadPilot offline visual package independently from routing and POI/search artifacts.
 
 Milestones:
-- M1 — PMTiles v3 artifact/profile/toolchain contract plus deterministic real-artifact validation — active;
-- M2 — real regional source/cache/build pipeline, road-content validation and visual rebuild lifecycle;
+- M1 — PMTiles v3 artifact/profile/toolchain contract plus deterministic real-artifact validation — merged in PR #43;
+- M2 — real regional source/cache/build pipeline, road-content validation and visual rebuild lifecycle — active;
 - M3 — Graph Studio exact-PMTiles rendering, online-reference comparison, layer toggles and visual-build diff;
 - M4 — independent immutable R2 visual publication.
 
