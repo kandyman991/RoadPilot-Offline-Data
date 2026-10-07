@@ -57,6 +57,221 @@ jobs:
             python tools/validate_region_config.py --config "$file"
           done
 
+      - name: Smoke-test immutable publication contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/publication-contract"
+          store="$root/store"
+          mkdir -p "$root" "$store"
+
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import tarfile
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "publication-contract"
+
+          def sha(path):
+              h = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      h.update(chunk)
+              return h.hexdigest()
+
+          def make(version, payload, folder=None):
+              folder = root / (folder or version)
+              folder.mkdir(parents=True, exist_ok=True)
+              package_name = f"region-a-{version}.tar"
+              manifest_name = f"region-a-{version}-manifest.json"
+              graph_index_name = f"region-a-{version}-graph-index.json"
+              package = folder / package_name
+
+              tile = folder / "0.gph"
+              index = folder / "index.bin"
+              tile.write_bytes(payload)
+              index.write_bytes(b"index-" + payload)
+              with tarfile.open(package, "w") as archive:
+                  archive.add(tile, arcname="0/0/0.gph")
+                  archive.add(index, arcname="index.bin")
+              tile.unlink()
+              index.unlink()
+
+              package_sha = sha(package)
+              graph_index = {
+                  "schema": "roadpilot-graph-index",
+                  "schemaVersion": 1,
+                  "regionId": "region-a",
+                  "packageVersion": version,
+                  "graphTileFingerprint": "sha256:" + "1" * 64,
+                  "internalFingerprint": "sha256:" + "2" * 64,
+                  "tileCount": 1,
+                  "boundaries": [],
+                  "tiles": [],
+              }
+              graph_index_path = folder / graph_index_name
+              graph_index_path.write_text(json.dumps(graph_index, indent=2) + "\n")
+              graph_index_sha = sha(graph_index_path)
+
+              manifest = {
+                  "schema": "roadpilot-routing-pack",
+                  "schemaVersion": 1,
+                  "regionId": "region-a",
+                  "regionName": "Region A",
+                  "packageVersion": version,
+                  "builtAtUtc": f"2026-10-07T00:00:0{len(payload) % 10}Z",
+                  "valhallaVersion": "3.6.3",
+                  "graphFingerprint": "sha256:" + package_sha,
+                  "source": {
+                      "primaryGeofabrikId": "country/region-a",
+                      "polygonUrl": "https://example.invalid/region-a.poly",
+                      "borderBufferKm": 25,
+                      "bufferGeoJsonSha256": "3" * 64,
+                      "pbfs": [{
+                          "id": "country/region-a",
+                          "url": "https://example.invalid/region-a.osm.pbf",
+                          "sizeBytes": 123,
+                          "sha256": "4" * 64,
+                      }],
+                  },
+                  "artifact": {
+                      "fileName": package_name,
+                      "sizeBytes": package.stat().st_size,
+                      "sha256": package_sha,
+                      "tileCount": 1,
+                  },
+                  "graphIndex": {
+                      "fileName": graph_index_name,
+                      "sha256": graph_index_sha,
+                      "graphTileFingerprint": graph_index["graphTileFingerprint"],
+                      "internalFingerprint": graph_index["internalFingerprint"],
+                      "boundaryFingerprints": {},
+                  },
+                  "validation": {
+                      "routes": [
+                          {"name": "interior", "kind": "interior", "passed": True},
+                          {"name": "border", "kind": "border", "passed": True},
+                      ]
+                  },
+              }
+              manifest_path = folder / manifest_name
+              manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+              (folder / f"{package_name}.sha256").write_text(
+                  f"{package_sha}  {package_name}\n"
+              )
+              return manifest_path
+
+          make("2026.10.07-1", b"release-one")
+          make("2026.10.07-2", b"poisoned-version")
+          make("2026.10.07-3", b"release-three")
+          # Same immutable v1 keys but different bytes: must never overwrite v1.
+          make("2026.10.07-1", b"conflicting-v1", folder="conflict-v1")
+          PY
+
+          for version in 2026.10.07-1 2026.10.07-2 2026.10.07-3; do
+            python tools/prepare_routing_publication.py \
+              --manifest "$root/$version/region-a-$version-manifest.json" \
+              --output "$root/$version-plan.json"
+            python tools/validate_publication_plan.py \
+              --plan "$root/$version-plan.json"
+          done
+
+          python tools/prepare_routing_publication.py \
+            --manifest "$root/conflict-v1/region-a-2026.10.07-1-manifest.json" \
+            --output "$root/conflict-v1-plan.json"
+          python tools/validate_publication_plan.py --plan "$root/conflict-v1-plan.json"
+
+          # Publish v1, then repeat exactly: the second pass must be idempotent.
+          python tools/apply_publication_plan_local.py \
+            --plan "$root/2026.10.07-1-plan.json" \
+            --store-root "$store" \
+            --report "$root/apply-v1.json"
+          cp "$store/routing/region-a/latest.json" "$root/latest-after-v1.json"
+
+          python tools/apply_publication_plan_local.py \
+            --plan "$root/2026.10.07-1-plan.json" \
+            --store-root "$store" \
+            --report "$root/apply-v1-retry.json"
+          cmp "$root/latest-after-v1.json" "$store/routing/region-a/latest.json"
+
+          # Same version/key with different bytes is forbidden and cannot move latest.
+          if python tools/apply_publication_plan_local.py \
+            --plan "$root/conflict-v1-plan.json" \
+            --store-root "$store"; then
+            echo "Expected immutable v1 overwrite to be refused" >&2
+            exit 1
+          fi
+          cmp "$root/latest-after-v1.json" "$store/routing/region-a/latest.json"
+
+          # Seed a conflicting v2 manifest object. The publisher may stage earlier
+          # immutable objects, but latest must remain v1 because confirmation fails.
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "publication-contract"
+          plan = json.loads((root / "2026.10.07-2-plan.json").read_text())
+          manifest_object = next(
+              item for item in plan["sourceObjects"] if item["role"] == "MANIFEST"
+          )
+          target = root / "store" / manifest_object["key"]
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_text("conflicting immutable manifest\n")
+          PY
+
+          if python tools/apply_publication_plan_local.py \
+            --plan "$root/2026.10.07-2-plan.json" \
+            --store-root "$store"; then
+            echo "Expected partial v2 publication to fail" >&2
+            exit 1
+          fi
+          cmp "$root/latest-after-v1.json" "$store/routing/region-a/latest.json"
+          test ! -f "$store/routing/region-a/2026.10.07-2/release.json"
+
+          # A clean new version can publish and advance latest.
+          python tools/apply_publication_plan_local.py \
+            --plan "$root/2026.10.07-3-plan.json" \
+            --store-root "$store" \
+            --report "$root/apply-v3.json"
+
+          # Roll back latest to the immutable v1 release without deleting v3.
+          python tools/activate_publication_release_local.py \
+            --store-root "$store" \
+            --release-key "routing/region-a/2026.10.07-1/release.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "publication-contract"
+          store = root / "store"
+
+          retry = json.loads((root / "apply-v1-retry.json").read_text())
+          assert all(item["state"] == "ALREADY_PRESENT" for item in retry["objectResults"])
+          assert retry["release"]["state"] == "ALREADY_PRESENT"
+
+          latest = json.loads((store / "routing/region-a/latest.json").read_text())
+          assert latest["packageVersion"] == "2026.10.07-1"
+          assert latest["releaseKey"] == "routing/region-a/2026.10.07-1/release.json"
+
+          v1 = store / "routing/region-a/2026.10.07-1/release.json"
+          v3 = store / "routing/region-a/2026.10.07-3/release.json"
+          assert v1.is_file()
+          assert v3.is_file()
+          release1 = json.loads(v1.read_text())
+          release3 = json.loads(v3.read_text())
+          assert release1["packageVersion"] == "2026.10.07-1"
+          assert release3["packageVersion"] == "2026.10.07-3"
+          assert any(obj["role"] == "GRAPH_INDEX" for obj in release1["objects"])
+          assert not (store / "routing/region-a/2026.10.07-2/release.json").exists()
+
+          print("immutable publication contract smoke test passed")
+          PY
+
       - name: Smoke-test Geofabrik Graph Studio discovery
         shell: bash
         run: |
