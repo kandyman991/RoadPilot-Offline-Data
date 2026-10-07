@@ -71,6 +71,38 @@ type VisualBuildArtifact = {
   missing_road_count: number;
 };
 
+type SearchBuildArtifact = {
+  region_id: string;
+  version: string;
+  built_at_utc: string;
+  database_file: string;
+  database_path: string;
+  size_bytes: number;
+  sha256: string;
+  record_count: number;
+  categorized_record_count: number;
+  source_release: string;
+  source_fingerprint: string;
+  search_fingerprint: string;
+  manifest_path: string;
+  validation_passed: boolean;
+};
+type SearchResult = {
+  id: string; title: string; address: string; latitude: number; longitude: number;
+  confidence: number; freeform: string; postcode: string; locality: string; region: string; country: string;
+  operatingStatus: string; basicCategory: string; taxonomyPrimary: string; taxonomyHierarchy: string[];
+  taxonomyAlternates: string[]; sourceProvider: string; sourceDataset: string; sourceRecordId: string;
+  sourceVersion: string; distanceMeters: number | null; score: number; scoreConfidence: number; scoreExact: number;
+  scorePrefix: number; scoreContains: number; scoreBrandFirst: number; scoreTokenMatches: number; scoreCategory: number; scoreProximity: number;
+};
+type SearchBuildComparison = {
+  placeCountA: number; placeCountB: number; placeCountDelta: number;
+  categorizedPlaceCountA: number; categorizedPlaceCountB: number;
+  addedCount: number; removedCount: number; changedCount: number;
+  addedIds: string[]; removedIds: string[]; changedIds: string[];
+  categoryDeltas: Array<{category:string;a:number;b:number;delta:number}>;
+};
+
 type PublicationKind = "ROUTING" | "VISUAL";
 type PublicationTarget = {
   artifactKind: PublicationKind;
@@ -523,6 +555,24 @@ app.innerHTML = `
         </div>
       </section>
       <section class="section">
+        <h2>Search / POI inspector</h2>
+        <div class="field"><label for="searchBuildSelect">Retained search build</label><select id="searchBuildSelect"></select></div>
+        <div id="searchBuildSummary" class="empty">No retained search build selected.</div>
+        <div class="field"><label for="searchQuery">Name / phrase / address</label><input id="searchQuery" autocomplete="off" placeholder="SARP, hotel, Via Roma…" /></div>
+        <div class="field"><label for="searchCategory">Category</label><input id="searchCategory" list="searchCategoryPresets" autocomplete="off" placeholder="gas station" /></div>
+        <datalist id="searchCategoryPresets"><option value="gas station"></option><option value="restaurant"></option><option value="hotel"></option><option value="parking"></option><option value="charging station"></option><option value="hospital"></option><option value="motorcycle dealer"></option><option value="shop"></option><option value="attraction"></option></datalist>
+        <label class="check-row"><input id="searchUseMapCenter" type="checkbox" checked /> Rank relative to current map center</label>
+        <div class="actions"><button id="runSearchBtn" class="btn primary" type="button">Search exact DB</button><button id="clearSearchBtn" class="btn" type="button">Clear</button></div>
+        <div id="searchResultsSummary" class="empty" style="margin-top:8px">Choose a retained search build.</div>
+        <div id="searchResults" class="search-results"></div>
+        <details class="route-options" style="margin-top:10px"><summary>Compare retained search builds</summary>
+          <div class="field"><label for="searchCompareA">Build A</label><select id="searchCompareA"></select></div>
+          <div class="field"><label for="searchCompareB">Build B</label><select id="searchCompareB"></select></div>
+          <div class="actions"><button id="compareSearchBtn" class="btn" type="button">Compare</button></div>
+          <pre id="searchCompareSummary" class="feature-json">Choose two builds of the same region.</pre>
+        </details>
+      </section>
+      <section class="section">
         <h2>Visual map inspector</h2>
         <div class="field">
           <label for="visualBuildSelect">RoadPilot visual build</label>
@@ -782,6 +832,19 @@ const publicationVersionSummary = document.querySelector<HTMLDivElement>("#publi
 const publicationProgress = document.querySelector<HTMLDivElement>("#publicationProgress")!;
 const publicationProgressText = document.querySelector<HTMLDivElement>("#publicationProgressText")!;
 const publicationHistory = document.querySelector<HTMLDivElement>("#publicationHistory")!;
+const searchBuildSelect = document.querySelector<HTMLSelectElement>("#searchBuildSelect")!;
+const searchBuildSummary = document.querySelector<HTMLDivElement>("#searchBuildSummary")!;
+const searchQuery = document.querySelector<HTMLInputElement>("#searchQuery")!;
+const searchCategory = document.querySelector<HTMLInputElement>("#searchCategory")!;
+const searchUseMapCenter = document.querySelector<HTMLInputElement>("#searchUseMapCenter")!;
+const runSearchBtn = document.querySelector<HTMLButtonElement>("#runSearchBtn")!;
+const clearSearchBtn = document.querySelector<HTMLButtonElement>("#clearSearchBtn")!;
+const searchResultsSummary = document.querySelector<HTMLDivElement>("#searchResultsSummary")!;
+const searchResults = document.querySelector<HTMLDivElement>("#searchResults")!;
+const searchCompareA = document.querySelector<HTMLSelectElement>("#searchCompareA")!;
+const searchCompareB = document.querySelector<HTMLSelectElement>("#searchCompareB")!;
+const compareSearchBtn = document.querySelector<HTMLButtonElement>("#compareSearchBtn")!;
+const searchCompareSummary = document.querySelector<HTMLPreElement>("#searchCompareSummary")!;
 const visualBuildSelect = document.querySelector<HTMLSelectElement>("#visualBuildSelect")!;
 const loadVisualBuildBtn = document.querySelector<HTMLButtonElement>("#loadVisualBuildBtn")!;
 const fitVisualBuildBtn = document.querySelector<HTMLButtonElement>("#fitVisualBuildBtn")!;
@@ -846,6 +909,8 @@ const comparison = document.querySelector<HTMLDivElement>("#comparison")!;
 let regions: RegionSummary[] = [];
 let artifacts: BuildArtifact[] = [];
 let visualArtifacts: VisualBuildArtifact[] = [];
+let searchArtifacts: SearchBuildArtifact[] = [];
+let currentSearchResults: SearchResult[] = [];
 let geofabrikCatalog: GeofabrikCatalogItem[] = [];
 let editorPreview: RegionPreview | null = null;
 let editorExistingConfig: Record<string, unknown> | null = null;
@@ -3226,6 +3291,68 @@ function renderVisualBuildSummary(build: VisualBuildArtifact | null): void {
   `;
 }
 
+function formatSearchBuild(build: SearchBuildArtifact): string {
+  return `${build.region_id} • ${build.version} • ${build.record_count.toLocaleString()} places`;
+}
+function selectedSearchBuild(): SearchBuildArtifact | null {
+  const [regionId, version] = searchBuildSelect.value.split("::");
+  return searchArtifacts.find(v => v.region_id === regionId && v.version === version) ?? null;
+}
+function renderSearchBuilds(): void {
+  const previous = searchBuildSelect.value;
+  const options = searchArtifacts.map(v => `<option value="${escapeHtml(v.region_id)}::${escapeHtml(v.version)}">${escapeHtml(formatSearchBuild(v))}</option>`).join("");
+  searchBuildSelect.innerHTML = options || '<option value="">No retained search builds</option>';
+  if ([...searchBuildSelect.options].some(v => v.value === previous)) searchBuildSelect.value = previous;
+  const compare = '<option value="">Choose build…</option>' + options;
+  searchCompareA.innerHTML = compare; searchCompareB.innerHTML = compare;
+  renderSearchBuildSummary();
+}
+function renderSearchBuildSummary(): void {
+  const build = selectedSearchBuild();
+  if (!build) { searchBuildSummary.className="empty"; searchBuildSummary.textContent="No retained search build selected."; runSearchBtn.disabled=true; return; }
+  runSearchBtn.disabled=false;
+  searchBuildSummary.className = build.validation_passed ? "ok" : "bad";
+  searchBuildSummary.textContent = `${build.version} • ${(build.size_bytes/1048576).toFixed(1)} MB • ${build.record_count.toLocaleString()} places • ${build.categorized_record_count.toLocaleString()} categorized • Overture ${build.source_release} • validation ${build.validation_passed ? "passed" : "FAILED"}`;
+}
+async function refreshSearchBuilds(): Promise<void> {
+  searchArtifacts = await invoke<SearchBuildArtifact[]>("list_search_builds");
+  renderSearchBuilds();
+}
+function clearSearchOverlay(): void {
+  currentSearchResults=[]; searchResults.innerHTML="";
+  if (map.getLayer("search-poi-labels")) map.removeLayer("search-poi-labels");
+  if (map.getLayer("search-poi-points")) map.removeLayer("search-poi-points");
+  if (map.getSource("search-poi-results")) map.removeSource("search-poi-results");
+}
+function renderSearchOverlay(results: SearchResult[]): void {
+  clearSearchOverlay(); currentSearchResults=results;
+  const geojson: FeatureCollection = {type:"FeatureCollection",features:results.map((r,i)=>({type:"Feature",geometry:{type:"Point",coordinates:[r.longitude,r.latitude]},properties:{index:i,title:r.title,category:r.basicCategory || r.taxonomyPrimary,score:r.score}}))};
+  map.addSource("search-poi-results",{type:"geojson",data:geojson});
+  map.addLayer({id:"search-poi-points",type:"circle",source:"search-poi-results",paint:{"circle-radius":7,"circle-stroke-width":2,"circle-stroke-color":"#fff"}});
+  map.addLayer({id:"search-poi-labels",type:"symbol",source:"search-poi-results",layout:{"text-field":["get","title"],"text-size":11,"text-offset":[0,1.2],"text-anchor":"top"}});
+}
+async function runSearchWorkspace(): Promise<void> {
+  const build=selectedSearchBuild(); if(!build) return;
+  if(!searchQuery.value.trim() && !searchCategory.value.trim()){ searchResultsSummary.className="bad"; searchResultsSummary.textContent="Enter a query and/or category."; return; }
+  runSearchBtn.disabled=true; searchResultsSummary.className="empty"; searchResultsSummary.textContent="Searching exact retained SQLite artifact…";
+  try {
+    const center=searchUseMapCenter.checked ? map.getCenter() : null;
+    const results=await invoke<SearchResult[]>("search_retained_build",{regionId:build.region_id,version:build.version,query:searchQuery.value,category:searchCategory.value,originLat:center?.lat ?? null,originLng:center?.lng ?? null,limit:50});
+    renderSearchOverlay(results);
+    searchResultsSummary.className=results.length ? "ok" : "empty"; searchResultsSummary.textContent=`${results.length} result(s) from ${build.database_file}`;
+    searchResults.innerHTML=results.map((r,i)=>`<button class="search-result" type="button" data-search-result="${i}"><strong>${i+1}. ${escapeHtml(r.title)}</strong><span>${escapeHtml(r.address || [r.locality,r.region,r.country].filter(Boolean).join(", "))}</span><span>${escapeHtml(r.basicCategory || r.taxonomyPrimary || "uncategorized")} • score ${r.score}${r.distanceMeters==null?"":` • ${Math.round(r.distanceMeters)} m`}</span><small>text exact ${r.scoreExact}, prefix ${r.scorePrefix}, contains ${r.scoreContains}, tokens ${r.scoreTokenMatches}, category ${r.scoreCategory}, proximity ${r.scoreProximity}, confidence ${r.scoreConfidence}</small></button>`).join("");
+  } catch(error){ searchResultsSummary.className="bad"; searchResultsSummary.textContent=`Search failed: ${String(error)}`; clearSearchOverlay(); }
+  finally { runSearchBtn.disabled=false; }
+}
+async function compareSearchWorkspace(): Promise<void> {
+  const [ra,va]=searchCompareA.value.split("::"), [rb,vb]=searchCompareB.value.split("::");
+  if(!ra || !rb || ra!==rb || va===vb){ searchCompareSummary.textContent="Choose two different builds of the same region."; return; }
+  compareSearchBtn.disabled=true; searchCompareSummary.textContent="Comparing exact retained SQLite artifacts…";
+  try { const result=await invoke<SearchBuildComparison>("compare_search_builds",{regionId:ra,versionA:va,versionB:vb}); searchCompareSummary.textContent=JSON.stringify(result,null,2); }
+  catch(error){ searchCompareSummary.textContent=`Comparison failed: ${String(error)}`; }
+  finally{ compareSearchBtn.disabled=false; }
+}
+
 async function refreshVisualBuilds(): Promise<void> {
   visualArtifacts = await invoke<VisualBuildArtifact[]>("list_visual_builds");
   renderVisualBuildSelectors();
@@ -3531,6 +3658,14 @@ visualBuildSelect.addEventListener("change", () => {
   fitVisualBuildBtn.disabled = build == null;
   renderVisualBuildSummary(build);
 });
+searchBuildSelect.addEventListener("change", renderSearchBuildSummary);
+runSearchBtn.addEventListener("click", () => void runSearchWorkspace());
+searchQuery.addEventListener("keydown", event => { if(event.key==="Enter") void runSearchWorkspace(); });
+searchCategory.addEventListener("keydown", event => { if(event.key==="Enter") void runSearchWorkspace(); });
+clearSearchBtn.addEventListener("click", () => { searchQuery.value=""; searchCategory.value=""; clearSearchOverlay(); searchResultsSummary.className="empty"; searchResultsSummary.textContent="Search cleared."; });
+compareSearchBtn.addEventListener("click", () => void compareSearchWorkspace());
+searchResults.addEventListener("click", event => { const target=(event.target as HTMLElement).closest<HTMLElement>("[data-search-result]"); if(!target) return; const result=currentSearchResults[Number(target.dataset.searchResult)]; if(!result) return; map.flyTo({center:[result.longitude,result.latitude],zoom:16}); featureJson.textContent=JSON.stringify(result,null,2); });
+
 loadVisualBuildBtn.addEventListener("click", () => {
   const build = selectedVisualBuild();
   if (!build) return;
@@ -3890,6 +4025,7 @@ async function bootstrap(): Promise<void> {
     if (!event.payload.running) {
       refreshBuilds().catch(() => {});
       refreshVisualBuilds().catch(() => {});
+      refreshSearchBuilds().catch(() => {});
     }
   });
   await listen<PublicationStatus>("graph-studio://publication-status", event => {
@@ -3908,6 +4044,7 @@ async function bootstrap(): Promise<void> {
     refreshBuildStatus(),
     refreshBuilds(),
     refreshVisualBuilds(),
+    refreshSearchBuilds(),
     refreshHandoffOverrides(),
     refreshStats(),
     refreshR2CredentialStatus(),

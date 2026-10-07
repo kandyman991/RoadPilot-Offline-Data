@@ -151,6 +151,25 @@ struct R2CredentialFile {
     endpoint_url: Option<String>,
 }
 
+
+#[derive(Debug, Clone, Serialize)]
+struct SearchBuildArtifact {
+    region_id: String,
+    version: String,
+    built_at_utc: String,
+    database_file: String,
+    database_path: String,
+    size_bytes: u64,
+    sha256: String,
+    record_count: u64,
+    categorized_record_count: u64,
+    source_release: String,
+    source_fingerprint: String,
+    search_fingerprint: String,
+    manifest_path: String,
+    validation_passed: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct R2CredentialStatus {
@@ -489,6 +508,64 @@ fn visual_dist_dir(app: &AppHandle) -> Result<PathBuf, String> {
     fs::create_dir_all(&path)
         .map_err(|e| format!("Could not create visual build directory: {e}"))?;
     Ok(path)
+}
+
+fn search_build_roots(app: &AppHandle) -> Result<Vec<PathBuf>, String> {
+    let mut roots = vec![workspace_root(app)?.join("search-builds")];
+    if let Ok(pipeline) = pipeline_root(app) {
+        roots.push(pipeline.join("dist/search"));
+    }
+    roots.sort();
+    roots.dedup();
+    Ok(roots)
+}
+
+fn safe_search_component(value: &str, label: &str) -> Result<(), String> {
+    if value.trim().is_empty() || value == "." || value == ".." || value.contains('/') || value.contains('\\') || value.contains("..") {
+        return Err(format!("Unsafe {label}: {value:?}"));
+    }
+    Ok(())
+}
+
+fn load_search_build(app: &AppHandle, region_id: &str, version: &str) -> Result<(SearchBuildArtifact, PathBuf), String> {
+    safe_search_component(region_id, "region id")?;
+    safe_search_component(version, "search version")?;
+    for root in search_build_roots(app)? {
+        let dir = root.join(region_id).join(version);
+        if !dir.is_dir() { continue; }
+        let Ok(entries) = fs::read_dir(&dir) else { continue; };
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if path.extension().and_then(|v| v.to_str()) != Some("json") { continue; }
+            let Ok(text) = fs::read_to_string(&path) else { continue; };
+            let Ok(doc) = serde_json::from_str::<Value>(&text) else { continue; };
+            if doc.get("schema").and_then(Value::as_str) != Some("roadpilot-search-pack") { continue; }
+            if doc.get("regionId").and_then(Value::as_str) != Some(region_id) || doc.get("packVersion").and_then(Value::as_str) != Some(version) { continue; }
+            let file_name = doc.get("fileName").and_then(Value::as_str).ok_or("Search manifest missing fileName.")?;
+            let db = dir.join(file_name);
+            if !db.is_file() { return Err(format!("Search database missing: {}", db.display())); }
+            let enrichment = doc.get("enrichment").cloned().unwrap_or(Value::Null);
+            let source = doc.get("source").cloned().unwrap_or(Value::Null);
+            let artifact = SearchBuildArtifact {
+                region_id: region_id.to_string(),
+                version: version.to_string(),
+                built_at_utc: doc.get("builtAtUtc").and_then(Value::as_str).unwrap_or_default().to_string(),
+                database_file: file_name.to_string(),
+                database_path: db.display().to_string(),
+                size_bytes: doc.get("sizeBytes").and_then(Value::as_u64).unwrap_or_else(|| fs::metadata(&db).map(|m| m.len()).unwrap_or(0)),
+                sha256: doc.get("sha256").and_then(Value::as_str).unwrap_or_default().to_string(),
+                record_count: doc.get("recordCount").and_then(Value::as_u64).unwrap_or(0),
+                categorized_record_count: enrichment.get("categorizedRecordCount").and_then(Value::as_u64).unwrap_or(0),
+                source_release: source.get("dataRelease").and_then(Value::as_str).unwrap_or_default().to_string(),
+                source_fingerprint: doc.get("sourceFingerprint").and_then(Value::as_str).unwrap_or_default().to_string(),
+                search_fingerprint: doc.get("searchFingerprint").and_then(Value::as_str).unwrap_or_default().to_string(),
+                manifest_path: path.display().to_string(),
+                validation_passed: doc.pointer("/validation/passed").and_then(Value::as_bool) == Some(true),
+            };
+            return Ok((artifact, db));
+        }
+    }
+    Err(format!("Retained search build not found: {region_id} {version}"))
 }
 
 fn python_env_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -1364,6 +1441,75 @@ fn list_builds(app: AppHandle) -> Result<Vec<BuildArtifact>, String> {
     Ok(result)
 }
 
+
+#[tauri::command]
+fn list_search_builds(app: AppHandle) -> Result<Vec<SearchBuildArtifact>, String> {
+    let mut result = Vec::new();
+    for root in search_build_roots(&app)? {
+        let Ok(regions) = fs::read_dir(&root) else { continue; };
+        for region in regions.filter_map(Result::ok) {
+            let region_id = region.file_name().to_string_lossy().to_string();
+            let Ok(versions) = fs::read_dir(region.path()) else { continue; };
+            for version in versions.filter_map(Result::ok) {
+                let version_name = version.file_name().to_string_lossy().to_string();
+                if let Ok((artifact, _)) = load_search_build(&app, &region_id, &version_name) {
+                    result.push(artifact);
+                }
+            }
+        }
+    }
+    result.sort_by(|a, b| a.region_id.cmp(&b.region_id).then_with(|| b.built_at_utc.cmp(&a.built_at_utc)).then_with(|| b.version.cmp(&a.version)));
+    result.dedup_by(|a, b| a.region_id == b.region_id && a.version == b.version);
+    Ok(result)
+}
+
+#[tauri::command]
+fn search_retained_build(
+    app: AppHandle,
+    region_id: String,
+    version: String,
+    query: String,
+    category: String,
+    origin_lat: Option<f64>,
+    origin_lng: Option<f64>,
+    limit: Option<u32>,
+) -> Result<Value, String> {
+    let (_artifact, database) = load_search_build(&app, &region_id, &version)?;
+    let python = ensure_python_env(&app)?;
+    let tool = pipeline_root(&app)?.join("tools/roadpilot_search_v2.py");
+    let mut command = Command::new(&python);
+    command.arg(tool).arg("--database").arg(database);
+    if !query.trim().is_empty() { command.arg("--query").arg(query.trim()); }
+    if !category.trim().is_empty() { command.arg("--category").arg(category.trim()); }
+    if let (Some(lat), Some(lng)) = (origin_lat, origin_lng) {
+        command.arg("--origin-lat").arg(lat.to_string()).arg("--origin-lng").arg(lng.to_string());
+    }
+    command.arg("--limit").arg(limit.unwrap_or(50).clamp(1, 50).to_string()).arg("--json");
+    let output = command.output().map_err(|e| format!("Could not run RoadPilot search runtime: {e}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    serde_json::from_slice(&output.stdout).map_err(|e| format!("Search runtime returned invalid JSON: {e}"))
+}
+
+#[tauri::command]
+fn compare_search_builds(
+    app: AppHandle,
+    region_id: String,
+    version_a: String,
+    version_b: String,
+) -> Result<Value, String> {
+    let (_a, db_a) = load_search_build(&app, &region_id, &version_a)?;
+    let (_b, db_b) = load_search_build(&app, &region_id, &version_b)?;
+    let python = ensure_python_env(&app)?;
+    let tool = pipeline_root(&app)?.join("tools/compare_search_builds.py");
+    let output = Command::new(&python).arg(tool).arg("--a").arg(db_a).arg("--b").arg(db_b)
+        .output().map_err(|e| format!("Could not compare search builds: {e}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    serde_json::from_slice(&output.stdout).map_err(|e| format!("Search comparison returned invalid JSON: {e}"))
+}
 
 #[tauri::command]
 fn list_visual_builds(app: AppHandle) -> Result<Vec<VisualBuildArtifact>, String> {
@@ -3946,6 +4092,9 @@ pub fn run() {
             cancel_build,
             list_builds,
             list_visual_builds,
+            list_search_builds,
+            search_retained_build,
+            compare_search_builds,
             visual_archive_range,
             r2_credential_status,
             save_r2_credentials,
