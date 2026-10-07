@@ -134,10 +134,20 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--plan-a", required=True, type=Path)
     parser.add_argument("--plan-b", required=True, type=Path)
+    parser.add_argument(
+        "--independent-plan",
+        type=Path,
+        help="Optional plan using a different namespace/latest pointer, e.g. VISUAL.",
+    )
     args = parser.parse_args()
 
     plan_a = validate_plan_file(args.plan_a.resolve())
     plan_b = validate_plan_file(args.plan_b.resolve())
+    independent = (
+        validate_plan_file(args.independent_plan.resolve())
+        if args.independent_plan is not None
+        else None
+    )
     if plan_a["latestKey"] != plan_b["latestKey"]:
         raise SystemExit("smoke plans must target the same latest pointer")
     if plan_a["releaseKey"] == plan_b["releaseKey"]:
@@ -192,6 +202,31 @@ def main() -> int:
     assert rollback["latest"]["packageVersion"] == plan_a["release"]["packageVersion"]
     assert latest(client, plan_a["latestKey"])["packageVersion"] == plan_a["release"]["packageVersion"]
     assert plan_b["releaseKey"] in client.objects
+
+    if independent is not None:
+        if independent["latestKey"] == plan_a["latestKey"]:
+            raise AssertionError("independent plan must use a different latest pointer")
+        routing_latest_before = dict(latest(client, plan_a["latestKey"]))
+        independent_report = publish_plan(client, bucket, independent)
+        assert independent_report["artifactKind"] == independent["release"]["artifactKind"]
+        assert independent["releaseKey"] in client.objects
+        assert independent["latestKey"] in client.objects
+        assert latest(client, independent["latestKey"])["releaseKey"] == independent["releaseKey"]
+        assert latest(client, plan_a["latestKey"]) == routing_latest_before
+
+        independent_namespace = "/".join(
+            str(independent["release"]["immutablePrefix"]).split("/")[:-1]
+        )
+        independent_history = list_releases(client, bucket, independent_namespace)
+        assert {item["key"] for item in independent_history} == {independent["releaseKey"]}
+
+        independent_activation = activate_release(
+            client,
+            bucket,
+            release_key=independent["releaseKey"],
+        )
+        assert independent_activation["latestKey"] == independent["latestKey"]
+        assert latest(client, plan_a["latestKey"]) == routing_latest_before
 
     print("R2 publication backend smoke test passed")
     return 0
