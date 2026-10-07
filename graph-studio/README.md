@@ -27,8 +27,9 @@ At runtime Graph Studio uses:
 ```text
 ~/RoadPilotGraphStudio/
   work/       cached Geofabrik sources + unpacked build workspace
-  builds/     immutable routing TARs, manifests and checksums
-  visual-builds/ immutable PMTiles visual versions, manifests, checksums and road indexes
+  builds/         immutable routing TARs, manifests and checksums
+  visual-builds/  immutable PMTiles visual versions, manifests, checksums and road indexes
+  search-builds/  immutable Search/POI SQLite versions, manifests and checksums
 ```
 
 The Python virtual environment is stored in the application cache directory and prepared automatically on first build.
