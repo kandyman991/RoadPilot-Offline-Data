@@ -92,5 +92,27 @@
       }
     ],
     "expectedValhallaVersion": "3.6.3"
+  },
+  "visual": {
+    "enabled": true,
+    "source": {
+      "primaryGeofabrikId": "italy/nord-est",
+      "url": "https://download.geofabrik.de/europe/italy/nord-est-latest.osm.pbf"
+    },
+    "buildThreads": 4,
+    "package": {
+      "fileNameTemplate": "italy-nord-est-visual-{version}.pmtiles",
+      "manifestFileNameTemplate": "italy-nord-est-visual-{version}-manifest.json",
+      "roadIndexFileNameTemplate": "italy-nord-est-visual-{version}-road-index.json"
+    },
+    "validation": {
+      "majorRoadClasses": [
+        "motorway",
+        "trunk",
+        "primary",
+        "secondary"
+      ],
+      "borderToleranceMeters": 75
+    }
   }
 }
