@@ -26,9 +26,9 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Final completion of Graph Studio build-time cross-region connectivity metadata**, issue #26.
+**Issue #26 — build-time cross-region connectivity metadata — is completed.**
 
-Merged milestones:
+Completed delivery:
 - PRs #24-#25 — deterministic graph/boundary diffing;
 - PR #27 — fingerprint-bound region-pair foundation;
 - PR #28 — stable OSM frontier-road inventory;
@@ -36,21 +36,21 @@ Merged milestones:
 - PR #30 — lossless Graph A × Graph B candidate generation;
 - PR #31 — exact-edge plain-Valhalla motorcycle/auto proofs;
 - PR #32 — compact PROVEN-only runtime connectivity;
-- PR #33 — validated multi-hop region-chain composition.
+- PR #33 — validated multi-hop region-chain composition;
+- PR #34 — proven FASTER/SHORTER ranking, surgical graph/boundary refresh planning, and Graph Studio UNPROVEN/VALIDATED + CURRENT/STALE inspection.
 
-Current final branch: `connectivity-finalize-m8`.
+PR #34 exact head passed full repository validation, TypeScript and Rust compilation, AppImage/.deb packaging and artifact upload before merge.
 
-Final lifecycle work on this branch:
-- proven Valhalla route distance/time is promoted into runtime metadata only for supported mode/directions;
-- crossing alternatives and all simple valid region chains up to maxHops are ranked post-proof for FASTER or SHORTER;
-- graph-only fingerprint changes mark only affected pair metadata STALE with `REBIND_GRAPH`, preserving stable physical discovery;
-- relevant boundary fingerprint changes mark only that neighboring pair STALE with `REDISCOVER_BOUNDARY`;
-- missing current graphs are `UNRESOLVED` / `WAIT_FOR_GRAPH`, never guessed;
-- Graph Studio Border Inspector recognizes generated `roadpilot.crossing-candidates` and validated `roadpilot.runtime-connectivity` artifacts;
-- Graph Studio shows validation state separately from CURRENT/STALE and checks both exact graph and relevant boundary fingerprints for new artifacts;
-- F8 remains fallback for missing, stale, ambiguous, empty, or unchainable metadata.
+Legacy experimental PRs #5 and #6 are closed as superseded and must not be revived.
 
-This final branch does not reintroduce any legacy fixed-seam, F6, hard-heading, hard-separation, or graph-id-as-cross-build-identity experiments.
+Production connectivity architecture:
+- stable physical discovery is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;
+- graph-local correlation/proof evidence is valid only for exact graph fingerprints;
+- only exact-edge plain-Valhalla proof can promote a crossing to runtime metadata;
+- crossing alternatives and region chains are ranked for FASTER/SHORTER only after proof;
+- graph-only changes use `REBIND_GRAPH`; relevant boundary changes use `REDISCOVER_BOUNDARY` only for the affected pair;
+- F8 remains fallback for missing, stale, ambiguous, empty, or unchainable metadata;
+- no fixed-seam, F6, hard-heading, hard-separation, or graph-id-as-cross-build-identity logic is part of the current architecture.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -71,10 +71,9 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get the final #26 lifecycle PR green and merge it.
-2. Close issue #26 only after exact-head repository validation and Graph Studio packaging are green.
-3. Close legacy experimental PRs #5 and #6 as superseded so they cannot be mistaken for current architecture.
-4. Then continue with the next RoadPilot Offline Data roadmap milestone.
+1. Issue #26 requires no further implementation work.
+2. The next planned RoadPilot Offline Data milestone is #14, the Cloudflare R2 publication manager.
+3. Visual-map production (#16) and POI/search production (#17) remain separate later milestones.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
