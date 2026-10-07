@@ -290,7 +290,7 @@ Milestones:
 
 M1 contract:
 - PMTiles v3 with MVT tiles;
-- tilemaker 3.2.0 pinned by container digest, with matching native binary allowed explicitly;
+- tilemaker 3.2.0 pinned to exact upstream commit `c7d1dbfaf87baa9e0bc9b2e984e0dae90dcf00c5`; CI compiles that source and any production native binary must report the same pinned version;
 - lightweight layers only: roads/road labels, settlements, water/waterways, boundaries and mountain/pass labels;
 - no building or POI layers;
 - independent source/profile/visual fingerprints;
