@@ -33,22 +33,19 @@ BASE_COLUMNS = [
 ]
 ENRICHED_COLUMNS = [
     "freeform",
-    "postcode",
-    "locality",
-    "locality_norm",
-    "region",
-    "country",
+    "address_context_id",
     "operating_status",
-    "basic_category",
-    "taxonomy_primary",
-    "taxonomy_hierarchy",
-    "taxonomy_alternates",
-    "category_norm",
-    "source_provider",
-    "source_dataset",
+    "basic_category_id",
+    "taxonomy_primary_id",
+    "source_id",
     "source_record_id",
-    "source_version",
 ]
+EXPECTED_AUX_COLUMNS = {
+    "address_contexts": ["id", "postcode", "locality", "region", "country"],
+    "search_categories": ["id", "name", "name_norm"],
+    "place_categories": ["place_rowid", "category_id", "relation", "ordinal"],
+    "search_sources": ["id", "provider", "dataset", "version"],
+}
 
 
 def fail(message: str) -> None:
@@ -86,6 +83,10 @@ def parse_count(metadata: dict[str, str], key: str, maximum: int) -> int:
     if not (0 <= value <= maximum):
         fail(f"SQLite metadata {key} is outside record-count bounds")
     return value
+
+
+def table_columns(db: sqlite3.Connection, table: str) -> list[str]:
+    return [row[1] for row in db.execute(f"PRAGMA table_info({table})").fetchall()]
 
 
 def main() -> int:
@@ -135,7 +136,8 @@ def main() -> int:
         quick = db.execute("PRAGMA quick_check").fetchone()
         if quick is None or quick[0] != "ok":
             fail(f"SQLite quick_check failed: {quick}")
-        columns = [row[1] for row in db.execute("PRAGMA table_info(places)").fetchall()]
+
+        columns = table_columns(db, "places")
         metadata = dict(db.execute("SELECT key, value FROM meta").fetchall())
         count = int(db.execute("SELECT COUNT(*) FROM places").fetchone()[0])
 
@@ -145,33 +147,58 @@ def main() -> int:
                 fail(f"Unsupported SQLite search enrichment schema: {enrichment_schema!r}")
             if columns != BASE_COLUMNS + ENRICHED_COLUMNS:
                 fail(f"Unexpected enriched roadpilot-overture-v1 places schema: {columns}")
+            for table, expected in EXPECTED_AUX_COLUMNS.items():
+                actual = table_columns(db, table)
+                if actual != expected:
+                    fail(f"Unexpected {table} schema: {actual}")
+
+            orphan_category_links = int(
+                db.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM place_categories pc
+                    LEFT JOIN places p ON p.rowid = pc.place_rowid
+                    LEFT JOIN search_categories c ON c.id = pc.category_id
+                    WHERE p.rowid IS NULL OR c.id IS NULL
+                    """
+                ).fetchone()[0]
+            )
+            if orphan_category_links:
+                fail(f"Search category relation contains {orphan_category_links} orphan rows")
+
             categorized_count = int(
-                db.execute("SELECT COUNT(*) FROM places WHERE category_norm <> ''").fetchone()[0]
+                db.execute(
+                    "SELECT COUNT(DISTINCT place_rowid) FROM place_categories"
+                ).fetchone()[0]
             )
             structured_count = int(
                 db.execute(
                     """
-                    SELECT COUNT(*) FROM places
-                    WHERE freeform <> '' OR postcode <> '' OR locality <> ''
-                       OR region <> '' OR country <> ''
+                    SELECT COUNT(*)
+                    FROM places p
+                    JOIN address_contexts ac ON ac.id = p.address_context_id
+                    WHERE p.freeform <> '' OR ac.postcode <> '' OR ac.locality <> ''
+                       OR ac.region <> '' OR ac.country <> ''
                     """
                 ).fetchone()[0]
             )
             source_identified_count = int(
                 db.execute(
                     """
-                    SELECT COUNT(*) FROM places
-                    WHERE source_provider <> '' OR source_dataset <> ''
-                       OR source_record_id <> ''
+                    SELECT COUNT(*)
+                    FROM places
+                    WHERE source_id <> 0 OR source_record_id <> ''
                     """
                 ).fetchone()[0]
             )
             enhanced_sample = db.execute(
                 """
-                SELECT id, basic_category, latitude, longitude
-                FROM places
-                WHERE basic_category <> '' AND operating_status <> 'permanently_closed'
-                ORDER BY id
+                SELECT p.id, c.name, p.latitude, p.longitude
+                FROM place_categories pc
+                JOIN places p ON p.rowid = pc.place_rowid
+                JOIN search_categories c ON c.id = pc.category_id
+                WHERE p.operating_status <> 'permanently_closed'
+                ORDER BY p.id, pc.relation, pc.ordinal
                 LIMIT 1
                 """
             ).fetchone()
