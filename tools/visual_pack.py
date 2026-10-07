@@ -10,7 +10,8 @@ from typing import Any
 
 import mapbox_vector_tile
 from pmtiles.reader import MmapSource, Reader, all_tiles
-from pmtiles.tile import Compression, TileType
+from pmtiles.tile import Compression, TileType, zxy_to_tileid
+from pmtiles.writer import Writer
 
 
 class VisualPackError(RuntimeError):
@@ -38,6 +39,49 @@ def metadata_layer_ids(metadata: dict[str, Any]) -> list[str]:
             if isinstance(layer_id, str) and layer_id:
                 result.append(layer_id)
     return sorted(set(result))
+
+
+def canonicalize_pmtiles(path: Path) -> None:
+    """Rewrite PMTiles into deterministic tile-id order and canonical metadata order."""
+    if not path.is_file():
+        raise VisualPackError(f"PMTiles artifact does not exist: {path}")
+
+    temp = path.with_name(f".{path.name}.canonical.tmp")
+    temp.unlink(missing_ok=True)
+    try:
+        with path.open("rb") as source_handle:
+            source = MmapSource(source_handle)
+            reader = Reader(source)
+            header = dict(reader.header())
+            metadata = reader.metadata()
+            canonical_metadata = json.loads(
+                json.dumps(metadata, sort_keys=True, separators=(",", ":"))
+            )
+
+            last_tile_id = -1
+            written = 0
+            with temp.open("wb") as output_handle:
+                writer = Writer(output_handle)
+                for (z, x, y), raw_tile in all_tiles(source):
+                    tile_id = zxy_to_tileid(z, x, y)
+                    if tile_id < last_tile_id:
+                        raise VisualPackError(
+                            "PMTiles tile traversal is not in ascending tile-id order; "
+                            "refusing non-deterministic canonicalization"
+                        )
+                    writer.write_tile(tile_id, bytes(raw_tile))
+                    last_tile_id = tile_id
+                    written += 1
+                if written <= 0:
+                    raise VisualPackError("Cannot canonicalize an empty PMTiles archive")
+                writer.finalize(header, canonical_metadata)
+        temp.replace(path)
+    except VisualPackError:
+        temp.unlink(missing_ok=True)
+        raise
+    except Exception as exc:
+        temp.unlink(missing_ok=True)
+        raise VisualPackError(f"Could not canonicalize PMTiles archive {path}: {exc}") from exc
 
 
 def inspect_pmtiles(
