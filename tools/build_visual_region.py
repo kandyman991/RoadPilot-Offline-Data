@@ -13,7 +13,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from visual_pack import VisualPackError, inspect_pmtiles, load_json_object
+from visual_pack import (
+    VisualPackError,
+    canonicalize_pmtiles,
+    inspect_pmtiles,
+    load_json_object,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE_DIR = REPO_ROOT / "visual" / "tilemaker"
@@ -210,6 +215,10 @@ def main() -> int:
         toolchain,
         args.tilemaker_bin,
     )
+    try:
+        canonicalize_pmtiles(package_path)
+    except VisualPackError as exc:
+        fail(str(exc))
 
     required_layers = set(args.required_layer) or set(CORE_REQUIRED_LAYERS)
     try:
