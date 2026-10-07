@@ -21,7 +21,9 @@
           "montebelluna",
           "san martino di lupari",
           "colombara"
-        ]
+        ],
+        "query": "SARP Food Technologies",
+        "limit": 8
       }
     ]
   },
