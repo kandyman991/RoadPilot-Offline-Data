@@ -2820,6 +2820,97 @@ async function renderComparison(): Promise<void> {
 compareA.addEventListener("change", () => { void renderComparison(); });
 compareB.addEventListener("change", () => { void renderComparison(); });
 
+saveR2CredentialsBtn.addEventListener("click", async () => {
+  saveR2CredentialsBtn.disabled = true;
+  r2CredentialSummary.className = "empty";
+  r2CredentialSummary.textContent = "Saving private local R2 credentials…";
+  try {
+    const status = await invoke<R2CredentialStatus>("save_r2_credentials", {
+      accountId: r2AccountId.value.trim(),
+      bucket: r2Bucket.value.trim(),
+      accessKeyId: r2AccessKey.value,
+      secretAccessKey: r2SecretKey.value,
+      endpointUrl: r2Endpoint.value.trim() || null,
+    });
+    renderR2CredentialStatus(status);
+    appendLog(`Saved local R2 configuration for bucket ${status.bucket ?? "unknown"}.`);
+    await refreshR2Publication();
+  } catch (error) {
+    r2CredentialSummary.className = "bad";
+    r2CredentialSummary.textContent = `R2 credential save failed: ${String(error)}`;
+  } finally {
+    updatePublicationControls();
+  }
+});
+
+testR2CredentialsBtn.addEventListener("click", async () => {
+  testR2CredentialsBtn.disabled = true;
+  r2CredentialSummary.className = "empty";
+  r2CredentialSummary.textContent = "Testing R2 bucket access without writing objects…";
+  try {
+    const result = await invoke<Record<string, unknown>>("test_r2_credentials");
+    await refreshR2CredentialStatus();
+    r2CredentialSummary.className = "kv";
+    r2CredentialSummary.innerHTML += `
+      <dt>Connection</dt><dd class="ok">OK</dd>
+      <dt>Sample keys</dt><dd>${escapeHtml(result.keyCountSample ?? 0)}</dd>
+    `;
+    appendLog("R2 credential test succeeded.");
+    await refreshR2Publication();
+  } catch (error) {
+    r2CredentialSummary.className = "bad";
+    r2CredentialSummary.textContent = `R2 test failed: ${String(error)}`;
+  } finally {
+    updatePublicationControls();
+  }
+});
+
+clearR2CredentialsBtn.addEventListener("click", async () => {
+  clearR2CredentialsBtn.disabled = true;
+  try {
+    renderR2CredentialStatus(await invoke<R2CredentialStatus>("clear_r2_credentials"));
+    r2AccountId.value = "";
+    r2Bucket.value = "";
+    r2Endpoint.value = "";
+    remotePublication = null;
+    renderPublicationRemoteStatus();
+    appendLog("Cleared Graph Studio's local R2 credentials.");
+  } catch (error) {
+    r2CredentialSummary.className = "bad";
+    r2CredentialSummary.textContent = `Could not clear R2 credentials: ${String(error)}`;
+  } finally {
+    updatePublicationControls();
+  }
+});
+
+publishBuildSelect.addEventListener("change", () => {
+  remotePublication = null;
+  renderPublicationRemoteStatus();
+  void refreshR2Publication();
+});
+
+refreshPublicationBtn.addEventListener("click", () => {
+  void refreshR2Publication();
+});
+
+publishBuildBtn.addEventListener("click", async () => {
+  const build = selectedPublicationBuild();
+  if (!build) return;
+  publishBuildBtn.disabled = true;
+  publicationProgressText.className = "status-line";
+  publicationProgressText.textContent = `Starting validated publication for ${build.region_id} • ${build.version}…`;
+  try {
+    await invoke("start_r2_publication", { manifestPath: build.manifest_path });
+    await refreshPublicationStatus();
+    appendLog(`R2 publication started: ${build.region_id} • ${build.version}`);
+  } catch (error) {
+    publicationProgressText.className = "status-line bad";
+    publicationProgressText.textContent = `Could not start R2 publication: ${String(error)}`;
+  } finally {
+    updatePublicationControls();
+  }
+});
+
 buildBtn.addEventListener("click", async () => {
   const queue = [...selected];
   if (!queue.length) {
@@ -3052,6 +3143,15 @@ async function bootstrap(): Promise<void> {
     renderBuildStatus(event.payload);
     if (!event.payload.running) refreshBuilds().catch(() => {});
   });
+  await listen<PublicationStatus>("graph-studio://publication-status", event => {
+    renderPublicationStatus(event.payload);
+  });
+  await listen<Record<string, unknown>>("graph-studio://publication-event", event => {
+    const kind = String(event.payload.event ?? "");
+    if (kind && kind !== "UPLOAD_PROGRESS") {
+      appendLog(`R2 ${kind}: ${String(event.payload.key ?? event.payload.releaseKey ?? "")}`);
+    }
+  });
 
   await Promise.all([
     refreshRegions(),
@@ -3060,9 +3160,12 @@ async function bootstrap(): Promise<void> {
     refreshBuilds(),
     refreshHandoffOverrides(),
     refreshStats(),
+    refreshR2CredentialStatus(),
+    refreshPublicationStatus(),
   ]);
   setInterval(refreshStats, 3000);
   setInterval(refreshBuildStatus, 2500);
+  setInterval(refreshPublicationStatus, 2500);
 }
 
 bootstrap().catch(error => appendLog(`Startup error: ${String(error)}`));
