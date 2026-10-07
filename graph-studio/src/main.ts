@@ -1671,7 +1671,7 @@ function removeConnectorMatrixOverlay(): void {
 
 function connectorStatusClass(status: string): string {
   if (status === "CURRENT" || status === "REACHABLE" || status === "NONE") return "ok";
-  if (status === "MISSING") return "warn";
+  if (status === "MISSING" || status.includes("BUILD") || status.includes("REBUILD") || status === "INCONCLUSIVE") return "warn";
   return "bad";
 }
 
@@ -1779,7 +1779,10 @@ function renderConnectorMatrix(result: ConnectorMatrixInspection): void {
     <dt>Overall</dt><dd class="${statusClass}">${result.status}</dd>
     <dt>Refresh action</dt><dd class="${connectorStatusClass(result.refreshAction)}">${result.refreshAction}</dd>
     <dt>Inventory</dt><dd class="${connectorStatusClass(inventoryStatus)}">${inventoryStatus} • ${inventory?.anchorCount ?? 0} anchors</dd>
+    <dt>Inventory file</dt><dd>${inventory?.artifactPath ?? "—"}</dd>
     <dt>Matrix</dt><dd class="${connectorStatusClass(matrixStatus)}">${matrixStatus}</dd>
+    <dt>Matrix file</dt><dd>${matrix?.artifactPath ?? "—"}</dd>
+    <dt>Inventory binding</dt><dd class="${matrix?.sourceInventoryPresent && matrix?.sourceInventoryCurrent && matrix?.anchorCountMatches ? "ok" : "warn"}">${matrix ? (matrix.sourceInventoryPresent && matrix.sourceInventoryCurrent && matrix.anchorCountMatches ? "exact/current" : "stale or missing") : "—"}</dd>
     <dt>${modeName}</dt><dd>${mode ? `${mode.reachableCount} reachable / ${mode.unreachableCount} unreachable / ${mode.inconclusiveCount} inconclusive` : "no mode matrix"}</dd>
     <dt>Overlay</dt><dd>${Math.min(allCells.length, 500)} / ${allCells.length} cells rendered</dd>
   `;
