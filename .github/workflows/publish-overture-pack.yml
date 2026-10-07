@@ -185,8 +185,11 @@ jobs:
             --pack-version "$PACK_VERSION" \
             --validation-report "dist/overture/search-validation.json"
 
-          sha256sum "dist/overture/${{ steps.region.outputs.file_name }}" \
-            > "dist/overture/${{ steps.region.outputs.file_name }}.sha256"
+          (
+            cd dist/overture
+            sha256sum "${{ steps.region.outputs.file_name }}" \
+              > "${{ steps.region.outputs.file_name }}.sha256"
+          )
 
           python tools/validate_search_pack.py \
             --manifest "dist/overture/${{ steps.region.outputs.manifest_name }}" \
