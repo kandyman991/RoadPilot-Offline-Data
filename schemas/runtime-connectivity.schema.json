@@ -275,7 +275,8 @@
         "road",
         "fromAnchor",
         "toAnchor",
-        "modes"
+        "modes",
+        "routeMetrics"
       ],
       "properties": {
         "candidateId": {
@@ -314,6 +315,73 @@
         },
         "modes": {
           "$ref": "#/$defs/modes"
+        },
+        "routeMetrics": {
+          "$ref": "#/$defs/routeMetrics"
+        }
+      }
+    },
+    "routeMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "distanceKm",
+        "timeSeconds"
+      ],
+      "properties": {
+        "distanceKm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "timeSeconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "modeMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fromTo",
+        "toFrom"
+      ],
+      "properties": {
+        "fromTo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/routeMetric"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/routeMetric"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "routeMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "MOTORCYCLE",
+        "CAR"
+      ],
+      "properties": {
+        "MOTORCYCLE": {
+          "$ref": "#/$defs/modeMetrics"
+        },
+        "CAR": {
+          "$ref": "#/$defs/modeMetrics"
         }
       }
     }
