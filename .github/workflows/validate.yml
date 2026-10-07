@@ -605,6 +605,63 @@ jobs:
             exit 1
           fi
 
+      - name: Smoke-test independent visual publication plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/visual-regional-smoke"
+          retained="$root/dist/visual-regional/2026.10.07-1"
+          manifest="$retained/visual-regional-visual-2026.10.07-1-manifest.json"
+          plan="$root/visual-publication-plan.json"
+          store="$root/publication-store"
+
+          python tools/prepare_visual_publication.py \
+            --manifest "$manifest" \
+            --output "$plan"
+          python tools/validate_publication_plan.py --plan "$plan"
+          python tools/apply_publication_plan_local.py \
+            --plan "$plan" \
+            --store-root "$store" \
+            --report "$root/visual-publication-report.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "visual-regional-smoke"
+          store = root / "publication-store"
+          plan = json.loads((root / "visual-publication-plan.json").read_text())
+          report = json.loads((root / "visual-publication-report.json").read_text())
+          latest_path = store / "visual/visual-regional/latest.json"
+          release_path = store / "visual/visual-regional/2026.10.07-1/release.json"
+
+          assert plan["release"]["artifactKind"] == "VISUAL"
+          assert plan["releaseKey"] == "visual/visual-regional/2026.10.07-1/release.json"
+          assert plan["latestKey"] == "visual/visual-regional/latest.json"
+          assert latest_path.is_file()
+          assert release_path.is_file()
+          assert not (store / "routing").exists()
+
+          latest = json.loads(latest_path.read_text())
+          release = json.loads(release_path.read_text())
+          assert latest["artifactKind"] == "VISUAL"
+          assert latest["packageVersion"] == "2026.10.07-1"
+          assert release["artifactKind"] == "VISUAL"
+          roles = {item["role"] for item in release["objects"]}
+          assert roles == {"ARTIFACT", "MANIFEST", "CHECKSUM", "AUXILIARY"}
+          assert any(
+              item["fileName"].endswith("-road-index.json")
+              for item in release["objects"]
+          )
+          assert release["metadata"]["roadIndex"]["missingRoadCount"] == 0
+          assert release["metadata"]["visualFingerprint"].startswith("sha256:")
+          assert release["metadata"]["profileFingerprint"].startswith("sha256:")
+          assert release["metadata"]["sourceFingerprint"].startswith("sha256:")
+          assert report["artifactKind"] == "VISUAL"
+          print("independent visual publication contract passed")
+          PY
+
       - name: Smoke-test Geofabrik Graph Studio discovery
         shell: bash
         run: |
