@@ -8,6 +8,8 @@ on:
       - "schemas/**"
       - "tools/**"
       - "requirements-routing.txt"
+      - "requirements-visual.txt"
+      - "visual/**"
       - ".github/workflows/graph-studio.yml"
   push:
     branches: [main]
