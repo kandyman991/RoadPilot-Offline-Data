@@ -1003,6 +1003,119 @@ jobs:
           print("multi-hop connectivity composition smoke test passed")
           PY
 
+      - name: Smoke-test surgical connectivity refresh planning
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-correlation"
+
+          python - <<'PY'
+          import copy
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          ab = json.loads((root / "runtime-connectivity.json").read_text())
+          bc = json.loads((root / "runtime-bc.json").read_text())
+
+          def manifest(graph, boundaries):
+              return {
+                  "schema": "roadpilot-routing-pack",
+                  "schemaVersion": 1,
+                  "regionId": graph["regionId"],
+                  "packageVersion": graph["packageVersion"],
+                  "graphFingerprint": graph["graphFingerprint"],
+                  "source": {"primaryGeofabrikId": graph["primaryGeofabrikId"]},
+                  "graphIndex": {"boundaryFingerprints": boundaries},
+              }
+
+          a = manifest(
+              ab["fromGraph"],
+              {ab["toGraph"]["primaryGeofabrikId"]: ab["fromBoundaryFingerprint"]},
+          )
+          b = manifest(
+              ab["toGraph"],
+              {
+                  ab["fromGraph"]["primaryGeofabrikId"]: ab["toBoundaryFingerprint"],
+                  bc["toGraph"]["primaryGeofabrikId"]: bc["fromBoundaryFingerprint"],
+              },
+          )
+          c = manifest(
+              bc["toGraph"],
+              {bc["fromGraph"]["primaryGeofabrikId"]: bc["toBoundaryFingerprint"]},
+          )
+
+          (root / "current-a.json").write_text(json.dumps(a))
+          (root / "current-b.json").write_text(json.dumps(b))
+          (root / "current-c.json").write_text(json.dumps(c))
+
+          a_changed = copy.deepcopy(a)
+          a_changed["graphFingerprint"] = "sha256:" + "8" * 64
+          (root / "changed-a.json").write_text(json.dumps(a_changed))
+
+          c_boundary_changed = copy.deepcopy(c)
+          c_boundary_changed["graphIndex"]["boundaryFingerprints"][
+              bc["fromGraph"]["primaryGeofabrikId"]
+          ] = "sha256:" + "9" * 64
+          (root / "changed-c-boundary.json").write_text(json.dumps(c_boundary_changed))
+          PY
+
+          python tools/plan_connectivity_refresh.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --manifest "$root/current-a.json" \
+            --manifest "$root/current-b.json" \
+            --manifest "$root/current-c.json" \
+            --output "$root/refresh-current.json"
+          python tools/validate_connectivity_refresh_plan.py --artifact "$root/refresh-current.json"
+
+          python tools/plan_connectivity_refresh.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --manifest "$root/changed-a.json" \
+            --manifest "$root/current-b.json" \
+            --manifest "$root/current-c.json" \
+            --output "$root/refresh-a-graph.json"
+          python tools/validate_connectivity_refresh_plan.py --artifact "$root/refresh-a-graph.json"
+
+          python tools/plan_connectivity_refresh.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --manifest "$root/current-a.json" \
+            --manifest "$root/current-b.json" \
+            --manifest "$root/changed-c-boundary.json" \
+            --output "$root/refresh-c-boundary.json"
+          python tools/validate_connectivity_refresh_plan.py --artifact "$root/refresh-c-boundary.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+
+          current = json.loads((root / "refresh-current.json").read_text())
+          assert current["currentPairCount"] == 2
+          assert current["stalePairCount"] == 0
+          assert current["affectedPairs"] == []
+
+          a_graph = json.loads((root / "refresh-a-graph.json").read_text())
+          assert a_graph["affectedPairs"] == ["region-a__region-b"]
+          pairs = {item["pairId"]: item for item in a_graph["pairs"]}
+          assert pairs["region-a__region-b"]["status"] == "STALE"
+          assert pairs["region-a__region-b"]["refreshAction"] == "REBIND_GRAPH"
+          assert pairs["region-b__region-c"]["status"] == "CURRENT"
+
+          c_boundary = json.loads((root / "refresh-c-boundary.json").read_text())
+          assert c_boundary["affectedPairs"] == ["region-b__region-c"]
+          pairs = {item["pairId"]: item for item in c_boundary["pairs"]}
+          assert pairs["region-a__region-b"]["status"] == "CURRENT"
+          assert pairs["region-b__region-c"]["status"] == "STALE"
+          assert pairs["region-b__region-c"]["refreshAction"] == "REDISCOVER_BOUNDARY"
+          print("surgical connectivity refresh smoke test passed")
+          PY
+
       - name: Verify hosted routing toolchain
         shell: bash
         run: |
