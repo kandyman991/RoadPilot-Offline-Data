@@ -26,31 +26,32 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Issue #26 — build-time cross-region connectivity metadata — is completed.**
+**Issue #35 — precomputed per-region border-entry → border-exit routing matrices.**
 
-Completed delivery:
-- PRs #24-#25 — deterministic graph/boundary diffing;
-- PR #27 — fingerprint-bound region-pair foundation;
-- PR #28 — stable OSM frontier-road inventory;
-- PR #29 — independent Graph A/B Valhalla correlation;
-- PR #30 — lossless Graph A × Graph B candidate generation;
-- PR #31 — exact-edge plain-Valhalla motorcycle/auto proofs;
-- PR #32 — compact PROVEN-only runtime connectivity;
-- PR #33 — validated multi-hop region-chain composition;
-- PR #34 — proven FASTER/SHORTER ranking, surgical graph/boundary refresh planning, and Graph Studio UNPROVEN/VALIDATED + CURRENT/STALE inspection.
+Issue #26 is completed and remains the foundation:
+- stable OSM frontier discovery;
+- independent Graph A/B correlation;
+- exact-edge Valhalla crossing proof;
+- compact validated runtime connectivity;
+- multi-hop chain composition;
+- graph/boundary fingerprint freshness;
+- F8 fallback.
 
-PR #34 exact head passed full repository validation, TypeScript and Rust compilation, AppImage/.deb packaging and artifact upload before merge.
+Organic Maps' cross-MWM architecture revealed the next missing layer: a valid A→B crossing and a valid B→C crossing do not by themselves prove that the selected entry into B can reach the selected exit from B. #35 adds that proof and cost at build time.
 
-Legacy experimental PRs #5 and #6 are closed as superseded and must not be revived.
+Target #35 architecture:
+- collect every validated RoadPilot border anchor touching a region;
+- classify graph-bound entry/exit states per Motorcycle and Car;
+- use plain Valhalla many-to-many / sources-to-targets on the regional graph;
+- store sparse reachable entry→exit time and distance metrics;
+- bind those weights to the exact regional graph fingerprint;
+- keep unreachable pairs explicit;
+- use the matrix for genuine FASTER/SHORTER sparse-chain ranking;
+- keep multiple candidate chains until detailed Valhalla routing resolves the final journey;
+- inspect topology/weights/freshness in Graph Studio;
+- execute #35 before #14 Cloudflare R2 publication.
 
-Production connectivity architecture:
-- stable physical discovery is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;
-- graph-local correlation/proof evidence is valid only for exact graph fingerprints;
-- only exact-edge plain-Valhalla proof can promote a crossing to runtime metadata;
-- crossing alternatives and region chains are ranked for FASTER/SHORTER only after proof;
-- graph-only changes use `REBIND_GRAPH`; relevant boundary changes use `REDISCOVER_BOUNDARY` only for the affected pair;
-- F8 remains fallback for missing, stale, ambiguous, empty, or unchainable metadata;
-- no fixed-seam, F6, hard-heading, hard-separation, or graph-id-as-cross-build-identity logic is part of the current architecture.
+Do not copy Organic Maps' strict same-geometry twin assumption. RoadPilot keeps independent A/B correlation and fingerprint-bound graph-local bindings.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -71,9 +72,11 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Issue #26 requires no further implementation work.
-2. The next planned RoadPilot Offline Data milestone is #14, the Cloudflare R2 publication manager.
-3. Visual-map production (#16) and POI/search production (#17) remain separate later milestones.
+1. Implement #35 regional connector matrices in milestones.
+2. First milestone: define the graph-fingerprint-bound matrix artifact and deterministic anchor inventory for one regional graph.
+3. Next: populate entry→exit reachability/time/distance with plain Valhalla for Motorcycle and Car.
+4. Then replace adjacency-only multi-hop scoring with matrix-backed FASTER/SHORTER candidate chains and add Graph Studio inspection.
+5. After #35 is green and merged, proceed to #14 Cloudflare R2 publication.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
