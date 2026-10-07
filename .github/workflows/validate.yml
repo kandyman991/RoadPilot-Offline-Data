@@ -1287,6 +1287,339 @@ jobs:
           print("exact-edge regional connector matrix smoke test passed")
           PY
 
+      - name: Smoke-test matrix-backed hierarchical composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-correlation"
+
+          python - <<'PY'
+          import copy
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          ab = json.loads((root / "runtime-connectivity.json").read_text())
+          bc = json.loads((root / "runtime-bc.json").read_text())
+
+          ab_crossing = next(
+              crossing for crossing in ab["crossings"]
+              if crossing["modes"]["MOTORCYCLE"]["fromTo"]
+              and not crossing["modes"]["MOTORCYCLE"]["toFrom"]
+          )
+          ab_hier = copy.deepcopy(ab)
+          ab_hier["crossings"] = [copy.deepcopy(ab_crossing)]
+          ab_hier["sourceCandidateCount"] = 1
+          ab_hier["sourceProofCount"] = 1
+          ab_hier["validatedCrossingCount"] = 1
+          ab_hier["supportedModeDirectionCount"] = sum(
+              int(value)
+              for mode in ab_crossing["modes"].values()
+              for value in mode.values()
+          )
+          (root / "runtime-ab-hier.json").write_text(
+              json.dumps(ab_hier, indent=2) + "\n"
+          )
+
+          bc1 = copy.deepcopy(bc["crossings"][0])
+          bc2 = copy.deepcopy(bc1)
+          bc2["candidateId"] = "xpc1-" + "8" * 24
+          bc2["frontierRoadId"] = "fri1-" + "9" * 24
+          bc2["stableWayId"] = 201
+          bc2["sourceCandidateRank"] = 1
+          bc2["fromAnchor"]["coordinate"]["lng"] += 0.1
+          bc2["fromAnchor"]["graphId"] = 2011
+          bc2["fromAnchor"]["wayId"] = 201
+          bc2["toAnchor"]["coordinate"]["lng"] += 0.1
+          bc2["toAnchor"]["graphId"] = 3011
+          bc2["toAnchor"]["wayId"] = 201
+
+          bc_hier = copy.deepcopy(bc)
+          bc_hier["crossings"] = [bc1, bc2]
+          bc_hier["sourceCandidateCount"] = 2
+          bc_hier["sourceProofCount"] = 2
+          bc_hier["validatedCrossingCount"] = 2
+          bc_hier["supportedModeDirectionCount"] = sum(
+              int(value)
+              for crossing in bc_hier["crossings"]
+              for mode in crossing["modes"].values()
+              for value in mode.values()
+          )
+          (root / "runtime-bc-hier.json").write_text(
+              json.dumps(bc_hier, indent=2) + "\n"
+          )
+          PY
+
+          python tools/validate_runtime_connectivity.py --artifact "$root/runtime-ab-hier.json"
+          python tools/validate_runtime_connectivity.py --artifact "$root/runtime-bc-hier.json"
+
+          python tools/build_region_connector_inventory.py \
+            --region region-a \
+            --artifact "$root/runtime-ab-hier.json" \
+            --output "$root/inventory-a-hier.json"
+          python tools/build_region_connector_inventory.py \
+            --region region-b \
+            --artifact "$root/runtime-ab-hier.json" \
+            --artifact "$root/runtime-bc-hier.json" \
+            --output "$root/inventory-b-hier.json"
+          python tools/build_region_connector_inventory.py \
+            --region region-c \
+            --artifact "$root/runtime-bc-hier.json" \
+            --output "$root/inventory-c-hier.json"
+
+          python tools/validate_region_connector_inventory.py --artifact "$root/inventory-a-hier.json"
+          python tools/validate_region_connector_inventory.py --artifact "$root/inventory-b-hier.json"
+          python tools/validate_region_connector_inventory.py --artifact "$root/inventory-c-hier.json"
+
+          python - <<'PY'
+          import copy
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          inv = json.loads((root / "inventory-b-hier.json").read_text())
+          ab = json.loads((root / "runtime-ab-hier.json").read_text())
+          bc = json.loads((root / "runtime-bc-hier.json").read_text())
+
+          def sha(path):
+              return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+          by_candidate = {anchor["candidateId"]: anchor for anchor in inv["anchors"]}
+          ab_id = ab["crossings"][0]["candidateId"]
+          bc1_id = bc["crossings"][0]["candidateId"]
+          bc2_id = bc["crossings"][1]["candidateId"]
+          entry = by_candidate[ab_id]["id"]
+          exit_fast = by_candidate[bc1_id]["id"]
+          exit_short = by_candidate[bc2_id]["id"]
+
+          def reachable(target, distance, route_time):
+              return {
+                  "fromAnchorId": entry,
+                  "toAnchorId": target,
+                  "status": "REACHABLE",
+                  "distanceKm": distance,
+                  "timeSeconds": route_time,
+                  "matrixDistanceKm": distance,
+                  "matrixTimeSeconds": route_time,
+                  "matrixCost": route_time,
+                  "actualFromGraphId": by_candidate[ab_id]["graphAnchor"]["graphId"],
+                  "actualToGraphId": next(
+                      anchor["graphAnchor"]["graphId"]
+                      for anchor in inv["anchors"] if anchor["id"] == target
+                  ),
+                  "error": None,
+              }
+
+          motorcycle_cells = [
+              reachable(exit_fast, 10.0, 100.0),
+              reachable(exit_short, 5.0, 200.0),
+          ]
+          motorcycle_cells.sort(key=lambda cell: (cell["fromAnchorId"], cell["toAnchorId"]))
+
+          car_ids = sorted(
+              anchor["id"]
+              for anchor in inv["anchors"]
+              if "ENTRY" in anchor["roles"]["CAR"]
+              and "EXIT" in anchor["roles"]["CAR"]
+          )
+          car_cells = []
+          for source in car_ids:
+              for target in car_ids:
+                  if source == target:
+                      continue
+                  car_cells.append({
+                      "fromAnchorId": source,
+                      "toAnchorId": target,
+                      "status": "UNREACHABLE",
+                      "distanceKm": None,
+                      "timeSeconds": None,
+                      "matrixDistanceKm": None,
+                      "matrixTimeSeconds": None,
+                      "matrixCost": None,
+                      "actualFromGraphId": None,
+                      "actualToGraphId": None,
+                      "error": None,
+                  })
+          car_cells.sort(key=lambda cell: (cell["fromAnchorId"], cell["toAnchorId"]))
+
+          matrix = {
+              "schema": "roadpilot.region-connector-matrix",
+              "version": 1,
+              "regionId": "region-b",
+              "graph": inv["graph"],
+              "sourceInventorySha256": sha(root / "inventory-b-hier.json"),
+              "sourceAnchorCount": inv["anchorCount"],
+              "modes": {
+                  "MOTORCYCLE": {
+                      "entryAnchorIds": [entry],
+                      "exitAnchorIds": sorted([exit_fast, exit_short]),
+                      "candidatePairCount": 2,
+                      "reachableCount": 2,
+                      "unreachableCount": 0,
+                      "inconclusiveCount": 0,
+                      "cells": motorcycle_cells,
+                  },
+                  "CAR": {
+                      "entryAnchorIds": car_ids,
+                      "exitAnchorIds": car_ids,
+                      "candidatePairCount": len(car_cells),
+                      "reachableCount": 0,
+                      "unreachableCount": len(car_cells),
+                      "inconclusiveCount": 0,
+                      "cells": car_cells,
+                  },
+              },
+              "generator": {"name": "ci-hierarchical-fixture", "version": "1"},
+          }
+          (root / "matrix-b-hier.json").write_text(json.dumps(matrix, indent=2) + "\n")
+
+          no_route = copy.deepcopy(matrix)
+          for cell in no_route["modes"]["MOTORCYCLE"]["cells"]:
+              cell.update({
+                  "status": "UNREACHABLE",
+                  "distanceKm": None,
+                  "timeSeconds": None,
+                  "matrixDistanceKm": None,
+                  "matrixTimeSeconds": None,
+                  "matrixCost": None,
+                  "actualFromGraphId": None,
+                  "actualToGraphId": None,
+                  "error": None,
+              })
+          no_route["modes"]["MOTORCYCLE"]["reachableCount"] = 0
+          no_route["modes"]["MOTORCYCLE"]["unreachableCount"] = 2
+          (root / "matrix-b-no-route.json").write_text(json.dumps(no_route, indent=2) + "\n")
+
+          inconclusive = copy.deepcopy(matrix)
+          cell = next(
+              cell for cell in inconclusive["modes"]["MOTORCYCLE"]["cells"]
+              if cell["toAnchorId"] == exit_fast
+          )
+          cell.update({
+              "status": "INCONCLUSIVE",
+              "distanceKm": None,
+              "timeSeconds": None,
+              "actualFromGraphId": None,
+              "actualToGraphId": None,
+              "error": "synthetic exact-edge mismatch",
+          })
+          inconclusive["modes"]["MOTORCYCLE"]["reachableCount"] = 1
+          inconclusive["modes"]["MOTORCYCLE"]["inconclusiveCount"] = 1
+          (root / "matrix-b-inconclusive.json").write_text(
+              json.dumps(inconclusive, indent=2) + "\n"
+          )
+
+          stale = copy.deepcopy(matrix)
+          stale["sourceInventorySha256"] = "sha256:" + "0" * 64
+          (root / "matrix-b-stale-inventory.json").write_text(
+              json.dumps(stale, indent=2) + "\n"
+          )
+          PY
+
+          python tools/validate_region_connector_matrix.py --artifact "$root/matrix-b-hier.json"
+          python tools/validate_region_connector_matrix.py --artifact "$root/matrix-b-no-route.json"
+          python tools/validate_region_connector_matrix.py --artifact "$root/matrix-b-inconclusive.json"
+
+          common_args=(
+            --artifact "$root/runtime-ab-hier.json"
+            --artifact "$root/runtime-bc-hier.json"
+            --inventory "$root/inventory-a-hier.json"
+            --inventory "$root/inventory-b-hier.json"
+            --inventory "$root/inventory-c-hier.json"
+            --from-region region-a
+            --to-region region-c
+            --mode MOTORCYCLE
+            --max-candidates 8
+          )
+
+          python tools/compose_hierarchical_connectivity.py \
+            "${common_args[@]}" \
+            --matrix "$root/matrix-b-hier.json" \
+            --route-style FASTER \
+            --output "$root/hier-faster.json"
+          python tools/validate_hierarchical_connectivity_plan.py --artifact "$root/hier-faster.json"
+
+          python tools/compose_hierarchical_connectivity.py \
+            "${common_args[@]}" \
+            --matrix "$root/matrix-b-hier.json" \
+            --route-style SHORTER \
+            --output "$root/hier-shorter.json"
+          python tools/validate_hierarchical_connectivity_plan.py --artifact "$root/hier-shorter.json"
+
+          python tools/compose_hierarchical_connectivity.py \
+            "${common_args[@]}" \
+            --matrix "$root/matrix-b-no-route.json" \
+            --route-style FASTER \
+            --output "$root/hier-no-route.json"
+          python tools/validate_hierarchical_connectivity_plan.py --artifact "$root/hier-no-route.json"
+
+          python tools/compose_hierarchical_connectivity.py \
+            "${common_args[@]}" \
+            --matrix "$root/matrix-b-inconclusive.json" \
+            --route-style FASTER \
+            --output "$root/hier-inconclusive.json"
+          python tools/validate_hierarchical_connectivity_plan.py --artifact "$root/hier-inconclusive.json"
+
+          python tools/compose_hierarchical_connectivity.py \
+            "${common_args[@]}" \
+            --route-style FASTER \
+            --output "$root/hier-missing-matrix.json"
+          python tools/validate_hierarchical_connectivity_plan.py --artifact "$root/hier-missing-matrix.json"
+
+          if python tools/compose_hierarchical_connectivity.py \
+            "${common_args[@]}" \
+            --matrix "$root/matrix-b-stale-inventory.json" \
+            --route-style FASTER \
+            --output "$root/should-not-exist-hier.json"; then
+            echo "Expected stale matrix source inventory hash to fail composition" >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          bc = json.loads((root / "runtime-bc-hier.json").read_text())
+          fast_id = bc["crossings"][0]["candidateId"]
+          short_id = bc["crossings"][1]["candidateId"]
+
+          faster = json.loads((root / "hier-faster.json").read_text())
+          assert faster["status"] == "FOUND"
+          assert faster["scoreScope"] == "INTERMEDIATE_REGIONS_ONLY"
+          assert len(faster["chains"]) == 2
+          assert faster["chains"][0]["regions"] == ["region-a", "region-b", "region-c"]
+          assert faster["chains"][0]["crossings"][1]["candidateId"] == fast_id
+          assert faster["chains"][0]["estimatedIntermediateTimeSeconds"] == 100.0
+          assert faster["chains"][0]["estimatedIntermediateDistanceKm"] == 10.0
+
+          shorter = json.loads((root / "hier-shorter.json").read_text())
+          assert shorter["status"] == "FOUND"
+          assert shorter["chains"][0]["crossings"][1]["candidateId"] == short_id
+          assert shorter["chains"][0]["estimatedIntermediateDistanceKm"] == 5.0
+          assert shorter["chains"][0]["estimatedIntermediateTimeSeconds"] == 200.0
+
+          no_route = json.loads((root / "hier-no-route.json").read_text())
+          assert no_route["status"] == "NO_CHAIN"
+          assert no_route["chains"] == []
+
+          inconclusive = json.loads((root / "hier-inconclusive.json").read_text())
+          assert inconclusive["status"] == "FOUND"
+          assert len(inconclusive["chains"]) == 1
+          assert inconclusive["chains"][0]["crossings"][1]["candidateId"] == short_id
+
+          missing = json.loads((root / "hier-missing-matrix.json").read_text())
+          assert missing["status"] == "NO_CHAIN"
+          assert missing["chains"] == []
+          assert "region-b" in missing["missingMatrixRegions"]
+
+          print("matrix-backed hierarchical composition smoke test passed")
+          PY
+
       - name: Smoke-test surgical connectivity refresh planning
         shell: bash
         run: |
