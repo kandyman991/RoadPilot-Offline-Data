@@ -491,6 +491,33 @@ button { cursor: pointer; }
 .artifact-learned { background: #9d72e8; }
 .artifact-manual { background: #ee5aa7; }
 
+.connector-matrix-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 8px;
+  margin-top: 6px;
+  color: #aeb9c6;
+  font-size: 10px;
+}
+
+.connector-matrix-legend span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.connector-matrix-legend i {
+  display: inline-block;
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+}
+
+.connector-reachable { background: #2fbd71; }
+.connector-unreachable { background: #e35d5b; }
+.connector-inconclusive { background: #f0a44b; }
+.connector-anchor { background: #9d72e8; }
+
 .artifact-list {
   margin-top: 8px;
   max-height: 250px;
