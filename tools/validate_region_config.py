@@ -74,10 +74,13 @@ def validate_visual(visual, routing) -> bool:
         fail("visual.source is required")
     primary_id = str(source.get("primaryGeofabrikId") or "")
     url = str(source.get("url") or "")
+    polygon_url = str(source.get("polygonUrl") or "")
     if not primary_id:
         fail("visual.source.primaryGeofabrikId is required")
     if not url.startswith("https://") or not url.endswith(".osm.pbf"):
         fail("visual.source.url must be an HTTPS .osm.pbf URL")
+    if not polygon_url.startswith("https://") or not polygon_url.endswith(".poly"):
+        fail("visual.source.polygonUrl must be an HTTPS .poly URL")
 
     threads = visual.get("buildThreads", 1)
     if not isinstance(threads, int) or not (1 <= threads <= 64):
@@ -137,6 +140,9 @@ def validate_visual(visual, routing) -> bool:
         )
         if match is None or str(match.get("url") or "") != url:
             fail("visual source URL must match the routing primary PBF URL")
+        routing_polygon = str(routing_source.get("polygonUrl") or "")
+        if routing_polygon and routing_polygon != polygon_url:
+            fail("visual source polygonUrl must match the routing nominal polygon URL")
     return True
 
 
