@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/visual-pack-manifest-v1.json",
+  "title": "RoadPilot visual map pack manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schemaVersion",
+    "regionId",
+    "regionName",
+    "packageVersion",
+    "builtAtUtc",
+    "tilemakerVersion",
+    "visualFingerprint",
+    "profileFingerprint",
+    "sourceFingerprint",
+    "source",
+    "artifact",
+    "layers",
+    "validation"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot-visual-pack"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "regionId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "regionName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "packageVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "builtAtUtc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tilemakerVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "visualFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "profileFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "sourceFingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primaryGeofabrikId",
+        "url",
+        "sizeBytes",
+        "sha256"
+      ],
+      "properties": {
+        "primaryGeofabrikId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fileName",
+        "format",
+        "tileType",
+        "sizeBytes",
+        "sha256",
+        "tileCount",
+        "minZoom",
+        "maxZoom",
+        "bounds"
+      ],
+      "properties": {
+        "fileName": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+\\.pmtiles$"
+        },
+        "format": {
+          "const": "pmtiles"
+        },
+        "tileType": {
+          "const": "mvt"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "tileCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minZoom": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 24
+        },
+        "maxZoom": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 24
+        },
+        "bounds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "minLat",
+            "maxLat",
+            "minLng",
+            "maxLng"
+          ],
+          "properties": {
+            "minLat": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            },
+            "maxLat": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            },
+            "minLng": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            },
+            "maxLng": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
+          }
+        }
+      }
+    },
+    "layers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "transportation",
+          "transportation_name",
+          "place",
+          "water",
+          "waterway",
+          "boundary",
+          "mountain_peak"
+        ]
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "archiveReadable",
+        "tileTypeMvt",
+        "requiredLayers"
+      ],
+      "properties": {
+        "archiveReadable": {
+          "const": true
+        },
+        "tileTypeMvt": {
+          "const": true
+        },
+        "requiredLayers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
