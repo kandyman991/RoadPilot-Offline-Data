@@ -10,6 +10,7 @@
     "fromRegionId",
     "toRegionId",
     "mode",
+    "routeStyle",
     "maxHops",
     "status",
     "hopCount",
@@ -76,6 +77,12 @@
     },
     "generator": {
       "$ref": "#/$defs/generator"
+    },
+    "routeStyle": {
+      "enum": [
+        "FASTER",
+        "SHORTER"
+      ]
     }
   },
   "$defs": {
@@ -257,7 +264,10 @@
         "sourceCandidateRank",
         "road",
         "fromAnchor",
-        "toAnchor"
+        "toAnchor",
+        "rank",
+        "distanceKm",
+        "timeSeconds"
       ],
       "properties": {
         "candidateId": {
@@ -288,6 +298,18 @@
         },
         "toAnchor": {
           "$ref": "#/$defs/anchor"
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "distanceKm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "timeSeconds": {
+          "type": "number",
+          "minimum": 0
         }
       }
     },
@@ -353,7 +375,12 @@
       "required": [
         "id",
         "regions",
-        "hops"
+        "hops",
+        "rank",
+        "score",
+        "scoreUnit",
+        "estimatedDistanceKm",
+        "estimatedTimeSeconds"
       ],
       "properties": {
         "id": {
@@ -374,6 +401,28 @@
           "items": {
             "$ref": "#/$defs/hop"
           }
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0
+        },
+        "scoreUnit": {
+          "enum": [
+            "SECONDS",
+            "KILOMETERS"
+          ]
+        },
+        "estimatedDistanceKm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "estimatedTimeSeconds": {
+          "type": "number",
+          "minimum": 0
         }
       }
     }
