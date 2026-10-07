@@ -1605,6 +1605,36 @@ fn safe_visual_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, Stri
     Ok(requested)
 }
 
+fn safe_search_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, String> {
+    let requested = PathBuf::from(raw)
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve search manifest {raw}: {e}"))?;
+    if !requested.is_file() {
+        return Err("Selected search manifest is not a file.".into());
+    }
+    let text = fs::read_to_string(&requested)
+        .map_err(|e| format!("Could not read search manifest: {e}"))?;
+    let value: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse search manifest: {e}"))?;
+    if value.get("schema").and_then(Value::as_str) != Some("roadpilot-search-pack")
+        || value.get("artifactKind").and_then(Value::as_str) != Some("SEARCH")
+    {
+        return Err("Selected manifest is not a RoadPilot search pack.".into());
+    }
+    let region_id = value.get("regionId").and_then(Value::as_str)
+        .ok_or("Search manifest is missing regionId.")?;
+    let version = value.get("packVersion").and_then(Value::as_str)
+        .ok_or("Search manifest is missing packVersion.")?;
+    let (artifact, _) = load_search_build(app, region_id, version)?;
+    let canonical_manifest = PathBuf::from(&artifact.manifest_path)
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve retained search manifest: {e}"))?;
+    if canonical_manifest != requested {
+        return Err("Search manifest is outside recognized retained search-build roots.".into());
+    }
+    Ok(requested)
+}
+
 #[tauri::command]
 fn visual_archive_range(
     app: AppHandle,
@@ -1928,8 +1958,8 @@ fn r2_region_publication_status(
     if !safe_token(&region_id) {
         return Err("Invalid region id.".into());
     }
-    if !matches!(prefix.as_str(), "routing" | "visual") {
-        return Err("Publication prefix must be routing or visual.".into());
+    if !matches!(prefix.as_str(), "routing" | "visual" | "search") {
+        return Err("Publication prefix must be routing, visual or search.".into());
     }
     run_r2_json_script(
         &app,
@@ -1971,7 +2001,12 @@ fn start_r2_publication(
             "roadpilot-visual-pack",
             "prepare_visual_publication.py",
         ),
-        _ => return Err("Publication artifactKind must be ROUTING or VISUAL.".into()),
+        "SEARCH" => (
+            safe_search_manifest_path(&app, &manifest_path)?,
+            "roadpilot-search-pack",
+            "prepare_search_publication.py",
+        ),
+        _ => return Err("Publication artifactKind must be ROUTING, VISUAL or SEARCH.".into()),
     };
 
     let manifest_text = fs::read_to_string(&manifest_path)
@@ -2065,7 +2100,7 @@ fn start_r2_publication(
 
 #[tauri::command]
 fn activate_r2_release(app: AppHandle, release_key: String) -> Result<Value, String> {
-    if !(release_key.starts_with("routing/") || release_key.starts_with("visual/"))
+    if !(release_key.starts_with("routing/") || release_key.starts_with("visual/") || release_key.starts_with("search/"))
         || !release_key.ends_with("/release.json")
         || release_key.split('/').any(|part| part.is_empty() || part == "." || part == "..")
     {
