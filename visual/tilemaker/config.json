@@ -1,0 +1,68 @@
+{
+  "layers": {
+    "transportation": {
+      "minzoom": 4,
+      "maxzoom": 14,
+      "simplify_below": 13,
+      "simplify_level": 0.0003
+    },
+    "transportation_name": {
+      "minzoom": 7,
+      "maxzoom": 14,
+      "simplify_below": 13,
+      "simplify_level": 0.0003
+    },
+    "place": {
+      "minzoom": 4,
+      "maxzoom": 14,
+      "combine_points": false,
+      "declutter_below": 11,
+      "declutter_distance": 40,
+      "declutter_threshold": 1
+    },
+    "water": {
+      "minzoom": 6,
+      "maxzoom": 14,
+      "simplify_below": 12,
+      "simplify_level": 0.0003,
+      "simplify_algorithm": "visvalingam"
+    },
+    "waterway": {
+      "minzoom": 8,
+      "maxzoom": 14,
+      "simplify_below": 12,
+      "simplify_level": 0.0003
+    },
+    "boundary": {
+      "minzoom": 3,
+      "maxzoom": 14,
+      "simplify_below": 12,
+      "simplify_level": 0.0003,
+      "simplify_algorithm": "visvalingam"
+    },
+    "mountain_peak": {
+      "minzoom": 9,
+      "maxzoom": 14,
+      "combine_points": false,
+      "declutter_below": 12,
+      "declutter_distance": 48,
+      "declutter_threshold": 1
+    }
+  },
+  "settings": {
+    "minzoom": 4,
+    "maxzoom": 14,
+    "basezoom": 14,
+    "include_ids": true,
+    "compress": "gzip",
+    "name": "RoadPilot visual map",
+    "version": "1",
+    "description": "Lightweight RoadPilot offline visual vector map",
+    "filemetadata": {
+      "tilejson": "3.0.0",
+      "scheme": "xyz",
+      "type": "baselayer",
+      "format": "pbf"
+    }
+  }
+}
