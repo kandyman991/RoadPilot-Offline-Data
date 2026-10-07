@@ -1523,17 +1523,20 @@ fn inspect_region_connector_matrix(app: AppHandle, region_id: String) -> Result<
     });
 
     let selected_matrix = matrix_infos.first();
-    let selected_inventory = selected_matrix
-        .and_then(|(_, matrix, _, _, _, _)| {
-            let source_sha = matrix.get("sourceInventorySha256").and_then(Value::as_str)?;
-            inventories.iter().find(|(_, _, sha, _, _)| sha == source_sha)
+    let current_inventory = inventories.iter().find(|item| item.3);
+    let selected_inventory = current_inventory
+        .or_else(|| {
+            selected_matrix.and_then(|(_, matrix, _, _, _, _)| {
+                let source_sha = matrix.get("sourceInventorySha256").and_then(Value::as_str)?;
+                inventories.iter().find(|(_, _, sha, _, _)| sha == source_sha)
+            })
         })
         .or_else(|| inventories.first());
 
-    let inventory_present = selected_inventory.is_some();
-    let inventory_current = selected_inventory.map(|item| item.3).unwrap_or(false);
-    let matrix_present = selected_matrix.is_some();
-    let matrix_current = selected_matrix.map(|item| item.2).unwrap_or(false);
+    let inventory_present = !inventories.is_empty();
+    let inventory_current = current_inventory.is_some();
+    let matrix_present = !matrix_infos.is_empty();
+    let matrix_current = matrix_infos.iter().any(|item| item.2);
 
     let (status, refresh_action) = if !inventory_present {
         ("MISSING", "BUILD_INVENTORY_AND_MATRIX")
