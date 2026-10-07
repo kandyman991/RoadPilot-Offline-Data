@@ -108,33 +108,23 @@ def run_checked(command: list[str], label: str) -> str:
 def verify_tilemaker_version(
     toolchain: dict[str, Any],
     tilemaker_bin: str | None,
-) -> tuple[str, list[str]]:
+) -> tuple[str, str]:
     expected = str(toolchain.get("tilemakerVersion") or "")
-    image = str(toolchain.get("dockerImage") or "")
     if not expected:
         fail("visual/tilemaker/toolchain.json is missing tilemakerVersion")
 
-    if tilemaker_bin:
-        executable = shutil.which(tilemaker_bin) or tilemaker_bin
-        output = run_checked([executable, "--help"], "tilemaker --help")
-        if f"tilemaker {expected}" not in output:
-            fail(f"Native tilemaker version does not match pinned {expected}: {output.strip()}")
-        return expected, [executable]
-
-    if not image:
-        fail("visual/tilemaker/toolchain.json is missing dockerImage")
-    if shutil.which("docker") is None:
+    executable = tilemaker_bin or shutil.which("tilemaker")
+    if not executable:
+        commit = str(toolchain.get("sourceCommit") or "")
         fail(
-            "Docker is required for the pinned visual toolchain. "
-            "Install Docker or pass --tilemaker-bin pointing to native tilemaker."
+            "tilemaker is not installed. Build/install the pinned RoadPilot visual "
+            f"toolchain ({expected}, source commit {commit}) or pass --tilemaker-bin."
         )
-    output = run_checked(
-        ["docker", "run", "--rm", image, "--help"],
-        "pinned tilemaker container version check",
-    )
+    executable = shutil.which(executable) or executable
+    output = run_checked([executable, "--help"], "tilemaker --help")
     if f"tilemaker {expected}" not in output:
-        fail(f"Pinned tilemaker container is not version {expected}: {output.strip()}")
-    return expected, ["docker", "run", "--rm", image]
+        fail(f"tilemaker version does not match pinned {expected}: {output.strip()}")
+    return expected, executable
 
 
 def build_with_tilemaker(
@@ -145,41 +135,20 @@ def build_with_tilemaker(
     toolchain: dict[str, Any],
     tilemaker_bin: str | None,
 ) -> str:
-    expected_version, base = verify_tilemaker_version(toolchain, tilemaker_bin)
+    expected_version, executable = verify_tilemaker_version(toolchain, tilemaker_bin)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.unlink(missing_ok=True)
 
-    if tilemaker_bin:
-        command = base + [
-            str(pbf_path),
-            "--output",
-            str(output_path),
-            "--config",
-            str(config_path),
-            "--process",
-            str(process_path),
-        ]
-    else:
-        image = str(toolchain["dockerImage"])
-        command = [
-            "docker",
-            "run",
-            "--rm",
-            "-v",
-            f"{pbf_path.parent.resolve()}:/input:ro",
-            "-v",
-            f"{config_path.parent.resolve()}:/profile:ro",
-            "-v",
-            f"{output_path.parent.resolve()}:/output",
-            image,
-            f"/input/{pbf_path.name}",
-            "--output",
-            f"/output/{output_path.name}",
-            "--config",
-            f"/profile/{config_path.name}",
-            "--process",
-            f"/profile/{process_path.name}",
-        ]
+    command = [
+        executable,
+        str(pbf_path),
+        "--output",
+        str(output_path),
+        "--config",
+        str(config_path),
+        "--process",
+        str(process_path),
+    ]
     output = run_checked(command, "tilemaker visual build")
     if not output_path.is_file():
         fail(f"tilemaker succeeded but did not create {output_path}")
@@ -195,7 +164,7 @@ def main() -> int:
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument(
         "--tilemaker-bin",
-        help="Use this native tilemaker binary instead of the pinned Docker image.",
+        help="Use this tilemaker binary. If omitted, tilemaker must be on PATH.",
     )
     parser.add_argument(
         "--required-layer",
