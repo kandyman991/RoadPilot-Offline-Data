@@ -3071,6 +3071,267 @@ async function refreshBuildStatus(): Promise<void> {
   renderBuildStatus(await invoke<BuildStatus>("build_status"));
 }
 
+function selectedVisualBuild(): VisualBuildArtifact | null {
+  const manifestPath = visualBuildSelect.value;
+  return visualArtifacts.find(item => item.manifest_path === manifestPath) ?? null;
+}
+
+function visualBuildOption(build: VisualBuildArtifact, index: number): string {
+  return `<option value="${index}">${escapeHtml(build.region_id)} • ${escapeHtml(build.version)}</option>`;
+}
+
+function renderVisualBuildSelectors(): void {
+  const selectedManifest = visualBuildSelect.value;
+  const previousA = visualCompareA.value;
+  const previousB = visualCompareB.value;
+
+  visualBuildSelect.innerHTML = '<option value="">Choose visual build…</option>';
+  for (const build of visualArtifacts) {
+    const option = document.createElement("option");
+    option.value = build.manifest_path;
+    option.textContent = `${build.region_id} • ${build.version}`;
+    visualBuildSelect.appendChild(option);
+  }
+  if ([...visualBuildSelect.options].some(option => option.value === selectedManifest)) {
+    visualBuildSelect.value = selectedManifest;
+  } else if (activeRegion) {
+    const newest = visualArtifacts.find(item => item.region_id === activeRegion?.id);
+    if (newest) visualBuildSelect.value = newest.manifest_path;
+  }
+
+  const options = visualArtifacts.map(visualBuildOption).join("");
+  visualCompareA.innerHTML = `<option value="">Choose A…</option>${options}`;
+  visualCompareB.innerHTML = `<option value="">Choose B…</option>${options}`;
+  if ([...visualCompareA.options].some(option => option.value === previousA)) visualCompareA.value = previousA;
+  if ([...visualCompareB.options].some(option => option.value === previousB)) visualCompareB.value = previousB;
+
+  const build = selectedVisualBuild();
+  loadVisualBuildBtn.disabled = build == null;
+  fitVisualBuildBtn.disabled = build == null;
+  compareVisualBuildsBtn.disabled = !(visualCompareA.value && visualCompareB.value);
+  renderVisualBuildSummary(build);
+}
+
+function renderVisualBuildSummary(build: VisualBuildArtifact | null): void {
+  if (!build) {
+    visualBuildSummary.className = "empty";
+    visualBuildSummary.textContent = "No retained visual build selected.";
+    return;
+  }
+  const b = build.bounds;
+  visualBuildSummary.className = "kv";
+  visualBuildSummary.innerHTML = `
+    <dt>Region / version</dt><dd>${escapeHtml(build.region_id)} • ${escapeHtml(build.version)}</dd>
+    <dt>Size</dt><dd>${bytes(build.size_bytes)}</dd>
+    <dt>Tiles</dt><dd>${build.tile_count}</dd>
+    <dt>Zoom</dt><dd>${build.min_zoom}–${build.max_zoom}</dd>
+    <dt>Coverage</dt><dd>${Number(b.minLat ?? 0).toFixed(4)}, ${Number(b.minLng ?? 0).toFixed(4)} → ${Number(b.maxLat ?? 0).toFixed(4)}, ${Number(b.maxLng ?? 0).toFixed(4)}</dd>
+    <dt>SHA-256</dt><dd><code>${escapeHtml(build.sha256)}</code></dd>
+    <dt>Source fingerprint</dt><dd><code>${escapeHtml(build.source_fingerprint)}</code></dd>
+    <dt>Profile fingerprint</dt><dd><code>${escapeHtml(build.profile_fingerprint)}</code></dd>
+    <dt>Layers</dt><dd>${build.layers.map(escapeHtml).join(", ")}</dd>
+    <dt>Major / border roads</dt><dd>${build.major_road_count} / ${build.border_road_count}</dd>
+    <dt>Missing required roads</dt><dd class="${build.missing_road_count ? "bad" : "ok"}">${build.missing_road_count}</dd>
+  `;
+}
+
+async function refreshVisualBuilds(): Promise<void> {
+  visualArtifacts = await invoke<VisualBuildArtifact[]>("list_visual_builds");
+  renderVisualBuildSelectors();
+}
+
+const visualCompareSourceA = "roadpilot-visual-compare-a";
+const visualCompareSourceB = "roadpilot-visual-compare-b";
+const visualCompareHiddenA = "roadpilot-visual-compare-a-hidden";
+const visualCompareHiddenB = "roadpilot-visual-compare-b-hidden";
+const visualDiffSource = "roadpilot-visual-road-diff";
+const visualDiffLayers = [
+  "roadpilot-visual-diff-unchanged",
+  "roadpilot-visual-diff-removed",
+  "roadpilot-visual-diff-added",
+  "roadpilot-visual-diff-changed",
+];
+
+function removeVisualComparison(): void {
+  for (const id of visualDiffLayers) if (map.getLayer(id)) map.removeLayer(id);
+  for (const id of [visualCompareHiddenA, visualCompareHiddenB]) if (map.getLayer(id)) map.removeLayer(id);
+  for (const id of [visualDiffSource, visualCompareSourceA, visualCompareSourceB]) {
+    if (map.getSource(id)) map.removeSource(id);
+  }
+}
+
+function visualFeatureId(feature: { id?: string | number | undefined }): string | null {
+  if (feature.id == null) return null;
+  const value = String(feature.id);
+  return value && value !== "0" ? value : null;
+}
+
+function stableVisualRoadProperties(properties: Record<string, unknown> | null | undefined): string {
+  const keys = ["class", "subclass", "name", "name_en", "ref", "surface", "oneway", "bridge", "tunnel", "layer"];
+  const value: Record<string, unknown> = {};
+  for (const key of keys) {
+    const item = properties?.[key];
+    if (item !== undefined && item !== null && item !== "") value[key] = item;
+  }
+  return JSON.stringify(value);
+}
+
+function visualRoadGroups(features: ReturnType<typeof map.querySourceFeatures>): Map<string, {
+  signatures: Set<string>;
+  features: typeof features;
+}> {
+  const groups = new Map<string, { signatures: Set<string>; features: typeof features }>();
+  for (const feature of features) {
+    const id = visualFeatureId(feature);
+    if (!id) continue;
+    let group = groups.get(id);
+    if (!group) {
+      group = { signatures: new Set<string>(), features: [] };
+      groups.set(id, group);
+    }
+    const signature = `${stableVisualRoadProperties(feature.properties)}|${JSON.stringify(feature.geometry)}`;
+    group.signatures.add(signature);
+    if (!group.features.some(existing => JSON.stringify(existing.geometry) === JSON.stringify(feature.geometry))) {
+      group.features.push(feature);
+    }
+  }
+  return groups;
+}
+
+function addVisualDiffFeatures(
+  output: Feature[],
+  groups: Map<string, { signatures: Set<string>; features: ReturnType<typeof map.querySourceFeatures> }>,
+  ids: Set<string>,
+  classification: "unchanged" | "removed" | "added" | "changed",
+): void {
+  const seen = new Set<string>();
+  for (const id of ids) {
+    const group = groups.get(id);
+    if (!group) continue;
+    for (const feature of group.features) {
+      const geometry = feature.geometry as Geometry;
+      const key = `${id}:${JSON.stringify(geometry)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      output.push({
+        type: "Feature",
+        geometry,
+        properties: {
+          osm_id: id,
+          classification,
+          ...feature.properties,
+        },
+      });
+    }
+  }
+}
+
+function classifyVisualRoadComparison(a: VisualBuildArtifact, b: VisualBuildArtifact): void {
+  const featuresA = map.querySourceFeatures(visualCompareSourceA, { sourceLayer: "transportation" });
+  const featuresB = map.querySourceFeatures(visualCompareSourceB, { sourceLayer: "transportation" });
+  if (!featuresA.length && !featuresB.length) {
+    visualComparisonSummary.className = "empty";
+    visualComparisonSummary.textContent = "Visual tiles are still loading. Move/zoom the map or compare again.";
+    return;
+  }
+
+  const groupsA = visualRoadGroups(featuresA);
+  const groupsB = visualRoadGroups(featuresB);
+  const idsA = new Set(groupsA.keys());
+  const idsB = new Set(groupsB.keys());
+  const unchanged = new Set<string>();
+  const changed = new Set<string>();
+  const removed = new Set([...idsA].filter(id => !idsB.has(id)));
+  const added = new Set([...idsB].filter(id => !idsA.has(id)));
+  for (const id of idsA) {
+    const ga = groupsA.get(id);
+    const gb = groupsB.get(id);
+    if (!ga || !gb) continue;
+    const aSignatures = [...ga.signatures].sort().join("\n");
+    const bSignatures = [...gb.signatures].sort().join("\n");
+    (aSignatures === bSignatures ? unchanged : changed).add(id);
+  }
+
+  const output: Feature[] = [];
+  addVisualDiffFeatures(output, groupsA, unchanged, "unchanged");
+  addVisualDiffFeatures(output, groupsA, removed, "removed");
+  addVisualDiffFeatures(output, groupsB, added, "added");
+  addVisualDiffFeatures(output, groupsB, changed, "changed");
+
+  map.addSource(visualDiffSource, {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: output } as FeatureCollection,
+  });
+  for (const [id, classification, color, width, opacity] of [
+    ["roadpilot-visual-diff-unchanged", "unchanged", "#42c58a", 2.4, 0.5],
+    ["roadpilot-visual-diff-removed", "removed", "#e35d5b", 4.0, 0.95],
+    ["roadpilot-visual-diff-added", "added", "#4b9ee8", 4.0, 0.95],
+    ["roadpilot-visual-diff-changed", "changed", "#d99a3e", 4.5, 0.95],
+  ] as const) {
+    map.addLayer({
+      id,
+      type: "line",
+      source: visualDiffSource,
+      filter: ["==", ["get", "classification"], classification],
+      paint: { "line-color": color, "line-width": width, "line-opacity": opacity },
+    });
+  }
+
+  visualComparisonSummary.className = "kv";
+  visualComparisonSummary.innerHTML = `
+    <dt>Versions</dt><dd>${escapeHtml(a.version)} → ${escapeHtml(b.version)}</dd>
+    <dt>Visible unchanged roads</dt><dd class="ok">${unchanged.size}</dd>
+    <dt>Visible removed roads</dt><dd class="${removed.size ? "warn" : "ok"}">${removed.size}</dd>
+    <dt>Visible added roads</dt><dd class="${added.size ? "warn" : "ok"}">${added.size}</dd>
+    <dt>Visible changed roads</dt><dd class="${changed.size ? "warn" : "ok"}">${changed.size}</dd>
+    <dt>Scope</dt><dd>currently loaded map tiles / viewport</dd>
+    <dt>Package SHA changed</dt><dd class="${a.sha256 === b.sha256 ? "ok" : "warn"}">${a.sha256 === b.sha256 ? "no" : "yes"}</dd>
+  `;
+}
+
+function compareVisualBuilds(): void {
+  removeVisualComparison();
+  const a = visualArtifacts[Number(visualCompareA.value)];
+  const b = visualArtifacts[Number(visualCompareB.value)];
+  if (!a || !b) return;
+  if (a.region_id !== b.region_id) {
+    visualComparisonSummary.className = "bad";
+    visualComparisonSummary.textContent = "Visual builds must be from the same region.";
+    return;
+  }
+  ensureVisualArchive(a);
+  ensureVisualArchive(b);
+  map.addSource(visualCompareSourceA, {
+    type: "vector",
+    tiles: [`roadpilot-visual://${visualArchiveKey(a)}/{z}/{x}/{y}.mvt`],
+    minzoom: a.min_zoom,
+    maxzoom: a.max_zoom,
+  });
+  map.addSource(visualCompareSourceB, {
+    type: "vector",
+    tiles: [`roadpilot-visual://${visualArchiveKey(b)}/{z}/{x}/{y}.mvt`],
+    minzoom: b.min_zoom,
+    maxzoom: b.max_zoom,
+  });
+  map.addLayer({
+    id: visualCompareHiddenA,
+    type: "line",
+    source: visualCompareSourceA,
+    "source-layer": "transportation",
+    paint: { "line-opacity": 0.001, "line-width": 0.5 },
+  });
+  map.addLayer({
+    id: visualCompareHiddenB,
+    type: "line",
+    source: visualCompareSourceB,
+    "source-layer": "transportation",
+    paint: { "line-opacity": 0.001, "line-width": 0.5 },
+  });
+  visualComparisonSummary.className = "empty";
+  visualComparisonSummary.textContent = "Loading exact PMTiles road features from both builds…";
+  map.once("idle", () => classifyVisualRoadComparison(a, b));
+}
+
 async function refreshBuilds(): Promise<void> {
   artifacts = await invoke<BuildArtifact[]>("list_builds");
   buildsHost.innerHTML = "";
