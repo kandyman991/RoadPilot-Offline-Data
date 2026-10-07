@@ -84,6 +84,46 @@ def canonicalize_pmtiles(path: Path) -> None:
         raise VisualPackError(f"Could not canonicalize PMTiles archive {path}: {exc}") from exc
 
 
+def collect_layer_feature_ids(path: Path, layer_name: str) -> set[int]:
+    """Collect positive MVT feature ids from one layer across the exact PMTiles archive."""
+    result: set[int] = set()
+    if not path.is_file():
+        raise VisualPackError(f"PMTiles artifact does not exist: {path}")
+    try:
+        with path.open("rb") as handle:
+            source = MmapSource(handle)
+            reader = Reader(source)
+            header = reader.header()
+            if header["tile_type"] != TileType.MVT:
+                raise VisualPackError(
+                    f"PMTiles tile type is {header['tile_type'].name}, expected MVT"
+                )
+            for _, raw_tile in all_tiles(source):
+                payload = _decompress_tile(raw_tile, header["tile_compression"])
+                decoded = mapbox_vector_tile.decode(payload)
+                layer = decoded.get(layer_name) if isinstance(decoded, dict) else None
+                features = layer.get("features") if isinstance(layer, dict) else None
+                if not isinstance(features, list):
+                    continue
+                for feature in features:
+                    if not isinstance(feature, dict):
+                        continue
+                    value = feature.get("id")
+                    if isinstance(value, bool):
+                        continue
+                    if isinstance(value, int) and value > 0:
+                        result.add(value)
+                    elif isinstance(value, str) and value.isdigit() and int(value) > 0:
+                        result.add(int(value))
+    except VisualPackError:
+        raise
+    except Exception as exc:
+        raise VisualPackError(
+            f"Could not collect {layer_name} feature ids from {path}: {exc}"
+        ) from exc
+    return result
+
+
 def inspect_pmtiles(
     path: Path,
     *,
