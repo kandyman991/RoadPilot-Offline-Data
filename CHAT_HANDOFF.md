@@ -38,7 +38,7 @@ Current branch: `visual-map-foundation-m1`.
 M1 visual architecture:
 - visual packages remain independent from routing and POI/search;
 - format is PMTiles v3 containing MVT;
-- tilemaker 3.2.0 is pinned through an exact official container digest; an explicitly supplied native binary must report the same version;
+- tilemaker 3.2.0 is pinned to exact upstream commit `c7d1dbfaf87baa9e0bc9b2e984e0dae90dcf00c5`; hosted CI compiles that commit and any production native binary must report the same pinned version;
 - first profile contains transportation, transportation_name, place, water, waterway, boundary and mountain_peak;
 - buildings and POIs are deliberately excluded; #17 remains the POI/search pipeline;
 - source identity is inherited from the region's configured primary Geofabrik PBF;
