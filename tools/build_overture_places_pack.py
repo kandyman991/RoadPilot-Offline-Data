@@ -10,6 +10,10 @@ DATABASE_SCHEMA = "roadpilot-overture-v1"
 ENRICHMENT_SCHEMA = "roadpilot-search-enrichment-v2"
 ENHANCED_RUNTIME_CONTRACT = "roadpilot-search-v2"
 
+CATEGORY_RELATION_BASIC = 0
+CATEGORY_RELATION_HIERARCHY = 1
+CATEGORY_RELATION_ALTERNATE = 2
+
 
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
@@ -42,10 +46,6 @@ def clean_list(value) -> list[str]:
     return result
 
 
-def compact_json(values: list[str]) -> str:
-    return json.dumps(values, ensure_ascii=False, separators=(",", ":"))
-
-
 def full_address(address: dict) -> str:
     parts = [
         clean(address.get("freeform")),
@@ -61,7 +61,7 @@ def full_address(address: dict) -> str:
     return ", ".join(result)
 
 
-def taxonomy_fields(props: dict) -> tuple[str, str, list[str], list[str], str]:
+def taxonomy_fields(props: dict) -> tuple[str, str, list[str], list[str]]:
     basic_category = clean(props.get("basic_category"))
     taxonomy = props.get("taxonomy")
     if not isinstance(taxonomy, dict):
@@ -71,9 +71,7 @@ def taxonomy_fields(props: dict) -> tuple[str, str, list[str], list[str], str]:
     hierarchy = clean_list(taxonomy.get("hierarchy"))
     alternates = clean_list(taxonomy.get("alternates"))
 
-    # Older Overture inputs may still contain the deprecated categories object.
-    # Keeping this fallback makes retained/replay builds possible while September
-    # 2026+ production data uses basic_category + taxonomy.
+    # Reproducible rebuilds may use Overture releases from before September 2026.
     legacy = props.get("categories")
     if isinstance(legacy, dict):
         if not primary:
@@ -83,14 +81,7 @@ def taxonomy_fields(props: dict) -> tuple[str, str, list[str], list[str], str]:
 
     if primary and primary not in hierarchy:
         hierarchy.append(primary)
-
-    category_terms: list[str] = []
-    for value in [basic_category, primary, *hierarchy, *alternates]:
-        normalized = normalize(value)
-        if normalized and normalized not in category_terms:
-            category_terms.append(normalized)
-
-    return basic_category, primary, hierarchy, alternates, " ".join(category_terms)
+    return basic_category, primary, hierarchy, alternates
 
 
 def preferred_source(props: dict) -> tuple[str, str, str, str]:
@@ -138,7 +129,14 @@ def main() -> None:
         """
         PRAGMA journal_mode=OFF;
         PRAGMA synchronous=OFF;
-        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+
+        CREATE TABLE meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
+        -- The first eight columns are the shipped Android v1 contract. Never
+        -- rename, reorder or remove them while roadpilot-overture-v1 is supported.
         CREATE TABLE places (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -149,28 +147,137 @@ def main() -> None:
             longitude REAL NOT NULL,
             confidence REAL NOT NULL,
             freeform TEXT NOT NULL,
-            postcode TEXT NOT NULL,
-            locality TEXT NOT NULL,
-            locality_norm TEXT NOT NULL,
-            region TEXT NOT NULL,
-            country TEXT NOT NULL,
+            address_context_id INTEGER NOT NULL,
             operating_status TEXT NOT NULL,
-            basic_category TEXT NOT NULL,
-            taxonomy_primary TEXT NOT NULL,
-            taxonomy_hierarchy TEXT NOT NULL,
-            taxonomy_alternates TEXT NOT NULL,
-            category_norm TEXT NOT NULL,
-            source_provider TEXT NOT NULL,
-            source_dataset TEXT NOT NULL,
-            source_record_id TEXT NOT NULL,
-            source_version TEXT NOT NULL
+            basic_category_id INTEGER NOT NULL,
+            taxonomy_primary_id INTEGER NOT NULL,
+            source_id INTEGER NOT NULL,
+            source_record_id TEXT NOT NULL
         );
         CREATE INDEX idx_places_name_norm ON places(name_norm);
-        CREATE INDEX idx_places_category_norm ON places(category_norm);
-        CREATE INDEX idx_places_locality_norm ON places(locality_norm);
         CREATE INDEX idx_places_lat_lon ON places(latitude, longitude);
+
+        CREATE TABLE address_contexts (
+            id INTEGER PRIMARY KEY,
+            postcode TEXT NOT NULL,
+            locality TEXT NOT NULL,
+            region TEXT NOT NULL,
+            country TEXT NOT NULL,
+            UNIQUE(postcode, locality, region, country)
+        );
+
+        CREATE TABLE search_categories (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            name_norm TEXT NOT NULL
+        );
+        CREATE INDEX idx_search_categories_name_norm
+            ON search_categories(name_norm);
+
+        CREATE TABLE place_categories (
+            place_rowid INTEGER NOT NULL,
+            category_id INTEGER NOT NULL,
+            relation INTEGER NOT NULL,
+            ordinal INTEGER NOT NULL,
+            PRIMARY KEY(place_rowid, category_id, relation)
+        ) WITHOUT ROWID;
+        CREATE INDEX idx_place_categories_category
+            ON place_categories(category_id, place_rowid);
+
+        CREATE TABLE search_sources (
+            id INTEGER PRIMARY KEY,
+            provider TEXT NOT NULL,
+            dataset TEXT NOT NULL,
+            version TEXT NOT NULL,
+            UNIQUE(provider, dataset, version)
+        );
         """
     )
+
+    address_cache: dict[tuple[str, str, str, str], int] = {}
+    category_cache: dict[str, int] = {}
+    source_cache: dict[tuple[str, str, str], int] = {}
+
+    def address_context_id(postcode: str, locality: str, region: str, country: str) -> int:
+        key = (postcode, locality, region, country)
+        cached = address_cache.get(key)
+        if cached is not None:
+            return cached
+        cursor = db.execute(
+            """
+            INSERT OR IGNORE INTO address_contexts(postcode, locality, region, country)
+            VALUES (?, ?, ?, ?)
+            """,
+            key,
+        )
+        if cursor.rowcount:
+            value = int(cursor.lastrowid)
+        else:
+            row = db.execute(
+                """
+                SELECT id FROM address_contexts
+                WHERE postcode = ? AND locality = ? AND region = ? AND country = ?
+                """,
+                key,
+            ).fetchone()
+            if row is None:
+                raise RuntimeError("Could not resolve normalized address context")
+            value = int(row[0])
+        address_cache[key] = value
+        return value
+
+    def category_id(name: str) -> int:
+        if not name:
+            return 0
+        cached = category_cache.get(name)
+        if cached is not None:
+            return cached
+        cursor = db.execute(
+            "INSERT OR IGNORE INTO search_categories(name, name_norm) VALUES (?, ?)",
+            (name, normalize(name)),
+        )
+        if cursor.rowcount:
+            value = int(cursor.lastrowid)
+        else:
+            row = db.execute(
+                "SELECT id FROM search_categories WHERE name = ?",
+                (name,),
+            ).fetchone()
+            if row is None:
+                raise RuntimeError("Could not resolve search category")
+            value = int(row[0])
+        category_cache[name] = value
+        return value
+
+    def source_id(provider: str, dataset: str, version: str) -> int:
+        if not (provider or dataset or version):
+            return 0
+        key = (provider, dataset, version)
+        cached = source_cache.get(key)
+        if cached is not None:
+            return cached
+        cursor = db.execute(
+            """
+            INSERT OR IGNORE INTO search_sources(provider, dataset, version)
+            VALUES (?, ?, ?)
+            """,
+            key,
+        )
+        if cursor.rowcount:
+            value = int(cursor.lastrowid)
+        else:
+            row = db.execute(
+                """
+                SELECT id FROM search_sources
+                WHERE provider = ? AND dataset = ? AND version = ?
+                """,
+                key,
+            ).fetchone()
+            if row is None:
+                raise RuntimeError("Could not resolve normalized search source")
+            value = int(row[0])
+        source_cache[key] = value
+        return value
 
     inserted = 0
     categorized_records = 0
@@ -216,33 +323,32 @@ def main() -> None:
             postcode = clean(address_obj.get("postcode"))
             locality = clean(address_obj.get("locality"))
             region = clean(address_obj.get("region"))
+            context_id = address_context_id(postcode, locality, region, country)
             operating_status = clean(props.get("operating_status"))
-            (
-                basic_category,
-                taxonomy_primary,
-                taxonomy_hierarchy,
-                taxonomy_alternates,
-                category_norm,
-            ) = taxonomy_fields(props)
+            basic_category, taxonomy_primary, hierarchy, alternates = taxonomy_fields(props)
+            basic_id = category_id(basic_category)
+            primary_id = category_id(taxonomy_primary)
             (
                 source_provider,
                 source_dataset,
                 source_record_id,
                 source_version,
             ) = preferred_source(props)
+            normalized_source_id = source_id(
+                source_provider,
+                source_dataset,
+                source_version,
+            )
 
             cursor = db.execute(
                 """
                 INSERT OR IGNORE INTO places (
                     id, name, name_norm, address, address_norm,
                     latitude, longitude, confidence,
-                    freeform, postcode, locality, locality_norm, region, country,
-                    operating_status, basic_category, taxonomy_primary,
-                    taxonomy_hierarchy, taxonomy_alternates, category_norm,
-                    source_provider, source_dataset, source_record_id, source_version
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                )
+                    freeform, address_context_id, operating_status,
+                    basic_category_id, taxonomy_primary_id,
+                    source_id, source_record_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     place_id,
@@ -254,33 +360,68 @@ def main() -> None:
                     longitude,
                     confidence,
                     freeform,
-                    postcode,
-                    locality,
-                    normalize(locality),
-                    region,
-                    country,
+                    context_id,
                     operating_status,
-                    basic_category,
-                    taxonomy_primary,
-                    compact_json(taxonomy_hierarchy),
-                    compact_json(taxonomy_alternates),
-                    category_norm,
-                    source_provider,
-                    source_dataset,
+                    basic_id,
+                    primary_id,
+                    normalized_source_id,
                     source_record_id,
-                    source_version,
                 ),
             )
-            if cursor.rowcount:
-                inserted += 1
-                if category_norm:
-                    categorized_records += 1
-                if freeform or postcode or locality or region or country:
-                    structured_address_records += 1
-                if source_provider or source_dataset or source_record_id:
-                    source_identified_records += 1
+            if not cursor.rowcount:
+                continue
 
-            if inserted and inserted % 5000 == 0:
+            inserted += 1
+            place_rowid = int(cursor.lastrowid)
+            linked_categories = False
+
+            if basic_id:
+                db.execute(
+                    """
+                    INSERT OR IGNORE INTO place_categories
+                    (place_rowid, category_id, relation, ordinal)
+                    VALUES (?, ?, ?, 0)
+                    """,
+                    (place_rowid, basic_id, CATEGORY_RELATION_BASIC),
+                )
+                linked_categories = True
+
+            for ordinal, category in enumerate(hierarchy):
+                cid = category_id(category)
+                if not cid:
+                    continue
+                db.execute(
+                    """
+                    INSERT OR IGNORE INTO place_categories
+                    (place_rowid, category_id, relation, ordinal)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (place_rowid, cid, CATEGORY_RELATION_HIERARCHY, ordinal),
+                )
+                linked_categories = True
+
+            for ordinal, category in enumerate(alternates):
+                cid = category_id(category)
+                if not cid:
+                    continue
+                db.execute(
+                    """
+                    INSERT OR IGNORE INTO place_categories
+                    (place_rowid, category_id, relation, ordinal)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (place_rowid, cid, CATEGORY_RELATION_ALTERNATE, ordinal),
+                )
+                linked_categories = True
+
+            if linked_categories:
+                categorized_records += 1
+            if freeform or postcode or locality or region or country:
+                structured_address_records += 1
+            if normalized_source_id or source_record_id:
+                source_identified_records += 1
+
+            if inserted % 5000 == 0:
                 db.commit()
 
     input_path = Path(args.input)
