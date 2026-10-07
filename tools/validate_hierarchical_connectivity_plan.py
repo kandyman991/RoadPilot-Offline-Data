@@ -205,6 +205,7 @@ def main() -> int:
         )
 
         candidate_sequence = []
+        crossing_order = []
         for xi, crossing in enumerate(crossings):
             c_label = f"{label}.crossings[{xi}]"
             require(isinstance(crossing, dict), f"{c_label} must be an object")
@@ -234,6 +235,12 @@ def main() -> int:
                     isinstance(value, int) and not isinstance(value, bool) and value >= 0,
                     f"{c_label}.{key} invalid",
                 )
+            crossing_order.append((
+                crossing["evidenceTier"],
+                crossing["sourceCandidateRank"],
+                crossing["stableWayId"],
+                candidate_id,
+            ))
 
         total_distance = 0.0
         total_time = 0.0
@@ -270,7 +277,7 @@ def main() -> int:
         require(abs(declared_score - expected_score) < 1e-6, f"{label}.score mismatch")
 
         secondary = total_distance if data["routeStyle"] == "FASTER" else total_time
-        key = (declared_score, secondary, len(crossings), tuple(candidate_sequence), chain_id)
+        key = (declared_score, secondary, len(crossings), tuple(crossing_order), chain_id)
         if previous_key is not None:
             require(previous_key <= key, "chains are not deterministically ranked")
         previous_key = key
