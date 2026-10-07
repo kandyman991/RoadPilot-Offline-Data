@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/publication-latest-v1.json",
+  "title": "RoadPilot mutable publication latest pointer",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "artifactKind",
+    "regionId",
+    "packageVersion",
+    "releaseKey",
+    "releaseSha256",
+    "builtAtUtc"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot.publication-latest"
+    },
+    "version": {
+      "const": 1
+    },
+    "artifactKind": {
+      "enum": [
+        "ROUTING",
+        "VISUAL",
+        "SEARCH",
+        "CONNECTIVITY",
+        "CONNECTOR_INVENTORY",
+        "CONNECTOR_MATRIX"
+      ]
+    },
+    "regionId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "packageVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "releaseKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "releaseSha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "builtAtUtc": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
