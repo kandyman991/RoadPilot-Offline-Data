@@ -26,31 +26,28 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Issue #16 — visual map production/inspection, milestone 4: independent visual R2 publication.**
+**Issue #17 — POI/search production and inspection.**
 
-M1 is merged in PR #43.
-M2 is merged in PR #44.
-M3 is merged in PR #45; exact-head repository validation and Graph Studio packaging were green after fixing one Rust PathBuf borrow/move error.
+Issue #16 is complete and closed:
+- PR #43 — PMTiles/MVT visual artifact foundation;
+- PR #44 — retained regional visual build + road validation lifecycle;
+- PR #45 — Graph Studio exact-PMTiles inspector, layer controls and visual build diff;
+- PR #46 — independent visual R2 publication and Graph Studio visual publication controls.
 
-Current branch: `visual-map-r2-publication-m4`.
+Search architecture requirements:
+- reuse the existing RoadPilot Overture/SQLite search pipeline rather than creating a second search implementation;
+- search packages are independent from routing and visual artifacts;
+- regional config is the canonical source for search coverage and deterministic validation queries;
+- generated SQLite must be exactly what RoadPilot consumes offline;
+- support names, partial names, phrases, categories, address/location terms, typo tolerance where the existing implementation supports it, proximity ranking and reranking from a selected origin;
+- Graph Studio must inspect result fields/ranking and highlight exact local DB results on the map;
+- support practical POI category overlays from the local generated DB only;
+- compare retained search builds for counts, added/removed/changed records, category deltas, size and validation changes;
+- publish search independently under `search/<region>/...` using the same immutable release/latest contract.
 
-M4 architecture:
-- `prepare_visual_publication.py` revalidates the exact retained visual pack before a publication plan can exist;
-- production visual publication requires the bound road index and `missingRoadCount=0`;
-- immutable visual objects are PMTiles, manifest, checksum and road-index JSON;
-- visual release metadata includes visual/profile/source fingerprints, tilemaker version, tile counts/zoom/layers and road-validation counts;
-- visual namespace is `visual/<region>/<version>/...` with mutable `visual/<region>/latest.json`;
-- routing remains under `routing/<region>/...` with its own latest pointer;
-- the existing generic R2 uploader/history/rollback backend is reused unchanged;
-- fake-R2 CI publishes routing and visual into the same bucket and proves visual publish/activation leaves routing latest unchanged;
-- Graph Studio's R2 panel now switches between Routing graph and Visual PMTiles retained builds;
-- Tauri selects the matching safe manifest root and publication-plan preparer based on artifactKind;
-- remote status/history queries use the selected `routing` or `visual` prefix;
-- rollback accepts only safe release keys under those two namespaces;
-- publication artifact selection is locked while an upload is running.
+Initial validation must retain the existing Italy Nord-Est SARP regression case.
 
-Cloudflare R2 is still not connected to a real bucket; do not claim live credentials have been tested.
-POI/search remains separate in issue #17.
+Cloudflare R2 still has no live credentials configured; do not claim live publication has been tested.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -71,10 +68,10 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get #16 M4 visual R2 publication CI green and merge it.
-2. Verify all #16 acceptance criteria across PRs #43-#46 and close issue #16.
-3. Update ROADMAP/CHAT_HANDOFF to mark visual map production/inspection complete.
-4. Start #17 POI/search production/inspection as its own artifact pipeline.
+1. Locate and document the existing RoadPilot Overture/SQLite search implementation and its exact database/query contract.
+2. Define #17 milestones around that implementation instead of forking it.
+3. Implement M1 search artifact/schema/build/validation foundation with the SARP regression target.
+4. Continue through Graph Studio inspection/comparison and independent search R2 publication.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
