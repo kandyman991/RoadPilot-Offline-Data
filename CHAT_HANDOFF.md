@@ -24,7 +24,26 @@ Target regional artifacts are independently versioned:
 
 Rebuilding one artifact or one region must not force unrelated regional/artifact downloads.
 
-## Current focus\n\n**Issue #17 — POI/search production and inspection, milestone 1: Android-compatible search artifact foundation.**\n\nCurrent branch: `search-artifact-foundation-m1`.\n\nM1 architecture:\n- preserve `roadpilot-overture-v1` so current Android can still install/search the generated database;\n- `roadpilot_search_v1.py` mirrors current Android normalization, SQL token retrieval, dedupe and confidence/exact/prefix/contains/brand/token scoring;\n- Italy Nord-Est SARP validation runs the runtime-style query `SARP Food Technologies`;\n- pin the Overture source client to `overturemaps 1.0.2` and record the exact Overture data release;\n- SQLite metadata records source release/client/version/input SHA;\n- retained manifests add search/source fingerprints and runtime validation results while retaining all Android-required fields;\n- retained builds are atomic under `dist/search/<region>/<version>/` and cannot overwrite an existing version;\n- CI uses synthetic Overture features to prove deterministic SQLite bytes, SARP ranking parity, accent normalization, immutable version refusal and corrupt database rejection.\n\nM2 will evolve the schema/runtime for categories and proximity rather than pretending v1 already supports them.\nM3 is Graph Studio search/POI inspection and comparison.\nM4 is independent search R2 publication.\n## Critical architectural decisions
+## Current focus
+
+**Issue #17 — POI/search production and inspection, milestone 1: Android-compatible search artifact foundation.**
+
+Current branch: `search-artifact-foundation-m1`.
+
+M1 architecture:
+- preserve `roadpilot-overture-v1` so current Android can still install/search the generated database;
+- `roadpilot_search_v1.py` mirrors current Android normalization, SQL token retrieval, dedupe and confidence/exact/prefix/contains/brand/token scoring;
+- Italy Nord-Est SARP validation runs the runtime-style query `SARP Food Technologies`;
+- pin the Overture source client to `overturemaps 1.0.2` and record the exact Overture data release;
+- SQLite metadata records source release/client/version/input SHA;
+- retained manifests add search/source fingerprints and runtime validation results while retaining all Android-required fields;
+- retained builds are atomic under `dist/search/<region>/<version>/` and cannot overwrite an existing version;
+- CI uses synthetic Overture features to prove deterministic SQLite bytes, SARP ranking parity, accent normalization, immutable version refusal and corrupt database rejection.
+
+M2 will evolve the schema/runtime for categories and proximity rather than pretending v1 already supports them.
+M3 is Graph Studio search/POI inspection and comparison.
+M4 is independent search R2 publication.
+## Critical architectural decisions
 
 - Regional graphs stay independent.
 - Valhalla pin for production compatibility is 3.6.3.
@@ -42,6 +61,12 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do not merge or revive them blindly. Compare their useful concepts against the current Graph Studio roadmap and issue #26 connectivity work.
 
-## Next exact action\n\n1. Get #17 M1 retained search-pack/runtime-parity CI green and merge it.\n2. M2: add category/source/address fields and proximity/category ranking through an explicit compatibility-tested schema evolution.\n3. M3: add the Graph Studio Search/POI workspace and retained-build comparison.\n4. M4: publish search independently through the immutable R2 contract.\n## Handoff maintenance
+## Next exact action
+
+1. Get #17 M1 retained search-pack/runtime-parity CI green and merge it.
+2. M2: add category/source/address fields and proximity/category ranking through an explicit compatibility-tested schema evolution.
+3. M3: add the Graph Studio Search/POI workspace and retained-build comparison.
+4. M4: publish search independently through the immutable R2 contract.
+## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
