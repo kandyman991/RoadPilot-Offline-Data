@@ -11,11 +11,15 @@ on:
       - "tools/**"
       - ".github/workflows/validate.yml"
       - ".github/workflows/build-routing-pack.yml"
+      - ".github/workflows/publish-overture-pack.yml"
       - "requirements-routing.txt"
       - "requirements-visual.txt"
+      - "requirements-search.txt"
       - "visual/**"
+      - "search/**"
       - "docs/routing-packs-v1.md"
       - "docs/visual-packs-v1.md"
+      - "docs/search-packs-v1.md"
 
 permissions:
   contents: read
@@ -37,6 +41,9 @@ jobs:
 
       - name: Install visual Python dependencies
         run: python -m pip install -r requirements-visual.txt
+
+      - name: Install search Python dependencies
+        run: python -m pip install -r requirements-search.txt
 
       - name: Install visual smoke tooling
         shell: bash
@@ -89,6 +96,141 @@ jobs:
           for file in config/regions/*.json; do
             python tools/validate_region_config.py --config "$file"
           done
+
+      - name: Smoke-test retained RoadPilot search pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/search-pack-smoke"
+          mkdir -p "$root"
+
+          cat > "$root/places.geojsonseq" <<'JSONL'
+          {"type":"Feature","id":"sarp","properties":{"id":"sarp","names":{"primary":"SARP"},"addresses":[{"freeform":"Via Colombara 10","postcode":"35018","locality":"San Martino di Lupari","region":"Veneto","country":"IT"}],"confidence":0.96},"geometry":{"type":"Point","coordinates":[11.793,45.645]}}
+          {"type":"Feature","id":"priamo","properties":{"id":"priamo","names":{"primary":"Priamo Food Technologies"},"addresses":[{"freeform":"Via Roma 1","locality":"Nervesa della Battaglia","region":"Veneto","country":"IT"}],"confidence":0.94},"geometry":{"type":"Point","coordinates":[12.200,45.820]}}
+          {"type":"Feature","id":"tecalit","properties":{"id":"tecalit","names":{"primary":"Tecalit Food Technologies"},"addresses":[{"freeform":"Via Industria 2","locality":"San Martino di Lupari","region":"Veneto","country":"IT"}],"confidence":0.92},"geometry":{"type":"Point","coordinates":[11.850,45.650]}}
+          {"type":"Feature","id":"caffe-1","properties":{"id":"caffe-1","names":{"primary":"Caffè Roma"},"addresses":[{"freeform":"Piazza Roma 5","locality":"Treviso","region":"Veneto","country":"IT"}],"confidence":0.90},"geometry":{"type":"Point","coordinates":[12.243,45.666]}}
+          {"type":"Feature","id":"caffe-2","properties":{"id":"caffe-2","names":{"primary":"CAFFE ROMA"},"addresses":[{"freeform":"Piazza Roma 5","locality":"Treviso","region":"Veneto","country":"IT"}],"confidence":0.60},"geometry":{"type":"Point","coordinates":[12.243,45.666]}}
+          JSONL
+
+          cat > "$root/region.json" <<'JSON'
+          {
+            "schemaVersion": 1,
+            "id": "search-smoke",
+            "name": "Search Smoke",
+            "overture": {
+              "enabled": true,
+              "country": "IT",
+              "databaseSchema": "roadpilot-overture-v1",
+              "fileName": "search-smoke-v1.sqlite",
+              "manifestFileName": "search-smoke-v1.json",
+              "coverage": {
+                "minLat": 45.0,
+                "maxLat": 46.5,
+                "minLng": 11.0,
+                "maxLng": 13.0
+              },
+              "validation": [
+                {
+                  "nameEquals": "SARP",
+                  "query": "SARP Food Technologies",
+                  "addressContainsAny": ["san martino di lupari", "colombara"],
+                  "limit": 8
+                },
+                {
+                  "nameEquals": "Caffè Roma",
+                  "query": "Caffe Roma",
+                  "addressContainsAny": ["treviso"],
+                  "limit": 8
+                }
+              ]
+            }
+          }
+          JSON
+
+          python tools/validate_region_config.py --config "$root/region.json"
+
+          common=(
+            --config "$root/region.json"
+            --input "$root/places.geojsonseq"
+            --source-release "2026-09-23.1"
+            --pack-version "1.0.0"
+          )
+
+          python tools/build_search_region_pack.py \
+            "${common[@]}" \
+            --dist-dir "$root/dist-a" \
+            --work-dir "$root/work-a"
+
+          python tools/build_search_region_pack.py \
+            "${common[@]}" \
+            --dist-dir "$root/dist-b" \
+            --work-dir "$root/work-b"
+
+          pack_a="$root/dist-a/search-smoke/1.0.0"
+          pack_b="$root/dist-b/search-smoke/1.0.0"
+          db_a="$pack_a/search-smoke-v1.sqlite"
+          db_b="$pack_b/search-smoke-v1.sqlite"
+          manifest_a="$pack_a/search-smoke-v1.json"
+
+          cmp "$db_a" "$db_b"
+
+          python tools/validate_search_pack.py \
+            --manifest "$manifest_a" \
+            --database "$db_a" \
+            --config "$root/region.json"
+
+          python tools/roadpilot_search_v1.py \
+            --database "$db_a" \
+            --query "SARP Food Technologies" \
+            --limit 8 \
+            --json > "$root/runtime-results.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "search-pack-smoke"
+          results = json.loads((root / "runtime-results.json").read_text())
+          assert results[0]["title"] == "SARP", results
+          assert results[0]["scoreBrandFirst"] == 2500
+          assert results[0]["score"] > results[1]["score"]
+
+          pack = root / "dist-a/search-smoke/1.0.0"
+          manifest = json.loads((pack / "search-smoke-v1.json").read_text())
+          assert manifest["schema"] == "roadpilot-search-pack"
+          assert manifest["artifactKind"] == "SEARCH"
+          assert manifest["databaseSchema"] == "roadpilot-overture-v1"
+          assert manifest["source"]["dataRelease"] == "2026-09-23.1"
+          assert manifest["source"]["clientVersion"] == "1.0.2"
+          assert manifest["sourceFingerprint"].startswith("sha256:")
+          assert manifest["searchFingerprint"] == "sha256:" + manifest["sha256"]
+          assert manifest["validation"]["passed"] is True
+          assert manifest["validation"]["targetCount"] == 2
+          sarp = manifest["validation"]["results"][0]
+          assert sarp["nameEquals"] == "SARP"
+          assert sarp["query"] == "SARP Food Technologies"
+          assert sarp["matchedRank"] == 1
+          print("search artifact/runtime contract smoke passed")
+          PY
+
+          if python tools/build_search_region_pack.py \
+            "${common[@]}" \
+            --dist-dir "$root/dist-a" \
+            --work-dir "$root/work-a"; then
+            echo "Expected retained search version overwrite to fail" >&2
+            exit 1
+          fi
+
+          cp "$db_a" "$root/corrupt.sqlite"
+          truncate -s 128 "$root/corrupt.sqlite"
+          if python tools/validate_search_pack.py \
+            --manifest "$manifest_a" \
+            --database "$root/corrupt.sqlite" \
+            --config "$root/region.json"; then
+            echo "Expected corrupt search database validation to fail" >&2
+            exit 1
+          fi
 
       - name: Smoke-test immutable publication contract
         shell: bash

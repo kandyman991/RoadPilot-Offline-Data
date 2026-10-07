@@ -20,6 +20,11 @@ on:
       - "tools/build_overture_places_pack.py"
       - "tools/build_overture_manifest.py"
       - "tools/validate_overture_pack.py"
+      - "tools/roadpilot_search_v1.py"
+      - "tools/validate_search_pack.py"
+      - "schemas/search-*.schema.json"
+      - "search/overture/toolchain.json"
+      - "requirements-search.txt"
       - ".github/workflows/publish-overture-pack.yml"
 
 permissions:
@@ -70,12 +75,40 @@ jobs:
           echo "manifest_name=$MANIFEST_NAME" >> "$GITHUB_OUTPUT"
           echo "bbox=$BBOX" >> "$GITHUB_OUTPUT"
 
-      - name: Download current Overture Places
+      - name: Download pinned current Overture Places
         shell: bash
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install overturemaps
+          CLIENT_VERSION="$(jq -r '.overturemapsVersion' search/overture/toolchain.json)"
+          python -m pip install "overturemaps==$CLIENT_VERSION"
+          INSTALLED_VERSION="$(python - <<'PY'
+          import importlib.metadata
+          print(importlib.metadata.version("overturemaps"))
+          PY
+          )"
+          test "$INSTALLED_VERSION" = "$CLIENT_VERSION"
+
+          OVERTURE_RELEASE="$(python - <<'PY'
+          import json
+          import urllib.request
+          request = urllib.request.Request(
+              "https://stac.overturemaps.org/catalog.json",
+              headers={"User-Agent": "RoadPilot-Offline-Data/search-builder"},
+          )
+          with urllib.request.urlopen(request) as response:
+              value = json.load(response)
+          latest = str(value.get("latest") or "").strip().strip("/")
+          if not latest:
+              raise SystemExit("Overture STAC catalog did not expose latest release")
+          print(latest)
+          PY
+          )"
+          echo "OVERTURE_CLIENT_VERSION=$CLIENT_VERSION" >> "$GITHUB_ENV"
+          echo "OVERTURE_RELEASE=$OVERTURE_RELEASE" >> "$GITHUB_ENV"
+          echo "Overture client: $CLIENT_VERSION"
+          echo "Overture data release: $OVERTURE_RELEASE"
+
           mkdir -p "$RUNNER_TEMP/overture"
           OUTPUT="$RUNNER_TEMP/overture/places.geojsonseq"
           rm -f "$OUTPUT"
@@ -107,7 +140,9 @@ jobs:
             --input "$RUNNER_TEMP/overture/places.geojsonseq" \
             --output "dist/overture/${{ steps.region.outputs.file_name }}" \
             --region-id "${{ steps.region.outputs.region_id }}" \
-            --country "${{ steps.region.outputs.country }}"
+            --country "${{ steps.region.outputs.country }}" \
+            --source-release "$OVERTURE_RELEASE" \
+            --source-client-version "$OVERTURE_CLIENT_VERSION"
           test -s "dist/overture/${{ steps.region.outputs.file_name }}"
 
       - name: Validate pack regression targets
@@ -116,7 +151,8 @@ jobs:
           set -euo pipefail
           python tools/validate_overture_pack.py \
             --database "dist/overture/${{ steps.region.outputs.file_name }}" \
-            --config "${{ steps.region.outputs.config }}"
+            --config "${{ steps.region.outputs.config }}" \
+            --report "dist/overture/search-validation.json"
 
       - name: Build distributable manifest
         shell: bash
@@ -133,9 +169,16 @@ jobs:
             --database "dist/overture/${{ steps.region.outputs.file_name }}" \
             --output "dist/overture/${{ steps.region.outputs.manifest_name }}" \
             --config "${{ steps.region.outputs.config }}" \
-            --pack-version "$PACK_VERSION"
+            --pack-version "$PACK_VERSION" \
+            --validation-report "dist/overture/search-validation.json"
 
-          sha256sum "dist/overture/${{ steps.region.outputs.file_name }}"
+          sha256sum "dist/overture/${{ steps.region.outputs.file_name }}" \
+            > "dist/overture/${{ steps.region.outputs.file_name }}.sha256"
+
+          python tools/validate_search_pack.py \
+            --manifest "dist/overture/${{ steps.region.outputs.manifest_name }}" \
+            --database "dist/overture/${{ steps.region.outputs.file_name }}" \
+            --config "${{ steps.region.outputs.config }}"
           ls -lh dist/overture
 
       - name: Publish public release assets
@@ -153,5 +196,6 @@ jobs:
 
           gh release upload "$RELEASE_TAG" \
             "dist/overture/${{ steps.region.outputs.file_name }}" \
+            "dist/overture/${{ steps.region.outputs.file_name }}.sha256" \
             "dist/overture/${{ steps.region.outputs.manifest_name }}" \
             --clobber

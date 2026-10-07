@@ -26,28 +26,23 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Issue #17 — POI/search production and inspection.**
+**Issue #17 — POI/search production and inspection, milestone 1: Android-compatible search artifact foundation.**
 
-Issue #16 is complete and closed:
-- PR #43 — PMTiles/MVT visual artifact foundation;
-- PR #44 — retained regional visual build + road validation lifecycle;
-- PR #45 — Graph Studio exact-PMTiles inspector, layer controls and visual build diff;
-- PR #46 — independent visual R2 publication and Graph Studio visual publication controls.
+Current branch: `search-artifact-foundation-m1`.
 
-Search architecture requirements:
-- reuse the existing RoadPilot Overture/SQLite search pipeline rather than creating a second search implementation;
-- search packages are independent from routing and visual artifacts;
-- regional config is the canonical source for search coverage and deterministic validation queries;
-- generated SQLite must be exactly what RoadPilot consumes offline;
-- support names, partial names, phrases, categories, address/location terms, typo tolerance where the existing implementation supports it, proximity ranking and reranking from a selected origin;
-- Graph Studio must inspect result fields/ranking and highlight exact local DB results on the map;
-- support practical POI category overlays from the local generated DB only;
-- compare retained search builds for counts, added/removed/changed records, category deltas, size and validation changes;
-- publish search independently under `search/<region>/...` using the same immutable release/latest contract.
+M1 architecture:
+- preserve `roadpilot-overture-v1` so current Android can still install/search the generated database;
+- `roadpilot_search_v1.py` mirrors current Android normalization, SQL token retrieval, dedupe and confidence/exact/prefix/contains/brand/token scoring;
+- Italy Nord-Est SARP validation runs the runtime-style query `SARP Food Technologies`;
+- pin the Overture source client to `overturemaps 1.0.2` and record the exact Overture data release;
+- SQLite metadata records source release/client/version/input SHA;
+- retained manifests add search/source fingerprints and runtime validation results while retaining all Android-required fields;
+- retained builds are atomic under `dist/search/<region>/<version>/` and cannot overwrite an existing version;
+- CI uses synthetic Overture features to prove deterministic SQLite bytes, SARP ranking parity, accent normalization, immutable version refusal and corrupt database rejection.
 
-Initial validation must retain the existing Italy Nord-Est SARP regression case.
-
-Cloudflare R2 still has no live credentials configured; do not claim live publication has been tested.
+M2 will evolve the schema/runtime for categories and proximity rather than pretending v1 already supports them.
+M3 is Graph Studio search/POI inspection and comparison.
+M4 is independent search R2 publication.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -68,10 +63,10 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Locate and document the existing RoadPilot Overture/SQLite search implementation and its exact database/query contract.
-2. Define #17 milestones around that implementation instead of forking it.
-3. Implement M1 search artifact/schema/build/validation foundation with the SARP regression target.
-4. Continue through Graph Studio inspection/comparison and independent search R2 publication.
+1. Get #17 M1 retained search-pack/runtime-parity CI green and merge it.
+2. M2: add category/source/address fields and proximity/category ranking through an explicit compatibility-tested schema evolution.
+3. M3: add the Graph Studio Search/POI workspace and retained-build comparison.
+4. M4: publish search independently through the immutable R2 contract.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.

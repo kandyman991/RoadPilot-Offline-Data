@@ -1,0 +1,8 @@
+{
+  "schema": "roadpilot-search-toolchain",
+  "version": 1,
+  "sourceProvider": "Overture Maps Foundation Places",
+  "overturemapsVersion": "1.0.2",
+  "databaseSchema": "roadpilot-overture-v1",
+  "runtimeContract": "android-overture-place-search-v1"
+}

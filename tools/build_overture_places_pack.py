@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 import sqlite3
 import unicodedata
 from pathlib import Path
 
 DATABASE_SCHEMA = "roadpilot-overture-v1"
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 def normalize(value: str) -> str:
     decomposed = unicodedata.normalize("NFKD", value or "")
@@ -37,6 +45,8 @@ def main() -> None:
     parser.add_argument("--output", required=True)
     parser.add_argument("--region-id", required=True)
     parser.add_argument("--country", default="")
+    parser.add_argument("--source-release", default="unknown")
+    parser.add_argument("--source-client-version", default="unknown")
     args = parser.parse_args()
 
     output = Path(args.output)
@@ -117,6 +127,8 @@ def main() -> None:
             if inserted and inserted % 5000 == 0:
                 db.commit()
 
+    input_path = Path(args.input)
+    source_input_sha256 = sha256_file(input_path)
     db.executemany(
         "INSERT INTO meta(key, value) VALUES (?, ?)",
         [
@@ -124,6 +136,10 @@ def main() -> None:
             ("source", "Overture Maps Foundation Places"),
             ("schema", DATABASE_SCHEMA),
             ("record_count", str(inserted)),
+            ("source_release", args.source_release.strip() or "unknown"),
+            ("source_client", "overturemaps"),
+            ("source_client_version", args.source_client_version.strip() or "unknown"),
+            ("source_input_sha256", source_input_sha256),
         ],
     )
     db.commit()

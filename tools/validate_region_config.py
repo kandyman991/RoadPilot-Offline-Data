@@ -62,6 +62,24 @@ def validate_overture(overture) -> bool:
     validations = overture.get("validation")
     if not isinstance(validations, list) or not validations:
         fail("at least one Overture validation target is required")
+    for index, target in enumerate(validations):
+        if not isinstance(target, dict):
+            fail(f"overture.validation[{index}] must be an object")
+        name = str(target.get("nameEquals") or "").strip()
+        if not name:
+            fail(f"overture.validation[{index}].nameEquals is required")
+        query = str(target.get("query") or name).strip()
+        if len(query) < 2:
+            fail(f"overture.validation[{index}].query must contain at least 2 characters")
+        contains = target.get("addressContainsAny", [])
+        if (
+            not isinstance(contains, list)
+            or any(not isinstance(item, str) or not item.strip() for item in contains)
+        ):
+            fail(f"overture.validation[{index}].addressContainsAny must be a string array")
+        limit = target.get("limit", 8)
+        if not isinstance(limit, int) or isinstance(limit, bool) or not (1 <= limit <= 12):
+            fail(f"overture.validation[{index}].limit must be an integer from 1 to 12")
     return True
 
 
