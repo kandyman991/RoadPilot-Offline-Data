@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/publication-release-v1.json",
+  "title": "RoadPilot immutable publication release",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "artifactKind",
+    "regionId",
+    "packageVersion",
+    "builtAtUtc",
+    "immutablePrefix",
+    "objects",
+    "metadata"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot.publication-release"
+    },
+    "version": {
+      "const": 1
+    },
+    "artifactKind": {
+      "enum": [
+        "ROUTING",
+        "VISUAL",
+        "SEARCH",
+        "CONNECTIVITY",
+        "CONNECTOR_INVENTORY",
+        "CONNECTOR_MATRIX"
+      ]
+    },
+    "regionId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "packageVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "builtAtUtc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "immutablePrefix": {
+      "type": "string",
+      "minLength": 1
+    },
+    "objects": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/object"
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "key",
+        "fileName",
+        "sizeBytes",
+        "sha256",
+        "contentType"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "ARTIFACT",
+            "MANIFEST",
+            "CHECKSUM",
+            "GRAPH_INDEX",
+            "AUXILIARY"
+          ]
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fileName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "contentType": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
