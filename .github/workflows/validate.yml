@@ -666,6 +666,84 @@ jobs:
           print("local plain-Valhalla crossing proof smoke test passed")
           PY
 
+      - name: Smoke-test compact runtime connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-correlation"
+
+          python tools/compile_runtime_connectivity.py \
+            --candidates "$root/candidates.json" \
+            --proofs "$root/proofs.json" \
+            --output "$root/runtime-connectivity.json"
+
+          python tools/validate_runtime_connectivity.py \
+            --artifact "$root/runtime-connectivity.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          runtime = json.loads((root / "runtime-connectivity.json").read_text())
+          candidates = json.loads((root / "candidates.json").read_text())
+          proofs = json.loads((root / "proofs.json").read_text())
+
+          assert runtime["validationState"] == "VALIDATED"
+          assert runtime["sourceCandidateCount"] == len(candidates["candidates"])
+          assert runtime["sourceProofCount"] == len(proofs["proofs"])
+          assert runtime["validatedCrossingCount"] == proofs["provenCandidateCount"]
+
+          proven_ids = {
+              proof["candidateId"]
+              for proof in proofs["proofs"]
+              if proof["proofState"] == "PROVEN"
+          }
+          runtime_ids = {crossing["candidateId"] for crossing in runtime["crossings"]}
+          assert runtime_ids == proven_ids
+
+          best_candidate = next(
+              candidate for candidate in candidates["candidates"]
+              if candidate["stableWayId"] == 100 and candidate["candidateRank"] == 0
+          )
+          best_runtime = next(
+              crossing for crossing in runtime["crossings"]
+              if crossing["candidateId"] == best_candidate["id"]
+          )
+          assert best_runtime["modes"]["MOTORCYCLE"] == {
+              "fromTo": True,
+              "toFrom": False,
+          }
+          assert best_runtime["modes"]["CAR"] == {
+              "fromTo": True,
+              "toFrom": True,
+          }
+          assert best_runtime["fromAnchor"]["coordinate"] != best_runtime["toAnchor"]["coordinate"]
+          assert "access" not in best_runtime
+          assert "proofState" not in best_runtime
+
+          wrong_candidate = next(
+              candidate for candidate in candidates["candidates"]
+              if candidate["stableWayId"] == 100
+              and candidate["fromEdge"]["wayId"] == 999
+              and candidate["toEdge"]["wayId"] == 999
+          )
+          assert wrong_candidate["id"] not in runtime_ids
+
+          expected_support = sum(
+              int(direction["passed"])
+              for proof in proofs["proofs"]
+              if proof["proofState"] == "PROVEN"
+              for mode in proof["modes"].values()
+              for direction in mode.values()
+          )
+          assert runtime["supportedModeDirectionCount"] == expected_support
+          assert runtime["sourceHashes"]["candidatesSha256"].startswith("sha256:")
+          assert runtime["sourceHashes"]["proofsSha256"].startswith("sha256:")
+          print("compact runtime connectivity smoke test passed")
+          PY
+
       - name: Verify hosted routing toolchain
         shell: bash
         run: |
