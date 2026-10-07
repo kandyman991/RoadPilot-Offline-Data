@@ -26,14 +26,26 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Issue #16 — visual map production/inspection, milestone 1: PMTiles artifact foundation.**
+**Issue #16 — visual map production/inspection, milestone 2: regional build lifecycle.**
 
 Issue #14 is complete and closed:
 - PR #40 — immutable publication contract;
 - PR #41 — plan-backed R2 upload/verification/history/rollback;
 - PR #42 — Graph Studio R2 publication manager.
 
-Current branch: `visual-map-foundation-m1`.
+Current branch: `visual-map-regional-build-m2`.
+
+M1 is merged in PR #43.
+
+M2 regional lifecycle:
+- visual source is independently configured with primary Geofabrik PBF + nominal polygon;
+- the production command caches both inputs and builds into a temporary version directory;
+- completed versions are atomically retained under dist/visual/<region>/<version> and cannot be overwritten;
+- visual PMTiles keep OSM feature IDs so source-road coverage can be proven;
+- a roadpilot-visual-road-index extracts configured major roads plus boundary-corridor roads from the same PBF and checks every required OSM way is present in PMTiles;
+- the visual manifest binds the road-index SHA and zero-missing-road counts;
+- refresh planning chooses NONE, REVALIDATE_ROADS, REBUILD_PROFILE or REBUILD_SOURCE based on source/profile/validation changes;
+- CI uses a pre-seeded source cache and real tilemaker/PMTiles build to prove retained-build immutability and refresh-action precedence.
 
 M1 visual architecture:
 - visual packages remain independent from routing and POI/search;
@@ -71,9 +83,8 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get #16 M1 deterministic PMTiles builder/validator smoke green and merge it.
-2. M2: integrate actual regional PBF source/cache/build handling, retained visual builds, major/border road validation and visual refresh planning.
-3. M3: Graph Studio exact-PMTiles rendering, reference-map comparison, layer toggles and changed/missing visual road diff.
+1. Get #16 M2 regional visual lifecycle CI green and merge it.
+2. M3: Graph Studio exact-PMTiles rendering, reference-map comparison, layer toggles and changed/missing visual road diff.
 4. M4: independent visual artifact R2 publication.
 5. Keep #17 POI/search separate.
 ## Handoff maintenance
