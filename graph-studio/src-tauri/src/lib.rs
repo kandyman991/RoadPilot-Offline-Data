@@ -596,6 +596,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
     let pipeline = pipeline_root(app)?;
     let routing_requirements = pipeline.join("requirements-routing.txt");
     let visual_requirements = pipeline.join("requirements-visual.txt");
+    let search_requirements = pipeline.join("requirements-search.txt");
 
     if !python.is_file() {
         emit_log(app, "Preparing Graph Studio Python environment…");
@@ -612,7 +613,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
     }
 
     let marker = env_dir.join(".roadpilot-requirements-ready");
-    let requirements_stamp = [&routing_requirements, &visual_requirements]
+    let requirements_stamp = [&routing_requirements, &visual_requirements, &search_requirements]
         .iter()
         .map(|path| {
             fs::metadata(path)
@@ -636,7 +637,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
             return Err("pip upgrade failed.".into());
         }
 
-        for requirements in [&routing_requirements, &visual_requirements] {
+        for requirements in [&routing_requirements, &visual_requirements, &search_requirements] {
             let status = Command::new(&python)
                 .args(["-m", "pip", "install", "-r"])
                 .arg(requirements)
