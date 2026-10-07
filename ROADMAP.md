@@ -239,8 +239,8 @@ Do not reintroduce fixed seams, F6, hard heading/separation filters, or graph-lo
 Publish validated region artifacts with immutable history and a small mutable latest pointer.
 
 Milestones:
-- M1 — credential-free publication contract and local object-store safety proof — active;
-- M2 — R2 credential configuration/test plus plan-backed S3-compatible upload/verification;
+- M1 — credential-free publication contract and local object-store safety proof — merged in PR #40;
+- M2 — R2 credential configuration/test plus plan-backed S3-compatible upload/verification — active;
 - M3 — Graph Studio local-vs-published status, progress, history and rollback.
 
 M1 contract:
@@ -254,7 +254,21 @@ M1 contract:
 - failed/partial publication never changes `latest.json`;
 - rollback moves only `latest.json` to an existing confirmed release and never deletes historical versions.
 
-The contract is provider-independent so the same safety rules can be tested locally before real R2 credentials are configured. Cloudflare R2 is not connected yet.
+The contract is provider-independent so the same safety rules can be tested locally before real R2 credentials are configured.
+
+M2 adds:
+- environment-only R2 credentials: account ID, access key, secret key and bucket;
+- a non-mutating credential/connection test;
+- publication-plan-backed R2 upload;
+- upload progress events for Graph Studio;
+- post-upload HEAD verification of object size and SHA-256 metadata;
+- conditional immutable release creation;
+- conditional latest-pointer update so concurrent publishers cannot silently clobber each other;
+- remote immutable release listing;
+- verified deletion-free latest-pointer rollback;
+- the legacy direct routing publisher now delegates to the publication-plan path.
+
+Cloudflare R2 is not connected to a real bucket yet; live credentials have not been supplied or tested.
 ## Additional artifact pipelines
 
 ### Visual map layer (#16)

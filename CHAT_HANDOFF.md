@@ -26,7 +26,7 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Issue #14 — Cloudflare R2 publication manager, milestone 1: immutable publication contract.**
+**Issue #14 — Cloudflare R2 publication manager, milestone 2: plan-backed R2 upload and verification.**
 
 Issue #35 is complete and closed:
 - PR #36 — graph-bound connector anchor inventories;
@@ -34,23 +34,23 @@ Issue #35 is complete and closed:
 - PR #38 — sparse matrix-backed hierarchical FASTER/SHORTER composition;
 - PR #39 — Graph Studio matrix topology/weights/freshness inspection and lifecycle refresh planning.
 
-Current branch: `r2-publication-contract-m1`.
+Current branch: `r2-plan-publisher-m2`.
 
-M1 publication architecture:
-- keep the existing routing-pack validator as the publication gate;
-- generate a credential-free `roadpilot.publication-plan`;
-- payload keys are immutable and versioned;
-- a deterministic immutable `release.json` describes the complete version;
-- `latest.json` is the only mutable pointer;
-- update order is payload objects → release.json → latest.json;
-- exact retries are safe/idempotent;
-- immutable key collisions with different bytes fail;
-- a partial failed release cannot advance latest;
-- rollback only repoints latest to an existing fully verified immutable release;
-- graph-index is included when the routing manifest provides it;
-- local object-store CI proves semantics before R2 credentials are involved.
+M1 publication contract is merged in PR #40.
 
-Cloudflare R2 credentials are not configured or tested yet. Do not claim R2 is connected.
+M2 architecture:
+- all R2 publishing consumes the validated M1 publication plan; the old direct manifest uploader now delegates to this path;
+- credentials come only from process environment: CLOUDFLARE_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET;
+- test_r2_connection.py verifies bucket access without creating/deleting objects;
+- payload uploads emit machine-readable progress events and are HEAD-verified for size + SHA-256 metadata;
+- immutable release.json uses conditional creation and is reverified before latest can move;
+- latest.json uses conditional PutObject against the observed ETag, so concurrent publishers cannot silently overwrite each other;
+- exact retries are idempotent;
+- immutable release history is listable from R2;
+- activate_publication_release_r2.py verifies the full old release before moving latest, without deleting any retained version;
+- CI uses a deterministic fake R2/S3 backend to prove upload, progress, HEAD checks, conditional latest failure, history and rollback.
+
+Cloudflare R2 credentials are still not configured against a real bucket. Do not claim R2 is connected or live-tested.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -71,9 +71,9 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get #14 M1 publication-contract CI green and merge it.
-2. M2: make the R2 publisher consume the validated publication plan, configure/test credentials outside repository files, upload/HEAD-verify every immutable object, then advance latest.
-3. M3: add Graph Studio local-vs-published status, upload progress, release history and rollback controls.
+1. Get #14 M2 plan-backed R2 publisher CI green and merge it.
+2. M3: add Graph Studio local-vs-published status, credential configuration/test via local protected storage or environment, upload progress, release history and rollback controls.
+3. Once the user supplies real R2 credentials/bucket configuration, run the connection test and a controlled first live publication.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
