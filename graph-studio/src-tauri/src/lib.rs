@@ -1494,17 +1494,16 @@ fn visual_archive_range(
         .metadata()
         .map_err(|e| format!("Could not stat visual PMTiles artifact: {e}"))?
         .len();
-    let end = offset
-        .checked_add(length)
-        .ok_or("Visual archive range overflow.")?;
-    if offset > file_len || end > file_len {
+    if offset >= file_len {
         return Err(format!(
-            "Visual archive range is outside artifact bounds: offset={offset} length={length} size={file_len}"
+            "Visual archive range starts outside artifact bounds: offset={offset} size={file_len}"
         ));
     }
+    let available = file_len - offset;
+    let read_length = length.min(available);
     file.seek(SeekFrom::Start(offset))
         .map_err(|e| format!("Could not seek visual PMTiles artifact: {e}"))?;
-    let mut bytes = vec![0_u8; length as usize];
+    let mut bytes = vec![0_u8; read_length as usize];
     file.read_exact(&mut bytes)
         .map_err(|e| format!("Could not read visual PMTiles range: {e}"))?;
     Ok(bytes)
