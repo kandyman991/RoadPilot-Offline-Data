@@ -1612,6 +1612,22 @@ fn safe_search_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, Stri
     if !requested.is_file() {
         return Err("Selected search manifest is not a file.".into());
     }
+    let mut inside_retained_root = false;
+    for root in search_build_roots(app)? {
+        if !root.exists() {
+            continue;
+        }
+        let Ok(root) = root.canonicalize() else {
+            continue;
+        };
+        if requested.starts_with(&root) {
+            inside_retained_root = true;
+            break;
+        }
+    }
+    if !inside_retained_root {
+        return Err("Search manifest is outside recognized retained search-build roots.".into());
+    }
     let text = fs::read_to_string(&requested)
         .map_err(|e| format!("Could not read search manifest: {e}"))?;
     let value: Value = serde_json::from_str(&text)
@@ -1620,17 +1636,6 @@ fn safe_search_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, Stri
         || value.get("artifactKind").and_then(Value::as_str) != Some("SEARCH")
     {
         return Err("Selected manifest is not a RoadPilot search pack.".into());
-    }
-    let region_id = value.get("regionId").and_then(Value::as_str)
-        .ok_or("Search manifest is missing regionId.")?;
-    let version = value.get("packVersion").and_then(Value::as_str)
-        .ok_or("Search manifest is missing packVersion.")?;
-    let (artifact, _) = load_search_build(app, region_id, version)?;
-    let canonical_manifest = PathBuf::from(&artifact.manifest_path)
-        .canonicalize()
-        .map_err(|e| format!("Could not resolve retained search manifest: {e}"))?;
-    if canonical_manifest != requested {
-        return Err("Search manifest is outside recognized retained search-build roots.".into());
     }
     Ok(requested)
 }
