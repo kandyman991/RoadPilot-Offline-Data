@@ -791,6 +791,9 @@ jobs:
           bc_crossing["sourceCandidateRank"] = 0
           bc_crossing["evidenceTier"] = 0
           bc_crossing["fromAnchor"] = copy.deepcopy(source["toAnchor"])
+          bc_crossing["fromAnchor"]["coordinate"]["lng"] += 0.2
+          bc_crossing["fromAnchor"]["graphId"] = 2001
+          bc_crossing["fromAnchor"]["wayId"] = 200
           bc_crossing["toAnchor"] = copy.deepcopy(source["toAnchor"])
           bc_crossing["toAnchor"]["coordinate"]["lng"] += 1.0
           bc_crossing["toAnchor"]["graphId"] = 3002
