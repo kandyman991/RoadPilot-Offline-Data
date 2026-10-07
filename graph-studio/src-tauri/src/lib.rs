@@ -1468,7 +1468,7 @@ fn inspect_region_connector_matrix(app: AppHandle, region_id: String) -> Result<
         let Ok(document) = serde_json::from_str::<Value>(&text) else {
             continue;
         };
-        if document.get("regionId").and_then(Value::as_str) != Some(&region_id) {
+        if document.get("regionId").and_then(Value::as_str) != Some(region_id.as_str()) {
             continue;
         }
         match document.get("schema").and_then(Value::as_str).unwrap_or_default() {
