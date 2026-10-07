@@ -220,8 +220,8 @@ Add a sparse hierarchical routing layer on top of completed #26 connectivity.
 Milestones:
 - M1 — deterministic graph-bound connector anchor inventories — merged in PR #36;
 - M2 — Motorcycle/Car entry→exit Valhalla matrices with exact start/end DirectedEdge proof — merged in PR #37;
-- M3 — matrix-backed sparse hierarchical chain composition — active;
-- M4 — Graph Studio matrix/topology/freshness inspection and final lifecycle integration.
+- M3 — matrix-backed sparse hierarchical chain composition — merged in PR #38;
+- M4 — Graph Studio matrix/topology/freshness inspection and final lifecycle integration — active.
 
 M3 rules:
 - cross-border edges come only from VALIDATED #26 runtime connectivity;
