@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -122,7 +123,7 @@ def verify_tilemaker_version(
         )
     executable = shutil.which(executable) or executable
     output = run_checked([executable, "--help"], "tilemaker --help")
-    if f"tilemaker {expected}" not in output:
+    if re.search(rf"\\btilemaker v?{re.escape(expected)}(?:\\b|\\+)", output) is None:
         fail(f"tilemaker version does not match pinned {expected}: {output.strip()}")
     return expected, executable
 
