@@ -175,12 +175,16 @@ Milestones:
   - retain the complete Graph A × Graph B candidate product per frontier road;
   - rank by evidence only; never filter by heading/access/direction here;
   - emit explicit `UNPROVEN` state until Valhalla route proof;
-- plain-Valhalla motorcycle/auto direction proofs — active;
+- plain-Valhalla motorcycle/auto direction proofs — merged in PR #31;
   - prove each graph's local approach/exit leg independently; never route A-snap→B-snap inside both graphs;
   - prove A→B and B→A independently for motorcycle and auto;
   - require successful route geometry to trace back onto the exact candidate DirectedEdge graphId;
   - route proof overrides pre-proof heading/access metadata; those remain diagnostics only;
-- compact validated connectivity artifact for RoadPilot;
+- compact validated connectivity artifact for RoadPilot — active;
+  - promote only PROVEN candidates;
+  - copy only actually supported mode/direction capabilities;
+  - bind exact A/B anchors to graph + boundary fingerprints;
+  - omit rejected/inconclusive diagnostics and pre-proof access guesses;
 - multi-hop region-chain composition;
 - rebuild only pair metadata whose relevant boundary fingerprint changed.
 
