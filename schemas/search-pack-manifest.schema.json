@@ -89,6 +89,12 @@
     },
     "validation": {
       "$ref": "#/$defs/validation"
+    },
+    "capabilities": {
+      "$ref": "#/$defs/capabilities"
+    },
+    "enrichment": {
+      "$ref": "#/$defs/enrichment"
     }
   },
   "$defs": {
@@ -222,6 +228,70 @@
           "minLength": 1
         },
         "score": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtimeContracts",
+        "categorySearch",
+        "proximityRanking",
+        "structuredAddress",
+        "sourceIdentity"
+      ],
+      "properties": {
+        "runtimeContracts": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "contains": {
+            "const": "roadpilot-search-v2"
+          }
+        },
+        "categorySearch": {
+          "const": true
+        },
+        "proximityRanking": {
+          "const": true
+        },
+        "structuredAddress": {
+          "const": true
+        },
+        "sourceIdentity": {
+          "const": true
+        }
+      }
+    },
+    "enrichment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "categorizedRecordCount",
+        "structuredAddressRecordCount",
+        "sourceIdentifiedRecordCount"
+      ],
+      "properties": {
+        "schema": {
+          "const": "roadpilot-search-enrichment-v2"
+        },
+        "categorizedRecordCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "structuredAddressRecordCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sourceIdentifiedRecordCount": {
           "type": "integer",
           "minimum": 0
         }

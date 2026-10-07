@@ -105,11 +105,13 @@ jobs:
           mkdir -p "$root"
 
           cat > "$root/places.geojsonseq" <<'JSONL'
-          {"type":"Feature","id":"sarp","properties":{"id":"sarp","names":{"primary":"SARP"},"addresses":[{"freeform":"Via Colombara 10","postcode":"35018","locality":"San Martino di Lupari","region":"Veneto","country":"IT"}],"confidence":0.96},"geometry":{"type":"Point","coordinates":[11.793,45.645]}}
-          {"type":"Feature","id":"priamo","properties":{"id":"priamo","names":{"primary":"Priamo Food Technologies"},"addresses":[{"freeform":"Via Roma 1","locality":"Nervesa della Battaglia","region":"Veneto","country":"IT"}],"confidence":0.94},"geometry":{"type":"Point","coordinates":[12.200,45.820]}}
-          {"type":"Feature","id":"tecalit","properties":{"id":"tecalit","names":{"primary":"Tecalit Food Technologies"},"addresses":[{"freeform":"Via Industria 2","locality":"San Martino di Lupari","region":"Veneto","country":"IT"}],"confidence":0.92},"geometry":{"type":"Point","coordinates":[11.850,45.650]}}
-          {"type":"Feature","id":"caffe-1","properties":{"id":"caffe-1","names":{"primary":"Caffè Roma"},"addresses":[{"freeform":"Piazza Roma 5","locality":"Treviso","region":"Veneto","country":"IT"}],"confidence":0.90},"geometry":{"type":"Point","coordinates":[12.243,45.666]}}
-          {"type":"Feature","id":"caffe-2","properties":{"id":"caffe-2","names":{"primary":"CAFFE ROMA"},"addresses":[{"freeform":"Piazza Roma 5","locality":"Treviso","region":"Veneto","country":"IT"}],"confidence":0.60},"geometry":{"type":"Point","coordinates":[12.243,45.666]}}
+          {"type":"Feature","id":"sarp","properties":{"id":"sarp","names":{"primary":"SARP"},"addresses":[{"freeform":"Via Colombara 10","postcode":"35018","locality":"San Martino di Lupari","region":"Veneto","country":"IT"}],"confidence":0.96,"operating_status":"open","basic_category":"manufacturer","taxonomy":{"primary":"industrial_manufacturer","hierarchy":["services_and_business","manufacturer","industrial_manufacturer"],"alternates":[]},"sources":[{"provider":"Synthetic","resource":"fixture","record_id":"sarp","version":"1","confidence":0.96}]},"geometry":{"type":"Point","coordinates":[11.793,45.645]}}
+          {"type":"Feature","id":"priamo","properties":{"id":"priamo","names":{"primary":"Priamo Food Technologies"},"addresses":[{"freeform":"Via Roma 1","locality":"Nervesa della Battaglia","region":"Veneto","country":"IT"}],"confidence":0.94,"operating_status":"open","basic_category":"manufacturer","taxonomy":{"primary":"industrial_manufacturer","hierarchy":["services_and_business","manufacturer","industrial_manufacturer"],"alternates":[]},"sources":[{"provider":"Synthetic","resource":"fixture","record_id":"priamo","version":"1","confidence":0.94}]},"geometry":{"type":"Point","coordinates":[12.200,45.820]}}
+          {"type":"Feature","id":"tecalit","properties":{"id":"tecalit","names":{"primary":"Tecalit Food Technologies"},"addresses":[{"freeform":"Via Industria 2","locality":"San Martino di Lupari","region":"Veneto","country":"IT"}],"confidence":0.92,"operating_status":"open","basic_category":"manufacturer","taxonomy":{"primary":"industrial_manufacturer","hierarchy":["services_and_business","manufacturer","industrial_manufacturer"],"alternates":[]},"sources":[{"provider":"Synthetic","resource":"fixture","record_id":"tecalit","version":"1","confidence":0.92}]},"geometry":{"type":"Point","coordinates":[11.850,45.650]}}
+          {"type":"Feature","id":"caffe-1","properties":{"id":"caffe-1","names":{"primary":"Caffè Roma"},"addresses":[{"freeform":"Piazza Roma 5","locality":"Treviso","region":"Veneto","country":"IT"}],"confidence":0.90,"operating_status":"open","basic_category":"cafe","taxonomy":{"primary":"cafe","hierarchy":["food_and_drink","cafe"],"alternates":[]},"sources":[{"provider":"Synthetic","resource":"fixture","record_id":"caffe-1","version":"1","confidence":0.90}]},"geometry":{"type":"Point","coordinates":[12.243,45.666]}}
+          {"type":"Feature","id":"caffe-2","properties":{"id":"caffe-2","names":{"primary":"CAFFE ROMA"},"addresses":[{"freeform":"Piazza Roma 5","locality":"Treviso","region":"Veneto","country":"IT"}],"confidence":0.60,"operating_status":"open","basic_category":"cafe","taxonomy":{"primary":"cafe","hierarchy":["food_and_drink","cafe"],"alternates":[]},"sources":[{"provider":"Synthetic","resource":"fixture","record_id":"caffe-2","version":"1","confidence":0.60}]},"geometry":{"type":"Point","coordinates":[12.243,45.666]}}
+          {"type":"Feature","id":"gas-near","properties":{"id":"gas-near","names":{"primary":"RoadPilot Fuel Near"},"addresses":[{"freeform":"Via Test 1","locality":"Treviso","region":"Veneto","country":"IT"}],"confidence":0.75,"operating_status":"open","basic_category":"gas_station","taxonomy":{"primary":"gas_station","hierarchy":["travel_and_transportation","automotive","gas_station"],"alternates":["convenience_store"]},"sources":[{"provider":"Synthetic","resource":"fixture","record_id":"gas-near","version":"1","confidence":0.75}]},"geometry":{"type":"Point","coordinates":[12.105,45.805]}}
+          {"type":"Feature","id":"gas-far","properties":{"id":"gas-far","names":{"primary":"RoadPilot Fuel Far"},"addresses":[{"freeform":"Via Test 99","locality":"Verona","region":"Veneto","country":"IT"}],"confidence":0.99,"operating_status":"open","basic_category":"gas_station","taxonomy":{"primary":"gas_station","hierarchy":["travel_and_transportation","automotive","gas_station"],"alternates":[]},"sources":[{"provider":"Synthetic","resource":"fixture","record_id":"gas-far","version":"1","confidence":0.99}]},"geometry":{"type":"Point","coordinates":[11.000,45.000]}}
           JSONL
 
           cat > "$root/region.json" <<'JSON'
@@ -185,6 +187,14 @@ jobs:
             --limit 8 \
             --json > "$root/runtime-results.json"
 
+          python tools/roadpilot_search_v2.py \
+            --database "$db_a" \
+            --category "gas station" \
+            --origin-lat 45.805 \
+            --origin-lng 12.105 \
+            --limit 8 \
+            --json > "$root/enhanced-results.json"
+
           python - <<'PY'
           import json
           import os
@@ -195,6 +205,15 @@ jobs:
           assert results[0]["title"] == "SARP", results
           assert results[0]["scoreBrandFirst"] == 2500
           assert results[0]["score"] > results[1]["score"]
+
+          enhanced = json.loads((root / "enhanced-results.json").read_text())
+          assert enhanced[0]["id"] == "gas-near", enhanced
+          assert enhanced[0]["basicCategory"] == "gas_station"
+          assert enhanced[0]["taxonomyPrimary"] == "gas_station"
+          assert enhanced[0]["sourceProvider"] == "Synthetic"
+          assert enhanced[0]["sourceDataset"] == "fixture"
+          assert enhanced[0]["distanceMeters"] < 50
+          assert enhanced[0]["scoreProximity"] > enhanced[1]["scoreProximity"]
 
           pack = root / "dist-a/search-smoke/1.0.0"
           manifest = json.loads((pack / "search-smoke-v1.json").read_text())
@@ -207,6 +226,13 @@ jobs:
           assert manifest["searchFingerprint"] == "sha256:" + manifest["sha256"]
           assert manifest["validation"]["passed"] is True
           assert manifest["validation"]["targetCount"] == 2
+          assert manifest["enrichment"]["schema"] == "roadpilot-search-enrichment-v2"
+          assert manifest["enrichment"]["categorizedRecordCount"] == 7
+          assert manifest["enrichment"]["structuredAddressRecordCount"] == 7
+          assert manifest["enrichment"]["sourceIdentifiedRecordCount"] == 7
+          assert "roadpilot-search-v2" in manifest["capabilities"]["runtimeContracts"]
+          assert manifest["capabilities"]["categorySearch"] is True
+          assert manifest["capabilities"]["proximityRanking"] is True
           sarp = manifest["validation"]["results"][0]
           assert sarp["nameEquals"] == "SARP"
           assert sarp["query"] == "SARP Food Technologies"

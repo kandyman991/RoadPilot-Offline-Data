@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
+ENRICHMENT_SCHEMA = "roadpilot-search-enrichment-v2"
+ENHANCED_RUNTIME_CONTRACT = "roadpilot-search-v2"
 
 
 def fail(message: str) -> None:
@@ -21,6 +23,16 @@ def fail(message: str) -> None:
 
 def canonical_bytes(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def metadata_count(metadata: dict[str, str], key: str, maximum: int) -> int:
+    try:
+        value = int(metadata[key])
+    except (KeyError, TypeError, ValueError):
+        fail(f"database {key} metadata is missing or invalid")
+    if not (0 <= value <= maximum):
+        fail(f"database {key} metadata is outside record-count bounds")
+    return value
 
 
 def main() -> int:
@@ -102,7 +114,7 @@ def main() -> int:
     ).hexdigest()
     built_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
-    payload = {
+    payload: dict[str, Any] = {
         "schema": "roadpilot-search-pack",
         "schemaVersion": 1,
         "artifactKind": "SEARCH",
@@ -127,6 +139,33 @@ def main() -> int:
             "results": validation_report["results"],
         },
     }
+
+    enrichment_schema = str(metadata.get("search_enrichment_schema") or "").strip()
+    if enrichment_schema:
+        if enrichment_schema != ENRICHMENT_SCHEMA:
+            fail(f"unsupported search enrichment schema: {enrichment_schema!r}")
+        enhanced_runtime = str(metadata.get("enhanced_runtime_contract") or "").strip()
+        if enhanced_runtime != ENHANCED_RUNTIME_CONTRACT:
+            fail(f"unsupported enhanced search runtime contract: {enhanced_runtime!r}")
+        categorized = metadata_count(metadata, "categorized_record_count", record_count)
+        structured = metadata_count(metadata, "structured_address_record_count", record_count)
+        source_identified = metadata_count(metadata, "source_identified_record_count", record_count)
+        payload["capabilities"] = {
+            "runtimeContracts": [
+                validation_report["runtimeContract"],
+                enhanced_runtime,
+            ],
+            "categorySearch": True,
+            "proximityRanking": True,
+            "structuredAddress": True,
+            "sourceIdentity": True,
+        }
+        payload["enrichment"] = {
+            "schema": enrichment_schema,
+            "categorizedRecordCount": categorized,
+            "structuredAddressRecordCount": structured,
+            "sourceIdentifiedRecordCount": source_identified,
+        }
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
