@@ -272,6 +272,15 @@ jobs:
           print("immutable publication contract smoke test passed")
           PY
 
+      - name: Smoke-test plan-backed R2 publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/publication-contract"
+          python tools/smoke_r2_publication_backend.py \
+            --plan-a "$root/2026.10.07-1-plan.json" \
+            --plan-b "$root/2026.10.07-3-plan.json"
+
       - name: Smoke-test Geofabrik Graph Studio discovery
         shell: bash
         run: |
