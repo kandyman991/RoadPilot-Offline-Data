@@ -1188,6 +1188,221 @@ const map = new MapLibreMap({
 });
 map.addControl(new NavigationControl({ showCompass: true }), "bottom-right");
 
+const visualSourceId = "roadpilot-offline-visual";
+const visualLayerIds = [
+  "rp-visual-water",
+  "rp-visual-waterway",
+  "rp-visual-boundary",
+  "rp-visual-roads",
+  "rp-visual-road-labels",
+  "rp-visual-places",
+  "rp-visual-mountains",
+];
+
+function setLayerVisibility(ids: string[], visible: boolean): void {
+  for (const id of ids) {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+    }
+  }
+}
+
+function layerToggleChecked(name: string): boolean {
+  const input = mapLayerToggles.querySelector<HTMLInputElement>(
+    `input[data-layer-toggle="${name}"]`,
+  );
+  return input?.checked !== false;
+}
+
+function applyMapLayerToggles(): void {
+  setLayerVisibility(visualLayerIds, layerToggleChecked("offlineVisual"));
+  setLayerVisibility(referenceLayerIds, layerToggleChecked("onlineReference"));
+  setLayerVisibility(["rp-graph-edges"], layerToggleChecked("graphEdges"));
+  setLayerVisibility(["rp-graph-nodes"], layerToggleChecked("graphNodes"));
+  setLayerVisibility(["rp-graph-shortcuts"], layerToggleChecked("shortcuts"));
+  setLayerVisibility(["rp-graph-restrictions"], layerToggleChecked("restrictions"));
+  setLayerVisibility(
+    ["rp-editor-buffer-fill", "rp-editor-buffer-line"],
+    layerToggleChecked("borderBuffer"),
+  );
+  setLayerVisibility(["roadpilot-border-a-edges"], layerToggleChecked("graphA"));
+  setLayerVisibility(["roadpilot-border-b-edges"], layerToggleChecked("graphB"));
+  setLayerVisibility(["roadpilot-route-line"], layerToggleChecked("route"));
+  setLayerVisibility(["roadpilot-expansion-line"], layerToggleChecked("expansion"));
+  setLayerVisibility(
+    [
+      "roadpilot-handoff-candidate",
+      "roadpilot-handoff-accepted",
+      "roadpilot-handoff-learned",
+      "roadpilot-handoff-manual",
+      "roadpilot-handoff-endpoints",
+    ],
+    layerToggleChecked("handoffs"),
+  );
+}
+
+mapLayerToggles.querySelectorAll<HTMLInputElement>("input[data-layer-toggle]").forEach(input => {
+  input.addEventListener("change", applyMapLayerToggles);
+});
+
+map.on("load", () => {
+  referenceLayerIds = (map.getStyle().layers ?? []).map(layer => layer.id);
+  applyMapLayerToggles();
+});
+
+function removeVisualBuildLayer(): void {
+  for (const id of visualLayerIds) if (map.getLayer(id)) map.removeLayer(id);
+  if (map.getSource(visualSourceId)) map.removeSource(visualSourceId);
+  activeVisualBuild = null;
+}
+
+function addVisualBuildLayer(build: VisualBuildArtifact): void {
+  removeVisualBuildLayer();
+  ensureVisualArchive(build);
+  map.addSource(visualSourceId, {
+    type: "vector",
+    tiles: [
+      `roadpilot-visual://${visualArchiveKey(build)}/{z}/{x}/{y}.mvt`,
+    ],
+    minzoom: build.min_zoom,
+    maxzoom: build.max_zoom,
+  });
+
+  map.addLayer({
+    id: "rp-visual-water",
+    type: "fill",
+    source: visualSourceId,
+    "source-layer": "water",
+    paint: { "fill-color": "#7fb5d8", "fill-opacity": 0.72 },
+  });
+  map.addLayer({
+    id: "rp-visual-waterway",
+    type: "line",
+    source: visualSourceId,
+    "source-layer": "waterway",
+    paint: {
+      "line-color": "#6ca8cf",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.7, 14, 2.2],
+      "line-opacity": 0.9,
+    },
+  });
+  map.addLayer({
+    id: "rp-visual-boundary",
+    type: "line",
+    source: visualSourceId,
+    "source-layer": "boundary",
+    paint: {
+      "line-color": "#8b78a9",
+      "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.7, 12, 1.8],
+      "line-dasharray": [3, 2],
+      "line-opacity": 0.8,
+    },
+  });
+  map.addLayer({
+    id: "rp-visual-roads",
+    type: "line",
+    source: visualSourceId,
+    "source-layer": "transportation",
+    paint: {
+      "line-color": [
+        "match",
+        ["get", "class"],
+        "motorway", "#e7a04a",
+        "trunk", "#e5b35a",
+        "primary", "#f2d07a",
+        "secondary", "#ded6bc",
+        "#b9bec4",
+      ],
+      "line-width": [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        5, 0.6,
+        9, 1.3,
+        14, 4.2,
+      ],
+      "line-opacity": 0.95,
+    },
+  });
+  map.addLayer({
+    id: "rp-visual-road-labels",
+    type: "symbol",
+    source: visualSourceId,
+    "source-layer": "transportation_name",
+    minzoom: 7,
+    layout: {
+      "symbol-placement": "line",
+      "text-field": ["coalesce", ["get", "name"], ["get", "ref"]],
+      "text-size": ["interpolate", ["linear"], ["zoom"], 7, 9, 14, 12],
+      "text-max-angle": 30,
+    },
+    paint: {
+      "text-color": "#37404a",
+      "text-halo-color": "#f7f3e8",
+      "text-halo-width": 1.2,
+    },
+  });
+  map.addLayer({
+    id: "rp-visual-places",
+    type: "symbol",
+    source: visualSourceId,
+    "source-layer": "place",
+    layout: {
+      "text-field": ["coalesce", ["get", "name"], ["get", "name_en"]],
+      "text-size": [
+        "match",
+        ["get", "class"],
+        "city", 15,
+        "town", 12,
+        10,
+      ],
+      "text-offset": [0, 0.5],
+    },
+    paint: {
+      "text-color": "#27313a",
+      "text-halo-color": "#f7f3e8",
+      "text-halo-width": 1.3,
+    },
+  });
+  map.addLayer({
+    id: "rp-visual-mountains",
+    type: "symbol",
+    source: visualSourceId,
+    "source-layer": "mountain_peak",
+    minzoom: 9,
+    layout: {
+      "text-field": [
+        "case",
+        ["has", "ele"],
+        ["concat", ["coalesce", ["get", "name"], ""], " ", ["to-string", ["get", "ele"]], " m"],
+        ["coalesce", ["get", "name"], ""],
+      ],
+      "text-size": 10,
+      "text-offset": [0, 0.8],
+    },
+    paint: {
+      "text-color": "#665b52",
+      "text-halo-color": "#f7f3e8",
+      "text-halo-width": 1,
+    },
+  });
+  activeVisualBuild = build;
+  applyMapLayerToggles();
+}
+
+function fitVisualBuild(build: VisualBuildArtifact): void {
+  const b = build.bounds;
+  if (
+    Number.isFinite(b.minLng) && Number.isFinite(b.minLat)
+    && Number.isFinite(b.maxLng) && Number.isFinite(b.maxLat)
+  ) {
+    map.fitBounds(
+      [[Number(b.minLng), Number(b.minLat)], [Number(b.maxLng), Number(b.maxLat)]],
+      { padding: 48, duration: 450 },
+    );
+  }
+}
+
 const editorOverlaySourceIds = ["rp-editor-primary", "rp-editor-buffer", "rp-editor-sources"];
 const editorOverlayLayerIds = ["rp-editor-primary-fill", "rp-editor-primary-line", "rp-editor-buffer-fill", "rp-editor-buffer-line", "rp-editor-sources-line"];
 
