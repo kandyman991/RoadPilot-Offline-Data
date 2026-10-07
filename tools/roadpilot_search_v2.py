@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """RoadPilot enriched offline search contract for Graph Studio and future runtimes.
 
-The v2 contract is additive: the SQLite database retains the Android-compatible
-roadpilot-overture-v1 base columns while exposing structured address, current
-Overture taxonomy/source fields, category filtering and optional proximity
-ranking.
+The v2 contract is additive: the SQLite file keeps the Android-compatible
+roadpilot-overture-v1 base columns while normalized companion tables retain
+structured address, current Overture taxonomy/source identity, category
+filtering and optional proximity ranking.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import argparse
 import json
 import math
 import sqlite3
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +25,10 @@ MAX_QUERY_TOKENS = 6
 GLOBAL_RAW_LIMIT = 900
 LOCAL_RAW_LIMIT = 3000
 LOCAL_RADIUS_KM = 150.0
+
+CATEGORY_RELATION_BASIC = 0
+CATEGORY_RELATION_HIERARCHY = 1
+CATEGORY_RELATION_ALTERNATE = 2
 
 
 @dataclass(frozen=True)
@@ -85,16 +89,6 @@ class RankedEnhancedCandidate:
     scoreProximity: int
 
 
-def _json_list(value: str) -> list[str]:
-    try:
-        parsed = json.loads(value or "[]")
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(parsed, list):
-        return []
-    return [str(item) for item in parsed if str(item).strip()]
-
-
 def _tokens(query: str) -> list[str]:
     result: list[str] = []
     for token in normalize(query).split(" "):
@@ -133,6 +127,22 @@ def _validate_enrichment(connection: sqlite3.Connection) -> None:
         )
 
 
+def _resolve_category_ids(
+    connection: sqlite3.Connection,
+    category: str,
+) -> list[int]:
+    normalized = normalize(category)
+    if not normalized:
+        return []
+    return [
+        int(row[0])
+        for row in connection.execute(
+            "SELECT id FROM search_categories WHERE name_norm = ? ORDER BY id",
+            (normalized,),
+        ).fetchall()
+    ]
+
+
 def _candidate_from_row(row: tuple[Any, ...]) -> EnhancedCandidate | None:
     latitude = float(row[3])
     longitude = float(row[4])
@@ -151,40 +161,52 @@ def _candidate_from_row(row: tuple[Any, ...]) -> EnhancedCandidate | None:
         region=str(row[9]),
         country=str(row[10]),
         operatingStatus=str(row[11]),
-        basicCategory=str(row[12]),
-        taxonomyPrimary=str(row[13]),
-        taxonomyHierarchy=_json_list(str(row[14])),
-        taxonomyAlternates=_json_list(str(row[15])),
-        sourceProvider=str(row[16]),
-        sourceDataset=str(row[17]),
-        sourceRecordId=str(row[18]),
-        sourceVersion=str(row[19]),
+        basicCategory=str(row[12] or ""),
+        taxonomyPrimary=str(row[13] or ""),
+        taxonomyHierarchy=[],
+        taxonomyAlternates=[],
+        sourceProvider=str(row[14] or ""),
+        sourceDataset=str(row[15] or ""),
+        sourceRecordId=str(row[16] or ""),
+        sourceVersion=str(row[17] or ""),
     )
 
 
-def _where_clause(query: str, category: str) -> tuple[str, list[Any], str]:
+def _text_clause(query: str) -> tuple[str | None, list[Any], str]:
     normalized_query = normalize(query)
-    tokens = _tokens(query)
-    normalized_category = normalize(category)
+    if not normalized_query:
+        return None, [], ""
+    terms = _tokens(query) or [normalized_query]
+    clauses: list[str] = []
+    params: list[Any] = []
+    for token in terms:
+        term = f"%{token}%"
+        clauses.append("(p.name_norm LIKE ? OR p.address_norm LIKE ?)")
+        params.extend([term, term])
+    return "(" + " OR ".join(clauses) + ")", params, normalized_query
 
-    clauses = ["operating_status <> 'permanently_closed'"]
+
+def _where_clause(
+    query: str,
+    category_ids: list[int],
+) -> tuple[str, list[Any], str]:
+    clauses = ["p.operating_status <> 'permanently_closed'"]
     params: list[Any] = []
 
-    if normalized_query:
-        terms = tokens or [normalized_query]
-        text_clauses = []
-        for token in terms:
-            term = f"%{token}%"
-            text_clauses.append(
-                "(name_norm LIKE ? OR address_norm LIKE ? OR "
-                "locality_norm LIKE ? OR category_norm LIKE ?)"
-            )
-            params.extend([term, term, term, term])
-        clauses.append("(" + " OR ".join(text_clauses) + ")")
+    text_clause, text_params, normalized_query = _text_clause(query)
+    if text_clause:
+        clauses.append(text_clause)
+        params.extend(text_params)
 
-    if normalized_category:
-        clauses.append("category_norm LIKE ?")
-        params.append(f"%{normalized_category}%")
+    if category_ids:
+        placeholders = ",".join("?" for _ in category_ids)
+        clauses.append(
+            "p.rowid IN ("
+            "SELECT pc.place_rowid FROM place_categories pc "
+            f"WHERE pc.category_id IN ({placeholders})"
+            ")"
+        )
+        params.extend(category_ids)
 
     return " AND ".join(clauses), params, normalized_query
 
@@ -192,12 +214,28 @@ def _where_clause(query: str, category: str) -> tuple[str, list[Any], str]:
 def _select_sql(where: str) -> str:
     return f"""
         SELECT
-            id, name, address, latitude, longitude, confidence,
-            freeform, postcode, locality, region, country, operating_status,
-            basic_category, taxonomy_primary, taxonomy_hierarchy,
-            taxonomy_alternates, source_provider, source_dataset,
-            source_record_id, source_version
-        FROM places
+            p.id, p.name, p.address, p.latitude, p.longitude, p.confidence,
+            p.freeform,
+            COALESCE(ac.postcode, ''),
+            COALESCE(ac.locality, ''),
+            COALESCE(ac.region, ''),
+            COALESCE(ac.country, ''),
+            p.operating_status,
+            COALESCE(basic.name, ''),
+            COALESCE(primary_category.name, ''),
+            COALESCE(source.provider, ''),
+            COALESCE(source.dataset, ''),
+            p.source_record_id,
+            COALESCE(source.version, '')
+        FROM places p
+        LEFT JOIN address_contexts ac
+            ON ac.id = p.address_context_id
+        LEFT JOIN search_categories basic
+            ON basic.id = p.basic_category_id
+        LEFT JOIN search_categories primary_category
+            ON primary_category.id = p.taxonomy_primary_id
+        LEFT JOIN search_sources source
+            ON source.id = p.source_id
         WHERE {where}
     """
 
@@ -223,12 +261,15 @@ def query_database(
     if origin_lng is not None and not (-180.0 <= origin_lng <= 180.0):
         raise ValueError("origin_lng is invalid")
 
-    where, params, normalized_query = _where_clause(query, category)
-    first_token = (_tokens(query) or [normalized_query or ""])[0]
-
     connection = sqlite3.connect(database)
     try:
         _validate_enrichment(connection)
+        category_ids = _resolve_category_ids(connection, category)
+        if normalized_category and not category_ids:
+            return []
+
+        where, params, normalized_query = _where_clause(query, category_ids)
+        first_token = (_tokens(query) or [normalized_query or ""])[0]
         rows: list[tuple[Any, ...]] = []
 
         if origin_lat is not None and origin_lng is not None:
@@ -236,8 +277,8 @@ def query_database(
             cos_lat = max(0.15, math.cos(math.radians(origin_lat)))
             lng_span = LOCAL_RADIUS_KM / (111.32 * cos_lat)
             local_where = (
-                f"{where} AND latitude BETWEEN ? AND ? "
-                "AND longitude BETWEEN ? AND ?"
+                f"{where} AND p.latitude BETWEEN ? AND ? "
+                "AND p.longitude BETWEEN ? AND ?"
             )
             local_params = [
                 *params,
@@ -249,18 +290,19 @@ def query_database(
                 origin_lat,
                 origin_lng,
                 origin_lng,
+                LOCAL_RAW_LIMIT,
             ]
             rows.extend(
                 connection.execute(
                     _select_sql(local_where)
                     + """
                     ORDER BY
-                        ((latitude - ?) * (latitude - ?))
-                        + ((longitude - ?) * (longitude - ?)) ASC,
-                        confidence DESC
+                        ((p.latitude - ?) * (p.latitude - ?))
+                        + ((p.longitude - ?) * (p.longitude - ?)) ASC,
+                        p.confidence DESC
                     LIMIT ?
                     """,
-                    [*local_params, LOCAL_RAW_LIMIT],
+                    local_params,
                 ).fetchall()
             )
 
@@ -271,17 +313,17 @@ def query_database(
                 + """
                 ORDER BY
                     CASE
-                        WHEN name_norm = ? THEN 0
-                        WHEN name_norm LIKE ? THEN 1
+                        WHEN p.name_norm = ? THEN 0
+                        WHEN p.name_norm LIKE ? THEN 1
                         ELSE 2
                     END,
-                    confidence DESC
+                    p.confidence DESC
                 LIMIT ?
                 """
             )
             global_params.extend([first_token, f"{first_token}%", GLOBAL_RAW_LIMIT])
         else:
-            global_sql = _select_sql(where) + " ORDER BY confidence DESC LIMIT ?"
+            global_sql = _select_sql(where) + " ORDER BY p.confidence DESC LIMIT ?"
             global_params.append(GLOBAL_RAW_LIMIT)
         rows.extend(connection.execute(global_sql, global_params).fetchall())
     finally:
@@ -330,17 +372,13 @@ def _score(
     requested_category = normalize(category)
     basic = normalize(candidate.basicCategory)
     primary = normalize(candidate.taxonomyPrimary)
-    hierarchy = {normalize(item) for item in candidate.taxonomyHierarchy}
-    alternates = {normalize(item) for item in candidate.taxonomyAlternates}
     if not requested_category:
         score_category = 0
     elif requested_category in {basic, primary}:
         score_category = 1800
-    elif requested_category in hierarchy:
-        score_category = 1500
-    elif requested_category in alternates:
-        score_category = 1300
     else:
+        # query_database has already proven membership through the normalized
+        # place_categories relation, so parent/alternate matches remain useful.
         score_category = 1000
 
     distance_meters: float | None = None
@@ -380,8 +418,8 @@ def _score(
         operatingStatus=candidate.operatingStatus,
         basicCategory=candidate.basicCategory,
         taxonomyPrimary=candidate.taxonomyPrimary,
-        taxonomyHierarchy=candidate.taxonomyHierarchy,
-        taxonomyAlternates=candidate.taxonomyAlternates,
+        taxonomyHierarchy=[],
+        taxonomyAlternates=[],
         sourceProvider=candidate.sourceProvider,
         sourceDataset=candidate.sourceDataset,
         sourceRecordId=candidate.sourceRecordId,
@@ -423,6 +461,54 @@ def rank(
     return scored[: max(1, min(int(limit), 50))]
 
 
+def _hydrate_taxonomy(
+    database: Path,
+    ranked: list[RankedEnhancedCandidate],
+) -> list[RankedEnhancedCandidate]:
+    if not ranked:
+        return ranked
+
+    ids = [item.id for item in ranked]
+    placeholders = ",".join("?" for _ in ids)
+    connection = sqlite3.connect(database)
+    try:
+        rows = connection.execute(
+            f"""
+            SELECT p.id, c.name, pc.relation, pc.ordinal
+            FROM places p
+            JOIN place_categories pc ON pc.place_rowid = p.rowid
+            JOIN search_categories c ON c.id = pc.category_id
+            WHERE p.id IN ({placeholders})
+              AND pc.relation IN (?, ?)
+            ORDER BY p.id, pc.relation, pc.ordinal, c.name
+            """,
+            [*ids, CATEGORY_RELATION_HIERARCHY, CATEGORY_RELATION_ALTERNATE],
+        ).fetchall()
+    finally:
+        connection.close()
+
+    hierarchy: dict[str, list[str]] = {item.id: [] for item in ranked}
+    alternates: dict[str, list[str]] = {item.id: [] for item in ranked}
+    for place_id, name, relation, _ordinal in rows:
+        target = (
+            hierarchy[str(place_id)]
+            if int(relation) == CATEGORY_RELATION_HIERARCHY
+            else alternates[str(place_id)]
+        )
+        value = str(name)
+        if value not in target:
+            target.append(value)
+
+    return [
+        replace(
+            item,
+            taxonomyHierarchy=hierarchy[item.id],
+            taxonomyAlternates=alternates[item.id],
+        )
+        for item in ranked
+    ]
+
+
 def search(
     database: Path,
     query: str = "",
@@ -432,7 +518,7 @@ def search(
     origin_lng: float | None = None,
     limit: int = 8,
 ) -> list[RankedEnhancedCandidate]:
-    return rank(
+    ranked = rank(
         query,
         category,
         query_database(
@@ -446,6 +532,7 @@ def search(
         origin_lng=origin_lng,
         limit=limit,
     )
+    return _hydrate_taxonomy(database, ranked)
 
 
 def main() -> int:
