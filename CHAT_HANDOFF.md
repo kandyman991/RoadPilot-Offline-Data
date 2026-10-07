@@ -26,34 +26,31 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Graph Studio build-time cross-region connectivity metadata**, issue #26.
+**Final completion of Graph Studio build-time cross-region connectivity metadata**, issue #26.
 
-Issue #13 is complete. PRs #24-#25 delivered deterministic graph/boundary diffing.
-PR #27 merged the fingerprint-bound pair-manifest foundation.
-PR #28 merged stable OSM frontier-road inventory generation.
-PR #29 merged independent Graph A/B Valhalla correlation.
-PR #30 merged lossless Graph A × Graph B crossing-candidate generation.
-PR #31 merged local plain-Valhalla exact-edge crossing proof.
-PR #32 merged compact PROVEN-only runtime connectivity metadata.
+Merged milestones:
+- PRs #24-#25 — deterministic graph/boundary diffing;
+- PR #27 — fingerprint-bound region-pair foundation;
+- PR #28 — stable OSM frontier-road inventory;
+- PR #29 — independent Graph A/B Valhalla correlation;
+- PR #30 — lossless Graph A × Graph B candidate generation;
+- PR #31 — exact-edge plain-Valhalla motorcycle/auto proofs;
+- PR #32 — compact PROVEN-only runtime connectivity;
+- PR #33 — validated multi-hop region-chain composition.
 
-Current #26 milestone branch: `connectivity-multihop-chains-m7`.
+Current final branch: `connectivity-finalize-m8`.
 
-Current multi-hop architecture:
-- compose only `roadpilot.runtime-connectivity` artifacts already marked VALIDATED;
-- build directed adjacency only when the requested mode/direction is explicitly proven;
-- require one exact graph identity per region across every supplied neighboring-pair artifact;
-- conflicting fingerprints for an intermediate region fail composition rather than guessing;
-- return all shortest region chains within `maxHops`;
-- preserve every proven crossing alternative on each hop rather than expanding Cartesian crossing combinations;
-- reorient A/B anchors when traversing a pair in its proven reverse direction;
-- `NO_CHAIN` is an explicit valid result and means RoadPilot must fall back to F8.
+Final lifecycle work on this branch:
+- proven Valhalla route distance/time is promoted into runtime metadata only for supported mode/directions;
+- crossing alternatives and all simple valid region chains up to maxHops are ranked post-proof for FASTER or SHORTER;
+- graph-only fingerprint changes mark only affected pair metadata STALE with `REBIND_GRAPH`, preserving stable physical discovery;
+- relevant boundary fingerprint changes mark only that neighboring pair STALE with `REDISCOVER_BOUNDARY`;
+- missing current graphs are `UNRESOLVED` / `WAIT_FOR_GRAPH`, never guessed;
+- Graph Studio Border Inspector recognizes generated `roadpilot.crossing-candidates` and validated `roadpilot.runtime-connectivity` artifacts;
+- Graph Studio shows validation state separately from CURRENT/STALE and checks both exact graph and relevant boundary fingerprints for new artifacts;
+- F8 remains fallback for missing, stale, ambiguous, empty, or unchainable metadata.
 
-Architectural split for #26:
-- stable physical discovery evidence is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;
-- graph-local correlation/proof evidence is valid only for the exact graph fingerprints;
-- runtime pair metadata contains only proven capabilities;
-- multi-hop composition consumes only that validated runtime layer;
-- F8 remains fallback for missing, stale, ambiguous, empty or unchainable metadata.
+This final branch does not reintroduce any legacy fixed-seam, F6, hard-heading, hard-separation, or graph-id-as-cross-build-identity experiments.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -74,11 +71,10 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get the mode/direction-aware multi-hop chain composition milestone green and merged.
-2. Add boundary-fingerprint-driven surgical stale detection/rebuild planning.
-3. Expose validated runtime connectivity, chains and current-vs-stale state in Graph Studio.
-4. Integrate the compact validated metadata consumer into RoadPilot runtime.
-5. Keep F8 as fallback for missing, stale, ambiguous, empty or unchainable metadata.
+1. Get the final #26 lifecycle PR green and merge it.
+2. Close issue #26 only after exact-head repository validation and Graph Studio packaging are green.
+3. Close legacy experimental PRs #5 and #6 as superseded so they cannot be mistaken for current architecture.
+4. Then continue with the next RoadPilot Offline Data roadmap milestone.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.

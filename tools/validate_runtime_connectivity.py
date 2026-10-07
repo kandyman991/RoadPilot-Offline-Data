@@ -84,6 +84,37 @@ def mode_support(value: Any, label: str) -> int:
         count += int(value[key])
     return count
 
+def route_metric(value: Any, label: str) -> None:
+    require(isinstance(value, dict), f"{label} must be an object")
+    require(set(value) == {"distanceKm", "timeSeconds"}, f"{label} fields invalid")
+    distance = finite(value.get("distanceKm"), f"{label}.distanceKm")
+    route_time = finite(value.get("timeSeconds"), f"{label}.timeSeconds")
+    require(distance >= 0, f"{label}.distanceKm invalid")
+    require(route_time >= 0, f"{label}.timeSeconds invalid")
+
+
+def validate_route_metrics(modes: dict[str, Any], metrics: Any, label: str) -> None:
+    require(isinstance(metrics, dict), f"{label} must be an object")
+    require(set(metrics) == {"MOTORCYCLE", "CAR"}, f"{label} keys invalid")
+    for mode_name in ("MOTORCYCLE", "CAR"):
+        mode_metrics = metrics.get(mode_name)
+        require(isinstance(mode_metrics, dict), f"{label}.{mode_name} must be an object")
+        require(
+            set(mode_metrics) == {"fromTo", "toFrom"},
+            f"{label}.{mode_name} must contain fromTo/toFrom",
+        )
+        mode_support_value = modes[mode_name]
+        for direction in ("fromTo", "toFrom"):
+            metric = mode_metrics.get(direction)
+            if mode_support_value[direction]:
+                route_metric(metric, f"{label}.{mode_name}.{direction}")
+            else:
+                require(
+                    metric is None,
+                    f"{label}.{mode_name}.{direction} must be null when unsupported",
+                )
+
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -204,6 +235,7 @@ def main() -> int:
             + mode_support(modes["CAR"], f"{label}.modes.CAR")
         )
         require(supported > 0, f"{label} must have at least one proven mode/direction")
+        validate_route_metrics(modes, crossing.get("routeMetrics"), f"{label}.routeMetrics")
         actual_supported += supported
 
         ordering = (tier, rank, stable_way, candidate_id)

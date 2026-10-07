@@ -1316,7 +1316,9 @@ fn latest_graph_identity(app: &AppHandle, region_id: &str) -> Result<Value, Stri
         "regionId": region_id,
         "packageVersion": manifest.get("packageVersion").cloned().unwrap_or(Value::Null),
         "builtAtUtc": manifest.get("builtAtUtc").cloned().unwrap_or(Value::Null),
-        "graphFingerprint": manifest.get("graphFingerprint").cloned().unwrap_or(Value::Null)
+        "graphFingerprint": manifest.get("graphFingerprint").cloned().unwrap_or(Value::Null),
+        "primaryGeofabrikId": manifest.pointer("/source/primaryGeofabrikId").cloned().unwrap_or(Value::Null),
+        "boundaryFingerprints": manifest.pointer("/graphIndex/boundaryFingerprints").cloned().unwrap_or_else(|| json!({}))
     }))
 }
 
@@ -1330,12 +1332,19 @@ fn handoff_dir(app: &AppHandle) -> Result<PathBuf, String> {
 fn transition_artifact_dirs(app: &AppHandle) -> Result<Vec<PathBuf>, String> {
     let workspace = workspace_root(app)?;
     let transitions = workspace.join("transitions");
-    let imports = workspace.join("imports/handoffs");
-    fs::create_dir_all(&transitions)
-        .map_err(|e| format!("Could not create transition artifact directory: {e}"))?;
-    fs::create_dir_all(&imports)
-        .map_err(|e| format!("Could not create handoff import directory: {e}"))?;
-    Ok(vec![transitions, imports])
+    let handoff_imports = workspace.join("imports/handoffs");
+    let connectivity = workspace.join("connectivity");
+    let connectivity_imports = workspace.join("imports/connectivity");
+    for (path, label) in [
+        (&transitions, "transition artifact"),
+        (&handoff_imports, "handoff import"),
+        (&connectivity, "connectivity artifact"),
+        (&connectivity_imports, "connectivity import"),
+    ] {
+        fs::create_dir_all(path)
+            .map_err(|e| format!("Could not create Graph Studio {label} directory: {e}"))?;
+    }
+    Ok(vec![transitions, handoff_imports, connectivity, connectivity_imports])
 }
 
 fn collect_json_files(root: &Path, depth: usize, output: &mut Vec<PathBuf>) {
@@ -1390,6 +1399,60 @@ fn coordinate_value(value: Option<&Value>) -> Option<Value> {
     Some(json!({"lat": lat, "lng": lng}))
 }
 
+fn artifact_graph_fingerprint<'a>(document: &'a Value, side: &str) -> Option<&'a str> {
+    let direct = match side {
+        "from" => "fromGraphFingerprint",
+        "to" => "toGraphFingerprint",
+        _ => return None,
+    };
+    document
+        .get(direct)
+        .and_then(Value::as_str)
+        .or_else(|| document.pointer(&format!("/{side}Graph/graphFingerprint")).and_then(Value::as_str))
+}
+
+fn artifact_primary_id<'a>(document: &'a Value, side: &str) -> Option<&'a str> {
+    document
+        .pointer(&format!("/{side}Graph/primaryGeofabrikId"))
+        .and_then(Value::as_str)
+}
+
+fn artifact_boundary_fingerprint<'a>(document: &'a Value, side: &str) -> Option<&'a str> {
+    document
+        .get(match side {
+            "from" => "fromBoundaryFingerprint",
+            "to" => "toBoundaryFingerprint",
+            _ => return None,
+        })
+        .and_then(Value::as_str)
+}
+
+fn artifact_side_current(
+    document: &Value,
+    side: &str,
+    opposite_side: &str,
+    current: &Value,
+) -> bool {
+    let bound_graph = artifact_graph_fingerprint(document, side);
+    let current_graph = current.get("graphFingerprint").and_then(Value::as_str);
+    if bound_graph != current_graph {
+        return false;
+    }
+
+    let Some(bound_boundary) = artifact_boundary_fingerprint(document, side) else {
+        return true;
+    };
+    let Some(neighbor_primary) = artifact_primary_id(document, opposite_side) else {
+        return false;
+    };
+    current
+        .pointer("/boundaryFingerprints")
+        .and_then(Value::as_object)
+        .and_then(|values| values.get(neighbor_primary))
+        .and_then(Value::as_str)
+        == Some(bound_boundary)
+}
+
 fn artifact_fingerprint_status(
     document: &Value,
     current_a: &Value,
@@ -1399,14 +1462,12 @@ fn artifact_fingerprint_status(
 ) -> &'static str {
     let from = document.get("fromRegionId").and_then(Value::as_str).unwrap_or_default();
     let to = document.get("toRegionId").and_then(Value::as_str).unwrap_or_default();
-    let from_fp = document.get("fromGraphFingerprint").and_then(Value::as_str);
-    let to_fp = document.get("toGraphFingerprint").and_then(Value::as_str);
-    let current_a_fp = current_a.get("graphFingerprint").and_then(Value::as_str);
-    let current_b_fp = current_b.get("graphFingerprint").and_then(Value::as_str);
     let matches = if from == region_a && to == region_b {
-        from_fp == current_a_fp && to_fp == current_b_fp
+        artifact_side_current(document, "from", "to", current_a)
+            && artifact_side_current(document, "to", "from", current_b)
     } else if from == region_b && to == region_a {
-        from_fp == current_b_fp && to_fp == current_a_fp
+        artifact_side_current(document, "from", "to", current_b)
+            && artifact_side_current(document, "to", "from", current_a)
     } else {
         false
     };
@@ -1444,6 +1505,110 @@ fn normalize_transition_document(
     let path_text = path.display().to_string();
 
     match schema {
+        "roadpilot.crossing-candidates" => {
+            let validation_state = document
+                .get("validationState")
+                .cloned()
+                .unwrap_or(Value::String("UNPROVEN".into()));
+            for candidate in document
+                .get("candidates")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let Some(from_coordinate) =
+                    coordinate_value(candidate.pointer("/fromEdge/correlatedCoordinate"))
+                else {
+                    continue;
+                };
+                let Some(to_coordinate) =
+                    coordinate_value(candidate.pointer("/toEdge/correlatedCoordinate"))
+                else {
+                    continue;
+                };
+                let tier = candidate.pointer("/evidence/tier").and_then(Value::as_u64);
+                let mut evidence = vec![Value::String("GENERATED_CANDIDATE".into())];
+                if let Some(tier) = tier {
+                    evidence.push(Value::String(format!("EVIDENCE_TIER_{tier}")));
+                }
+                if candidate.pointer("/evidence/bothMatchStableWay").and_then(Value::as_bool) == Some(true) {
+                    evidence.push(Value::String("BOTH_MATCH_STABLE_OSM_WAY".into()));
+                }
+                if candidate.pointer("/evidence/sameCorrelatedWay").and_then(Value::as_bool) == Some(true) {
+                    evidence.push(Value::String("SAME_CORRELATED_OSM_WAY".into()));
+                }
+                output.push(json!({
+                    "kind": "candidate",
+                    "id": candidate.get("id").cloned().unwrap_or(Value::Null),
+                    "status": status,
+                    "validationState": validation_state,
+                    "fromRegionId": from_region,
+                    "toRegionId": to_region,
+                    "from": from_coordinate,
+                    "to": to_coordinate,
+                    "fromWayId": candidate.pointer("/fromEdge/wayId").cloned().unwrap_or(Value::Null),
+                    "toWayId": candidate.pointer("/toEdge/wayId").cloned().unwrap_or(Value::Null),
+                    "modes": [],
+                    "evidence": evidence,
+                    "separationMeters": candidate.pointer("/evidence/separationMeters").cloned().unwrap_or(Value::Null),
+                    "artifactPath": path_text
+                }));
+            }
+        }
+        "roadpilot.runtime-connectivity" => {
+            let validation_state = document
+                .get("validationState")
+                .cloned()
+                .unwrap_or(Value::String("VALIDATED".into()));
+            for crossing in document
+                .get("crossings")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let Some(from_coordinate) =
+                    coordinate_value(crossing.pointer("/fromAnchor/coordinate"))
+                else {
+                    continue;
+                };
+                let Some(to_coordinate) =
+                    coordinate_value(crossing.pointer("/toAnchor/coordinate"))
+                else {
+                    continue;
+                };
+                let mut modes: Vec<Value> = Vec::new();
+                for (mode_name, mode_key) in [("MOTORCYCLE", "MOTORCYCLE"), ("CAR", "CAR")] {
+                    if let Some(mode) = crossing.pointer(&format!("/modes/{mode_key}")).and_then(Value::as_object) {
+                        if mode.get("fromTo").and_then(Value::as_bool) == Some(true) {
+                            modes.push(Value::String(format!("{mode_name}_FROM_TO")));
+                        }
+                        if mode.get("toFrom").and_then(Value::as_bool) == Some(true) {
+                            modes.push(Value::String(format!("{mode_name}_TO_FROM")));
+                        }
+                    }
+                }
+                let tier = crossing.get("evidenceTier").and_then(Value::as_u64);
+                let mut evidence = vec![Value::String("VALHALLA_PROVEN_RUNTIME".into())];
+                if let Some(tier) = tier {
+                    evidence.push(Value::String(format!("EVIDENCE_TIER_{tier}")));
+                }
+                output.push(json!({
+                    "kind": "accepted",
+                    "id": crossing.get("candidateId").cloned().unwrap_or(Value::Null),
+                    "status": status,
+                    "validationState": validation_state,
+                    "fromRegionId": from_region,
+                    "toRegionId": to_region,
+                    "from": from_coordinate,
+                    "to": to_coordinate,
+                    "fromWayId": crossing.pointer("/fromAnchor/wayId").cloned().unwrap_or(Value::Null),
+                    "toWayId": crossing.pointer("/toAnchor/wayId").cloned().unwrap_or(Value::Null),
+                    "modes": modes,
+                    "evidence": evidence,
+                    "artifactPath": path_text
+                }));
+            }
+        }
         "roadpilot.transition-candidates" => {
             for candidate in document
                 .get("candidates")
@@ -1465,6 +1630,7 @@ fn normalize_transition_document(
                     "kind": "candidate",
                     "id": candidate.get("id").cloned().unwrap_or(Value::Null),
                     "status": status,
+                    "validationState": Value::Null,
                     "fromRegionId": from_region,
                     "toRegionId": to_region,
                     "from": from_coordinate,
@@ -1614,6 +1780,7 @@ fn inspect_handoff_artifacts(
             "kind": "manual",
             "id": override_record.get("id").cloned().unwrap_or(Value::Null),
             "status": override_record.get("status").cloned().unwrap_or(Value::String("STALE".into())),
+            "validationState": "VALIDATED",
             "fromRegionId": override_record.get("regionA").cloned().unwrap_or(Value::Null),
             "toRegionId": override_record.get("regionB").cloned().unwrap_or(Value::Null),
             "from": from_coordinate,

@@ -711,6 +711,10 @@ jobs:
               crossing for crossing in runtime["crossings"]
               if crossing["candidateId"] == best_candidate["id"]
           )
+          best_proof = next(
+              proof for proof in proofs["proofs"]
+              if proof["candidateId"] == best_candidate["id"]
+          )
           assert best_runtime["modes"]["MOTORCYCLE"] == {
               "fromTo": True,
               "toFrom": False,
@@ -719,6 +723,23 @@ jobs:
               "fromTo": True,
               "toFrom": True,
           }
+          for mode_name, mode_proof in best_proof["modes"].items():
+              for direction_name, direction_proof in mode_proof.items():
+                  metric = best_runtime["routeMetrics"][mode_name][direction_name]
+                  if direction_proof["passed"]:
+                      assert metric is not None
+                      expected_distance = (
+                          direction_proof["graphA"]["routeLengthKm"]
+                          + direction_proof["graphB"]["routeLengthKm"]
+                      )
+                      expected_time = (
+                          direction_proof["graphA"]["routeTimeSeconds"]
+                          + direction_proof["graphB"]["routeTimeSeconds"]
+                      )
+                      assert abs(metric["distanceKm"] - expected_distance) < 1e-9
+                      assert abs(metric["timeSeconds"] - expected_time) < 1e-9
+                  else:
+                      assert metric is None
           assert best_runtime["fromAnchor"]["coordinate"] != best_runtime["toAnchor"]["coordinate"]
           assert "access" not in best_runtime
           assert "proofState" not in best_runtime
@@ -778,6 +799,16 @@ jobs:
               "MOTORCYCLE": {"fromTo": True, "toFrom": False},
               "CAR": {"fromTo": True, "toFrom": True},
           }
+          bc_crossing["routeMetrics"] = {
+              "MOTORCYCLE": {
+                  "fromTo": {"distanceKm": 6.0, "timeSeconds": 300.0},
+                  "toFrom": None,
+              },
+              "CAR": {
+                  "fromTo": {"distanceKm": 5.0, "timeSeconds": 240.0},
+                  "toFrom": {"distanceKm": 5.5, "timeSeconds": 260.0},
+              },
+          }
 
           bc = {
               "schema": "roadpilot.runtime-connectivity",
@@ -808,23 +839,84 @@ jobs:
           }
           (root / "runtime-bc.json").write_text(json.dumps(bc, indent=2) + "\n")
 
+          ac_crossing = copy.deepcopy(source)
+          ac_crossing["candidateId"] = "xpc1-" + "a" * 24
+          ac_crossing["frontierRoadId"] = "fri1-" + "b" * 24
+          ac_crossing["stableWayId"] = 300
+          ac_crossing["sourceCandidateRank"] = 0
+          ac_crossing["evidenceTier"] = 0
+          ac_crossing["toAnchor"] = copy.deepcopy(bc_crossing["toAnchor"])
+          ac_crossing["modes"] = {
+              "MOTORCYCLE": {"fromTo": True, "toFrom": False},
+              "CAR": {"fromTo": True, "toFrom": False},
+          }
+          ac_crossing["routeMetrics"] = {
+              "MOTORCYCLE": {
+                  "fromTo": {"distanceKm": 0.01, "timeSeconds": 1000000000.0},
+                  "toFrom": None,
+              },
+              "CAR": {
+                  "fromTo": {"distanceKm": 0.01, "timeSeconds": 1000000000.0},
+                  "toFrom": None,
+              },
+          }
+          ac = {
+              "schema": "roadpilot.runtime-connectivity",
+              "version": 1,
+              "pairId": "region-a__region-c",
+              "fromRegionId": "region-a",
+              "toRegionId": "region-c",
+              "fromBoundaryFingerprint": "sha256:" + "6" * 64,
+              "toBoundaryFingerprint": "sha256:" + "7" * 64,
+              "fromGraph": copy.deepcopy(ab["fromGraph"]),
+              "toGraph": copy.deepcopy(bc["toGraph"]),
+              "validationState": "VALIDATED",
+              "sourceHashes": {
+                  "candidatesSha256": "sha256:" + "6" * 64,
+                  "proofsSha256": "sha256:" + "7" * 64,
+              },
+              "sourceCandidateCount": 1,
+              "sourceProofCount": 1,
+              "validatedCrossingCount": 1,
+              "supportedModeDirectionCount": 2,
+              "generator": {"name": "ci-fixture", "version": "1"},
+              "crossings": [ac_crossing],
+          }
+          (root / "runtime-ac.json").write_text(json.dumps(ac, indent=2) + "\n")
+
           conflict = copy.deepcopy(bc)
           conflict["fromGraph"]["graphFingerprint"] = "sha256:" + "9" * 64
           (root / "runtime-bc-conflict.json").write_text(json.dumps(conflict, indent=2) + "\n")
           PY
 
           python tools/validate_runtime_connectivity.py --artifact "$root/runtime-bc.json"
+          python tools/validate_runtime_connectivity.py --artifact "$root/runtime-ac.json"
 
           python tools/compose_connectivity_chains.py \
             --artifact "$root/runtime-connectivity.json" \
             --artifact "$root/runtime-bc.json" \
+            --artifact "$root/runtime-ac.json" \
             --from-region region-a \
             --to-region region-c \
             --mode MOTORCYCLE \
+            --route-style FASTER \
             --output "$root/chain-a-c-motorcycle.json"
 
           python tools/validate_connectivity_chain_plan.py \
             --artifact "$root/chain-a-c-motorcycle.json"
+
+          python tools/compose_connectivity_chains.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --artifact "$root/runtime-ac.json" \
+            --from-region region-a \
+            --to-region region-c \
+            --mode MOTORCYCLE \
+            --route-style SHORTER \
+            --output "$root/chain-a-c-shorter.json"
+
+          python tools/validate_connectivity_chain_plan.py \
+            --artifact "$root/chain-a-c-shorter.json"
 
           python tools/compose_connectivity_chains.py \
             --artifact "$root/runtime-connectivity.json" \
@@ -879,13 +971,24 @@ jobs:
           root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
           forward = json.loads((root / "chain-a-c-motorcycle.json").read_text())
           assert forward["status"] == "FOUND"
+          assert forward["routeStyle"] == "FASTER"
+          assert len(forward["chains"]) == 2
+          assert forward["chains"][0]["rank"] == 0
+          assert forward["chains"][0]["regions"] == ["region-a", "region-b", "region-c"]
           assert forward["hopCount"] == 2
-          assert len(forward["chains"]) == 1
           chain = forward["chains"][0]
-          assert chain["regions"] == ["region-a", "region-b", "region-c"]
           assert len(chain["hops"][0]["crossingOptions"]) >= 1
           assert chain["hops"][1]["crossingOptions"][0]["candidateId"] == "xpc1-" + "c" * 24
           assert chain["hops"][0]["toGraph"] == chain["hops"][1]["fromGraph"]
+          assert chain["scoreUnit"] == "SECONDS"
+
+          shorter = json.loads((root / "chain-a-c-shorter.json").read_text())
+          assert shorter["status"] == "FOUND"
+          assert shorter["routeStyle"] == "SHORTER"
+          assert shorter["chains"][0]["regions"] == ["region-a", "region-c"]
+          assert shorter["hopCount"] == 1
+          assert shorter["chains"][0]["scoreUnit"] == "KILOMETERS"
+          assert shorter["chains"][0]["hops"][0]["crossingOptions"][0]["distanceKm"] == 0.01
 
           reverse_motorcycle = json.loads((root / "chain-c-a-motorcycle.json").read_text())
           assert reverse_motorcycle["status"] == "NO_CHAIN"
@@ -902,6 +1005,119 @@ jobs:
           too_short = json.loads((root / "chain-a-c-too-short.json").read_text())
           assert too_short["status"] == "NO_CHAIN"
           print("multi-hop connectivity composition smoke test passed")
+          PY
+
+      - name: Smoke-test surgical connectivity refresh planning
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-correlation"
+
+          python - <<'PY'
+          import copy
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          ab = json.loads((root / "runtime-connectivity.json").read_text())
+          bc = json.loads((root / "runtime-bc.json").read_text())
+
+          def manifest(graph, boundaries):
+              return {
+                  "schema": "roadpilot-routing-pack",
+                  "schemaVersion": 1,
+                  "regionId": graph["regionId"],
+                  "packageVersion": graph["packageVersion"],
+                  "graphFingerprint": graph["graphFingerprint"],
+                  "source": {"primaryGeofabrikId": graph["primaryGeofabrikId"]},
+                  "graphIndex": {"boundaryFingerprints": boundaries},
+              }
+
+          a = manifest(
+              ab["fromGraph"],
+              {ab["toGraph"]["primaryGeofabrikId"]: ab["fromBoundaryFingerprint"]},
+          )
+          b = manifest(
+              ab["toGraph"],
+              {
+                  ab["fromGraph"]["primaryGeofabrikId"]: ab["toBoundaryFingerprint"],
+                  bc["toGraph"]["primaryGeofabrikId"]: bc["fromBoundaryFingerprint"],
+              },
+          )
+          c = manifest(
+              bc["toGraph"],
+              {bc["fromGraph"]["primaryGeofabrikId"]: bc["toBoundaryFingerprint"]},
+          )
+
+          (root / "current-a.json").write_text(json.dumps(a))
+          (root / "current-b.json").write_text(json.dumps(b))
+          (root / "current-c.json").write_text(json.dumps(c))
+
+          a_changed = copy.deepcopy(a)
+          a_changed["graphFingerprint"] = "sha256:" + "8" * 64
+          (root / "changed-a.json").write_text(json.dumps(a_changed))
+
+          c_boundary_changed = copy.deepcopy(c)
+          c_boundary_changed["graphIndex"]["boundaryFingerprints"][
+              bc["fromGraph"]["primaryGeofabrikId"]
+          ] = "sha256:" + "9" * 64
+          (root / "changed-c-boundary.json").write_text(json.dumps(c_boundary_changed))
+          PY
+
+          python tools/plan_connectivity_refresh.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --manifest "$root/current-a.json" \
+            --manifest "$root/current-b.json" \
+            --manifest "$root/current-c.json" \
+            --output "$root/refresh-current.json"
+          python tools/validate_connectivity_refresh_plan.py --artifact "$root/refresh-current.json"
+
+          python tools/plan_connectivity_refresh.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --manifest "$root/changed-a.json" \
+            --manifest "$root/current-b.json" \
+            --manifest "$root/current-c.json" \
+            --output "$root/refresh-a-graph.json"
+          python tools/validate_connectivity_refresh_plan.py --artifact "$root/refresh-a-graph.json"
+
+          python tools/plan_connectivity_refresh.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --manifest "$root/current-a.json" \
+            --manifest "$root/current-b.json" \
+            --manifest "$root/changed-c-boundary.json" \
+            --output "$root/refresh-c-boundary.json"
+          python tools/validate_connectivity_refresh_plan.py --artifact "$root/refresh-c-boundary.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+
+          current = json.loads((root / "refresh-current.json").read_text())
+          assert current["currentPairCount"] == 2
+          assert current["stalePairCount"] == 0
+          assert current["affectedPairs"] == []
+
+          a_graph = json.loads((root / "refresh-a-graph.json").read_text())
+          assert a_graph["affectedPairs"] == ["region-a__region-b"]
+          pairs = {item["pairId"]: item for item in a_graph["pairs"]}
+          assert pairs["region-a__region-b"]["status"] == "STALE"
+          assert pairs["region-a__region-b"]["refreshAction"] == "REBIND_GRAPH"
+          assert pairs["region-b__region-c"]["status"] == "CURRENT"
+
+          c_boundary = json.loads((root / "refresh-c-boundary.json").read_text())
+          assert c_boundary["affectedPairs"] == ["region-b__region-c"]
+          pairs = {item["pairId"]: item for item in c_boundary["pairs"]}
+          assert pairs["region-a__region-b"]["status"] == "CURRENT"
+          assert pairs["region-b__region-c"]["status"] == "STALE"
+          assert pairs["region-b__region-c"]["refreshAction"] == "REDISCOVER_BOUNDARY"
+          print("surgical connectivity refresh smoke test passed")
           PY
 
       - name: Verify hosted routing toolchain

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Compose validated neighboring RoadPilot connectivity artifacts into multi-hop chains.
+"""Compose validated neighboring RoadPilot connectivity artifacts into ranked multi-hop chains.
 
 Only runtime artifacts already marked VALIDATED are accepted. Adjacency is created
-solely from mode/direction booleans proven in those artifacts. All shortest region
-chains are returned; each hop keeps its complete set of proven crossing alternatives
-rather than expanding Cartesian combinations across hops.
+solely from mode/direction booleans proven by Valhalla. All simple region chains up
+to max-hops are retained and ranked using proven route metrics for FASTER/SHORTER.
 """
 
 from __future__ import annotations
@@ -12,15 +11,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from collections import defaultdict, deque
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 SCHEMA = "roadpilot.connectivity-chain-plan"
 VERSION = 1
 GENERATOR_NAME = "roadpilot-connectivity-chain-composer"
-GENERATOR_VERSION = "1"
+GENERATOR_VERSION = "2"
 MODES = ("MOTORCYCLE", "CAR")
+ROUTE_STYLES = ("FASTER", "SHORTER")
 
 
 def fail(message: str) -> None:
@@ -94,25 +94,62 @@ def road(value: Any) -> dict[str, Any]:
     }
 
 
-def option(crossing: dict[str, Any], reverse: bool) -> dict[str, Any]:
+def route_metric(crossing: dict[str, Any], mode: str, direction_key: str) -> dict[str, float]:
+    metrics = crossing.get("routeMetrics")
+    if not isinstance(metrics, dict):
+        fail(f"crossing {crossing.get('candidateId')} is missing routeMetrics")
+    mode_metrics = metrics.get(mode)
+    if not isinstance(mode_metrics, dict):
+        fail(f"crossing {crossing.get('candidateId')} is missing {mode} routeMetrics")
+    metric = mode_metrics.get(direction_key)
+    if not isinstance(metric, dict):
+        fail(
+            f"crossing {crossing.get('candidateId')} claims {mode}.{direction_key} "
+            "support without proven route metrics"
+        )
+    try:
+        distance = float(metric["distanceKm"])
+        route_time = float(metric["timeSeconds"])
+    except (KeyError, TypeError, ValueError):
+        fail(f"crossing {crossing.get('candidateId')} has invalid route metrics")
+    if distance < 0 or route_time < 0:
+        fail(f"crossing {crossing.get('candidateId')} has negative route metrics")
+    return {"distanceKm": distance, "timeSeconds": route_time}
+
+
+def option(
+    crossing: dict[str, Any],
+    reverse: bool,
+    mode: str,
+    direction_key: str,
+) -> dict[str, Any]:
     from_anchor = anchor(crossing.get("fromAnchor"), "crossing.fromAnchor")
     to_anchor = anchor(crossing.get("toAnchor"), "crossing.toAnchor")
     if reverse:
         from_anchor, to_anchor = to_anchor, from_anchor
+    metric = route_metric(crossing, mode, direction_key)
     return {
+        "rank": 0,
         "candidateId": crossing["candidateId"],
         "frontierRoadId": crossing["frontierRoadId"],
         "stableWayId": crossing["stableWayId"],
         "evidenceTier": crossing["evidenceTier"],
         "sourceCandidateRank": crossing["sourceCandidateRank"],
+        "distanceKm": metric["distanceKm"],
+        "timeSeconds": metric["timeSeconds"],
         "road": road(crossing.get("road")),
         "fromAnchor": from_anchor,
         "toAnchor": to_anchor,
     }
 
 
-def option_sort_key(value: dict[str, Any]) -> tuple[Any, ...]:
+def option_score(value: dict[str, Any], route_style: str) -> float:
+    return float(value["timeSeconds"] if route_style == "FASTER" else value["distanceKm"])
+
+
+def option_sort_key(value: dict[str, Any], route_style: str) -> tuple[Any, ...]:
     return (
+        option_score(value, route_style),
         value["evidenceTier"],
         value["sourceCandidateRank"],
         value["stableWayId"],
@@ -120,9 +157,34 @@ def option_sort_key(value: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
-def chain_id(mode: str, regions: list[str]) -> str:
-    raw = f"{mode}|{'->'.join(regions)}".encode("utf-8")
+def chain_id(mode: str, route_style: str, regions: list[str]) -> str:
+    raw = f"{mode}|{route_style}|{'->'.join(regions)}".encode("utf-8")
     return "xch1-" + hashlib.sha256(raw).hexdigest()[:24]
+
+
+def enumerate_paths(
+    adjacency: dict[str, list[str]],
+    start: str,
+    target: str,
+    max_hops: int,
+) -> list[list[str]]:
+    paths: list[list[str]] = []
+
+    def walk(current: str, path: list[str]) -> None:
+        if len(path) - 1 >= max_hops:
+            return
+        for neighbor in adjacency.get(current, []):
+            if neighbor in path:
+                continue
+            next_path = path + [neighbor]
+            if neighbor == target:
+                paths.append(next_path)
+            else:
+                walk(neighbor, next_path)
+
+    walk(start, [start])
+    paths.sort()
+    return paths
 
 
 def main() -> int:
@@ -131,6 +193,7 @@ def main() -> int:
     parser.add_argument("--from-region", required=True)
     parser.add_argument("--to-region", required=True)
     parser.add_argument("--mode", required=True, choices=MODES)
+    parser.add_argument("--route-style", choices=ROUTE_STYLES, default="FASTER")
     parser.add_argument("--max-hops", type=int, default=8)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
@@ -200,10 +263,12 @@ def main() -> int:
                 mode = modes.get(args.mode)
                 if not isinstance(mode, dict) or mode.get(direction_key) is not True:
                     continue
-                options.append(option(crossing, reverse))
+                options.append(option(crossing, reverse, args.mode, direction_key))
             if not options:
                 continue
-            options.sort(key=option_sort_key)
+            options.sort(key=lambda value: option_sort_key(value, args.route_style))
+            for rank, item in enumerate(options):
+                item["rank"] = rank
             key = (source, target)
             if key in transitions:
                 fail(f"Multiple runtime artifacts define transition {source}->{target}")
@@ -228,43 +293,42 @@ def main() -> int:
     for source in adjacency:
         adjacency[source].sort()
 
-    distance: dict[str, int] = {args.from_region: 0}
-    parents: dict[str, list[str]] = defaultdict(list)
-    queue: deque[str] = deque([args.from_region])
-
-    while queue:
-        current = queue.popleft()
-        depth = distance[current]
-        if depth >= args.max_hops:
-            continue
-        for neighbor in adjacency.get(current, []):
-            new_depth = depth + 1
-            if neighbor not in distance:
-                distance[neighbor] = new_depth
-                parents[neighbor] = [current]
-                queue.append(neighbor)
-            elif distance[neighbor] == new_depth:
-                parents[neighbor].append(current)
-
-    region_paths: list[list[str]] = []
-    if args.to_region in distance and distance[args.to_region] <= args.max_hops:
-        def recover(node: str, suffix: list[str]) -> None:
-            if node == args.from_region:
-                region_paths.append([node] + suffix)
-                return
-            for parent in sorted(parents[node]):
-                recover(parent, [node] + suffix)
-        recover(args.to_region, [])
-        region_paths.sort()
+    region_paths = enumerate_paths(
+        adjacency,
+        args.from_region,
+        args.to_region,
+        args.max_hops,
+    )
 
     chains: list[dict[str, Any]] = []
+    score_unit = "SECONDS" if args.route_style == "FASTER" else "KILOMETERS"
     for regions in region_paths:
         hops = [transitions[(regions[i], regions[i + 1])] for i in range(len(regions) - 1)]
+        best_options = [hop["crossingOptions"][0] for hop in hops]
+        total_distance = sum(float(option["distanceKm"]) for option in best_options)
+        total_time = sum(float(option["timeSeconds"]) for option in best_options)
+        score = total_time if args.route_style == "FASTER" else total_distance
         chains.append({
-            "id": chain_id(args.mode, regions),
+            "id": chain_id(args.mode, args.route_style, regions),
+            "rank": 0,
+            "score": score,
+            "scoreUnit": score_unit,
+            "estimatedDistanceKm": total_distance,
+            "estimatedTimeSeconds": total_time,
             "regions": regions,
             "hops": hops,
         })
+
+    chains.sort(
+        key=lambda item: (
+            item["score"],
+            len(item["hops"]),
+            item["regions"],
+            item["id"],
+        )
+    )
+    for rank, chain in enumerate(chains):
+        chain["rank"] = rank
 
     found = bool(chains)
     output = {
@@ -273,6 +337,7 @@ def main() -> int:
         "fromRegionId": args.from_region,
         "toRegionId": args.to_region,
         "mode": args.mode,
+        "routeStyle": args.route_style,
         "maxHops": args.max_hops,
         "status": "FOUND" if found else "NO_CHAIN",
         "hopCount": len(chains[0]["hops"]) if found else None,
@@ -284,8 +349,8 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
     print(
-        f"{args.from_region}->{args.to_region} {args.mode}: "
-        f"{output['status']} chains={len(chains)} hops={output['hopCount']}"
+        f"{args.from_region}->{args.to_region} {args.mode} {args.route_style}: "
+        f"{output['status']} chains={len(chains)} best_hops={output['hopCount']}"
     )
     print(f"wrote: {args.output}")
     return 0

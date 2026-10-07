@@ -44,6 +44,7 @@ def main() -> int:
     require(data.get("schema") == "roadpilot.connectivity-chain-plan", "unexpected schema")
     require(data.get("version") == 1, "version must be 1")
     require(data.get("mode") in {"MOTORCYCLE", "CAR"}, "invalid mode")
+    require(data.get("routeStyle") in {"FASTER", "SHORTER"}, "invalid routeStyle")
     require(data.get("status") in {"FOUND", "NO_CHAIN"}, "invalid status")
     max_hops = data.get("maxHops")
     require(isinstance(max_hops, int) and not isinstance(max_hops, bool) and max_hops >= 1, "invalid maxHops")
@@ -79,7 +80,7 @@ def main() -> int:
         require(chains, "FOUND requires at least one chain")
 
     seen_chain_ids = set()
-    previous_regions = None
+    previous_chain_key = None
     for ci, chain in enumerate(chains):
         require(isinstance(chain, dict), f"chain[{ci}] must be an object")
         chain_id = chain.get("id")
@@ -90,11 +91,25 @@ def main() -> int:
         require(isinstance(regions, list) and len(regions) >= 2 and all(isinstance(r, str) and r for r in regions), f"chain[{ci}].regions invalid")
         require(len(regions) == len(set(regions)), f"chain[{ci}] contains a region cycle")
         require(isinstance(hops, list) and len(hops) == len(regions) - 1, f"chain[{ci}].hops mismatch")
-        require(len(hops) == data["hopCount"], f"chain[{ci}] is not shortest-hop length")
+        require(len(hops) <= data["maxHops"], f"chain[{ci}] exceeds maxHops")
         require(regions[0] == data["fromRegionId"] and regions[-1] == data["toRegionId"], f"chain[{ci}] endpoints mismatch")
-        if previous_regions is not None:
-            require(previous_regions <= regions, "chains are not deterministically ordered")
-        previous_regions = regions
+
+        rank = chain.get("rank")
+        require(rank == ci, f"chain[{ci}].rank must match sorted position")
+        score = chain.get("score")
+        require(isinstance(score, (int, float)) and not isinstance(score, bool) and score >= 0, f"chain[{ci}].score invalid")
+        expected_unit = "SECONDS" if data["routeStyle"] == "FASTER" else "KILOMETERS"
+        require(chain.get("scoreUnit") == expected_unit, f"chain[{ci}].scoreUnit invalid")
+        distance = chain.get("estimatedDistanceKm")
+        route_time = chain.get("estimatedTimeSeconds")
+        require(isinstance(distance, (int, float)) and not isinstance(distance, bool) and distance >= 0, f"chain[{ci}].estimatedDistanceKm invalid")
+        require(isinstance(route_time, (int, float)) and not isinstance(route_time, bool) and route_time >= 0, f"chain[{ci}].estimatedTimeSeconds invalid")
+        expected_score = route_time if data["routeStyle"] == "FASTER" else distance
+        require(abs(float(score) - float(expected_score)) < 1e-6, f"chain[{ci}].score does not match routeStyle metric")
+        chain_key = (float(score), len(hops), regions, chain_id)
+        if previous_chain_key is not None:
+            require(previous_chain_key <= chain_key, "chains are not route-style ranked")
+        previous_chain_key = chain_key
 
         for hi, hop in enumerate(hops):
             label = f"chain[{ci}].hop[{hi}]"
@@ -120,10 +135,23 @@ def main() -> int:
                 cid = option.get("candidateId")
                 require(isinstance(cid, str) and bool(CANDIDATE_ID.fullmatch(cid)) and cid not in option_ids, f"{label}.option[{oi}].candidateId invalid/duplicate")
                 option_ids.add(cid)
-                key = (option.get("evidenceTier"), option.get("sourceCandidateRank"), option.get("stableWayId"), cid)
-                require(all(isinstance(x, int) and not isinstance(x, bool) and x >= 0 for x in key[:3]), f"{label}.option[{oi}] ranking invalid")
+                rank = option.get("rank")
+                require(rank == oi, f"{label}.option[{oi}].rank must match sorted position")
+                distance = option.get("distanceKm")
+                route_time = option.get("timeSeconds")
+                require(isinstance(distance, (int, float)) and not isinstance(distance, bool) and distance >= 0, f"{label}.option[{oi}].distanceKm invalid")
+                require(isinstance(route_time, (int, float)) and not isinstance(route_time, bool) and route_time >= 0, f"{label}.option[{oi}].timeSeconds invalid")
+                score = route_time if data["routeStyle"] == "FASTER" else distance
+                key = (
+                    float(score),
+                    option.get("evidenceTier"),
+                    option.get("sourceCandidateRank"),
+                    option.get("stableWayId"),
+                    cid,
+                )
+                require(all(isinstance(x, int) and not isinstance(x, bool) and x >= 0 for x in key[1:4]), f"{label}.option[{oi}] ranking invalid")
                 if previous_option is not None:
-                    require(previous_option <= key, f"{label} options are not deterministically ordered")
+                    require(previous_option <= key, f"{label} options are not route-style ranked")
                 previous_option = key
                 for anchor_name, expected_region in (("fromAnchor", fr), ("toAnchor", tr)):
                     anchor = option.get(anchor_name)
@@ -133,7 +161,12 @@ def main() -> int:
                     graph_id = anchor.get("graphId")
                     require(isinstance(graph_id, int) and not isinstance(graph_id, bool) and graph_id > 0, f"{label}.option[{oi}].{anchor_name}.graphId invalid")
 
-    print(f"valid connectivity chain plan: {data['fromRegionId']}->{data['toRegionId']} {data['mode']} status={data['status']} chains={len(chains)}")
+    if data["status"] == "FOUND":
+        require(data["hopCount"] == len(chains[0]["hops"]), "hopCount must describe best-ranked chain")
+    print(
+        f"valid connectivity chain plan: {data['fromRegionId']}->{data['toRegionId']} "
+        f"{data['mode']} {data['routeStyle']} status={data['status']} chains={len(chains)}"
+    )
 
 
 if __name__ == "__main__":

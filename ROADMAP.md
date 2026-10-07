@@ -185,12 +185,17 @@ Milestones:
   - copy only actually supported mode/direction capabilities;
   - bind exact A/B anchors to graph + boundary fingerprints;
   - omit rejected/inconclusive diagnostics and pre-proof access guesses;
-- multi-hop region-chain composition — active;
+- multi-hop region-chain composition — merged in PR #33;
   - compose only validated neighboring-pair runtime artifacts;
   - enforce exact intermediate-region graph identity;
   - use proven mode/direction support as directed adjacency;
   - preserve all crossing alternatives per hop without Cartesian expansion;
-- rebuild only pair metadata whose relevant boundary fingerprint changed.
+- final connectivity lifecycle completion — active;
+  - rank crossing alternatives and complete simple region chains for FASTER/SHORTER using only post-proof Valhalla distance/time metrics;
+  - classify connectivity CURRENT/STALE against exact graph and relevant boundary fingerprints;
+  - graph-only change → REBIND_GRAPH while preserving stable physical discovery;
+  - relevant boundary change → REDISCOVER_BOUNDARY only for the affected neighboring pair;
+  - expose generated UNPROVEN candidates and VALIDATED runtime crossings in Graph Studio with CURRENT/STALE state.
 
 Runtime target:
 

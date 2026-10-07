@@ -104,11 +104,33 @@ def require_identity_match(
             fail(f"Candidate/proof mismatch for {key}")
 
 
-def passed_modes(proof: dict[str, Any], label: str) -> tuple[dict[str, Any], int]:
+def proven_route_metric(direction: dict[str, Any], label: str) -> dict[str, float]:
+    distance_km = 0.0
+    time_seconds = 0.0
+    for graph_label in ("graphA", "graphB"):
+        leg = direction.get(graph_label)
+        if not isinstance(leg, dict):
+            fail(f"{label}.{graph_label} missing")
+        if leg.get("status") != "PASSED" or leg.get("edgeMatched") is not True:
+            fail(f"{label}.{graph_label} is not an exact-edge PASSED leg")
+        length = finite(leg.get("routeLengthKm"), f"{label}.{graph_label}.routeLengthKm")
+        route_time = finite(leg.get("routeTimeSeconds"), f"{label}.{graph_label}.routeTimeSeconds")
+        if length < 0 or route_time < 0:
+            fail(f"{label}.{graph_label} route metrics must be non-negative")
+        distance_km += length
+        time_seconds += route_time
+    return {"distanceKm": distance_km, "timeSeconds": time_seconds}
+
+
+def passed_modes(
+    proof: dict[str, Any],
+    label: str,
+) -> tuple[dict[str, Any], dict[str, Any], int]:
     modes = proof.get("modes")
     if not isinstance(modes, dict):
         fail(f"{label}.modes must be an object")
     output: dict[str, Any] = {}
+    metrics_output: dict[str, Any] = {}
     count = 0
     expected_supported: list[str] = []
     for output_mode in ("MOTORCYCLE", "CAR"):
@@ -116,6 +138,7 @@ def passed_modes(proof: dict[str, Any], label: str) -> tuple[dict[str, Any], int
         if not isinstance(mode, dict):
             fail(f"{label}.modes.{output_mode} must be an object")
         mode_output = {}
+        mode_metrics = {}
         for field, suffix in (("fromTo", "FROM_TO"), ("toFrom", "TO_FROM")):
             direction = mode.get(field)
             if not isinstance(direction, dict) or not isinstance(direction.get("passed"), bool):
@@ -125,16 +148,14 @@ def passed_modes(proof: dict[str, Any], label: str) -> tuple[dict[str, Any], int
             if passed:
                 count += 1
                 expected_supported.append(f"{output_mode}_{suffix}")
-                for graph_label in ("graphA", "graphB"):
-                    leg = direction.get(graph_label)
-                    if not isinstance(leg, dict):
-                        fail(f"{label}.{output_mode}.{field}.{graph_label} missing")
-                    if leg.get("status") != "PASSED" or leg.get("edgeMatched") is not True:
-                        fail(
-                            f"{label}.{output_mode}.{field} claims support without "
-                            f"an exact-edge PASSED {graph_label} leg"
-                        )
+                mode_metrics[field] = proven_route_metric(
+                    direction,
+                    f"{label}.modes.{output_mode}.{field}",
+                )
+            else:
+                mode_metrics[field] = None
         output[output_mode] = mode_output
+        metrics_output[output_mode] = mode_metrics
 
     supported = proof.get("supportedDirections")
     if not isinstance(supported, list):
@@ -144,8 +165,7 @@ def passed_modes(proof: dict[str, Any], label: str) -> tuple[dict[str, Any], int
             f"{label}.supportedDirections does not match passed proof directions: "
             f"expected {expected_supported}, got {supported}"
         )
-    return output, count
-
+    return output, metrics_output, count
 
 def anchor(edge: Any, label: str) -> dict[str, Any]:
     if not isinstance(edge, dict):
@@ -243,7 +263,7 @@ def main() -> int:
             continue
         proven_count += 1
         candidate = candidate_by_id[candidate_id]
-        modes, mode_count = passed_modes(proof, f"proof[{index}]")
+        modes, route_metrics, mode_count = passed_modes(proof, f"proof[{index}]")
         if mode_count <= 0:
             fail(f"PROVEN proof {candidate_id} has no supported mode/direction")
         supported_count += mode_count
@@ -274,6 +294,7 @@ def main() -> int:
                 "fromAnchor": anchor(candidate.get("fromEdge"), "fromEdge"),
                 "toAnchor": anchor(candidate.get("toEdge"), "toEdge"),
                 "modes": modes,
+                "routeMetrics": route_metrics,
             }
         )
 

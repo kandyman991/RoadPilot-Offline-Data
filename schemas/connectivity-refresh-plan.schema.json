@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.example/schemas/connectivity-refresh-plan-v1.json",
+  "title": "RoadPilot connectivity refresh plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "currentPairCount",
+    "stalePairCount",
+    "unresolvedPairCount",
+    "affectedPairs",
+    "pairs",
+    "generator"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot.connectivity-refresh-plan"
+    },
+    "version": {
+      "const": 1
+    },
+    "currentPairCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "stalePairCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unresolvedPairCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "affectedPairs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 3
+      }
+    },
+    "pairs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pair"
+      }
+    },
+    "generator": {
+      "$ref": "#/$defs/generator"
+    }
+  },
+  "$defs": {
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "side": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "regionId",
+        "neighborPrimaryGeofabrikId",
+        "boundGraphFingerprint",
+        "currentGraphFingerprint",
+        "graphMatches",
+        "boundBoundaryFingerprint",
+        "currentBoundaryFingerprint",
+        "boundaryMatches"
+      ],
+      "properties": {
+        "regionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "neighborPrimaryGeofabrikId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "boundGraphFingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "currentGraphFingerprint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "graphMatches": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "boundBoundaryFingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "currentBoundaryFingerprint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "boundaryMatches": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "pair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pairId",
+        "status",
+        "refreshAction",
+        "reasons",
+        "fromSide",
+        "toSide"
+      ],
+      "properties": {
+        "pairId": {
+          "type": "string",
+          "minLength": 3
+        },
+        "status": {
+          "enum": [
+            "CURRENT",
+            "STALE",
+            "UNRESOLVED"
+          ]
+        },
+        "refreshAction": {
+          "enum": [
+            "NONE",
+            "REBIND_GRAPH",
+            "REDISCOVER_BOUNDARY",
+            "WAIT_FOR_GRAPH"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "FROM_GRAPH_CHANGED",
+              "TO_GRAPH_CHANGED",
+              "FROM_BOUNDARY_CHANGED",
+              "TO_BOUNDARY_CHANGED",
+              "FROM_GRAPH_MISSING",
+              "TO_GRAPH_MISSING",
+              "FROM_BOUNDARY_MISSING",
+              "TO_BOUNDARY_MISSING"
+            ]
+          }
+        },
+        "fromSide": {
+          "$ref": "#/$defs/side"
+        },
+        "toSide": {
+          "$ref": "#/$defs/side"
+        }
+      }
+    }
+  }
+}
