@@ -1073,6 +1073,199 @@ jobs:
           print("regional connector anchor inventory smoke test passed")
           PY
 
+      - name: Smoke-test exact-edge regional connector matrices
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-correlation"
+
+          python - <<'PY'
+          import copy
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          bc = json.loads((root / "runtime-bc.json").read_text())
+          manifest = json.loads((root / "to" / "manifest.json").read_text())
+          manifest["graphIndex"]["boundaryFingerprints"][
+              bc["toGraph"]["primaryGeofabrikId"]
+          ] = bc["fromBoundaryFingerprint"]
+          (root / "to" / "manifest-region-b-matrix.json").write_text(
+              json.dumps(manifest, indent=2) + "\n"
+          )
+
+          stale = copy.deepcopy(manifest)
+          stale["graphIndex"]["boundaryFingerprints"][
+              bc["toGraph"]["primaryGeofabrikId"]
+          ] = "sha256:" + "0" * 64
+          (root / "to" / "manifest-region-b-stale.json").write_text(
+              json.dumps(stale, indent=2) + "\n"
+          )
+          PY
+
+          cat > "$root/bin/valhalla_service" <<'PY'
+          #!/usr/bin/env python3
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          action = sys.argv[2]
+          request = json.loads(sys.argv[3])
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          inventory = json.loads((root / "region-b-connectors.json").read_text())
+
+          def graph_id_for(location):
+              lat = float(location["lat"])
+              lon = float(location["lon"])
+              matches = []
+              for anchor in inventory["anchors"]:
+                  point = anchor["graphAnchor"]["coordinate"]
+                  if abs(float(point["lat"]) - lat) < 1e-8 and abs(float(point["lng"]) - lon) < 1e-8:
+                      matches.append(int(anchor["graphAnchor"]["graphId"]))
+              if not matches:
+                  raise SystemExit(f"No synthetic graph id for {lat},{lon}")
+              return matches[0]
+
+          if action == "sources_to_targets":
+              costing = request["costing"]
+              rows = []
+              for source_index, source in enumerate(request["sources"]):
+                  row = []
+                  for target_index, target in enumerate(request["targets"]):
+                      delta = float(target["lon"]) - float(source["lon"])
+                      # For CAR, reverse-going synthetic cells are deliberately
+                      # unreachable so the artifact retains explicit NO ROUTE.
+                      if costing == "auto" and delta < -1e-9:
+                          row.append({
+                              "from_index": source_index,
+                              "to_index": target_index,
+                              "distance": None,
+                              "time": None,
+                              "cost": None,
+                          })
+                          continue
+                      distance = abs(delta) * 100.0 + abs(float(target["lat"]) - float(source["lat"])) * 100.0
+                      row.append({
+                          "from_index": source_index,
+                          "to_index": target_index,
+                          "distance": distance,
+                          "time": distance * 60.0 + 1.0,
+                          "cost": distance * 60.0 + 2.0,
+                      })
+                  rows.append(row)
+              print(json.dumps({"sources_to_targets": rows}))
+              raise SystemExit(0)
+
+          if action == "route":
+              start, end = request["locations"]
+              start_id = graph_id_for(start)
+              end_id = graph_id_for(end)
+              # Forward CAR cells are matrix-reachable but deliberately snap
+              # to the wrong first edge. They must become INCONCLUSIVE.
+              if request["costing"] == "auto" and float(start["lon"]) < float(end["lon"]) - 1e-9:
+                  start_id += 900000
+              distance = (
+                  abs(float(end["lon"]) - float(start["lon"])) * 100.0
+                  + abs(float(end["lat"]) - float(start["lat"])) * 100.0
+              )
+              shape = f"fake:{start_id}:{end_id}"
+              print(json.dumps({
+                  "trip": {
+                      "status": 0,
+                      "summary": {"length": distance, "time": distance * 60.0 + 3.0},
+                      "legs": [{"shape": shape}],
+                  }
+              }))
+              raise SystemExit(0)
+
+          if action == "trace_attributes":
+              shape = request["encoded_polyline"]
+              _, start_id, end_id = shape.split(":")
+              print(json.dumps({
+                  "edges": [
+                      {"id": int(start_id), "way_id": 1},
+                      {"id": int(end_id), "way_id": 2},
+                  ]
+              }))
+              raise SystemExit(0)
+
+          print(json.dumps({"error": f"unsupported fake action {action}"}))
+          raise SystemExit(2)
+          PY
+          chmod +x "$root/bin/valhalla_service"
+
+          PATH="$root/bin:$PATH" python tools/build_region_connector_matrix.py \
+            --inventory "$root/region-b-connectors.json" \
+            --manifest "$root/to/manifest-region-b-matrix.json" \
+            --output "$root/region-b-matrix.json"
+
+          python tools/validate_region_connector_matrix.py \
+            --artifact "$root/region-b-matrix.json"
+
+          if PATH="$root/bin:$PATH" python tools/build_region_connector_matrix.py \
+            --inventory "$root/region-b-connectors.json" \
+            --manifest "$root/to/manifest-region-b-stale.json" \
+            --output "$root/should-not-exist-region-b-matrix.json"; then
+            echo "Expected stale region-c boundary fingerprint to fail matrix generation" >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          matrix = json.loads((root / "region-b-matrix.json").read_text())
+          inventory = json.loads((root / "region-b-connectors.json").read_text())
+          ab = json.loads((root / "runtime-connectivity.json").read_text())
+          bc = json.loads((root / "runtime-bc.json").read_text())
+
+          by_candidate = {item["candidateId"]: item for item in inventory["anchors"]}
+          ab_crossing = next(
+              crossing for crossing in ab["crossings"]
+              if crossing["modes"]["MOTORCYCLE"]["fromTo"]
+              and not crossing["modes"]["MOTORCYCLE"]["toFrom"]
+          )
+          ab_anchor = by_candidate[ab_crossing["candidateId"]]
+          bc_anchor = by_candidate[bc["crossings"][0]["candidateId"]]
+
+          assert matrix["regionId"] == "region-b"
+          assert matrix["graph"] == inventory["graph"]
+          assert matrix["sourceAnchorCount"] == inventory["anchorCount"]
+
+          moto_cells = {
+              (cell["fromAnchorId"], cell["toAnchorId"]): cell
+              for cell in matrix["modes"]["MOTORCYCLE"]["cells"]
+          }
+          moto = moto_cells[(ab_anchor["id"], bc_anchor["id"])]
+          assert moto["status"] == "REACHABLE"
+          assert moto["actualFromGraphId"] == ab_anchor["graphAnchor"]["graphId"]
+          assert moto["actualToGraphId"] == bc_anchor["graphAnchor"]["graphId"]
+          assert moto["distanceKm"] is not None
+          assert moto["timeSeconds"] is not None
+
+          car_cells = {
+              (cell["fromAnchorId"], cell["toAnchorId"]): cell
+              for cell in matrix["modes"]["CAR"]["cells"]
+          }
+          forward = car_cells[(ab_anchor["id"], bc_anchor["id"])]
+          assert forward["status"] == "INCONCLUSIVE"
+          assert forward["matrixDistanceKm"] is not None
+          assert forward["distanceKm"] is None
+          assert forward["actualFromGraphId"] != ab_anchor["graphAnchor"]["graphId"]
+          assert "Endpoint edge mismatch" in forward["error"]
+
+          reverse = car_cells[(bc_anchor["id"], ab_anchor["id"])]
+          assert reverse["status"] == "UNREACHABLE"
+          assert reverse["matrixDistanceKm"] is None
+          assert reverse["distanceKm"] is None
+
+          print("exact-edge regional connector matrix smoke test passed")
+          PY
+
       - name: Smoke-test surgical connectivity refresh planning
         shell: bash
         run: |
