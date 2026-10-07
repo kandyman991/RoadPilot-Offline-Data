@@ -103,7 +103,7 @@ type SearchBuildComparison = {
   categoryDeltas: Array<{category:string;a:number;b:number;delta:number}>;
 };
 
-type PublicationKind = "ROUTING" | "VISUAL";
+type PublicationKind = "ROUTING" | "VISUAL" | "SEARCH";
 type PublicationTarget = {
   artifactKind: PublicationKind;
   region_id: string;
@@ -441,7 +441,7 @@ app.innerHTML = `
           <button id="buildBtn" class="btn primary" type="button">Build selected</button>
           <button id="cancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
-        <p>Builds run sequentially. Each selected region produces its routing pack and, when enabled, an independently versioned visual PMTiles pack using shared cached source data.</p>
+        <p>Routing, visual and search artifacts are independently versioned. Search/POI builds can be inspected and published without moving routing or visual release pointers.</p>
       </section>
       <section class="section">
         <h2>R2 publication</h2>
@@ -480,6 +480,7 @@ app.innerHTML = `
           <select id="publicationKind">
             <option value="ROUTING">Routing graph</option>
             <option value="VISUAL">Visual PMTiles</option>
+            <option value="SEARCH">Search / POI SQLite</option>
           </select>
         </div>
         <div class="field">
@@ -972,17 +973,30 @@ function escapeHtml(value: unknown): string {
 }
 
 function activePublicationKind(): PublicationKind {
-  return publicationKind.value === "VISUAL" ? "VISUAL" : "ROUTING";
+  if (publicationKind.value === "VISUAL") return "VISUAL";
+  if (publicationKind.value === "SEARCH") return "SEARCH";
+  return "ROUTING";
 }
 
-function publicationPrefix(): "routing" | "visual" {
-  return activePublicationKind() === "VISUAL" ? "visual" : "routing";
+function publicationPrefix(): "routing" | "visual" | "search" {
+  const kind = activePublicationKind();
+  return kind === "VISUAL" ? "visual" : kind === "SEARCH" ? "search" : "routing";
 }
 
 function publicationTargets(): PublicationTarget[] {
-  if (activePublicationKind() === "VISUAL") {
+  const kind = activePublicationKind();
+  if (kind === "VISUAL") {
     return visualArtifacts.map(item => ({
       artifactKind: "VISUAL",
+      region_id: item.region_id,
+      version: item.version,
+      sha256: item.sha256,
+      manifest_path: item.manifest_path,
+    }));
+  }
+  if (kind === "SEARCH") {
+    return searchArtifacts.map(item => ({
+      artifactKind: "SEARCH",
       region_id: item.region_id,
       version: item.version,
       sha256: item.sha256,
@@ -1011,8 +1025,8 @@ function renderPublicationBuildSelector(): void {
   const empty = document.createElement("option");
   empty.value = "";
   empty.textContent = targets.length
-    ? `Choose ${kind === "VISUAL" ? "visual" : "routing"} build…`
-    : `No retained ${kind === "VISUAL" ? "visual" : "routing"} builds`;
+    ? `Choose ${kind === "VISUAL" ? "visual" : kind === "SEARCH" ? "search" : "routing"} build…`
+    : `No retained ${kind === "VISUAL" ? "visual" : kind === "SEARCH" ? "search" : "routing"} builds`;
   publishBuildSelect.appendChild(empty);
   for (const item of targets) {
     const option = document.createElement("option");
@@ -3317,6 +3331,7 @@ function renderSearchBuildSummary(): void {
 async function refreshSearchBuilds(): Promise<void> {
   searchArtifacts = await invoke<SearchBuildArtifact[]>("list_search_builds");
   renderSearchBuilds();
+  if (activePublicationKind() === "SEARCH") renderPublicationBuildSelector();
 }
 function clearSearchOverlay(): void {
   currentSearchResults=[]; searchResults.innerHTML="";
