@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.app/schemas/publication-plan-v1.json",
+  "title": "RoadPilot local publication plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "contract",
+    "releaseKey",
+    "releaseSha256",
+    "release",
+    "latestKey",
+    "latest",
+    "sourceObjects"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot.publication-plan"
+    },
+    "version": {
+      "const": 1
+    },
+    "contract": {
+      "const": "IMMUTABLE_OBJECTS_THEN_RELEASE_THEN_LATEST"
+    },
+    "releaseKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "releaseSha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "release": {
+      "$ref": "publication-release-v1.json"
+    },
+    "latestKey": {
+      "type": "string",
+      "minLength": 1
+    },
+    "latest": {
+      "$ref": "publication-latest-v1.json"
+    },
+    "sourceObjects": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/sourceObject"
+      }
+    }
+  },
+  "$defs": {
+    "sourceObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "sourcePath",
+        "key",
+        "sizeBytes",
+        "sha256",
+        "contentType"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "ARTIFACT",
+            "MANIFEST",
+            "CHECKSUM",
+            "GRAPH_INDEX",
+            "AUXILIARY"
+          ]
+        },
+        "sourcePath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "contentType": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
