@@ -1335,16 +1335,27 @@ fn transition_artifact_dirs(app: &AppHandle) -> Result<Vec<PathBuf>, String> {
     let handoff_imports = workspace.join("imports/handoffs");
     let connectivity = workspace.join("connectivity");
     let connectivity_imports = workspace.join("imports/connectivity");
+    let connector_matrices = workspace.join("connector-matrices");
+    let connector_matrix_imports = workspace.join("imports/connector-matrices");
     for (path, label) in [
         (&transitions, "transition artifact"),
         (&handoff_imports, "handoff import"),
         (&connectivity, "connectivity artifact"),
         (&connectivity_imports, "connectivity import"),
+        (&connector_matrices, "connector matrix"),
+        (&connector_matrix_imports, "connector matrix import"),
     ] {
         fs::create_dir_all(path)
             .map_err(|e| format!("Could not create Graph Studio {label} directory: {e}"))?;
     }
-    Ok(vec![transitions, handoff_imports, connectivity, connectivity_imports])
+    Ok(vec![
+        transitions,
+        handoff_imports,
+        connectivity,
+        connectivity_imports,
+        connector_matrices,
+        connector_matrix_imports,
+    ])
 }
 
 fn collect_json_files(root: &Path, depth: usize, output: &mut Vec<PathBuf>) {
@@ -1373,6 +1384,213 @@ fn collect_json_files(root: &Path, depth: usize, output: &mut Vec<PathBuf>) {
             output.push(path);
         }
     }
+}
+
+fn sha256_prefixed(path: &Path) -> Result<String, String> {
+    let output = Command::new("sha256sum")
+        .arg(path)
+        .output()
+        .map_err(|e| format!("Could not run sha256sum for {}: {e}", path.display()))?;
+    if !output.status.success() {
+        return Err(format!(
+            "sha256sum failed for {}: {}",
+            path.display(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let digest = stdout.split_whitespace().next().unwrap_or_default();
+    if digest.len() != 64 || !digest.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        return Err(format!("sha256sum returned an invalid digest for {}", path.display()));
+    }
+    Ok(format!("sha256:{}", digest.to_ascii_lowercase()))
+}
+
+fn connector_inventory_current(document: &Value, current: &Value) -> (bool, Vec<Value>) {
+    let graph_matches = document
+        .pointer("/graph/graphFingerprint")
+        .and_then(Value::as_str)
+        == current.get("graphFingerprint").and_then(Value::as_str);
+    let mut checks = Vec::new();
+    let mut current_all = graph_matches;
+    if let Some(sources) = document.get("sourceConnectivity").and_then(Value::as_array) {
+        for source in sources {
+            let neighbor = source
+                .get("neighborPrimaryGeofabrikId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let bound = source
+                .get("regionBoundaryFingerprint")
+                .and_then(Value::as_str);
+            let live = current
+                .pointer("/boundaryFingerprints")
+                .and_then(Value::as_object)
+                .and_then(|values| values.get(neighbor))
+                .and_then(Value::as_str);
+            let matches = !neighbor.is_empty() && bound.is_some() && bound == live;
+            current_all &= matches;
+            checks.push(json!({
+                "neighborPrimaryGeofabrikId": neighbor,
+                "boundBoundaryFingerprint": bound,
+                "currentBoundaryFingerprint": live,
+                "matches": matches
+            }));
+        }
+    }
+    (current_all, checks)
+}
+
+#[tauri::command]
+fn inspect_region_connector_matrix(app: AppHandle, region_id: String) -> Result<Value, String> {
+    if !safe_token(&region_id) {
+        return Err("Invalid region id.".into());
+    }
+    let current = latest_graph_identity(&app, &region_id)?;
+    let mut files = Vec::new();
+    for root in transition_artifact_dirs(&app)? {
+        collect_json_files(&root, 6, &mut files);
+    }
+    files.sort();
+    files.dedup();
+
+    let mut inventories: Vec<(PathBuf, Value, String, bool, Vec<Value>)> = Vec::new();
+    let mut matrices: Vec<(PathBuf, Value)> = Vec::new();
+    for path in files {
+        let Ok(metadata) = fs::metadata(&path) else {
+            continue;
+        };
+        if metadata.len() > 25 * 1024 * 1024 {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(document) = serde_json::from_str::<Value>(&text) else {
+            continue;
+        };
+        if document.get("regionId").and_then(Value::as_str) != Some(region_id.as_str()) {
+            continue;
+        }
+        match document.get("schema").and_then(Value::as_str).unwrap_or_default() {
+            "roadpilot.region-connector-inventory" => {
+                let sha = sha256_prefixed(&path)?;
+                let (is_current, checks) = connector_inventory_current(&document, &current);
+                inventories.push((path, document, sha, is_current, checks));
+            }
+            "roadpilot.region-connector-matrix" => matrices.push((path, document)),
+            _ => {}
+        }
+    }
+
+    inventories.sort_by(|a, b| {
+        b.3.cmp(&a.3)
+            .then_with(|| a.0.display().to_string().cmp(&b.0.display().to_string()))
+    });
+
+    let mut matrix_infos = Vec::new();
+    for (path, document) in matrices {
+        let graph_matches = document
+            .pointer("/graph/graphFingerprint")
+            .and_then(Value::as_str)
+            == current.get("graphFingerprint").and_then(Value::as_str);
+        let source_sha = document
+            .get("sourceInventorySha256")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let source_anchor_count = document.get("sourceAnchorCount").and_then(Value::as_u64);
+        let matching_inventory = inventories.iter().find(|(_, _, sha, _, _)| sha == source_sha);
+        let source_inventory_present = matching_inventory.is_some();
+        let source_inventory_current = matching_inventory.map(|item| item.3).unwrap_or(false);
+        let anchor_count_matches = matching_inventory
+            .and_then(|item| item.1.get("anchorCount").and_then(Value::as_u64))
+            == source_anchor_count;
+        let is_current = graph_matches
+            && source_inventory_present
+            && source_inventory_current
+            && anchor_count_matches;
+        matrix_infos.push((
+            path,
+            document,
+            is_current,
+            source_inventory_present,
+            source_inventory_current,
+            anchor_count_matches,
+        ));
+    }
+    matrix_infos.sort_by(|a, b| {
+        b.2.cmp(&a.2)
+            .then_with(|| a.0.display().to_string().cmp(&b.0.display().to_string()))
+    });
+
+    let selected_matrix = matrix_infos.first();
+    let current_inventory = inventories.iter().find(|item| item.3);
+    let selected_inventory = current_inventory
+        .or_else(|| {
+            selected_matrix.and_then(|(_, matrix, _, _, _, _)| {
+                let source_sha = matrix.get("sourceInventorySha256").and_then(Value::as_str)?;
+                inventories.iter().find(|(_, _, sha, _, _)| sha == source_sha)
+            })
+        })
+        .or_else(|| inventories.first());
+
+    let inventory_present = !inventories.is_empty();
+    let inventory_current = current_inventory.is_some();
+    let matrix_present = !matrix_infos.is_empty();
+    let matrix_current = matrix_infos.iter().any(|item| item.2);
+
+    let (status, refresh_action) = if !inventory_present {
+        ("MISSING", "BUILD_INVENTORY_AND_MATRIX")
+    } else if !inventory_current {
+        ("STALE", "REBUILD_INVENTORY_AND_MATRIX")
+    } else if !matrix_present {
+        ("MISSING", "BUILD_MATRIX")
+    } else if !matrix_current {
+        ("STALE", "REBUILD_MATRIX")
+    } else {
+        ("CURRENT", "NONE")
+    };
+
+    let inventory_json = selected_inventory.map(|(path, document, sha, is_current, checks)| {
+        json!({
+            "artifactPath": path.display().to_string(),
+            "sha256": sha,
+            "current": is_current,
+            "graph": document.get("graph").cloned().unwrap_or(Value::Null),
+            "anchorCount": document.get("anchorCount").cloned().unwrap_or(Value::from(0)),
+            "sourceConnectivity": document.get("sourceConnectivity").cloned().unwrap_or_else(|| json!([])),
+            "boundaryChecks": checks,
+            "anchors": document.get("anchors").cloned().unwrap_or_else(|| json!([]))
+        })
+    }).unwrap_or(Value::Null);
+
+    let matrix_json = selected_matrix.map(|(path, document, is_current, source_present, source_current, anchor_count_matches)| {
+        json!({
+            "artifactPath": path.display().to_string(),
+            "current": is_current,
+            "graph": document.get("graph").cloned().unwrap_or(Value::Null),
+            "sourceInventorySha256": document.get("sourceInventorySha256").cloned().unwrap_or(Value::Null),
+            "sourceAnchorCount": document.get("sourceAnchorCount").cloned().unwrap_or(Value::Null),
+            "sourceInventoryPresent": source_present,
+            "sourceInventoryCurrent": source_current,
+            "anchorCountMatches": anchor_count_matches,
+            "modes": document.get("modes").cloned().unwrap_or_else(|| json!({}))
+        })
+    }).unwrap_or(Value::Null);
+
+    Ok(json!({
+        "regionId": region_id,
+        "status": status,
+        "refreshAction": refresh_action,
+        "currentGraph": current,
+        "recognizedInventories": inventories.len(),
+        "recognizedMatrices": matrix_infos.len(),
+        "inventory": inventory_json,
+        "matrix": matrix_json,
+        "searchDirectories": transition_artifact_dirs(&app)?
+            .into_iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+    }))
 }
 
 fn pair_matches(document: &Value, region_a: &str, region_b: &str) -> bool {
@@ -2850,6 +3068,7 @@ pub fn run() {
             list_handoff_overrides,
             delete_handoff_override,
             inspect_handoff_artifacts,
+            inspect_region_connector_matrix,
             export_border_diagnostics,
             plan_route,
             route_expansion,

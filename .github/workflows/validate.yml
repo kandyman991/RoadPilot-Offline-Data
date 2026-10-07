@@ -1620,6 +1620,152 @@ jobs:
           print("matrix-backed hierarchical composition smoke test passed")
           PY
 
+      - name: Smoke-test regional connector lifecycle planning
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-correlation"
+
+          python - <<'PY'
+          import copy
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          inventory = json.loads((root / "inventory-b-hier.json").read_text())
+          matrix = json.loads((root / "matrix-b-hier.json").read_text())
+
+          boundaries = {
+              source["neighborPrimaryGeofabrikId"]: source["regionBoundaryFingerprint"]
+              for source in inventory["sourceConnectivity"]
+          }
+          current = {
+              "schema": "roadpilot-routing-pack",
+              "schemaVersion": 1,
+              "regionId": inventory["regionId"],
+              "packageVersion": inventory["graph"]["packageVersion"],
+              "graphFingerprint": inventory["graph"]["graphFingerprint"],
+              "source": {
+                  "primaryGeofabrikId": inventory["graph"]["primaryGeofabrikId"],
+              },
+              "graphIndex": {
+                  "boundaryFingerprints": boundaries,
+              },
+          }
+          (root / "connector-current-b.json").write_text(json.dumps(current, indent=2) + "\n")
+
+          changed_graph = copy.deepcopy(current)
+          changed_graph["graphFingerprint"] = "sha256:" + "8" * 64
+          (root / "connector-changed-graph-b.json").write_text(
+              json.dumps(changed_graph, indent=2) + "\n"
+          )
+
+          changed_boundary = copy.deepcopy(current)
+          first_neighbor = sorted(boundaries)[0]
+          changed_boundary["graphIndex"]["boundaryFingerprints"][first_neighbor] = "sha256:" + "9" * 64
+          (root / "connector-changed-boundary-b.json").write_text(
+              json.dumps(changed_boundary, indent=2) + "\n"
+          )
+
+          stale_matrix = copy.deepcopy(matrix)
+          stale_matrix["sourceInventorySha256"] = "sha256:" + "0" * 64
+          (root / "connector-stale-matrix-b.json").write_text(
+              json.dumps(stale_matrix, indent=2) + "\n"
+          )
+          PY
+
+          python tools/plan_region_connector_refresh.py \
+            --manifest "$root/connector-current-b.json" \
+            --inventory "$root/inventory-b-hier.json" \
+            --matrix "$root/matrix-b-hier.json" \
+            --output "$root/connector-refresh-current.json"
+          python tools/validate_region_connector_refresh_plan.py \
+            --artifact "$root/connector-refresh-current.json"
+
+          python tools/plan_region_connector_refresh.py \
+            --manifest "$root/connector-current-b.json" \
+            --inventory "$root/inventory-b-hier.json" \
+            --output "$root/connector-refresh-missing-matrix.json"
+          python tools/validate_region_connector_refresh_plan.py \
+            --artifact "$root/connector-refresh-missing-matrix.json"
+
+          python tools/plan_region_connector_refresh.py \
+            --manifest "$root/connector-current-b.json" \
+            --output "$root/connector-refresh-missing-inventory.json"
+          python tools/validate_region_connector_refresh_plan.py \
+            --artifact "$root/connector-refresh-missing-inventory.json"
+
+          python tools/plan_region_connector_refresh.py \
+            --manifest "$root/connector-changed-graph-b.json" \
+            --inventory "$root/inventory-b-hier.json" \
+            --matrix "$root/matrix-b-hier.json" \
+            --output "$root/connector-refresh-graph.json"
+          python tools/validate_region_connector_refresh_plan.py \
+            --artifact "$root/connector-refresh-graph.json"
+
+          python tools/plan_region_connector_refresh.py \
+            --manifest "$root/connector-changed-boundary-b.json" \
+            --inventory "$root/inventory-b-hier.json" \
+            --matrix "$root/matrix-b-hier.json" \
+            --output "$root/connector-refresh-boundary.json"
+          python tools/validate_region_connector_refresh_plan.py \
+            --artifact "$root/connector-refresh-boundary.json"
+
+          python tools/plan_region_connector_refresh.py \
+            --manifest "$root/connector-current-b.json" \
+            --inventory "$root/inventory-b-hier.json" \
+            --matrix "$root/connector-stale-matrix-b.json" \
+            --output "$root/connector-refresh-matrix.json"
+          python tools/validate_region_connector_refresh_plan.py \
+            --artifact "$root/connector-refresh-matrix.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+
+          def read(name):
+              return json.loads((root / name).read_text())
+
+          current = read("connector-refresh-current.json")
+          assert current["status"] == "CURRENT"
+          assert current["refreshAction"] == "NONE"
+          assert current["inventory"]["current"] is True
+          assert current["matrix"]["current"] is True
+          assert all(check["matches"] for check in current["inventory"]["boundaryChecks"])
+
+          missing_matrix = read("connector-refresh-missing-matrix.json")
+          assert missing_matrix["status"] == "MISSING"
+          assert missing_matrix["refreshAction"] == "BUILD_MATRIX"
+
+          missing_inventory = read("connector-refresh-missing-inventory.json")
+          assert missing_inventory["status"] == "MISSING"
+          assert missing_inventory["refreshAction"] == "BUILD_INVENTORY_AND_MATRIX"
+
+          changed_graph = read("connector-refresh-graph.json")
+          assert changed_graph["status"] == "STALE"
+          assert changed_graph["refreshAction"] == "REBUILD_INVENTORY_AND_MATRIX"
+          assert "INVENTORY_GRAPH_CHANGED" in changed_graph["inventory"]["reasons"]
+
+          changed_boundary = read("connector-refresh-boundary.json")
+          assert changed_boundary["status"] == "STALE"
+          assert changed_boundary["refreshAction"] == "REBUILD_INVENTORY_AND_MATRIX"
+          assert any(
+              reason.startswith("BOUNDARY_CHANGED:")
+              for reason in changed_boundary["inventory"]["reasons"]
+          )
+
+          stale_matrix = read("connector-refresh-matrix.json")
+          assert stale_matrix["status"] == "STALE"
+          assert stale_matrix["refreshAction"] == "REBUILD_MATRIX"
+          assert "MATRIX_SOURCE_INVENTORY_CHANGED" in stale_matrix["matrix"]["reasons"]
+
+          print("regional connector lifecycle planning smoke test passed")
+          PY
+
       - name: Smoke-test surgical connectivity refresh planning
         shell: bash
         run: |

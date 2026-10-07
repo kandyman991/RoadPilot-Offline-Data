@@ -157,6 +157,82 @@ type HandoffArtifactItem = {
   separationMeters?: number | null;
   artifactPath: string;
 };
+type ConnectorAnchor = {
+  id: string;
+  candidateId: string;
+  frontierRoadId: string;
+  stableWayId: number;
+  neighborRegionId: string;
+  sourcePairId: string;
+  graphAnchor: {
+    coordinate: { lat: number; lng: number };
+    graphId: number;
+    wayId: number | null;
+    percentAlong: number | null;
+  };
+  roles: {
+    MOTORCYCLE: string[];
+    CAR: string[];
+  };
+};
+type ConnectorMatrixCell = {
+  fromAnchorId: string;
+  toAnchorId: string;
+  status: "REACHABLE" | "UNREACHABLE" | "INCONCLUSIVE" | string;
+  distanceKm: number | null;
+  timeSeconds: number | null;
+  matrixDistanceKm: number | null;
+  matrixTimeSeconds: number | null;
+  error: string | null;
+};
+type ConnectorMatrixMode = {
+  entryAnchorIds: string[];
+  exitAnchorIds: string[];
+  candidatePairCount: number;
+  reachableCount: number;
+  unreachableCount: number;
+  inconclusiveCount: number;
+  cells: ConnectorMatrixCell[];
+};
+type ConnectorMatrixInspection = {
+  regionId: string;
+  status: "CURRENT" | "STALE" | "MISSING" | string;
+  refreshAction: string;
+  currentGraph: Record<string, unknown>;
+  recognizedInventories: number;
+  recognizedMatrices: number;
+  searchDirectories: string[];
+  inventory: null | {
+    artifactPath: string;
+    sha256: string;
+    current: boolean;
+    graph: Record<string, unknown>;
+    anchorCount: number;
+    sourceConnectivity: Array<Record<string, unknown>>;
+    boundaryChecks: Array<{
+      neighborPrimaryGeofabrikId: string;
+      boundBoundaryFingerprint: string | null;
+      currentBoundaryFingerprint: string | null;
+      matches: boolean;
+    }>;
+    anchors: ConnectorAnchor[];
+  };
+  matrix: null | {
+    artifactPath: string;
+    current: boolean;
+    graph: Record<string, unknown>;
+    sourceInventorySha256: string | null;
+    sourceAnchorCount: number | null;
+    sourceInventoryPresent: boolean;
+    sourceInventoryCurrent: boolean;
+    anchorCountMatches: boolean;
+    modes: {
+      MOTORCYCLE?: ConnectorMatrixMode;
+      CAR?: ConnectorMatrixMode;
+    };
+  };
+};
+
 type BorderRoadDiffMetrics = {
   commonWays: number;
   aOnlyWays: number;
@@ -382,6 +458,31 @@ app.innerHTML = `
         </div>
         <div id="handoffArtifactSummary" class="empty">Load a graph pair to inspect handoff artifacts.</div>
         <div id="handoffArtifactList" class="artifact-list"></div>
+        <h2 style="margin-top:16px">Regional connector matrix</h2>
+        <div class="coord-grid">
+          <div class="field">
+            <label for="connectorRegion">Region</label>
+            <select id="connectorRegion"></select>
+          </div>
+          <div class="field">
+            <label for="connectorMode">Mode</label>
+            <select id="connectorMode">
+              <option value="MOTORCYCLE">Motorcycle</option>
+              <option value="CAR">Car</option>
+            </select>
+          </div>
+        </div>
+        <div class="connector-matrix-legend">
+          <span><i class="connector-reachable"></i>Reachable</span>
+          <span><i class="connector-unreachable"></i>Unreachable</span>
+          <span><i class="connector-inconclusive"></i>Inconclusive</span>
+          <span><i class="connector-anchor"></i>Anchor</span>
+        </div>
+        <div class="actions" style="margin-top:8px">
+          <button id="refreshConnectorMatrixBtn" class="btn" type="button" disabled>Inspect matrix</button>
+        </div>
+        <div id="connectorMatrixSummary" class="empty">Choose a locally built region to inspect its connector inventory and matrix.</div>
+        <div id="connectorMatrixList" class="artifact-list"></div>
         <div class="actions" style="margin-top:10px">
           <button id="exportBorderDiagnosticsBtn" class="btn" type="button" disabled>Export diagnostics</button>
         </div>
@@ -509,6 +610,11 @@ const borderDiffSummary = document.querySelector<HTMLDivElement>("#borderDiffSum
 const refreshHandoffArtifactsBtn = document.querySelector<HTMLButtonElement>("#refreshHandoffArtifactsBtn")!;
 const handoffArtifactSummary = document.querySelector<HTMLDivElement>("#handoffArtifactSummary")!;
 const handoffArtifactList = document.querySelector<HTMLDivElement>("#handoffArtifactList")!;
+const connectorRegion = document.querySelector<HTMLSelectElement>("#connectorRegion")!;
+const connectorMode = document.querySelector<HTMLSelectElement>("#connectorMode")!;
+const refreshConnectorMatrixBtn = document.querySelector<HTMLButtonElement>("#refreshConnectorMatrixBtn")!;
+const connectorMatrixSummary = document.querySelector<HTMLDivElement>("#connectorMatrixSummary")!;
+const connectorMatrixList = document.querySelector<HTMLDivElement>("#connectorMatrixList")!;
 const exportBorderDiagnosticsBtn = document.querySelector<HTMLButtonElement>("#exportBorderDiagnosticsBtn")!;
 const borderReportSummary = document.querySelector<HTMLDivElement>("#borderReportSummary")!;
 const routeCosting = document.querySelector<HTMLSelectElement>("#routeCosting")!;
@@ -548,6 +654,7 @@ let editingHandoffId: string | null = null;
 let handoffSnapA: HandoffSnap | null = null;
 let handoffSnapB: HandoffSnap | null = null;
 let handoffValidation: HandoffValidation | null = null;
+let connectorInspection: ConnectorMatrixInspection | null = null;
 let handoffMarkerA: Marker | null = null;
 let handoffMarkerB: Marker | null = null;
 let routePickMode: "start" | "end" | null = null;
@@ -1233,11 +1340,15 @@ function uniqueBuiltRegions(): string[] {
 function renderBorderRegionSelectors(): void {
   const currentA = borderRegionA.value;
   const currentB = borderRegionB.value;
+  const currentConnector = connectorRegion.value || activeRegion?.id || "";
   const options = uniqueBuiltRegions().map(id => `<option value="${id}">${id}</option>`).join("");
   borderRegionA.innerHTML = `<option value="">Choose A…</option>${options}`;
   borderRegionB.innerHTML = `<option value="">Choose B…</option>${options}`;
+  connectorRegion.innerHTML = `<option value="">Choose region…</option>${options}`;
   if ([...borderRegionA.options].some(option => option.value === currentA)) borderRegionA.value = currentA;
   if ([...borderRegionB.options].some(option => option.value === currentB)) borderRegionB.value = currentB;
+  if ([...connectorRegion.options].some(option => option.value === currentConnector)) connectorRegion.value = currentConnector;
+  refreshConnectorMatrixBtn.disabled = !connectorRegion.value;
 }
 
 async function refreshHandoffOverrides(): Promise<void> {
@@ -1545,6 +1656,192 @@ async function refreshHandoffArtifactOverlay(): Promise<void> {
   }
 }
 
+const connectorMatrixSource = "roadpilot-connector-matrix";
+const connectorMatrixLayers = [
+  "roadpilot-connector-reachable",
+  "roadpilot-connector-unreachable",
+  "roadpilot-connector-inconclusive",
+  "roadpilot-connector-anchors",
+];
+
+function removeConnectorMatrixOverlay(): void {
+  for (const id of connectorMatrixLayers) if (map.getLayer(id)) map.removeLayer(id);
+  if (map.getSource(connectorMatrixSource)) map.removeSource(connectorMatrixSource);
+}
+
+function connectorStatusClass(status: string): string {
+  if (status === "CURRENT" || status === "REACHABLE" || status === "NONE") return "ok";
+  if (status === "MISSING" || status.includes("BUILD") || status.includes("REBUILD") || status === "INCONCLUSIVE") return "warn";
+  return "bad";
+}
+
+function renderConnectorMatrix(result: ConnectorMatrixInspection): void {
+  connectorInspection = result;
+  removeConnectorMatrixOverlay();
+  const modeName = connectorMode.value as "MOTORCYCLE" | "CAR";
+  const inventory = result.inventory;
+  const matrix = result.matrix;
+  const mode = matrix?.modes?.[modeName];
+  const anchors = inventory?.anchors ?? [];
+  const anchorById = new globalThis.Map(anchors.map(anchor => [anchor.id, anchor]));
+  const features: Feature[] = [];
+
+  for (const anchor of anchors) {
+    const roles = anchor.roles?.[modeName] ?? [];
+    if (!roles.length) continue;
+    features.push({
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [anchor.graphAnchor.coordinate.lng, anchor.graphAnchor.coordinate.lat],
+      },
+      properties: {
+        geometryRole: "anchor",
+        id: anchor.id,
+        candidateId: anchor.candidateId,
+        neighborRegionId: anchor.neighborRegionId,
+        roles: roles.join(","),
+      },
+    });
+  }
+
+  const allCells = mode?.cells ?? [];
+  const renderCells = allCells.slice(0, 500);
+  for (const cell of renderCells) {
+    const from = anchorById.get(cell.fromAnchorId);
+    const to = anchorById.get(cell.toAnchorId);
+    if (!from || !to) continue;
+    features.push({
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [from.graphAnchor.coordinate.lng, from.graphAnchor.coordinate.lat],
+          [to.graphAnchor.coordinate.lng, to.graphAnchor.coordinate.lat],
+        ],
+      },
+      properties: {
+        geometryRole: "cell",
+        status: cell.status,
+        fromAnchorId: cell.fromAnchorId,
+        toAnchorId: cell.toAnchorId,
+        distanceKm: cell.distanceKm,
+        timeSeconds: cell.timeSeconds,
+      },
+    });
+  }
+
+  if (features.length) {
+    const collection: FeatureCollection = { type: "FeatureCollection", features };
+    map.addSource(connectorMatrixSource, { type: "geojson", data: collection });
+    for (const [id, status, color, opacity, dash] of [
+      ["roadpilot-connector-reachable", "REACHABLE", "#2fbd71", 0.78, null],
+      ["roadpilot-connector-unreachable", "UNREACHABLE", "#e35d5b", 0.22, [2, 2]],
+      ["roadpilot-connector-inconclusive", "INCONCLUSIVE", "#f0a44b", 0.55, [4, 2]],
+    ] as Array<[string, string, string, number, number[] | null]>) {
+      map.addLayer({
+        id,
+        type: "line",
+        source: connectorMatrixSource,
+        filter: ["all", ["==", ["get", "geometryRole"], "cell"], ["==", ["get", "status"], status]],
+        paint: {
+          "line-color": color,
+          "line-width": status === "REACHABLE" ? 3.2 : 2,
+          "line-opacity": opacity,
+          ...(dash ? { "line-dasharray": dash } : {}),
+        },
+      });
+    }
+    map.addLayer({
+      id: "roadpilot-connector-anchors",
+      type: "circle",
+      source: connectorMatrixSource,
+      filter: ["==", ["get", "geometryRole"], "anchor"],
+      paint: {
+        "circle-radius": 5,
+        "circle-color": [
+          "case",
+          ["==", ["get", "roles"], "ENTRY,EXIT"], "#9d72e8",
+          ["==", ["get", "roles"], "ENTRY"], "#4b9ee8",
+          "#ee5aa7",
+        ],
+        "circle-stroke-color": "#111820",
+        "circle-stroke-width": 1.2,
+      },
+    });
+  }
+
+  const statusClass = connectorStatusClass(result.status);
+  const matrixStatus = matrix ? (matrix.current ? "CURRENT" : "STALE") : "MISSING";
+  const inventoryStatus = inventory ? (inventory.current ? "CURRENT" : "STALE") : "MISSING";
+  connectorMatrixSummary.className = "kv";
+  connectorMatrixSummary.innerHTML = `
+    <dt>Overall</dt><dd class="${statusClass}">${result.status}</dd>
+    <dt>Refresh action</dt><dd class="${connectorStatusClass(result.refreshAction)}">${result.refreshAction}</dd>
+    <dt>Inventory</dt><dd class="${connectorStatusClass(inventoryStatus)}">${inventoryStatus} • ${inventory?.anchorCount ?? 0} anchors</dd>
+    <dt>Inventory file</dt><dd>${inventory?.artifactPath ?? "—"}</dd>
+    <dt>Matrix</dt><dd class="${connectorStatusClass(matrixStatus)}">${matrixStatus}</dd>
+    <dt>Matrix file</dt><dd>${matrix?.artifactPath ?? "—"}</dd>
+    <dt>Inventory binding</dt><dd class="${matrix?.sourceInventoryPresent && matrix?.sourceInventoryCurrent && matrix?.anchorCountMatches ? "ok" : "warn"}">${matrix ? (matrix.sourceInventoryPresent && matrix.sourceInventoryCurrent && matrix.anchorCountMatches ? "exact/current" : "stale or missing") : "—"}</dd>
+    <dt>${modeName}</dt><dd>${mode ? `${mode.reachableCount} reachable / ${mode.unreachableCount} unreachable / ${mode.inconclusiveCount} inconclusive` : "no mode matrix"}</dd>
+    <dt>Overlay</dt><dd>${Math.min(allCells.length, 500)} / ${allCells.length} cells rendered</dd>
+  `;
+
+  const boundaryRows = (inventory?.boundaryChecks ?? []).map(check => {
+    const state = check.matches ? "CURRENT" : "STALE";
+    return `
+      <div class="artifact-row">
+        <div><b>BOUNDARY ${check.neighborPrimaryGeofabrikId}</b><span class="${connectorStatusClass(state)}">${state}</span></div>
+        <small>${check.currentBoundaryFingerprint ?? "missing current fingerprint"}</small>
+      </div>
+    `;
+  }).join("");
+
+  const cellRows = allCells.slice(0, 200).map(cell => {
+    const metric = cell.status === "REACHABLE"
+      ? `${cell.distanceKm?.toFixed(2) ?? "—"} km • ${cell.timeSeconds?.toFixed(0) ?? "—"} s`
+      : cell.error || "no usable connector traversal";
+    return `
+      <div class="artifact-row">
+        <div><b>${cell.fromAnchorId} → ${cell.toAnchorId}</b><span class="${connectorStatusClass(cell.status)}">${cell.status}</span></div>
+        <small>${metric}</small>
+      </div>
+    `;
+  }).join("");
+
+  connectorMatrixList.innerHTML = boundaryRows + cellRows;
+  if (!inventory && !matrix) {
+    connectorMatrixList.innerHTML = `
+      <div class="empty">
+        No connector inventory or matrix found for ${result.regionId}. Searched:<br>
+        ${result.searchDirectories.map(path => `<code>${path}</code>`).join("<br>")}
+      </div>
+    `;
+  } else if (!boundaryRows && !cellRows) {
+    connectorMatrixList.innerHTML = '<div class="empty">No boundary checks or matrix cells to display.</div>';
+  }
+}
+
+async function refreshConnectorMatrix(): Promise<void> {
+  const regionId = connectorRegion.value;
+  if (!regionId) return;
+  refreshConnectorMatrixBtn.disabled = true;
+  connectorMatrixSummary.className = "empty";
+  connectorMatrixSummary.textContent = "Reading connector inventory, weights and freshness…";
+  try {
+    const result = await invoke<ConnectorMatrixInspection>("inspect_region_connector_matrix", { regionId });
+    renderConnectorMatrix(result);
+  } catch (error) {
+    connectorInspection = null;
+    removeConnectorMatrixOverlay();
+    connectorMatrixSummary.className = "bad";
+    connectorMatrixSummary.textContent = `Connector matrix inspection failed: ${String(error)}`;
+    connectorMatrixList.innerHTML = "";
+  } finally {
+    refreshConnectorMatrixBtn.disabled = false;
+  }
+}
+
 const routeSourceId = "roadpilot-route";
 const routeLayerId = "roadpilot-route-line";
 const expansionSourceId = "roadpilot-expansion";
@@ -1787,6 +2084,10 @@ function setActiveRegion(region: RegionSummary): void {
   routeEndMarker?.remove();
   routeStartMarker = null;
   routeEndMarker = null;
+  if ([...connectorRegion.options].some(option => option.value === region.id)) {
+    connectorRegion.value = region.id;
+    refreshConnectorMatrixBtn.disabled = false;
+  }
   fitActiveRegion();
   renderRegions();
 }
@@ -2234,6 +2535,20 @@ loadBorderPairBtn.addEventListener("click", () => {
 
 refreshBorderDiffBtn.addEventListener("click", scheduleBorderRoadDiff);
 refreshHandoffArtifactsBtn.addEventListener("click", () => refreshHandoffArtifactOverlay());
+refreshConnectorMatrixBtn.addEventListener("click", () => refreshConnectorMatrix());
+connectorMode.addEventListener("change", () => {
+  if (connectorInspection) renderConnectorMatrix(connectorInspection);
+});
+connectorRegion.addEventListener("change", () => {
+  connectorInspection = null;
+  removeConnectorMatrixOverlay();
+  connectorMatrixList.innerHTML = "";
+  connectorMatrixSummary.className = "empty";
+  connectorMatrixSummary.textContent = connectorRegion.value
+    ? "Inspect this region to load connector inventory and matrix freshness."
+    : "Choose a locally built region to inspect its connector inventory and matrix.";
+  refreshConnectorMatrixBtn.disabled = !connectorRegion.value;
+});
 exportBorderDiagnosticsBtn.addEventListener("click", async () => {
   const regionA = borderRegionA.value;
   const regionB = borderRegionB.value;
