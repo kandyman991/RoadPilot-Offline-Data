@@ -1124,6 +1124,62 @@ addProtocol("roadpilot-build-graph", async (request) => {
   return { data: new Uint8Array(data).buffer };
 });
 
+class TauriPmtilesSource implements PMTilesSource {
+  constructor(
+    private readonly manifestPath: string,
+    private readonly key: string,
+  ) {}
+
+  getKey(): string {
+    return this.key;
+  }
+
+  async getBytes(
+    offset: number,
+    length: number,
+    signal?: AbortSignal,
+  ): Promise<RangeResponse> {
+    signal?.throwIfAborted();
+    const data = await invoke<number[]>("visual_archive_range", {
+      manifestPath: this.manifestPath,
+      offset,
+      length,
+    });
+    signal?.throwIfAborted();
+    return { data: new Uint8Array(data).buffer };
+  }
+}
+
+const visualArchives = new globalThis.Map<string, PMTiles>();
+
+function visualArchiveKey(build: VisualBuildArtifact): string {
+  return build.sha256;
+}
+
+function ensureVisualArchive(build: VisualBuildArtifact): PMTiles {
+  const key = visualArchiveKey(build);
+  const existing = visualArchives.get(key);
+  if (existing) return existing;
+  const source = new TauriPmtilesSource(
+    build.manifest_path,
+    `roadpilot-local-pmtiles:${key}`,
+  );
+  const archive = new PMTiles(source);
+  visualArchives.set(key, archive);
+  return archive;
+}
+
+addProtocol("roadpilot-visual", async (request) => {
+  const raw = request.url.replace("roadpilot-visual://", "");
+  const match = raw.match(/^([0-9a-f]{64})\/(\d+)\/(\d+)\/(\d+)\.mvt$/);
+  if (!match) throw new Error("Invalid RoadPilot visual tile URL");
+  const [, key, z, x, y] = match;
+  const archive = visualArchives.get(key);
+  if (!archive) throw new Error(`Unknown retained visual archive: ${key}`);
+  const tile = await archive.getZxy(Number(z), Number(x), Number(y));
+  return { data: tile?.data ?? new ArrayBuffer(0) };
+});
+
 const map = new MapLibreMap({
   container: "map",
   style: "https://tiles.openfreemap.org/styles/bright",
