@@ -1,10 +1,10 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::{BTreeMap, BTreeSet},
     env,
-    fs,
-    io::{BufRead, BufReader},
+    fs::{self, OpenOptions},
+    io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
@@ -14,6 +14,8 @@ use std::{
     thread,
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
+#[cfg(unix)]
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Debug, Clone, Serialize)]
@@ -118,6 +120,79 @@ impl Default for BuildState {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct R2CredentialFile {
+    account_id: String,
+    bucket: String,
+    access_key_id: String,
+    secret_access_key: String,
+    endpoint_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct R2CredentialStatus {
+    configured: bool,
+    account_id: Option<String>,
+    bucket: Option<String>,
+    access_key_suffix: Option<String>,
+    endpoint_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicationStatus {
+    running: bool,
+    region_id: Option<String>,
+    package_version: Option<String>,
+    stage: String,
+    current_key: Option<String>,
+    bytes_transferred: u64,
+    total_bytes: u64,
+    last_error: Option<String>,
+}
+
+impl Default for PublicationStatus {
+    fn default() -> Self {
+        Self {
+            running: false,
+            region_id: None,
+            package_version: None,
+            stage: "Publication idle".into(),
+            current_key: None,
+            bytes_transferred: 0,
+            total_bytes: 0,
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct PublicationState {
+    status: Arc<Mutex<PublicationStatus>>,
+}
+
+impl Default for PublicationState {
+    fn default() -> Self {
+        Self {
+            status: Arc::new(Mutex::new(PublicationStatus::default())),
+        }
+    }
+}
+
+fn emit_publication_status(app: &AppHandle, state: &PublicationState) {
+    let snapshot = state
+        .status
+        .lock()
+        .expect("publication status poisoned")
+        .clone();
+    let _ = app.emit("graph-studio://publication-status", snapshot);
+}
+
+fn emit_publication_event(app: &AppHandle, event: &Value) {
+    let _ = app.emit("graph-studio://publication-event", event.clone());
+}
+
 fn now_epoch_ms() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -215,6 +290,125 @@ fn workspace_root(app: &AppHandle) -> Result<PathBuf, String> {
         .join("RoadPilotGraphStudio");
     fs::create_dir_all(&root).map_err(|e| format!("Could not create workspace: {e}"))?;
     Ok(root)
+}
+
+fn r2_credentials_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Could not resolve Graph Studio app-data directory: {e}"))?;
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Could not create Graph Studio app-data directory: {e}"))?;
+    Ok(dir.join("r2-credentials.json"))
+}
+
+fn validate_r2_credentials(value: &R2CredentialFile) -> Result<(), String> {
+    if value.account_id.trim().is_empty() || !safe_token(value.account_id.trim()) {
+        return Err("Cloudflare account ID is invalid.".into());
+    }
+    if value.bucket.trim().is_empty() || !safe_token(value.bucket.trim()) {
+        return Err("R2 bucket name is invalid.".into());
+    }
+    if value.access_key_id.trim().is_empty() {
+        return Err("R2 access key ID is required.".into());
+    }
+    if value.secret_access_key.trim().is_empty() {
+        return Err("R2 secret access key is required.".into());
+    }
+    if let Some(endpoint) = value.endpoint_url.as_deref() {
+        if !endpoint.is_empty() && !endpoint.starts_with("https://") {
+            return Err("Custom R2 endpoint must use https://.".into());
+        }
+    }
+    Ok(())
+}
+
+fn read_r2_credentials(app: &AppHandle) -> Result<R2CredentialFile, String> {
+    let path = r2_credentials_path(app)?;
+    let text = fs::read_to_string(&path)
+        .map_err(|_| "R2 credentials are not configured in Graph Studio.".to_string())?;
+    let value: R2CredentialFile = serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse local R2 credentials: {e}"))?;
+    validate_r2_credentials(&value)?;
+    Ok(value)
+}
+
+fn write_r2_credentials(app: &AppHandle, value: &R2CredentialFile) -> Result<(), String> {
+    validate_r2_credentials(value)?;
+    let path = r2_credentials_path(app)?;
+    let body = serde_json::to_vec_pretty(value)
+        .map_err(|e| format!("Could not serialize R2 credentials: {e}"))?;
+
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        options.mode(0o600);
+    }
+    let mut file = options
+        .open(&path)
+        .map_err(|e| format!("Could not open local R2 credential file: {e}"))?;
+    file.write_all(&body)
+        .and_then(|_| file.write_all(b"\n"))
+        .map_err(|e| format!("Could not write local R2 credentials: {e}"))?;
+    file.sync_all()
+        .map_err(|e| format!("Could not sync local R2 credentials: {e}"))?;
+    #[cfg(unix)]
+    {
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("Could not protect local R2 credential file: {e}"))?;
+    }
+    Ok(())
+}
+
+fn r2_credential_status_for(app: &AppHandle) -> Result<R2CredentialStatus, String> {
+    let path = r2_credentials_path(app)?;
+    if !path.is_file() {
+        return Ok(R2CredentialStatus {
+            configured: false,
+            account_id: None,
+            bucket: None,
+            access_key_suffix: None,
+            endpoint_url: None,
+        });
+    }
+    let value = read_r2_credentials(app)?;
+    let suffix: String = value
+        .access_key_id
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+    Ok(R2CredentialStatus {
+        configured: true,
+        account_id: Some(value.account_id),
+        bucket: Some(value.bucket),
+        access_key_suffix: Some(suffix),
+        endpoint_url: value.endpoint_url.filter(|value| !value.is_empty()),
+    })
+}
+
+fn apply_r2_env(command: &mut Command, credentials: &R2CredentialFile) {
+    command
+        .env("CLOUDFLARE_ACCOUNT_ID", &credentials.account_id)
+        .env("R2_ACCESS_KEY_ID", &credentials.access_key_id)
+        .env("R2_SECRET_ACCESS_KEY", &credentials.secret_access_key)
+        .env("R2_BUCKET", &credentials.bucket);
+    if let Some(endpoint) = credentials.endpoint_url.as_deref().filter(|value| !value.is_empty()) {
+        command.env("R2_ENDPOINT_URL", endpoint);
+    } else {
+        command.env_remove("R2_ENDPOINT_URL");
+    }
+}
+
+fn publication_cache_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = workspace_root(app)?.join("publication");
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("Could not create publication workspace: {e}"))?;
+    Ok(path)
 }
 
 fn region_config_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -1064,6 +1258,385 @@ fn safe_build_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, Strin
         return Err("Build manifest is outside the Graph Studio build workspace.".into());
     }
     Ok(requested)
+}
+
+fn run_r2_json_script(
+    app: &AppHandle,
+    script_name: &str,
+    args: &[String],
+) -> Result<Value, String> {
+    let credentials = read_r2_credentials(app)?;
+    let python = ensure_python_env(app)?;
+    let script = pipeline_root(app)?.join("tools").join(script_name);
+    if !script.is_file() {
+        return Err(format!("Bundled R2 tool is missing: {}", script.display()));
+    }
+    let mut command = Command::new(python);
+    command.arg(script).args(args);
+    apply_r2_env(&mut command, &credentials);
+    let output = command
+        .output()
+        .map_err(|e| format!("Could not run {script_name}: {e}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("{script_name} returned invalid JSON: {e}"))
+}
+
+fn update_publication_from_event(
+    app: &AppHandle,
+    state: &PublicationState,
+    event: &Value,
+) {
+    let kind = event.get("event").and_then(Value::as_str).unwrap_or_default();
+    {
+        let mut status = state.status.lock().expect("publication status poisoned");
+        match kind {
+            "UPLOAD_STARTED" => {
+                status.stage = "Uploading immutable object".into();
+                status.current_key = event.get("key").and_then(Value::as_str).map(str::to_string);
+                status.bytes_transferred = 0;
+                status.total_bytes = event
+                    .get("totalBytes")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0);
+            }
+            "UPLOAD_PROGRESS" => {
+                status.stage = "Uploading immutable object".into();
+                status.current_key = event.get("key").and_then(Value::as_str).map(str::to_string);
+                status.bytes_transferred = event
+                    .get("bytesTransferred")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(status.bytes_transferred);
+                status.total_bytes = event
+                    .get("totalBytes")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(status.total_bytes);
+            }
+            "UPLOAD_CONFIRMED" => {
+                status.stage = "R2 object confirmed".into();
+                status.current_key = event.get("key").and_then(Value::as_str).map(str::to_string);
+                status.bytes_transferred = status.total_bytes;
+            }
+            "IMMUTABLE_PRESENT" => {
+                status.stage = "Immutable object already published".into();
+                status.current_key = event.get("key").and_then(Value::as_str).map(str::to_string);
+            }
+            "LATEST_ADVANCED" => {
+                status.stage = "latest.json advanced".into();
+                status.current_key = event.get("key").and_then(Value::as_str).map(str::to_string);
+            }
+            "LATEST_ALREADY_CURRENT" => {
+                status.stage = "latest.json already current".into();
+                status.current_key = event.get("key").and_then(Value::as_str).map(str::to_string);
+            }
+            _ => {}
+        }
+    }
+    emit_publication_event(app, event);
+    emit_publication_status(app, state);
+}
+
+fn run_publication_job(
+    app: AppHandle,
+    state: PublicationState,
+    manifest_path: PathBuf,
+    region_id: String,
+    package_version: String,
+    credentials: R2CredentialFile,
+) -> Result<(), String> {
+    let python = ensure_python_env(&app)?;
+    let pipeline = pipeline_root(&app)?;
+    let cache = publication_cache_dir(&app)?;
+    let plan_path = cache.join(format!("{region_id}--{package_version}--publication-plan.json"));
+
+    {
+        let mut status = state.status.lock().expect("publication status poisoned");
+        status.stage = "Validating local routing pack".into();
+        status.current_key = None;
+        status.bytes_transferred = 0;
+        status.total_bytes = 0;
+    }
+    emit_publication_status(&app, &state);
+
+    let prepare = Command::new(&python)
+        .arg(pipeline.join("tools/prepare_routing_publication.py"))
+        .arg("--manifest")
+        .arg(&manifest_path)
+        .arg("--output")
+        .arg(&plan_path)
+        .output()
+        .map_err(|e| format!("Could not prepare publication plan: {e}"))?;
+    if !prepare.status.success() {
+        return Err(String::from_utf8_lossy(&prepare.stderr).trim().to_string());
+    }
+    for line in String::from_utf8_lossy(&prepare.stdout).lines() {
+        emit_log(&app, format!("R2: {line}"));
+    }
+
+    {
+        let mut status = state.status.lock().expect("publication status poisoned");
+        status.stage = "Publishing verified release to R2".into();
+    }
+    emit_publication_status(&app, &state);
+
+    let mut command = Command::new(&python);
+    command
+        .arg(pipeline.join("tools/publish_publication_plan_r2.py"))
+        .arg("--plan")
+        .arg(&plan_path)
+        .arg("--json-events")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    apply_r2_env(&mut command, &credentials);
+
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("Could not start R2 publisher: {e}"))?;
+    let stdout = child.stdout.take().ok_or("R2 publisher stdout unavailable.")?;
+    let stderr = child.stderr.take().ok_or("R2 publisher stderr unavailable.")?;
+    let (tx, rx) = std::sync::mpsc::channel::<(bool, String)>();
+
+    let tx_out = tx.clone();
+    let out_thread = thread::spawn(move || {
+        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+            let _ = tx_out.send((true, line));
+        }
+    });
+    let tx_err = tx.clone();
+    let err_thread = thread::spawn(move || {
+        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+            let _ = tx_err.send((false, line));
+        }
+    });
+    drop(tx);
+
+    loop {
+        match rx.recv_timeout(std::time::Duration::from_millis(150)) {
+            Ok((is_stdout, line)) => {
+                if is_stdout {
+                    if let Ok(event) = serde_json::from_str::<Value>(&line) {
+                        if event.get("event").is_some() {
+                            update_publication_from_event(&app, &state, &event);
+                            continue;
+                        }
+                    }
+                }
+                emit_log(&app, format!("R2: {line}"));
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+        }
+    }
+
+    let exit = child
+        .wait()
+        .map_err(|e| format!("Could not wait for R2 publisher: {e}"))?;
+    let _ = out_thread.join();
+    let _ = err_thread.join();
+    if !exit.success() {
+        return Err(format!("R2 publisher exited with {exit}."));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn r2_credential_status(app: AppHandle) -> Result<R2CredentialStatus, String> {
+    r2_credential_status_for(&app)
+}
+
+#[tauri::command]
+fn save_r2_credentials(
+    app: AppHandle,
+    account_id: String,
+    bucket: String,
+    access_key_id: String,
+    secret_access_key: String,
+    endpoint_url: Option<String>,
+) -> Result<R2CredentialStatus, String> {
+    let existing = read_r2_credentials(&app).ok();
+    let access_key_id = if access_key_id.trim().is_empty() {
+        existing
+            .as_ref()
+            .map(|value| value.access_key_id.clone())
+            .unwrap_or_default()
+    } else {
+        access_key_id.trim().to_string()
+    };
+    let secret_access_key = if secret_access_key.trim().is_empty() {
+        existing
+            .as_ref()
+            .map(|value| value.secret_access_key.clone())
+            .unwrap_or_default()
+    } else {
+        secret_access_key.trim().to_string()
+    };
+    let credentials = R2CredentialFile {
+        account_id: account_id.trim().to_string(),
+        bucket: bucket.trim().to_string(),
+        access_key_id,
+        secret_access_key,
+        endpoint_url: endpoint_url
+            .map(|value| value.trim().trim_end_matches('/').to_string())
+            .filter(|value| !value.is_empty()),
+    };
+    write_r2_credentials(&app, &credentials)?;
+    r2_credential_status_for(&app)
+}
+
+#[tauri::command]
+fn clear_r2_credentials(app: AppHandle) -> Result<R2CredentialStatus, String> {
+    let path = r2_credentials_path(&app)?;
+    match fs::remove_file(&path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("Could not remove local R2 credentials: {error}")),
+    }
+    r2_credential_status_for(&app)
+}
+
+#[tauri::command]
+fn test_r2_credentials(app: AppHandle) -> Result<Value, String> {
+    run_r2_json_script(
+        &app,
+        "test_r2_connection.py",
+        &["--prefix".into(), "routing".into(), "--json".into()],
+    )
+}
+
+#[tauri::command]
+fn r2_region_publication_status(app: AppHandle, region_id: String) -> Result<Value, String> {
+    if !safe_token(&region_id) {
+        return Err("Invalid region id.".into());
+    }
+    run_r2_json_script(
+        &app,
+        "inspect_r2_publication.py",
+        &["--region".into(), region_id],
+    )
+}
+
+#[tauri::command]
+fn publication_status(state: State<'_, PublicationState>) -> Result<PublicationStatus, String> {
+    Ok(state
+        .status
+        .lock()
+        .expect("publication status poisoned")
+        .clone())
+}
+
+#[tauri::command]
+fn start_r2_publication(
+    app: AppHandle,
+    state: State<'_, PublicationState>,
+    manifest_path: String,
+) -> Result<(), String> {
+    let manifest_path = safe_build_manifest_path(&app, &manifest_path)?;
+    let manifest_text = fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("Could not read selected routing manifest: {e}"))?;
+    let manifest: Value = serde_json::from_str(&manifest_text)
+        .map_err(|e| format!("Could not parse selected routing manifest: {e}"))?;
+    if manifest.get("schema").and_then(Value::as_str) != Some("roadpilot-routing-pack") {
+        return Err("Selected build is not a RoadPilot routing pack.".into());
+    }
+    let region_id = manifest
+        .get("regionId")
+        .and_then(Value::as_str)
+        .ok_or("Selected manifest is missing regionId.")?
+        .to_string();
+    let package_version = manifest
+        .get("packageVersion")
+        .and_then(Value::as_str)
+        .ok_or("Selected manifest is missing packageVersion.")?
+        .to_string();
+    if !safe_token(&region_id) || !safe_token(&package_version) {
+        return Err("Selected manifest has unsafe region/version identity.".into());
+    }
+    let credentials = read_r2_credentials(&app)?;
+
+    let owned = state.inner().clone();
+    {
+        let mut status = owned.status.lock().expect("publication status poisoned");
+        if status.running {
+            return Err("An R2 publication is already running.".into());
+        }
+        *status = PublicationStatus {
+            running: true,
+            region_id: Some(region_id.clone()),
+            package_version: Some(package_version.clone()),
+            stage: "Starting publication".into(),
+            current_key: None,
+            bytes_transferred: 0,
+            total_bytes: 0,
+            last_error: None,
+        };
+    }
+    emit_publication_status(&app, &owned);
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = run_publication_job(
+            app.clone(),
+            owned.clone(),
+            manifest_path,
+            region_id,
+            package_version,
+            credentials,
+        );
+        let mut status = owned.status.lock().expect("publication status poisoned");
+        status.running = false;
+        status.current_key = None;
+        status.bytes_transferred = 0;
+        status.total_bytes = 0;
+        match result {
+            Ok(()) => {
+                status.stage = "Publication complete".into();
+                status.last_error = None;
+                emit_log(&app, "✓ R2 publication complete.");
+            }
+            Err(error) => {
+                status.stage = "Publication failed".into();
+                status.last_error = Some(error.clone());
+                emit_log(&app, format!("✗ R2 publication failed: {error}"));
+            }
+        }
+        drop(status);
+        emit_publication_status(&app, &owned);
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn activate_r2_release(app: AppHandle, release_key: String) -> Result<Value, String> {
+    if !release_key.starts_with("routing/")
+        || !release_key.ends_with("/release.json")
+        || release_key.split('/').any(|part| part.is_empty() || part == "." || part == "..")
+    {
+        return Err("Unsafe R2 release key.".into());
+    }
+    let credentials = read_r2_credentials(&app)?;
+    let python = ensure_python_env(&app)?;
+    let script = pipeline_root(&app)?.join("tools/activate_publication_release_r2.py");
+    let report_path = publication_cache_dir(&app)?.join("last-activation-report.json");
+    let mut command = Command::new(python);
+    command
+        .arg(script)
+        .arg("--release-key")
+        .arg(&release_key)
+        .arg("--report")
+        .arg(&report_path);
+    apply_r2_env(&mut command, &credentials);
+    let output = command
+        .output()
+        .map_err(|e| format!("Could not activate R2 release: {e}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    let text = fs::read_to_string(&report_path)
+        .map_err(|e| format!("Could not read R2 activation report: {e}"))?;
+    serde_json::from_str(&text)
+        .map_err(|e| format!("R2 activation report was invalid: {e}"))
 }
 
 fn graph_index_for_manifest(app: &AppHandle, raw: &str) -> Result<Value, String> {
@@ -3049,6 +3622,7 @@ pub fn run() {
     normalize_process_path();
     tauri::Builder::default()
         .manage(BuildState::default())
+        .manage(PublicationState::default())
         .invoke_handler(tauri::generate_handler![
             list_regions,
             geofabrik_catalog,
@@ -3061,6 +3635,14 @@ pub fn run() {
             start_build_queue,
             cancel_build,
             list_builds,
+            r2_credential_status,
+            save_r2_credentials,
+            clear_r2_credentials,
+            test_r2_credentials,
+            r2_region_publication_status,
+            publication_status,
+            start_r2_publication,
+            activate_r2_release,
             compare_build_indexes,
             snap_handoff_point,
             validate_handoff_override,

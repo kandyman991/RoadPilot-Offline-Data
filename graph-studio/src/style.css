@@ -232,6 +232,47 @@ button { cursor: pointer; }
 .progress.idle > div { width: 0; animation: none; }
 @keyframes busy { from { transform: translateX(-70%); } to { transform: translateX(220%); } }
 
+.publication-progress {
+  height: 6px;
+  margin: 9px 0 5px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #202a34;
+}
+.publication-progress > div {
+  width: 0;
+  height: 100%;
+  background: #4187c4;
+  transition: width .15s linear;
+}
+.publication-progress.active > div { min-width: 2px; }
+
+.publication-history {
+  display: grid;
+  gap: 6px;
+}
+.publication-release-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid #25303b;
+}
+.publication-release-row:last-child { border-bottom: 0; }
+.publication-release-row strong {
+  display: block;
+  color: #d7dee7;
+  font-size: 11px;
+}
+.publication-release-row small {
+  display: block;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  color: #788697;
+  font-size: 9.5px;
+}
+
 .build-card {
   border-bottom: 1px solid #25303b;
   padding: 6px 0;

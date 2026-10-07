@@ -15,7 +15,22 @@ Optional:
 
 - `R2_ENDPOINT_URL` — overrides the normal `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` endpoint for compatible test infrastructure.
 
-Graph Studio may later supply these values from OS-protected local credential storage, but it must not write access keys or secret keys into the repository or generated publication artifacts.
+Graph Studio stores these values only in its application-data directory, never in the repository or generated publication artifacts. On Unix/Linux the credential file is created with mode `0600`; the frontend receives only account/bucket, endpoint and a masked access-key suffix. The full saved access key and secret are passed only to child publisher processes through environment variables.
+
+## Graph Studio publication manager
+
+The Graph Studio **R2 publication** panel can:
+
+- save or clear private local credentials;
+- test bucket access without writing objects;
+- choose any retained validated local routing build;
+- compare its local version with remote `latest.json`;
+- publish through the same validated plan contract;
+- show per-object upload progress and confirmation state;
+- list immutable published versions;
+- roll `latest.json` back to an older fully verified release.
+
+Leaving the access-key or secret fields blank while saving keeps the existing stored value, so account/bucket settings can be edited without re-entering secrets.
 
 ## Test credentials without publishing
 

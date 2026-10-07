@@ -240,8 +240,8 @@ Publish validated region artifacts with immutable history and a small mutable la
 
 Milestones:
 - M1 — credential-free publication contract and local object-store safety proof — merged in PR #40;
-- M2 — R2 credential configuration/test plus plan-backed S3-compatible upload/verification — active;
-- M3 — Graph Studio local-vs-published status, progress, history and rollback.
+- M2 — R2 credential configuration/test plus plan-backed S3-compatible upload/verification — merged in PR #41;
+- M3 — Graph Studio local-vs-published status, progress, history and rollback — active.
 
 M1 contract:
 - validate the routing pack before a publication plan can exist;
@@ -267,6 +267,15 @@ M2 adds:
 - remote immutable release listing;
 - verified deletion-free latest-pointer rollback;
 - the legacy direct routing publisher now delegates to the publication-plan path.
+
+M3 integrates the publisher into Graph Studio:
+- private local credential storage outside the repository with Unix mode 0600;
+- only masked credential status is exposed to the frontend;
+- non-mutating credential test from the UI;
+- retained local-build selection and local-versus-latest comparison;
+- asynchronous publication with per-object progress;
+- remote immutable release history;
+- verified latest-pointer rollback controls.
 
 Cloudflare R2 is not connected to a real bucket yet; live credentials have not been supplied or tested.
 ## Additional artifact pipelines

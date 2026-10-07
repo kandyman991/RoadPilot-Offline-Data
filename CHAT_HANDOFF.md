@@ -26,7 +26,7 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Issue #14 — Cloudflare R2 publication manager, milestone 2: plan-backed R2 upload and verification.**
+**Issue #14 — Cloudflare R2 publication manager, milestone 3: Graph Studio publication UI.**
 
 Issue #35 is complete and closed:
 - PR #36 — graph-bound connector anchor inventories;
@@ -34,21 +34,22 @@ Issue #35 is complete and closed:
 - PR #38 — sparse matrix-backed hierarchical FASTER/SHORTER composition;
 - PR #39 — Graph Studio matrix topology/weights/freshness inspection and lifecycle refresh planning.
 
-Current branch: `r2-plan-publisher-m2`.
+Current branch: `r2-graph-studio-manager-m3`.
 
 M1 publication contract is merged in PR #40.
+M2 plan-backed R2 publisher is merged in PR #41.
 
-M2 architecture:
-- all R2 publishing consumes the validated M1 publication plan; the old direct manifest uploader now delegates to this path;
-- credentials come only from process environment: CLOUDFLARE_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET;
-- test_r2_connection.py verifies bucket access without creating/deleting objects;
-- payload uploads emit machine-readable progress events and are HEAD-verified for size + SHA-256 metadata;
-- immutable release.json uses conditional creation and is reverified before latest can move;
-- latest.json uses conditional PutObject against the observed ETag, so concurrent publishers cannot silently overwrite each other;
-- exact retries are idempotent;
-- immutable release history is listable from R2;
-- activate_publication_release_r2.py verifies the full old release before moving latest, without deleting any retained version;
-- CI uses a deterministic fake R2/S3 backend to prove upload, progress, HEAD checks, conditional latest failure, history and rollback.
+M3 Graph Studio architecture:
+- credentials are stored only in Graph Studio app data, with Unix mode 0600; never in the repo or publication artifacts;
+- frontend receives only masked credential state, never the stored secret;
+- saved credentials are injected into publisher child processes through environment variables;
+- UI can save/clear credentials and run the non-mutating bucket connection test;
+- any retained validated routing build can be selected for publication;
+- Graph Studio compares local package version/SHA with remote latest.json;
+- publication runs asynchronously and streams M2 upload/confirmation events into the UI;
+- immutable release history is displayed per region;
+- rollback buttons invoke the same full-release verification before moving latest.json;
+- no alternate/direct upload path exists.
 
 Cloudflare R2 credentials are still not configured against a real bucket. Do not claim R2 is connected or live-tested.
 ## Critical architectural decisions
@@ -71,9 +72,10 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get #14 M2 plan-backed R2 publisher CI green and merge it.
-2. M3: add Graph Studio local-vs-published status, credential configuration/test via local protected storage or environment, upload progress, release history and rollback controls.
+1. Get #14 M3 Graph Studio publication-manager CI green and merge it.
+2. Verify issue #14 acceptance against M1–M3 and close #14.
 3. Once the user supplies real R2 credentials/bucket configuration, run the connection test and a controlled first live publication.
+4. Then proceed to #16 visual map production/inspection, keeping #17 POI/search as its own later milestone.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
