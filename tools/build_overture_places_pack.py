@@ -8,6 +8,13 @@ from pathlib import Path
 
 DATABASE_SCHEMA = "roadpilot-overture-v1"
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 def normalize(value: str) -> str:
     decomposed = unicodedata.normalize("NFKD", value or "")
     without_marks = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
@@ -121,7 +128,7 @@ def main() -> None:
                 db.commit()
 
     input_path = Path(args.input)
-    source_input_sha256 = hashlib.sha256(input_path.read_bytes()).hexdigest()
+    source_input_sha256 = sha256_file(input_path)
     db.executemany(
         "INSERT INTO meta(key, value) VALUES (?, ?)",
         [
