@@ -336,6 +336,23 @@ def put_latest_conditionally(
         except PublicationError:
             previous_latest = None
 
+    if (
+        isinstance(previous_latest, dict)
+        and previous_latest.get("schema") == "roadpilot.publication-latest"
+        and previous_latest.get("releaseKey") == latest.get("releaseKey")
+        and previous_latest.get("releaseSha256") == latest.get("releaseSha256")
+    ):
+        emit_event(
+            {
+                "event": "LATEST_ALREADY_CURRENT",
+                "key": key,
+                "packageVersion": latest.get("packageVersion"),
+                "releaseKey": latest.get("releaseKey"),
+            },
+            sink,
+        )
+        return previous_latest
+
     args: dict[str, Any] = {
         "Bucket": bucket,
         "Key": key,
