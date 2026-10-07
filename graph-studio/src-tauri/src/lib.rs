@@ -806,7 +806,7 @@ fn save_region_config(
 }
 
 #[tauri::command]
-fn toolchain_status() -> ToolchainStatus {
+fn toolchain_status(app: AppHandle) -> ToolchainStatus {
     let names = [
         "python3",
         "osmium",
@@ -816,7 +816,6 @@ fn toolchain_status() -> ToolchainStatus {
         "valhalla_build_tiles",
         "valhalla_build_extract",
         "valhalla_service",
-        "tilemaker",
     ];
     let mut tools = Vec::new();
     for name in names {
@@ -829,6 +828,45 @@ fn toolchain_status() -> ToolchainStatus {
                 .unwrap_or_else(|| "missing".into()),
         });
     }
+
+    let tilemaker_path = executable_path("tilemaker");
+    let expected_tilemaker = pipeline_root(&app)
+        .ok()
+        .and_then(|root| fs::read_to_string(root.join("visual/tilemaker/toolchain.json")).ok())
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|value| value.get("tilemakerVersion").and_then(Value::as_str).map(str::to_string))
+        .unwrap_or_else(|| "3.2.0".into());
+    let (tilemaker_ready, tilemaker_detail) = match tilemaker_path {
+        Some(path) => {
+            let output = Command::new(&path)
+                .arg("--help")
+                .output()
+                .ok()
+                .map(|output| {
+                    let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+                    text.push_str(&String::from_utf8_lossy(&output.stderr));
+                    text
+                })
+                .unwrap_or_default();
+            let marker_a = format!("tilemaker {expected_tilemaker}");
+            let marker_b = format!("tilemaker v{expected_tilemaker}");
+            let matches = output.contains(&marker_a) || output.contains(&marker_b);
+            (
+                matches,
+                if matches {
+                    format!("{} • {}", path.display(), expected_tilemaker)
+                } else {
+                    format!("{} • expected {}, version mismatch", path.display(), expected_tilemaker)
+                },
+            )
+        }
+        None => (false, format!("missing • expected {expected_tilemaker}")),
+    };
+    tools.push(ToolStatus {
+        name: "tilemaker".into(),
+        available: tilemaker_ready,
+        detail: tilemaker_detail,
+    });
 
     let venv_ready = Command::new("python3")
         .args(["-m", "venv", "--help"])
