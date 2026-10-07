@@ -93,24 +93,25 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--database", type=Path)
-    parser.add_argument("--config", required=True, type=Path)
+    parser.add_argument("--config", type=Path)
     args = parser.parse_args()
 
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-    config = json.loads(args.config.read_text(encoding="utf-8"))
     validate_schema(manifest)
 
-    overture = config["overture"]
-    if manifest["regionId"] != config["id"]:
-        fail("Search manifest regionId does not match config")
-    if manifest["regionName"] != str(config.get("name") or config["id"]):
-        fail("Search manifest regionName does not match config")
-    if manifest["databaseSchema"] != overture["databaseSchema"]:
-        fail("Search manifest databaseSchema does not match config")
-    if manifest["coverage"] != overture["coverage"]:
-        fail("Search manifest coverage does not match config")
-    if manifest["fileName"] != overture["fileName"]:
-        fail("Search manifest fileName does not match config")
+    if args.config is not None:
+        config = json.loads(args.config.read_text(encoding="utf-8"))
+        overture = config["overture"]
+        if manifest["regionId"] != config["id"]:
+            fail("Search manifest regionId does not match config")
+        if manifest["regionName"] != str(config.get("name") or config["id"]):
+            fail("Search manifest regionName does not match config")
+        if manifest["databaseSchema"] != overture["databaseSchema"]:
+            fail("Search manifest databaseSchema does not match config")
+        if manifest["coverage"] != overture["coverage"]:
+            fail("Search manifest coverage does not match config")
+        if manifest["fileName"] != overture["fileName"]:
+            fail("Search manifest fileName does not match config")
 
     database = (args.database or (args.manifest.parent / manifest["fileName"])).resolve()
     if not database.is_file():
