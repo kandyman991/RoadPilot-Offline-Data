@@ -97,7 +97,8 @@
     "enabled": true,
     "source": {
       "primaryGeofabrikId": "italy/nord-est",
-      "url": "https://download.geofabrik.de/europe/italy/nord-est-latest.osm.pbf"
+      "url": "https://download.geofabrik.de/europe/italy/nord-est-latest.osm.pbf",
+      "polygonUrl": "https://download.geofabrik.de/europe/italy/nord-est.poly"
     },
     "buildThreads": 4,
     "package": {
