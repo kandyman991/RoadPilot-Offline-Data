@@ -744,6 +744,166 @@ jobs:
           print("compact runtime connectivity smoke test passed")
           PY
 
+      - name: Smoke-test multi-hop connectivity composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-correlation"
+
+          python - <<'PY'
+          import copy
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          ab = json.loads((root / "runtime-connectivity.json").read_text())
+          source = next(
+              crossing for crossing in ab["crossings"]
+              if crossing["modes"]["MOTORCYCLE"]["fromTo"]
+          )
+
+          bc_crossing = copy.deepcopy(source)
+          bc_crossing["candidateId"] = "xpc1-" + "c" * 24
+          bc_crossing["frontierRoadId"] = "fri1-" + "d" * 24
+          bc_crossing["stableWayId"] = 200
+          bc_crossing["sourceCandidateRank"] = 0
+          bc_crossing["evidenceTier"] = 0
+          bc_crossing["fromAnchor"] = copy.deepcopy(source["toAnchor"])
+          bc_crossing["toAnchor"] = copy.deepcopy(source["toAnchor"])
+          bc_crossing["toAnchor"]["coordinate"]["lng"] += 1.0
+          bc_crossing["toAnchor"]["graphId"] = 3002
+          bc_crossing["toAnchor"]["wayId"] = 200
+          bc_crossing["modes"] = {
+              "MOTORCYCLE": {"fromTo": True, "toFrom": False},
+              "CAR": {"fromTo": True, "toFrom": True},
+          }
+
+          bc = {
+              "schema": "roadpilot.runtime-connectivity",
+              "version": 1,
+              "pairId": "region-b__region-c",
+              "fromRegionId": "region-b",
+              "toRegionId": "region-c",
+              "fromBoundaryFingerprint": "sha256:" + "e" * 64,
+              "toBoundaryFingerprint": "sha256:" + "f" * 64,
+              "fromGraph": copy.deepcopy(ab["toGraph"]),
+              "toGraph": {
+                  "regionId": "region-c",
+                  "packageVersion": "c-v1",
+                  "graphFingerprint": "sha256:" + "3" * 64,
+                  "primaryGeofabrikId": "country/region-c",
+              },
+              "validationState": "VALIDATED",
+              "sourceHashes": {
+                  "candidatesSha256": "sha256:" + "4" * 64,
+                  "proofsSha256": "sha256:" + "5" * 64,
+              },
+              "sourceCandidateCount": 1,
+              "sourceProofCount": 1,
+              "validatedCrossingCount": 1,
+              "supportedModeDirectionCount": 3,
+              "generator": {"name": "ci-fixture", "version": "1"},
+              "crossings": [bc_crossing],
+          }
+          (root / "runtime-bc.json").write_text(json.dumps(bc, indent=2) + "\n")
+
+          conflict = copy.deepcopy(bc)
+          conflict["fromGraph"]["graphFingerprint"] = "sha256:" + "9" * 64
+          (root / "runtime-bc-conflict.json").write_text(json.dumps(conflict, indent=2) + "\n")
+          PY
+
+          python tools/validate_runtime_connectivity.py --artifact "$root/runtime-bc.json"
+
+          python tools/compose_connectivity_chains.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --from-region region-a \
+            --to-region region-c \
+            --mode MOTORCYCLE \
+            --output "$root/chain-a-c-motorcycle.json"
+
+          python tools/validate_connectivity_chain_plan.py \
+            --artifact "$root/chain-a-c-motorcycle.json"
+
+          python tools/compose_connectivity_chains.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --from-region region-c \
+            --to-region region-a \
+            --mode MOTORCYCLE \
+            --output "$root/chain-c-a-motorcycle.json"
+
+          python tools/validate_connectivity_chain_plan.py \
+            --artifact "$root/chain-c-a-motorcycle.json"
+
+          python tools/compose_connectivity_chains.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --from-region region-c \
+            --to-region region-a \
+            --mode CAR \
+            --output "$root/chain-c-a-car.json"
+
+          python tools/validate_connectivity_chain_plan.py \
+            --artifact "$root/chain-c-a-car.json"
+
+          python tools/compose_connectivity_chains.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --from-region region-a \
+            --to-region region-c \
+            --mode MOTORCYCLE \
+            --max-hops 1 \
+            --output "$root/chain-a-c-too-short.json"
+
+          python tools/validate_connectivity_chain_plan.py \
+            --artifact "$root/chain-a-c-too-short.json"
+
+          if python tools/compose_connectivity_chains.py \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc-conflict.json" \
+            --from-region region-a \
+            --to-region region-c \
+            --mode MOTORCYCLE \
+            --output "$root/should-not-exist.json"; then
+            echo "Expected conflicting region-b graph fingerprint to fail composition" >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          forward = json.loads((root / "chain-a-c-motorcycle.json").read_text())
+          assert forward["status"] == "FOUND"
+          assert forward["hopCount"] == 2
+          assert len(forward["chains"]) == 1
+          chain = forward["chains"][0]
+          assert chain["regions"] == ["region-a", "region-b", "region-c"]
+          assert len(chain["hops"][0]["crossingOptions"]) >= 1
+          assert chain["hops"][1]["crossingOptions"][0]["candidateId"] == "xpc1-" + "c" * 24
+          assert chain["hops"][0]["toGraph"] == chain["hops"][1]["fromGraph"]
+
+          reverse_motorcycle = json.loads((root / "chain-c-a-motorcycle.json").read_text())
+          assert reverse_motorcycle["status"] == "NO_CHAIN"
+          assert reverse_motorcycle["chains"] == []
+          assert reverse_motorcycle["hopCount"] is None
+
+          reverse_car = json.loads((root / "chain-c-a-car.json").read_text())
+          assert reverse_car["status"] == "FOUND"
+          assert reverse_car["hopCount"] == 2
+          assert reverse_car["chains"][0]["regions"] == ["region-c", "region-b", "region-a"]
+          assert reverse_car["chains"][0]["hops"][0]["sourceDirection"] == "TO_FROM"
+          assert reverse_car["chains"][0]["hops"][1]["sourceDirection"] == "TO_FROM"
+
+          too_short = json.loads((root / "chain-a-c-too-short.json").read_text())
+          assert too_short["status"] == "NO_CHAIN"
+          print("multi-hop connectivity composition smoke test passed")
+          PY
+
       - name: Verify hosted routing toolchain
         shell: bash
         run: |

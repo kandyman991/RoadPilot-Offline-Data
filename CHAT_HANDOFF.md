@@ -34,24 +34,26 @@ PR #28 merged stable OSM frontier-road inventory generation.
 PR #29 merged independent Graph A/B Valhalla correlation.
 PR #30 merged lossless Graph A × Graph B crossing-candidate generation.
 PR #31 merged local plain-Valhalla exact-edge crossing proof.
+PR #32 merged compact PROVEN-only runtime connectivity metadata.
 
-Current #26 milestone branch: `connectivity-runtime-artifact-m6`.
+Current #26 milestone branch: `connectivity-multihop-chains-m7`.
 
-Current runtime compilation architecture:
-- only `PROVEN` candidates are promoted into the RoadPilot runtime artifact;
-- within each promoted crossing, only mode/direction combinations with successful exact-edge Valhalla proof are marked supported;
-- rejected/inconclusive proof records remain development diagnostics and are not shipped as routing metadata;
-- pre-proof locate access/heading hints are not copied into the runtime artifact;
-- exact A/B correlated coordinates and exact graph-local IDs are retained because the artifact is fingerprint-bound to those graph builds;
-- candidate/proof SHA-256 hashes are embedded for reproducibility;
-- a VALIDATED artifact may be empty, in which case RoadPilot must fall back to F8 rather than inventing connectivity.
+Current multi-hop architecture:
+- compose only `roadpilot.runtime-connectivity` artifacts already marked VALIDATED;
+- build directed adjacency only when the requested mode/direction is explicitly proven;
+- require one exact graph identity per region across every supplied neighboring-pair artifact;
+- conflicting fingerprints for an intermediate region fail composition rather than guessing;
+- return all shortest region chains within `maxHops`;
+- preserve every proven crossing alternative on each hop rather than expanding Cartesian crossing combinations;
+- reorient A/B anchors when traversing a pair in its proven reverse direction;
+- `NO_CHAIN` is an explicit valid result and means RoadPilot must fall back to F8.
 
 Architectural split for #26:
 - stable physical discovery evidence is keyed by OSM/GPS/road evidence and relevant boundary fingerprints;
 - graph-local correlation/proof evidence is valid only for the exact graph fingerprints;
-- only plain-Valhalla route + exact-edge evidence may promote a candidate;
-- runtime metadata contains proven capabilities, not diagnostic guesses;
-- F8 remains runtime fallback for missing/stale/ambiguous or empty validated metadata.
+- runtime pair metadata contains only proven capabilities;
+- multi-hop composition consumes only that validated runtime layer;
+- F8 remains fallback for missing, stale, ambiguous, empty or unchainable metadata.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -72,11 +74,11 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get the compact PROVEN-only runtime connectivity artifact milestone green and merged.
-2. Add multi-hop region-chain composition over validated neighboring-pair runtime artifacts.
-3. Use boundary fingerprints for surgical stale detection/rebuild.
-4. Expose validated runtime connectivity/current-vs-stale state in Graph Studio.
-5. Keep F8 as runtime fallback for missing, stale, ambiguous or empty metadata.
+1. Get the mode/direction-aware multi-hop chain composition milestone green and merged.
+2. Add boundary-fingerprint-driven surgical stale detection/rebuild planning.
+3. Expose validated runtime connectivity, chains and current-vs-stale state in Graph Studio.
+4. Integrate the compact validated metadata consumer into RoadPilot runtime.
+5. Keep F8 as fallback for missing, stale, ambiguous, empty or unchainable metadata.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.

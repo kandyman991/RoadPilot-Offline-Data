@@ -180,12 +180,16 @@ Milestones:
   - prove A→B and B→A independently for motorcycle and auto;
   - require successful route geometry to trace back onto the exact candidate DirectedEdge graphId;
   - route proof overrides pre-proof heading/access metadata; those remain diagnostics only;
-- compact validated connectivity artifact for RoadPilot — active;
+- compact validated connectivity artifact for RoadPilot — merged in PR #32;
   - promote only PROVEN candidates;
   - copy only actually supported mode/direction capabilities;
   - bind exact A/B anchors to graph + boundary fingerprints;
   - omit rejected/inconclusive diagnostics and pre-proof access guesses;
-- multi-hop region-chain composition;
+- multi-hop region-chain composition — active;
+  - compose only validated neighboring-pair runtime artifacts;
+  - enforce exact intermediate-region graph identity;
+  - use proven mode/direction support as directed adjacency;
+  - preserve all crossing alternatives per hop without Cartesian expansion;
 - rebuild only pair metadata whose relevant boundary fingerprint changed.
 
 Runtime target:
