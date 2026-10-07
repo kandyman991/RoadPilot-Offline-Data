@@ -1007,6 +1007,69 @@ jobs:
           print("multi-hop connectivity composition smoke test passed")
           PY
 
+      - name: Smoke-test regional connector anchor inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/frontier-correlation"
+
+          python tools/build_region_connector_inventory.py \
+            --region region-b \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc.json" \
+            --output "$root/region-b-connectors.json"
+
+          python tools/validate_region_connector_inventory.py \
+            --artifact "$root/region-b-connectors.json"
+
+          if python tools/build_region_connector_inventory.py \
+            --region region-b \
+            --artifact "$root/runtime-connectivity.json" \
+            --artifact "$root/runtime-bc-conflict.json" \
+            --output "$root/should-not-exist-connectors.json"; then
+            echo "Expected conflicting region-b graph fingerprint to fail connector inventory" >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
+          inventory = json.loads((root / "region-b-connectors.json").read_text())
+          ab = json.loads((root / "runtime-connectivity.json").read_text())
+          bc = json.loads((root / "runtime-bc.json").read_text())
+
+          assert inventory["regionId"] == "region-b"
+          assert inventory["graph"] == ab["toGraph"] == bc["fromGraph"]
+          assert len(inventory["sourceConnectivity"]) == 2
+          assert inventory["anchorCount"] == len(inventory["anchors"])
+          assert inventory["anchorCount"] >= 2
+
+          by_candidate = {item["candidateId"]: item for item in inventory["anchors"]}
+
+          ab_crossing = next(
+              crossing for crossing in ab["crossings"]
+              if crossing["modes"]["MOTORCYCLE"]["fromTo"]
+              and not crossing["modes"]["MOTORCYCLE"]["toFrom"]
+          )
+          ab_anchor = by_candidate[ab_crossing["candidateId"]]
+          assert ab_anchor["neighborRegionId"] == "region-a"
+          assert ab_anchor["roles"]["MOTORCYCLE"] == ["ENTRY"]
+          assert ab_anchor["roles"]["CAR"] == ["ENTRY", "EXIT"]
+          assert ab_anchor["graphAnchor"] == ab_crossing["toAnchor"]
+
+          bc_crossing = bc["crossings"][0]
+          bc_anchor = by_candidate[bc_crossing["candidateId"]]
+          assert bc_anchor["neighborRegionId"] == "region-c"
+          assert bc_anchor["roles"]["MOTORCYCLE"] == ["EXIT"]
+          assert bc_anchor["roles"]["CAR"] == ["ENTRY", "EXIT"]
+          assert bc_anchor["graphAnchor"] == bc_crossing["fromAnchor"]
+
+          print("regional connector anchor inventory smoke test passed")
+          PY
+
       - name: Smoke-test surgical connectivity refresh planning
         shell: bash
         run: |
