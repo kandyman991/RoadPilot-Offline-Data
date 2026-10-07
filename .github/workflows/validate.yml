@@ -302,6 +302,7 @@ jobs:
           cat > "$root/fixture.osm" <<'OSM'
           <?xml version="1.0" encoding="UTF-8"?>
           <osm version="0.6" generator="roadpilot-ci">
+            <bounds minlat="45.9950" minlon="11.9950" maxlat="46.0150" maxlon="12.0150"/>
             <node id="1" lat="46.0000" lon="12.0000" />
             <node id="2" lat="46.0000" lon="12.0100" />
             <node id="3" lat="46.0100" lon="12.0100" />
