@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-07T00:25:05.565Z",
+  "generatedAt": "2026-10-07T00:43:20.456Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,9 +11,9 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "57053d67dce7b209949a1201326d60193fa96d9e",
-    "message": "Merge pull request #32 from kandyman991/connectivity-runtime-artifact-m6\n\nCompile proven runtime connectivity metadata",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/57053d67dce7b209949a1201326d60193fa96d9e"
+    "sha": "6be98e40c0e557d5ed81ef0f84db7a8ab28fb420",
+    "message": "Merge pull request #33 from kandyman991/connectivity-multihop-chains-m7\n\nCompose validated multi-hop connectivity chains",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/6be98e40c0e557d5ed81ef0f84db7a8ab28fb420"
   },
   "openPullRequests": [
     {
@@ -41,7 +41,7 @@
     {
       "number": 26,
       "title": "Graph Studio: build-time cross-region connectivity metadata",
-      "updatedAt": "2026-10-07T00:20:58Z",
+      "updatedAt": "2026-10-07T00:29:18Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/issues/26"
     },
     {
@@ -83,14 +83,47 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 37551842584,
+      "id": 37553432937,
       "name": "Validate offline-data repository",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "6be98e40c0e557d5ed81ef0f84db7a8ab28fb420",
+      "event": "push",
+      "updatedAt": "2026-10-07T00:43:15Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37553432937"
+    },
+    {
+      "id": 37552204609,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "connectivity-multihop-chains-m7",
+      "headSha": "d469e7087ae360322c3c96c94431b86f2e4a90aa",
+      "event": "pull_request",
+      "updatedAt": "2026-10-07T00:32:18Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37552204609"
+    },
+    {
+      "id": 37552204481,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "connectivity-multihop-chains-m7",
+      "headSha": "d469e7087ae360322c3c96c94431b86f2e4a90aa",
+      "event": "pull_request",
+      "updatedAt": "2026-10-07T00:29:49Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37552204481"
+    },
+    {
+      "id": 37551842584,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "57053d67dce7b209949a1201326d60193fa96d9e",
       "event": "push",
-      "updatedAt": "2026-10-07T00:25:04Z",
+      "updatedAt": "2026-10-07T00:25:50Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37551842584"
     },
     {
@@ -158,39 +191,6 @@
       "event": "pull_request",
       "updatedAt": "2026-10-07T00:11:47Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37550616095"
-    },
-    {
-      "id": 37550616074,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "connectivity-valhalla-proof-m5",
-      "headSha": "f0fa6a1fae6d8fe834583600eb527e8b9987ba34",
-      "event": "pull_request",
-      "updatedAt": "2026-10-07T00:14:40Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37550616074"
-    },
-    {
-      "id": 37548866987,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "failure",
-      "branch": "connectivity-valhalla-proof-m5",
-      "headSha": "ff9297b66aeb1664445f88ab597e999bb87f5b85",
-      "event": "pull_request",
-      "updatedAt": "2026-10-06T23:52:18Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37548866987"
-    },
-    {
-      "id": 37548866985,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "connectivity-valhalla-proof-m5",
-      "headSha": "ff9297b66aeb1664445f88ab597e999bb87f5b85",
-      "event": "pull_request",
-      "updatedAt": "2026-10-06T23:55:18Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37548866985"
     }
   ]
 }
