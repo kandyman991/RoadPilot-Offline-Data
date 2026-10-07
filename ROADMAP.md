@@ -50,8 +50,8 @@ Each region is intended to expose independently versioned routing, visual, and s
 | Border inspector + manual crossings | #11 / PRs #20-#23 | Merged | A/B road diff, manual/automatic/learned handoffs, validation, stale detection, diagnostics export |
 | Exact graph/boundary diffing | #13 / PRs #24-#25 | Merged | Deterministic graph/boundary fingerprints plus retained-build road-level diffing |
 | Build-time cross-region connectivity | #26 | Complete | Fingerprint-bound pair manifests, discovery/proof/runtime pipeline, multi-hop composition, F8 fallback |
-| Regional connector matrices | #35 | Next | Precompute graph-bound entry→exit reachability and time/distance through each region |
-| Cloudflare R2 publication manager | #14 | Planned after #35 | Publish validated immutable packs and manage latest pointers |
+| Regional connector matrices | #35 | Complete | Exact graph-bound entry→exit matrices, sparse hierarchical ranking, Graph Studio inspection and lifecycle refresh |
+| Cloudflare R2 publication manager | #14 | Active | Safe immutable release contract, R2 publication, latest/history/rollback in Graph Studio |
 | Visual map production/inspection | #16 | Planned | Lightweight RoadPilot offline vector-map artifact |
 | POI/search production/inspection | #17 | Planned | Overture/SQLite offline search artifact |
 | Scheduled updates + retention | #15 | Later | Rebuild only changed regions and retain prior versions |
@@ -236,16 +236,25 @@ M3 rules:
 Do not reintroduce fixed seams, F6, hard heading/separation filters, or graph-local ids as cross-build identity.
 ### 2. Cloudflare R2 publication manager (#14)
 
-Required behavior:
-- immutable versioned objects;
-- SHA-256 verification;
-- no accidental overwrite;
-- update latest pointer only after immutable files are confirmed;
-- show local vs published version;
-- upload progress;
-- rollback latest pointer without deleting historical builds.
+Publish validated region artifacts with immutable history and a small mutable latest pointer.
 
-The publisher should ultimately support routing, visual, search, connectivity and connector-matrix artifacts independently.
+Milestones:
+- M1 — credential-free publication contract and local object-store safety proof — active;
+- M2 — R2 credential configuration/test plus plan-backed S3-compatible upload/verification;
+- M3 — Graph Studio local-vs-published status, progress, history and rollback.
+
+M1 contract:
+- validate the routing pack before a publication plan can exist;
+- publish immutable payload objects under artifact-kind / region / version keys;
+- include graph index when the routing manifest contains it;
+- create immutable `release.json` only after payload objects are confirmed;
+- advance mutable `latest.json` only after the release is confirmed;
+- exact retries are idempotent;
+- same immutable key with different bytes is refused;
+- failed/partial publication never changes `latest.json`;
+- rollback moves only `latest.json` to an existing confirmed release and never deletes historical versions.
+
+The contract is provider-independent so the same safety rules can be tested locally before real R2 credentials are configured. Cloudflare R2 is not connected yet.
 ## Additional artifact pipelines
 
 ### Visual map layer (#16)
