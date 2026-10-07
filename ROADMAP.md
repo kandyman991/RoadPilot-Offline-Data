@@ -49,8 +49,9 @@ Each region is intended to expose independently versioned routing, visual, and s
 | Standard Valhalla route planner | #12 / PR #19 | Merged | Normal routing, costing controls, route geometry, maneuvers, search expansion |
 | Border inspector + manual crossings | #11 / PRs #20-#23 | Merged | A/B road diff, manual/automatic/learned handoffs, validation, stale detection, diagnostics export |
 | Exact graph/boundary diffing | #13 / PRs #24-#25 | Merged | Deterministic graph/boundary fingerprints plus retained-build road-level diffing |
-| Build-time cross-region connectivity | #26 | Active | Fingerprint-bound pair manifests, discovery/proof pipeline, F8 runtime fallback |
-| Cloudflare R2 publication manager | #14 | Planned | Publish validated immutable packs and manage latest pointers |
+| Build-time cross-region connectivity | #26 | Complete | Fingerprint-bound pair manifests, discovery/proof/runtime pipeline, multi-hop composition, F8 fallback |
+| Regional connector matrices | #35 | Next | Precompute graph-bound entry→exit reachability and time/distance through each region |
+| Cloudflare R2 publication manager | #14 | Planned after #35 | Publish validated immutable packs and manage latest pointers |
 | Visual map production/inspection | #16 | Planned | Lightweight RoadPilot offline vector-map artifact |
 | POI/search production/inspection | #17 | Planned | Overture/SQLite offline search artifact |
 | Scheduled updates + retention | #15 | Later | Rebuild only changed regions and retain prior versions |
@@ -212,7 +213,25 @@ F8 remains the fallback when metadata is missing, stale or ambiguous.
 
 ## Next
 
-### 1. Cloudflare R2 publication manager (#14)
+### 1. Regional connector matrices (#35)
+
+Add a sparse hierarchical routing layer on top of completed #26 connectivity.
+
+Required behavior:
+- collect all validated border anchors for each regional graph and supported mode;
+- derive usable entry and exit states from already-proven direction metadata;
+- use plain Valhalla many-to-many / sources-to-targets to prove reachability through the region;
+- store sparse entry→exit distance and time/cost bound to the exact graph fingerprint;
+- preserve explicit unreachable pairs rather than assigning heuristic penalties;
+- rank FASTER/SHORTER multi-region chains using full intermediate-region traversal costs;
+- retain multiple plausible sparse chains and let detailed Valhalla select/verify the final journey;
+- graph-only rebuild refreshes only that region's graph-bound matrix;
+- relevant frontier-set changes refresh only affected anchors/rows/columns or deterministically rebuild the region matrix;
+- expose matrix topology, weights and freshness in Graph Studio.
+
+Do not reintroduce fixed seams, F6, hard heading/separation filters, or graph-local ids as cross-build identity.
+
+### 2. Cloudflare R2 publication manager (#14)
 
 Required behavior:
 - immutable versioned objects;
@@ -223,8 +242,7 @@ Required behavior:
 - upload progress;
 - rollback latest pointer without deleting historical builds.
 
-The publisher should ultimately support routing, visual and search artifacts independently.
-
+The publisher should ultimately support routing, visual, search, connectivity and connector-matrix artifacts independently.
 ## Additional artifact pipelines
 
 ### Visual map layer (#16)
@@ -318,6 +336,8 @@ finish #11 border diff / candidates / reports
 #13 exact build + boundary fingerprints
         ↓
 build-time connectivity manifests / F8 seeds
+        ↓
+#35 regional entry→exit connector matrices
         ↓
 #14 Cloudflare R2 publication
         ↓
