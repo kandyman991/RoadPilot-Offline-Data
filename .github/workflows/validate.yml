@@ -835,6 +835,81 @@ jobs:
             --plan-b "$RUNNER_TEMP/publication-contract/2026.10.07-3-plan.json" \
             --independent-plan "$plan"
 
+      - name: Smoke-test independent search publication plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          search_root="$RUNNER_TEMP/search-pack-smoke"
+          retained="$search_root/dist-a/search-smoke/1.0.0"
+          manifest="$retained/search-smoke-v1.json"
+          plan="$search_root/search-publication-plan.json"
+          store="$RUNNER_TEMP/artifact-family-publication-store"
+
+          python tools/prepare_search_publication.py \
+            --manifest "$manifest" \
+            --output "$plan"
+          python tools/validate_publication_plan.py --plan "$plan"
+
+          # Put all three independently versioned families into the same object store.
+          python tools/apply_publication_plan_local.py \
+            --plan "$RUNNER_TEMP/publication-contract/2026.10.07-1-plan.json" \
+            --store-root "$store"
+          python tools/apply_publication_plan_local.py \
+            --plan "$RUNNER_TEMP/visual-regional-smoke/visual-publication-plan.json" \
+            --store-root "$store"
+          cp "$store/routing/region-a/latest.json" "$search_root/routing-before-search.json"
+          cp "$store/visual/visual-regional/latest.json" "$search_root/visual-before-search.json"
+
+          python tools/apply_publication_plan_local.py \
+            --plan "$plan" \
+            --store-root "$store" \
+            --report "$search_root/search-publication-report.json"
+
+          cmp "$search_root/routing-before-search.json" "$store/routing/region-a/latest.json"
+          cmp "$search_root/visual-before-search.json" "$store/visual/visual-regional/latest.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"])
+          search_root = root / "search-pack-smoke"
+          store = root / "artifact-family-publication-store"
+          plan = json.loads((search_root / "search-publication-plan.json").read_text())
+          report = json.loads((search_root / "search-publication-report.json").read_text())
+          latest_path = store / "search/search-smoke/latest.json"
+          release_path = store / "search/search-smoke/1.0.0/release.json"
+
+          assert plan["release"]["artifactKind"] == "SEARCH"
+          assert plan["releaseKey"] == "search/search-smoke/1.0.0/release.json"
+          assert plan["latestKey"] == "search/search-smoke/latest.json"
+          assert latest_path.is_file()
+          assert release_path.is_file()
+
+          latest = json.loads(latest_path.read_text())
+          release = json.loads(release_path.read_text())
+          assert latest["artifactKind"] == "SEARCH"
+          assert latest["packageVersion"] == "1.0.0"
+          assert release["artifactKind"] == "SEARCH"
+          roles = {item["role"] for item in release["objects"]}
+          assert {"ARTIFACT", "MANIFEST", "CHECKSUM"} <= roles
+          assert release["metadata"]["databaseSchema"] == "roadpilot-overture-v1"
+          assert release["metadata"]["recordCount"] == 7
+          assert release["metadata"]["categorizedRecordCount"] == 7
+          assert release["metadata"]["sourceRelease"] == "2026-09-23.1"
+          assert "roadpilot-search-v2" in release["metadata"]["runtimeContracts"]
+          assert release["metadata"]["validationTargetCount"] == 2
+          assert report["artifactKind"] == "SEARCH"
+          print("independent search publication contract passed")
+          PY
+
+          # The generic R2 backend must preserve routing latest while publishing Search.
+          python tools/smoke_r2_publication_backend.py \
+            --plan-a "$RUNNER_TEMP/publication-contract/2026.10.07-1-plan.json" \
+            --plan-b "$RUNNER_TEMP/publication-contract/2026.10.07-3-plan.json" \
+            --independent-plan "$plan"
+
       - name: Smoke-test Geofabrik Graph Studio discovery
         shell: bash
         run: |

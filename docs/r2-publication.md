@@ -1,6 +1,6 @@
 # RoadPilot Cloudflare R2 publication
 
-RoadPilot publishes routing and visual packages through the same validated publication-plan contract. Do not upload a pack directly to R2. Each artifact family has its own immutable namespace and `latest.json` pointer.
+RoadPilot publishes routing, visual and search packages through the same validated publication-plan contract. Do not upload a pack directly to R2. Each artifact family has its own immutable namespace and `latest.json` pointer.
 
 ## Credentials
 
@@ -23,7 +23,7 @@ The Graph Studio **R2 publication** panel can:
 
 - save or clear private local credentials;
 - test bucket access without writing objects;
-- switch independently between retained validated **Routing graph** and **Visual PMTiles** builds;
+- switch independently between retained validated **Routing graph**, **Visual PMTiles** and **Search / POI SQLite** builds;
 - compare the selected local artifact with its own remote `latest.json`;
 - publish through the same validated plan contract;
 - show per-object upload progress and confirmation state;
@@ -66,7 +66,22 @@ python tools/validate_publication_plan.py \
   --plan /tmp/roadpilot-visual-publication-plan.json
 ```
 
-Visual objects live under `visual/<region>/<version>/...` and use `visual/<region>/latest.json`. Routing remains under `routing/<region>/...`; publishing or rolling back either family cannot move the other family’s pointer.
+Visual objects live under `visual/<region>/<version>/...` and use `visual/<region>/latest.json`. Routing remains under `routing/<region>/...`.
+
+## Prepare a search release
+
+A Search release revalidates the exact retained SQLite database, checksum, manifest, schema/enrichment metadata and recorded runtime regression results before a publication plan can be created.
+
+```bash
+python tools/prepare_search_publication.py \
+  --manifest /path/to/search/<region>/<version>/manifest.json \
+  --output /tmp/roadpilot-search-publication-plan.json
+
+python tools/validate_publication_plan.py \
+  --plan /tmp/roadpilot-search-publication-plan.json
+```
+
+Search objects live under `search/<region>/<version>/...` and use `search/<region>/latest.json`. Routing, visual and search latest pointers are completely independent; publishing or rolling back one family cannot move either of the other two.
 
 ## Publish
 
@@ -99,6 +114,9 @@ python tools/list_publication_releases_r2.py \
 
 python tools/list_publication_releases_r2.py \
   --namespace visual/italy-nord-est
+
+python tools/list_publication_releases_r2.py \
+  --namespace search/italy-nord-est
 ```
 
 Each retained version has its own immutable `release.json`; listing release descriptors provides publication history without relying on mutable state.
@@ -111,6 +129,9 @@ python tools/activate_publication_release_r2.py \
 
 python tools/activate_publication_release_r2.py \
   --release-key visual/italy-nord-est/<version>/release.json
+
+python tools/activate_publication_release_r2.py \
+  --release-key search/italy-nord-est/<version>/release.json
 ```
 
 Before moving `latest.json`, RoadPilot HEAD-verifies every immutable object in the selected historical release. Rollback changes only the latest pointer. It never deletes or mutates retained version objects.

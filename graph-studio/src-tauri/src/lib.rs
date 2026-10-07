@@ -596,6 +596,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
     let pipeline = pipeline_root(app)?;
     let routing_requirements = pipeline.join("requirements-routing.txt");
     let visual_requirements = pipeline.join("requirements-visual.txt");
+    let search_requirements = pipeline.join("requirements-search.txt");
 
     if !python.is_file() {
         emit_log(app, "Preparing Graph Studio Python environment…");
@@ -612,7 +613,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
     }
 
     let marker = env_dir.join(".roadpilot-requirements-ready");
-    let requirements_stamp = [&routing_requirements, &visual_requirements]
+    let requirements_stamp = [&routing_requirements, &visual_requirements, &search_requirements]
         .iter()
         .map(|path| {
             fs::metadata(path)
@@ -636,7 +637,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
             return Err("pip upgrade failed.".into());
         }
 
-        for requirements in [&routing_requirements, &visual_requirements] {
+        for requirements in [&routing_requirements, &visual_requirements, &search_requirements] {
             let status = Command::new(&python)
                 .args(["-m", "pip", "install", "-r"])
                 .arg(requirements)
@@ -1605,6 +1606,41 @@ fn safe_visual_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, Stri
     Ok(requested)
 }
 
+fn safe_search_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, String> {
+    let requested = PathBuf::from(raw)
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve search manifest {raw}: {e}"))?;
+    if !requested.is_file() {
+        return Err("Selected search manifest is not a file.".into());
+    }
+    let mut inside_retained_root = false;
+    for root in search_build_roots(app)? {
+        if !root.exists() {
+            continue;
+        }
+        let Ok(root) = root.canonicalize() else {
+            continue;
+        };
+        if requested.starts_with(&root) {
+            inside_retained_root = true;
+            break;
+        }
+    }
+    if !inside_retained_root {
+        return Err("Search manifest is outside recognized retained search-build roots.".into());
+    }
+    let text = fs::read_to_string(&requested)
+        .map_err(|e| format!("Could not read search manifest: {e}"))?;
+    let value: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse search manifest: {e}"))?;
+    if value.get("schema").and_then(Value::as_str) != Some("roadpilot-search-pack")
+        || value.get("artifactKind").and_then(Value::as_str) != Some("SEARCH")
+    {
+        return Err("Selected manifest is not a RoadPilot search pack.".into());
+    }
+    Ok(requested)
+}
+
 #[tauri::command]
 fn visual_archive_range(
     app: AppHandle,
@@ -1928,8 +1964,8 @@ fn r2_region_publication_status(
     if !safe_token(&region_id) {
         return Err("Invalid region id.".into());
     }
-    if !matches!(prefix.as_str(), "routing" | "visual") {
-        return Err("Publication prefix must be routing or visual.".into());
+    if !matches!(prefix.as_str(), "routing" | "visual" | "search") {
+        return Err("Publication prefix must be routing, visual or search.".into());
     }
     run_r2_json_script(
         &app,
@@ -1971,7 +2007,12 @@ fn start_r2_publication(
             "roadpilot-visual-pack",
             "prepare_visual_publication.py",
         ),
-        _ => return Err("Publication artifactKind must be ROUTING or VISUAL.".into()),
+        "SEARCH" => (
+            safe_search_manifest_path(&app, &manifest_path)?,
+            "roadpilot-search-pack",
+            "prepare_search_publication.py",
+        ),
+        _ => return Err("Publication artifactKind must be ROUTING, VISUAL or SEARCH.".into()),
     };
 
     let manifest_text = fs::read_to_string(&manifest_path)
@@ -1988,10 +2029,11 @@ fn start_r2_publication(
         .and_then(Value::as_str)
         .ok_or("Selected manifest is missing regionId.")?
         .to_string();
+    let version_field = if artifact_kind == "SEARCH" { "packVersion" } else { "packageVersion" };
     let package_version = manifest
-        .get("packageVersion")
+        .get(version_field)
         .and_then(Value::as_str)
-        .ok_or("Selected manifest is missing packageVersion.")?
+        .ok_or_else(|| format!("Selected manifest is missing {version_field}."))?
         .to_string();
     if !safe_token(&region_id) || !safe_token(&package_version) {
         return Err("Selected manifest has unsafe region/version identity.".into());
@@ -2065,7 +2107,7 @@ fn start_r2_publication(
 
 #[tauri::command]
 fn activate_r2_release(app: AppHandle, release_key: String) -> Result<Value, String> {
-    if !(release_key.starts_with("routing/") || release_key.starts_with("visual/"))
+    if !(release_key.starts_with("routing/") || release_key.starts_with("visual/") || release_key.starts_with("search/"))
         || !release_key.ends_with("/release.json")
         || release_key.split('/').any(|part| part.is_empty() || part == "." || part == "..")
     {
