@@ -241,7 +241,7 @@ Publish validated region artifacts with immutable history and a small mutable la
 Milestones:
 - M1 — credential-free publication contract and local object-store safety proof — merged in PR #40;
 - M2 — R2 credential configuration/test plus plan-backed S3-compatible upload/verification — merged in PR #41;
-- M3 — Graph Studio local-vs-published status, progress, history and rollback — active.
+- M3 — Graph Studio local-vs-published status, progress, history and rollback — merged in PR #42.
 
 M1 contract:
 - validate the routing pack before a publication plan can exist;
@@ -285,8 +285,8 @@ Build and inspect the exact lightweight RoadPilot offline visual package indepen
 Milestones:
 - M1 — PMTiles v3 artifact/profile/toolchain contract plus deterministic real-artifact validation — merged in PR #43;
 - M2 — real regional source/cache/build pipeline, road-content validation and visual rebuild lifecycle — merged in PR #44;
-- M3 — Graph Studio exact-PMTiles rendering, online-reference comparison, layer toggles and visual-build diff — active;
-- M4 — independent immutable R2 visual publication.
+- M3 — Graph Studio exact-PMTiles rendering, online-reference comparison, layer toggles and visual-build diff — merged in PR #45;
+- M4 — independent immutable R2 visual publication — active.
 
 M1 contract:
 - PMTiles v3 with MVT tiles;
@@ -309,6 +309,15 @@ M3 integrates the M1/M2 artifact into Graph Studio:
 - routing edges/nodes/shortcuts/restrictions, border buffer, Graph A/B, route, expansion and handoffs have unified visibility toggles;
 - the visual inspector reports file/version/size/tile count/coverage/SHA/source/profile fingerprints and road-validation counts;
 - two retained visual builds can be compared by original OSM feature ID, highlighting visible unchanged/removed/added/changed roads.
+
+M4 publication contract:
+- production visual publication requires a fully validated PMTiles manifest with zero missing required roads;
+- immutable visual objects are PMTiles + manifest + checksum + road index;
+- visual releases use `visual/<region>/<version>/...` and `visual/<region>/latest.json`;
+- routing remains independently published under `routing/<region>/...`;
+- the generic R2 backend provides the same checksum confirmation, conditional latest update, immutable history and rollback semantics;
+- Graph Studio can switch the R2 publication panel between Routing and Visual retained builds;
+- CI proves that publishing/activating a visual release leaves the routing latest pointer unchanged.
 
 POI/search remains separate in #17.
 

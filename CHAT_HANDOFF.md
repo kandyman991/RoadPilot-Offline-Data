@@ -26,57 +26,31 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Issue #16 — visual map production/inspection, milestone 3: Graph Studio exact-PMTiles inspector.**
-
-Issue #14 is complete and closed:
-- PR #40 — immutable publication contract;
-- PR #41 — plan-backed R2 upload/verification/history/rollback;
-- PR #42 — Graph Studio R2 publication manager.
-
-Current branch: `visual-map-inspector-m3`.
+**Issue #16 — visual map production/inspection, milestone 4: independent visual R2 publication.**
 
 M1 is merged in PR #43.
 M2 is merged in PR #44.
+M3 is merged in PR #45; exact-head repository validation and Graph Studio packaging were green after fixing one Rust PathBuf borrow/move error.
 
-M3 Graph Studio inspector:
-- selected-region build queue now invokes the independent M2 visual build after routing validation when visual.enabled is true;
-- retained visual builds live under Graph Studio's visual-build store, separate from routing builds;
-- AppImage/DEB resources now include requirements-visual.txt and visual/tilemaker;
-- toolchain readiness checks exact tilemaker 3.2.0 compatibility;
-- list_visual_builds exposes retained PMTiles metadata and road validation counts;
-- visual_archive_range permits only bounded byte reads from the exact PMTiles named by a retained visual manifest;
-- the frontend uses the official pmtiles 4.5.0 decoder over those Tauri range reads;
-- RoadPilot visual layers render directly from the exact user-download PMTiles;
-- online OpenFreeMap remains an independently toggleable reference layer;
-- one map-layer control surface toggles offline visual, reference, Valhalla edges/nodes/shortcuts/access restrictions, buffer, Graph A/B, route, expansion and handoffs;
-- visual inspector shows size, tile count, zoom/coverage, SHA, source/profile fingerprints, layers and major/border/missing road counts;
-- visual A/B comparison uses original OSM feature IDs and currently loaded exact-PMTiles tiles to classify unchanged/removed/added/changed roads;
-- region editor regenerates visual source/package configuration whenever the primary Geofabrik region changes.
+Current branch: `visual-map-r2-publication-m4`.
 
-M2 regional lifecycle:
-- visual source is independently configured with primary Geofabrik PBF + nominal polygon;
-- the production command caches both inputs and builds into a temporary version directory;
-- completed versions are atomically retained under dist/visual/<region>/<version> and cannot be overwritten;
-- visual PMTiles keep OSM feature IDs so source-road coverage can be proven;
-- a roadpilot-visual-road-index extracts configured major roads plus boundary-corridor roads from the same PBF and checks every required OSM way is present in PMTiles;
-- the visual manifest binds the road-index SHA and zero-missing-road counts;
-- refresh planning chooses NONE, REVALIDATE_ROADS, REBUILD_PROFILE or REBUILD_SOURCE based on source/profile/validation changes;
-- CI uses a pre-seeded source cache and real tilemaker/PMTiles build to prove retained-build immutability and refresh-action precedence.
+M4 architecture:
+- `prepare_visual_publication.py` revalidates the exact retained visual pack before a publication plan can exist;
+- production visual publication requires the bound road index and `missingRoadCount=0`;
+- immutable visual objects are PMTiles, manifest, checksum and road-index JSON;
+- visual release metadata includes visual/profile/source fingerprints, tilemaker version, tile counts/zoom/layers and road-validation counts;
+- visual namespace is `visual/<region>/<version>/...` with mutable `visual/<region>/latest.json`;
+- routing remains under `routing/<region>/...` with its own latest pointer;
+- the existing generic R2 uploader/history/rollback backend is reused unchanged;
+- fake-R2 CI publishes routing and visual into the same bucket and proves visual publish/activation leaves routing latest unchanged;
+- Graph Studio's R2 panel now switches between Routing graph and Visual PMTiles retained builds;
+- Tauri selects the matching safe manifest root and publication-plan preparer based on artifactKind;
+- remote status/history queries use the selected `routing` or `visual` prefix;
+- rollback accepts only safe release keys under those two namespaces;
+- publication artifact selection is locked while an upload is running.
 
-M1 visual architecture:
-- visual packages remain independent from routing and POI/search;
-- format is PMTiles v3 containing MVT;
-- tilemaker 3.2.0 is pinned to exact upstream commit `c7d1dbfaf87baa9e0bc9b2e984e0dae90dcf00c5`; hosted CI compiles that commit and any production native binary must report the same pinned version;
-- first profile contains transportation, transportation_name, place, water, waterway, boundary and mountain_peak;
-- buildings and POIs are deliberately excluded; #17 remains the POI/search pipeline;
-- source identity is inherited from the region's configured primary Geofabrik PBF;
-- visualFingerprint is the exact PMTiles SHA-256;
-- profileFingerprint binds config + Lua + pinned toolchain;
-- sourceFingerprint binds primary source URL/size/SHA;
-- validator opens the exact PMTiles archive, verifies header/metadata/counts/bounds/zooms, decodes real MVT tiles, proves required layers and rejects forbidden dense layers;
-- CI builds the same synthetic OSM fixture twice and requires byte-identical PMTiles, then proves a truncated archive fails validation.
-
-M4 will publish visual artifacts independently through the R2 contract.
+Cloudflare R2 is still not connected to a real bucket; do not claim live credentials have been tested.
+POI/search remains separate in issue #17.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -97,10 +71,10 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get #16 M3 Graph Studio exact-PMTiles inspector CI green and merge it.
-2. M4: publish visual artifacts independently through the immutable R2 contract and add Graph Studio visual publication status/control.
-3. Verify issue #16 acceptance and close it after M4.
-4. Keep #17 POI/search separate.
+1. Get #16 M4 visual R2 publication CI green and merge it.
+2. Verify all #16 acceptance criteria across PRs #43-#46 and close issue #16.
+3. Update ROADMAP/CHAT_HANDOFF to mark visual map production/inspection complete.
+4. Start #17 POI/search production/inspection as its own artifact pipeline.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.

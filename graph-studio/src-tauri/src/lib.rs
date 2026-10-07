@@ -1606,16 +1606,21 @@ fn run_publication_job(
     manifest_path: PathBuf,
     region_id: String,
     package_version: String,
+    artifact_kind: String,
+    preparer_script: String,
     credentials: R2CredentialFile,
 ) -> Result<(), String> {
     let python = ensure_python_env(&app)?;
     let pipeline = pipeline_root(&app)?;
     let cache = publication_cache_dir(&app)?;
-    let plan_path = cache.join(format!("{region_id}--{package_version}--publication-plan.json"));
+    let kind_token = artifact_kind.to_ascii_lowercase();
+    let plan_path = cache.join(format!(
+        "{kind_token}--{region_id}--{package_version}--publication-plan.json"
+    ));
 
     {
         let mut status = state.status.lock().expect("publication status poisoned");
-        status.stage = "Validating local routing pack".into();
+        status.stage = format!("Validating local {kind_token} pack");
         status.current_key = None;
         status.bytes_transferred = 0;
         status.total_bytes = 0;
@@ -1623,7 +1628,7 @@ fn run_publication_job(
     emit_publication_status(&app, &state);
 
     let prepare = Command::new(&python)
-        .arg(pipeline.join("tools/prepare_routing_publication.py"))
+        .arg(pipeline.join("tools").join(&preparer_script))
         .arg("--manifest")
         .arg(&manifest_path)
         .arg("--output")
@@ -1769,14 +1774,26 @@ fn test_r2_credentials(app: AppHandle) -> Result<Value, String> {
 }
 
 #[tauri::command]
-fn r2_region_publication_status(app: AppHandle, region_id: String) -> Result<Value, String> {
+fn r2_region_publication_status(
+    app: AppHandle,
+    region_id: String,
+    prefix: String,
+) -> Result<Value, String> {
     if !safe_token(&region_id) {
         return Err("Invalid region id.".into());
+    }
+    if !matches!(prefix.as_str(), "routing" | "visual") {
+        return Err("Publication prefix must be routing or visual.".into());
     }
     run_r2_json_script(
         &app,
         "inspect_r2_publication.py",
-        &["--region".into(), region_id],
+        &[
+            "--region".into(),
+            region_id,
+            "--prefix".into(),
+            prefix,
+        ],
     )
 }
 
@@ -1794,14 +1811,31 @@ fn start_r2_publication(
     app: AppHandle,
     state: State<'_, PublicationState>,
     manifest_path: String,
+    artifact_kind: String,
 ) -> Result<(), String> {
-    let manifest_path = safe_build_manifest_path(&app, &manifest_path)?;
+    let artifact_kind = artifact_kind.trim().to_ascii_uppercase();
+    let (manifest_path, expected_schema, preparer_script) = match artifact_kind.as_str() {
+        "ROUTING" => (
+            safe_build_manifest_path(&app, &manifest_path)?,
+            "roadpilot-routing-pack",
+            "prepare_routing_publication.py",
+        ),
+        "VISUAL" => (
+            safe_visual_manifest_path(&app, &manifest_path)?,
+            "roadpilot-visual-pack",
+            "prepare_visual_publication.py",
+        ),
+        _ => return Err("Publication artifactKind must be ROUTING or VISUAL.".into()),
+    };
+
     let manifest_text = fs::read_to_string(&manifest_path)
-        .map_err(|e| format!("Could not read selected routing manifest: {e}"))?;
+        .map_err(|e| format!("Could not read selected publication manifest: {e}"))?;
     let manifest: Value = serde_json::from_str(&manifest_text)
-        .map_err(|e| format!("Could not parse selected routing manifest: {e}"))?;
-    if manifest.get("schema").and_then(Value::as_str) != Some("roadpilot-routing-pack") {
-        return Err("Selected build is not a RoadPilot routing pack.".into());
+        .map_err(|e| format!("Could not parse selected publication manifest: {e}"))?;
+    if manifest.get("schema").and_then(Value::as_str) != Some(expected_schema) {
+        return Err(format!(
+            "Selected build is not a RoadPilot {artifact_kind} pack."
+        ));
     }
     let region_id = manifest
         .get("regionId")
@@ -1828,7 +1862,7 @@ fn start_r2_publication(
             running: true,
             region_id: Some(region_id.clone()),
             package_version: Some(package_version.clone()),
-            stage: "Starting publication".into(),
+            stage: format!("Starting {} publication", artifact_kind.to_ascii_lowercase()),
             current_key: None,
             bytes_transferred: 0,
             total_bytes: 0,
@@ -1844,6 +1878,8 @@ fn start_r2_publication(
             manifest_path,
             region_id,
             package_version,
+            artifact_kind.clone(),
+            preparer_script.to_string(),
             credentials,
         );
         let mut status = owned.status.lock().expect("publication status poisoned");
@@ -1853,14 +1889,26 @@ fn start_r2_publication(
         status.total_bytes = 0;
         match result {
             Ok(()) => {
-                status.stage = "Publication complete".into();
+                status.stage = format!(
+                    "{} publication complete",
+                    artifact_kind.to_ascii_lowercase()
+                );
                 status.last_error = None;
-                emit_log(&app, "✓ R2 publication complete.");
+                emit_log(
+                    &app,
+                    format!("✓ {artifact_kind} R2 publication complete."),
+                );
             }
             Err(error) => {
-                status.stage = "Publication failed".into();
+                status.stage = format!(
+                    "{} publication failed",
+                    artifact_kind.to_ascii_lowercase()
+                );
                 status.last_error = Some(error.clone());
-                emit_log(&app, format!("✗ R2 publication failed: {error}"));
+                emit_log(
+                    &app,
+                    format!("✗ {artifact_kind} R2 publication failed: {error}"),
+                );
             }
         }
         drop(status);
@@ -1871,7 +1919,7 @@ fn start_r2_publication(
 
 #[tauri::command]
 fn activate_r2_release(app: AppHandle, release_key: String) -> Result<Value, String> {
-    if !release_key.starts_with("routing/")
+    if !(release_key.starts_with("routing/") || release_key.starts_with("visual/"))
         || !release_key.ends_with("/release.json")
         || release_key.split('/').any(|part| part.is_empty() || part == "." || part == "..")
     {
