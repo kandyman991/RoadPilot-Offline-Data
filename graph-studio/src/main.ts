@@ -2,6 +2,8 @@ import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Map as MapLibreMap, Marker, NavigationControl, addProtocol, setWorkerUrl } from "maplibre-gl";
+import { PMTiles } from "pmtiles";
+import type { RangeResponse, Source as PMTilesSource } from "pmtiles";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
@@ -48,6 +50,27 @@ type BuildArtifact = {
   internal_fingerprint: string | null;
   boundary_fingerprints: Record<string, string>;
 };
+type VisualBuildArtifact = {
+  region_id: string;
+  version: string;
+  built_at_utc: string;
+  artifact_file: string;
+  size_bytes: number;
+  sha256: string;
+  tile_count: number;
+  min_zoom: number;
+  max_zoom: number;
+  bounds: { minLat?: number; maxLat?: number; minLng?: number; maxLng?: number };
+  source_fingerprint: string;
+  profile_fingerprint: string;
+  manifest_path: string;
+  layers: string[];
+  road_index_file: string | null;
+  major_road_count: number;
+  border_road_count: number;
+  missing_road_count: number;
+};
+
 type R2CredentialStatus = {
   configured: boolean;
   accountId: string | null;
@@ -484,6 +507,52 @@ app.innerHTML = `
         </div>
       </section>
       <section class="section">
+        <h2>Visual map inspector</h2>
+        <div class="field">
+          <label for="visualBuildSelect">RoadPilot visual build</label>
+          <select id="visualBuildSelect"></select>
+        </div>
+        <div class="actions">
+          <button id="loadVisualBuildBtn" class="btn primary" type="button" disabled>Load exact PMTiles</button>
+          <button id="fitVisualBuildBtn" class="btn" type="button" disabled>Fit visual</button>
+        </div>
+        <div id="visualBuildSummary" class="empty" style="margin-top:8px">No retained visual build selected.</div>
+
+        <details class="route-options" open style="margin-top:10px">
+          <summary>Map layers</summary>
+          <div id="mapLayerToggles" class="layer-toggle-grid">
+            <label><input type="checkbox" data-layer-toggle="offlineVisual" checked /> RoadPilot offline visual</label>
+            <label><input type="checkbox" data-layer-toggle="onlineReference" checked /> Online reference</label>
+            <label><input type="checkbox" data-layer-toggle="graphEdges" checked /> Valhalla edges</label>
+            <label><input type="checkbox" data-layer-toggle="graphNodes" checked /> Valhalla nodes</label>
+            <label><input type="checkbox" data-layer-toggle="shortcuts" checked /> Shortcuts</label>
+            <label><input type="checkbox" data-layer-toggle="restrictions" checked /> Access restrictions</label>
+            <label><input type="checkbox" data-layer-toggle="borderBuffer" checked /> Border buffer</label>
+            <label><input type="checkbox" data-layer-toggle="graphA" checked /> Graph A</label>
+            <label><input type="checkbox" data-layer-toggle="graphB" checked /> Graph B</label>
+            <label><input type="checkbox" data-layer-toggle="route" checked /> Calculated route</label>
+            <label><input type="checkbox" data-layer-toggle="expansion" checked /> Route-search expansion</label>
+            <label><input type="checkbox" data-layer-toggle="handoffs" checked /> Candidate / learned / manual handoffs</label>
+          </div>
+        </details>
+
+        <h2 style="margin-top:16px">Visual build comparison</h2>
+        <div class="coord-grid">
+          <div class="field"><label for="visualCompareA">Visual A</label><select id="visualCompareA"></select></div>
+          <div class="field"><label for="visualCompareB">Visual B</label><select id="visualCompareB"></select></div>
+        </div>
+        <div class="actions">
+          <button id="compareVisualBuildsBtn" class="btn" type="button" disabled>Compare visible roads</button>
+        </div>
+        <div id="visualComparisonSummary" class="empty">Choose two visual builds of the same region.</div>
+        <div class="border-diff-legend" style="margin-top:8px">
+          <span><i class="legend-common"></i>Unchanged</span>
+          <span><i class="legend-a"></i>Removed / A only</span>
+          <span><i class="legend-b"></i>Added / B only</span>
+          <span><i class="artifact-candidate"></i>Changed</span>
+        </div>
+      </section>
+      <section class="section">
         <h2>Graph inspector</h2>
         <div id="inspectorSummary" class="empty">
           Select a built region, enable the graph layer, then click an edge or node.
@@ -696,6 +765,15 @@ const publicationVersionSummary = document.querySelector<HTMLDivElement>("#publi
 const publicationProgress = document.querySelector<HTMLDivElement>("#publicationProgress")!;
 const publicationProgressText = document.querySelector<HTMLDivElement>("#publicationProgressText")!;
 const publicationHistory = document.querySelector<HTMLDivElement>("#publicationHistory")!;
+const visualBuildSelect = document.querySelector<HTMLSelectElement>("#visualBuildSelect")!;
+const loadVisualBuildBtn = document.querySelector<HTMLButtonElement>("#loadVisualBuildBtn")!;
+const fitVisualBuildBtn = document.querySelector<HTMLButtonElement>("#fitVisualBuildBtn")!;
+const visualBuildSummary = document.querySelector<HTMLDivElement>("#visualBuildSummary")!;
+const mapLayerToggles = document.querySelector<HTMLDivElement>("#mapLayerToggles")!;
+const visualCompareA = document.querySelector<HTMLSelectElement>("#visualCompareA")!;
+const visualCompareB = document.querySelector<HTMLSelectElement>("#visualCompareB")!;
+const compareVisualBuildsBtn = document.querySelector<HTMLButtonElement>("#compareVisualBuildsBtn")!;
+const visualComparisonSummary = document.querySelector<HTMLDivElement>("#visualComparisonSummary")!;
 const graphLayerBtn = document.querySelector<HTMLButtonElement>("#graphLayerBtn")!;
 const fitBtn = document.querySelector<HTMLButtonElement>("#fitBtn")!;
 const locateBtn = document.querySelector<HTMLButtonElement>("#locateBtn")!;
@@ -750,11 +828,14 @@ const comparison = document.querySelector<HTMLDivElement>("#comparison")!;
 
 let regions: RegionSummary[] = [];
 let artifacts: BuildArtifact[] = [];
+let visualArtifacts: VisualBuildArtifact[] = [];
 let geofabrikCatalog: GeofabrikCatalogItem[] = [];
 let editorPreview: RegionPreview | null = null;
 let editorExistingConfig: Record<string, unknown> | null = null;
 let activeRegion: RegionSummary | null = null;
 let graphVisible = false;
+let activeVisualBuild: VisualBuildArtifact | null = null;
+let referenceLayerIds: string[] = [];
 let lastBorderDiffMetrics: BorderRoadDiffMetrics | null = null;
 let handoffPickMode: "A" | "B" | null = null;
 let editingHandoffId: string | null = null;
