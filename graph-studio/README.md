@@ -1,6 +1,6 @@
 # RoadPilot Graph Studio
 
-RoadPilot Graph Studio is the Linux workstation for producing RoadPilot's independently versioned Valhalla routing packs.
+RoadPilot Graph Studio is the Linux workstation for producing and inspecting RoadPilot's independently versioned routing and visual map packs.
 
 ## Current milestone
 
@@ -28,6 +28,7 @@ At runtime Graph Studio uses:
 ~/RoadPilotGraphStudio/
   work/       cached Geofabrik sources + unpacked build workspace
   builds/     immutable routing TARs, manifests and checksums
+  visual-builds/ immutable PMTiles visual versions, manifests, checksums and road indexes
 ```
 
 The Python virtual environment is stored in the application cache directory and prepared automatically on first build.
@@ -190,3 +191,15 @@ The inspector provides:
 
 The exact visual package remains independent from the routing pack and from the future POI/search
 artifact.
+
+## Independent R2 publication
+
+The R2 publication panel can switch between **Routing graph** and **Visual PMTiles** without sharing mutable release state.
+
+- routing uses `routing/<region>/<version>/...` plus `routing/<region>/latest.json`;
+- visual uses `visual/<region>/<version>/...` plus `visual/<region>/latest.json`;
+- visual publication revalidates the exact PMTiles and its zero-missing-road index before a plan can be created;
+- upload progress, immutable history and verified rollback use the same safe publication backend;
+- changing or rolling back the visual pointer cannot move the routing pointer, and vice versa.
+
+Real Cloudflare credentials remain local to Graph Studio app data and are not committed to this repository.
