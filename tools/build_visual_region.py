@@ -140,6 +140,7 @@ def build_with_tilemaker(
     process_path: Path,
     toolchain: dict[str, Any],
     tilemaker_bin: str | None,
+    threads: int,
 ) -> str:
     expected_version, executable = verify_tilemaker_version(toolchain, tilemaker_bin)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -154,6 +155,8 @@ def build_with_tilemaker(
         str(config_path),
         "--process",
         str(process_path),
+        "--threads",
+        str(threads),
     ]
     output = run_checked(command, "tilemaker visual build")
     if not output_path.is_file():
@@ -173,12 +176,21 @@ def main() -> int:
         help="Use this tilemaker binary. If omitted, tilemaker must be on PATH.",
     )
     parser.add_argument(
+        "--threads",
+        type=int,
+        default=0,
+        help="tilemaker worker threads; 0 lets tilemaker auto-detect.",
+    )
+    parser.add_argument(
         "--required-layer",
         action="append",
         default=[],
         help="Require this layer to occur in decoded PMTiles tiles; repeatable.",
     )
     args = parser.parse_args()
+
+    if args.threads < 0 or args.threads > 64:
+        fail("--threads must be from 0 to 64")
 
     for path, label in ((args.config, "region config"), (args.pbf, "OSM PBF")):
         if not path.is_file():
@@ -214,6 +226,7 @@ def main() -> int:
         process_path,
         toolchain,
         args.tilemaker_bin,
+        args.threads,
     )
     try:
         canonicalize_pmtiles(package_path)
