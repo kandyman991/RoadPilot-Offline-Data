@@ -816,6 +816,7 @@ fn toolchain_status() -> ToolchainStatus {
         "valhalla_build_tiles",
         "valhalla_build_extract",
         "valhalla_service",
+        "tilemaker",
     ];
     let mut tools = Vec::new();
     for name in names {
