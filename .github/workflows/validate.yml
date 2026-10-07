@@ -662,6 +662,11 @@ jobs:
           print("independent visual publication contract passed")
           PY
 
+          python tools/smoke_r2_publication_backend.py \
+            --plan-a "$RUNNER_TEMP/publication-contract/2026.10.07-1-plan.json" \
+            --plan-b "$RUNNER_TEMP/publication-contract/2026.10.07-3-plan.json" \
+            --independent-plan "$plan"
+
       - name: Smoke-test Geofabrik Graph Studio discovery
         shell: bash
         run: |
