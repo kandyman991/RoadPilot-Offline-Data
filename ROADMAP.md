@@ -148,20 +148,19 @@ Implemented:
 - changed boundary-tile and changed-road map visualization;
 - graph-local edge ids are not treated as durable cross-build identity.
 
-## Active — Build-time cross-region connectivity metadata (#26)
+## Completed — Build-time cross-region connectivity metadata (#26)
 
-PR #27 established the fingerprint-bound region-pair contract. PR #28 added stable OSM
-frontier-road inventory from real road geometry, including border-following roads.
+Issue #26 is complete across PRs #27-#34. PR #27 established the fingerprint-bound region-pair
+contract and the later milestones carry that stable physical identity through Valhalla proof,
+runtime metadata, multi-hop composition, route-style ranking, surgical refresh and Graph Studio inspection.
 
 The architecture separates expensive stable physical discovery from optional exact graph-local
 bindings. Internal-only graph rebuilds can therefore retain physical connectivity evidence when
 the relevant boundary is unchanged, while graph-local bindings can be regenerated cheaply.
 
-## Next
+### Delivery milestones
 
-### 1. Build-time cross-region connectivity metadata (#26)
-
-This is the key step for removing expensive first-route F8 discovery from phones.
+This removes expensive first-route F8 discovery from phones wherever current validated metadata exists.
 
 Milestones:
 - fingerprint-bound region-pair manifest and validator — merged in PR #27;
@@ -190,7 +189,7 @@ Milestones:
   - enforce exact intermediate-region graph identity;
   - use proven mode/direction support as directed adjacency;
   - preserve all crossing alternatives per hop without Cartesian expansion;
-- final connectivity lifecycle completion — active;
+- final connectivity lifecycle completion — merged in PR #34;
   - rank crossing alternatives and complete simple region chains for FASTER/SHORTER using only post-proof Valhalla distance/time metrics;
   - classify connectivity CURRENT/STALE against exact graph and relevant boundary fingerprints;
   - graph-only change → REBIND_GRAPH while preserving stable physical discovery;
@@ -211,7 +210,9 @@ local Valhalla detailed routing
 
 F8 remains the fallback when metadata is missing, stale or ambiguous.
 
-### 2. Cloudflare R2 publication manager (#14)
+## Next
+
+### 1. Cloudflare R2 publication manager (#14)
 
 Required behavior:
 - immutable versioned objects;
