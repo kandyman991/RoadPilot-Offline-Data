@@ -147,6 +147,7 @@ type HandoffArtifactItem = {
   kind: "candidate" | "accepted" | "learned" | "manual";
   id: string | null;
   status: string;
+  validationState?: string | null;
   fromRegionId: string;
   toRegionId: string;
   from: { lat: number; lng: number };
@@ -1492,8 +1493,8 @@ function renderHandoffArtifactOverlay(result: HandoffArtifactInspection): void {
   const count = (kind: string, status: string) => counts.get(`${kind}:${status}`) ?? 0;
   handoffArtifactSummary.className = "kv";
   handoffArtifactSummary.innerHTML = `
-    <dt>Candidates</dt><dd>${count("candidate", "CURRENT")} current / ${count("candidate", "STALE")} stale</dd>
-    <dt>Accepted</dt><dd>${count("accepted", "CURRENT")} current / ${count("accepted", "STALE")} stale</dd>
+    <dt>Generated candidates</dt><dd>${count("candidate", "CURRENT")} current / ${count("candidate", "STALE")} stale</dd>
+    <dt>Validated runtime</dt><dd>${count("accepted", "CURRENT")} current / ${count("accepted", "STALE")} stale</dd>
     <dt>Learned proofs</dt><dd>${count("learned", "CURRENT")} current / ${count("learned", "STALE")} stale</dd>
     <dt>Manual</dt><dd>${count("manual", "VALID")} valid / ${count("manual", "STALE")} stale</dd>
     <dt>Artifact files</dt><dd>${result.recognizedArtifactFiles}</dd>
@@ -1503,10 +1504,11 @@ function renderHandoffArtifactOverlay(result: HandoffArtifactInspection): void {
     const statusClass = item.status === "CURRENT" || item.status === "VALID" ? "ok" : "warn";
     const modes = item.modes.length ? item.modes.join(", ") : "—";
     const evidence = item.evidence.length ? item.evidence.join(", ") : "—";
+    const validation = item.validationState ?? "LEGACY";
     return `
       <div class="artifact-row">
         <div><b>${item.kind.toUpperCase()} ${item.id ?? ""}</b><span class="${statusClass}">${item.status}</span></div>
-        <small>${item.fromRegionId} → ${item.toRegionId} • ${modes}</small>
+        <small>${item.fromRegionId} → ${item.toRegionId} • ${validation} • ${modes}</small>
         <small>${evidence}</small>
       </div>
     `;
@@ -1514,7 +1516,7 @@ function renderHandoffArtifactOverlay(result: HandoffArtifactInspection): void {
   if (!result.items.length) {
     handoffArtifactList.innerHTML = `
       <div class="empty">
-        No candidate/learned/manual handoffs found for this pair.
+        No generated/validated/learned/manual connectivity artifacts found for this pair.
         Artifact imports are scanned under:<br>
         ${result.searchDirectories.map(path => `<code>${path}</code>`).join("<br>")}
       </div>
