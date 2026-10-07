@@ -4,7 +4,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     env,
     fs::{self, OpenOptions},
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
@@ -96,6 +96,28 @@ struct BuildArtifact {
     graph_tile_fingerprint: Option<String>,
     internal_fingerprint: Option<String>,
     boundary_fingerprints: Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct VisualBuildArtifact {
+    region_id: String,
+    version: String,
+    built_at_utc: String,
+    artifact_file: String,
+    size_bytes: u64,
+    sha256: String,
+    tile_count: u64,
+    min_zoom: u64,
+    max_zoom: u64,
+    bounds: Value,
+    source_fingerprint: String,
+    profile_fingerprint: String,
+    manifest_path: String,
+    layers: Vec<String>,
+    road_index_file: Option<String>,
+    major_road_count: u64,
+    border_road_count: u64,
+    missing_road_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -462,6 +484,13 @@ fn dist_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn visual_dist_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = workspace_root(app)?.join("visual-builds");
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("Could not create visual build directory: {e}"))?;
+    Ok(path)
+}
+
 fn python_env_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let path = app
         .path()
@@ -488,7 +517,8 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
     let env_dir = python_env_dir(app)?;
     let python = env_dir.join("bin/python");
     let pipeline = pipeline_root(app)?;
-    let requirements = pipeline.join("requirements-routing.txt");
+    let routing_requirements = pipeline.join("requirements-routing.txt");
+    let visual_requirements = pipeline.join("requirements-visual.txt");
 
     if !python.is_file() {
         emit_log(app, "Preparing Graph Studio Python environment…");
@@ -505,12 +535,18 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
     }
 
     let marker = env_dir.join(".roadpilot-requirements-ready");
-    let requirements_stamp = fs::metadata(&requirements)
-        .and_then(|m| m.modified())
-        .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_secs().to_string())
-        .unwrap_or_default();
+    let requirements_stamp = [&routing_requirements, &visual_requirements]
+        .iter()
+        .map(|path| {
+            fs::metadata(path)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs().to_string())
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>()
+        .join(":");
     let marker_value = fs::read_to_string(&marker).unwrap_or_default();
 
     if marker_value.trim() != requirements_stamp {
@@ -523,13 +559,18 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
             return Err("pip upgrade failed.".into());
         }
 
-        let status = Command::new(&python)
-            .args(["-m", "pip", "install", "-r"])
-            .arg(&requirements)
-            .status()
-            .map_err(|e| format!("Could not install Python requirements: {e}"))?;
-        if !status.success() {
-            return Err("Installing Graph Studio Python requirements failed.".into());
+        for requirements in [&routing_requirements, &visual_requirements] {
+            let status = Command::new(&python)
+                .args(["-m", "pip", "install", "-r"])
+                .arg(requirements)
+                .status()
+                .map_err(|e| format!("Could not install Python requirements: {e}"))?;
+            if !status.success() {
+                return Err(format!(
+                    "Installing Graph Studio Python requirements failed: {}",
+                    requirements.display()
+                ));
+            }
         }
         fs::write(&marker, &requirements_stamp)
             .map_err(|e| format!("Could not write Python environment marker: {e}"))?;
