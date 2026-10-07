@@ -798,6 +798,220 @@ function appendLog(line: string): void {
   logHost.scrollTop = logHost.scrollHeight;
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function selectedPublicationBuild(): BuildArtifact | null {
+  const manifestPath = publishBuildSelect.value;
+  return artifacts.find(item => item.manifest_path === manifestPath) ?? null;
+}
+
+function renderPublicationBuildSelector(): void {
+  const previous = publishBuildSelect.value;
+  publishBuildSelect.innerHTML = "";
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "Choose build…";
+  publishBuildSelect.appendChild(empty);
+  for (const item of artifacts) {
+    const option = document.createElement("option");
+    option.value = item.manifest_path;
+    option.textContent = `${item.region_id} • ${item.version}`;
+    publishBuildSelect.appendChild(option);
+  }
+  if ([...publishBuildSelect.options].some(option => option.value === previous)) {
+    publishBuildSelect.value = previous;
+  }
+  updatePublicationControls();
+}
+
+function updatePublicationControls(): void {
+  const hasBuild = selectedPublicationBuild() != null;
+  const configured = r2Credentials?.configured === true;
+  const running = currentPublicationStatus?.running === true;
+  publishBuildBtn.disabled = !hasBuild || !configured || running;
+  refreshPublicationBtn.disabled = !hasBuild || !configured || running;
+  testR2CredentialsBtn.disabled = !configured || running;
+  saveR2CredentialsBtn.disabled = running;
+  clearR2CredentialsBtn.disabled = !configured || running;
+}
+
+function renderR2CredentialStatus(status: R2CredentialStatus): void {
+  r2Credentials = status;
+  r2CredentialSummary.className = status.configured ? "kv" : "empty";
+  if (!status.configured) {
+    r2CredentialSummary.textContent = "R2 credentials are not configured.";
+  } else {
+    r2CredentialSummary.innerHTML = `
+      <dt>Account</dt><dd>${escapeHtml(status.accountId)}</dd>
+      <dt>Bucket</dt><dd>${escapeHtml(status.bucket)}</dd>
+      <dt>Access key</dt><dd>••••${escapeHtml(status.accessKeySuffix)}</dd>
+      <dt>Endpoint</dt><dd>${escapeHtml(status.endpointUrl || "Cloudflare R2 default")}</dd>
+    `;
+    if (!r2AccountId.value) r2AccountId.value = status.accountId ?? "";
+    if (!r2Bucket.value) r2Bucket.value = status.bucket ?? "";
+    if (!r2Endpoint.value) r2Endpoint.value = status.endpointUrl ?? "";
+  }
+  r2AccessKey.value = "";
+  r2SecretKey.value = "";
+  updatePublicationControls();
+}
+
+async function refreshR2CredentialStatus(): Promise<void> {
+  try {
+    renderR2CredentialStatus(await invoke<R2CredentialStatus>("r2_credential_status"));
+  } catch (error) {
+    r2Credentials = null;
+    r2CredentialSummary.className = "bad";
+    r2CredentialSummary.textContent = `Could not read local R2 credential state: ${String(error)}`;
+    updatePublicationControls();
+  }
+}
+
+function renderPublicationStatus(status: PublicationStatus): void {
+  const wasRunning = currentPublicationStatus?.running === true;
+  currentPublicationStatus = status;
+  const percent = status.totalBytes > 0
+    ? Math.max(0, Math.min(100, status.bytesTransferred / status.totalBytes * 100))
+    : 0;
+  const bar = publicationProgress.firstElementChild as HTMLDivElement | null;
+  if (bar) bar.style.width = `${percent.toFixed(1)}%`;
+  publicationProgress.classList.toggle("active", status.running && status.totalBytes > 0);
+  if (status.lastError) {
+    publicationProgressText.className = "status-line bad";
+    publicationProgressText.textContent = status.lastError;
+  } else if (status.running) {
+    publicationProgressText.className = "status-line";
+    const transfer = status.totalBytes > 0
+      ? ` • ${bytes(status.bytesTransferred)} / ${bytes(status.totalBytes)}`
+      : "";
+    publicationProgressText.textContent =
+      `${status.stage}${status.currentKey ? ` • ${status.currentKey}` : ""}${transfer}`;
+  } else {
+    publicationProgressText.className = "status-line";
+    publicationProgressText.textContent = status.stage || "Publication idle.";
+  }
+  updatePublicationControls();
+  if (wasRunning && !status.running && !status.lastError) {
+    void refreshR2Publication();
+  }
+}
+
+async function refreshPublicationStatus(): Promise<void> {
+  try {
+    renderPublicationStatus(await invoke<PublicationStatus>("publication_status"));
+  } catch { /* keep last state */ }
+}
+
+function renderPublicationRemoteStatus(): void {
+  const local = selectedPublicationBuild();
+  const remote = remotePublication;
+  publicationHistory.innerHTML = "";
+  if (!local) {
+    publicationVersionSummary.className = "empty";
+    publicationVersionSummary.textContent = "Choose a local build.";
+    publicationHistory.className = "empty";
+    publicationHistory.textContent = "No region selected.";
+    updatePublicationControls();
+    return;
+  }
+
+  const latest = remote?.latest ?? null;
+  const state = !latest
+    ? "NOT PUBLISHED"
+    : latest.packageVersion === local.version
+      ? "CURRENT"
+      : "DIFFERENT";
+  const stateClass = state === "CURRENT" ? "ok" : state === "NOT PUBLISHED" ? "warn" : "warn";
+  publicationVersionSummary.className = "kv";
+  publicationVersionSummary.innerHTML = `
+    <dt>Region</dt><dd>${escapeHtml(local.region_id)}</dd>
+    <dt>Local</dt><dd>${escapeHtml(local.version)}</dd>
+    <dt>R2 latest</dt><dd>${escapeHtml(latest?.packageVersion ?? "none")}</dd>
+    <dt>Status</dt><dd class="${stateClass}">${state}</dd>
+    <dt>Local SHA</dt><dd>${escapeHtml(local.sha256)}</dd>
+    <dt>Latest release</dt><dd>${escapeHtml(latest?.releaseKey ?? "—")}</dd>
+  `;
+
+  const releases = remote?.releases ?? [];
+  if (!releases.length) {
+    publicationHistory.className = "empty";
+    publicationHistory.textContent = "No immutable releases published for this region.";
+  } else {
+    publicationHistory.className = "publication-history";
+    for (const release of releases) {
+      const row = document.createElement("div");
+      row.className = "publication-release-row";
+      const info = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = release.packageVersion;
+      const meta = document.createElement("small");
+      const isLatest = latest?.releaseKey === release.key;
+      meta.textContent = `${release.builtAtUtc} • ${isLatest ? "LATEST • " : ""}${release.sha256?.slice(0, 18) ?? "no SHA"}…`;
+      info.append(title, meta);
+      const action = document.createElement("button");
+      action.className = "btn";
+      action.type = "button";
+      action.textContent = isLatest ? "Current" : "Roll back";
+      action.disabled = isLatest || currentPublicationStatus?.running === true;
+      action.addEventListener("click", async () => {
+        action.disabled = true;
+        publicationProgressText.className = "status-line";
+        publicationProgressText.textContent = `Verifying and activating ${release.packageVersion}…`;
+        try {
+          await invoke("activate_r2_release", { releaseKey: release.key });
+          appendLog(`R2 latest rolled back to ${local.region_id} • ${release.packageVersion}`);
+          await refreshR2Publication();
+        } catch (error) {
+          publicationProgressText.className = "status-line bad";
+          publicationProgressText.textContent = `Rollback failed: ${String(error)}`;
+        } finally {
+          action.disabled = false;
+        }
+      });
+      row.append(info, action);
+      publicationHistory.appendChild(row);
+    }
+  }
+  updatePublicationControls();
+}
+
+async function refreshR2Publication(): Promise<void> {
+  const local = selectedPublicationBuild();
+  remotePublication = null;
+  if (!local) {
+    renderPublicationRemoteStatus();
+    return;
+  }
+  if (!r2Credentials?.configured) {
+    publicationVersionSummary.className = "warn";
+    publicationVersionSummary.textContent = "Configure R2 credentials to compare local and published versions.";
+    publicationHistory.className = "empty";
+    publicationHistory.textContent = "R2 not configured.";
+    updatePublicationControls();
+    return;
+  }
+  publicationVersionSummary.className = "empty";
+  publicationVersionSummary.textContent = "Reading latest.json and immutable release history…";
+  try {
+    remotePublication = await invoke<R2RegionPublicationStatus>("r2_region_publication_status", {
+      regionId: local.region_id,
+    });
+    renderPublicationRemoteStatus();
+  } catch (error) {
+    publicationVersionSummary.className = "bad";
+    publicationVersionSummary.textContent = `R2 inspection failed: ${String(error)}`;
+    publicationHistory.className = "empty";
+    publicationHistory.textContent = "Could not read published history.";
+  }
+}
+
 addProtocol("roadpilot-graph", async (request) => {
   const raw = request.url.replace("roadpilot-graph://", "");
   const match = raw.match(/^([^/]+)\/(\d+)\/(\d+)\/(\d+)\.mvt$/);
@@ -2526,6 +2740,7 @@ async function refreshBuilds(): Promise<void> {
   }
   renderCompareSelectors();
   renderBorderRegionSelectors();
+  renderPublicationBuildSelector();
 }
 
 function renderCompareSelectors(): void {
