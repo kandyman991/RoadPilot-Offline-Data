@@ -319,6 +319,8 @@ M4 publication contract:
 - Graph Studio can switch the R2 publication panel between Routing and Visual retained builds;
 - CI proves that publishing/activating a visual release leaves the routing latest pointer unchanged.
 
+M4 merged in PR #46.
+
 POI/search remains separate in #17.
 
 ## Completed — Visual map production / inspection (#16)
@@ -360,19 +362,15 @@ Graph Studio should allow online-reference vs RoadPilot-offline-map comparison p
 
 ### POI/search database (#17)
 
-Integrate the existing RoadPilot Overture/SQLite search pipeline into Graph Studio.
+Integrate the existing RoadPilot Overture/SQLite search pipeline into Graph Studio without forking the Android search contract.
 
-Planned inspection includes:
-- exact and partial names;
-- category searches;
-- location/proximity ranking;
-- typo tolerance where supported;
-- map POI overlays;
-- search-result details;
-- deterministic regression tests;
-- comparison between search builds.
+Milestones:
+- M1 — current Android-compatible SQLite v1 artifact, retained builds, source/release fingerprints and runtime SARP regression — active;
+- M2 — controlled schema/runtime enrichment for categories, richer source/address fields and proximity/category ranking;
+- M3 — Graph Studio Search/POI workspace, exact local DB inspection, POI overlays and retained-build comparison;
+- M4 — independent immutable `search/<region>/...` R2 publication.
 
-A POI/search update must not force routing or visual artifacts to be downloaded again.
+M1 preserves `roadpilot-overture-v1` and mirrors Android token retrieval, dedupe and scoring in Offline-Data validation. Search updates remain independent from routing and visual artifacts.
 
 ## Final production workflow
 
