@@ -1,6 +1,6 @@
 # RoadPilot Graph Studio
 
-RoadPilot Graph Studio is the Linux workstation for producing and inspecting RoadPilot's independently versioned routing and visual map packs.
+RoadPilot Graph Studio is the Linux workstation for producing and inspecting RoadPilot's independently versioned routing, visual-map and Search/POI packs.
 
 ## Current milestone
 
@@ -194,12 +194,14 @@ artifact.
 
 ## Independent R2 publication
 
-The R2 publication panel can switch between **Routing graph** and **Visual PMTiles** without sharing mutable release state.
+The R2 publication panel can switch between **Routing graph**, **Visual PMTiles** and **Search / POI SQLite** without sharing mutable release state.
 
 - routing uses `routing/<region>/<version>/...` plus `routing/<region>/latest.json`;
 - visual uses `visual/<region>/<version>/...` plus `visual/<region>/latest.json`;
+- search uses `search/<region>/<version>/...` plus `search/<region>/latest.json`;
 - visual publication revalidates the exact PMTiles and its zero-missing-road index before a plan can be created;
 - upload progress, immutable history and verified rollback use the same safe publication backend;
-- changing or rolling back the visual pointer cannot move the routing pointer, and vice versa.
+- Search publication revalidates the exact retained SQLite, checksum, manifest and runtime regressions before upload;
+- changing or rolling back any routing, visual or search pointer cannot move either of the other two.
 
 Real Cloudflare credentials remain local to Graph Studio app data and are not committed to this repository.
