@@ -2023,10 +2023,11 @@ fn start_r2_publication(
         .and_then(Value::as_str)
         .ok_or("Selected manifest is missing regionId.")?
         .to_string();
+    let version_field = if artifact_kind == "SEARCH" { "packVersion" } else { "packageVersion" };
     let package_version = manifest
-        .get("packageVersion")
+        .get(version_field)
         .and_then(Value::as_str)
-        .ok_or("Selected manifest is missing packageVersion.")?
+        .ok_or_else(|| format!("Selected manifest is missing {version_field}."))?
         .to_string();
     if !safe_token(&region_id) || !safe_token(&package_version) {
         return Err("Selected manifest has unsafe region/version identity.".into());
