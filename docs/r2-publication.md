@@ -1,6 +1,6 @@
 # RoadPilot Cloudflare R2 publication
 
-RoadPilot publishes through the validated publication-plan contract. Do not upload a routing pack directly to R2.
+RoadPilot publishes routing and visual packages through the same validated publication-plan contract. Do not upload a pack directly to R2. Each artifact family has its own immutable namespace and `latest.json` pointer.
 
 ## Credentials
 
@@ -23,8 +23,8 @@ The Graph Studio **R2 publication** panel can:
 
 - save or clear private local credentials;
 - test bucket access without writing objects;
-- choose any retained validated local routing build;
-- compare its local version with remote `latest.json`;
+- switch independently between retained validated **Routing graph** and **Visual PMTiles** builds;
+- compare the selected local artifact with its own remote `latest.json`;
 - publish through the same validated plan contract;
 - show per-object upload progress and confirmation state;
 - list immutable published versions;
@@ -52,6 +52,21 @@ python tools/validate_publication_plan.py \
 ```
 
 The plan records every immutable object key, local source path, size and SHA-256, plus the immutable `release.json` and mutable `latest.json` pointer.
+
+## Prepare a visual release
+
+A production visual release requires the exact retained PMTiles, its manifest/checksum, and the validated zero-missing-road index.
+
+```bash
+python tools/prepare_visual_publication.py \
+  --manifest /path/to/region-visual-version-manifest.json \
+  --output /tmp/roadpilot-visual-publication-plan.json
+
+python tools/validate_publication_plan.py \
+  --plan /tmp/roadpilot-visual-publication-plan.json
+```
+
+Visual objects live under `visual/<region>/<version>/...` and use `visual/<region>/latest.json`. Routing remains under `routing/<region>/...`; publishing or rolling back either family cannot move the other family’s pointer.
 
 ## Publish
 
@@ -81,6 +96,9 @@ The `latest.json` update uses R2 conditional `PutObject` semantics. If another p
 ```bash
 python tools/list_publication_releases_r2.py \
   --namespace routing/italy-nord-est
+
+python tools/list_publication_releases_r2.py \
+  --namespace visual/italy-nord-est
 ```
 
 Each retained version has its own immutable `release.json`; listing release descriptors provides publication history without relying on mutable state.
@@ -90,6 +108,9 @@ Each retained version has its own immutable `release.json`; listing release desc
 ```bash
 python tools/activate_publication_release_r2.py \
   --release-key routing/italy-nord-est/<version>/release.json
+
+python tools/activate_publication_release_r2.py \
+  --release-key visual/italy-nord-est/<version>/release.json
 ```
 
 Before moving `latest.json`, RoadPilot HEAD-verifies every immutable object in the selected historical release. Rollback changes only the latest pointer. It never deletes or mutates retained version objects.
