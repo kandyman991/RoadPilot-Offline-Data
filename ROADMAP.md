@@ -51,8 +51,8 @@ Each region is intended to expose independently versioned routing, visual, and s
 | Exact graph/boundary diffing | #13 / PRs #24-#25 | Merged | Deterministic graph/boundary fingerprints plus retained-build road-level diffing |
 | Build-time cross-region connectivity | #26 | Complete | Fingerprint-bound pair manifests, discovery/proof/runtime pipeline, multi-hop composition, F8 fallback |
 | Regional connector matrices | #35 | Complete | Exact graph-bound entry→exit matrices, sparse hierarchical ranking, Graph Studio inspection and lifecycle refresh |
-| Cloudflare R2 publication manager | #14 | Active | Safe immutable release contract, R2 publication, latest/history/rollback in Graph Studio |
-| Visual map production/inspection | #16 | Planned | Lightweight RoadPilot offline vector-map artifact |
+| Cloudflare R2 publication manager | #14 | Complete | Safe immutable release contract, R2 publication, latest/history/rollback in Graph Studio |
+| Visual map production/inspection | #16 | Active | Lightweight RoadPilot offline vector-map artifact |
 | POI/search production/inspection | #17 | Planned | Overture/SQLite offline search artifact |
 | Scheduled updates + retention | #15 | Later | Rebuild only changed regions and retain prior versions |
 
@@ -278,6 +278,29 @@ M3 integrates the publisher into Graph Studio:
 - verified latest-pointer rollback controls.
 
 Cloudflare R2 is not connected to a real bucket yet; live credentials have not been supplied or tested.
+### 3. Visual map production / inspection (#16)
+
+Build and inspect the exact lightweight RoadPilot offline visual package independently from routing and POI/search artifacts.
+
+Milestones:
+- M1 — PMTiles v3 artifact/profile/toolchain contract plus deterministic real-artifact validation — active;
+- M2 — real regional source/cache/build pipeline, road-content validation and visual rebuild lifecycle;
+- M3 — Graph Studio exact-PMTiles rendering, online-reference comparison, layer toggles and visual-build diff;
+- M4 — independent immutable R2 visual publication.
+
+M1 contract:
+- PMTiles v3 with MVT tiles;
+- tilemaker 3.2.0 pinned by container digest, with matching native binary allowed explicitly;
+- lightweight layers only: roads/road labels, settlements, water/waterways, boundaries and mountain/pass labels;
+- no building or POI layers;
+- independent source/profile/visual fingerprints;
+- exact archive SHA/size/tile-count/zoom/bounds validation;
+- actual MVT tile decoding to prove required layers;
+- identical source/profile builds must produce byte-identical PMTiles;
+- truncated/corrupt PMTiles must be rejected.
+
+POI/search remains separate in #17.
+
 ## Additional artifact pipelines
 
 ### Visual map layer (#16)
