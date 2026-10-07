@@ -26,6 +26,18 @@ on:
       - "search/overture/toolchain.json"
       - "requirements-search.txt"
       - ".github/workflows/publish-overture-pack.yml"
+  pull_request:
+    paths:
+      - "config/regions/**"
+      - "tools/build_overture_places_pack.py"
+      - "tools/build_overture_manifest.py"
+      - "tools/validate_overture_pack.py"
+      - "tools/roadpilot_search_v1.py"
+      - "tools/validate_search_pack.py"
+      - "schemas/search-*.schema.json"
+      - "search/overture/toolchain.json"
+      - "requirements-search.txt"
+      - ".github/workflows/publish-overture-pack.yml"
 
 permissions:
   contents: write
@@ -80,6 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
+          python -m pip install -r requirements-search.txt
           CLIENT_VERSION="$(jq -r '.overturemapsVersion' search/overture/toolchain.json)"
           python -m pip install "overturemaps==$CLIENT_VERSION"
           INSTALLED_VERSION="$(python - <<'PY'
@@ -172,8 +185,11 @@ jobs:
             --pack-version "$PACK_VERSION" \
             --validation-report "dist/overture/search-validation.json"
 
-          sha256sum "dist/overture/${{ steps.region.outputs.file_name }}" \
-            > "dist/overture/${{ steps.region.outputs.file_name }}.sha256"
+          (
+            cd dist/overture
+            sha256sum "${{ steps.region.outputs.file_name }}" \
+              > "${{ steps.region.outputs.file_name }}.sha256"
+          )
 
           python tools/validate_search_pack.py \
             --manifest "dist/overture/${{ steps.region.outputs.manifest_name }}" \
@@ -182,6 +198,7 @@ jobs:
           ls -lh dist/overture
 
       - name: Publish public release assets
+        if: github.event_name != 'pull_request'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
