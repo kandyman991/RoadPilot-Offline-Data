@@ -14,17 +14,20 @@ contract. The current SARP regression remains the compatibility gate.
 
 ## M2 enrichment
 
-M2 appends structured fields without renaming or removing any v1 field. Enriched packs declare
+M2 adds structured fields without renaming or removing any v1 field. Enriched packs declare
 `roadpilot-search-enrichment-v2` and the additional `roadpilot-search-v2` runtime capability.
 
-The appended record fields retain:
+To keep the mobile sidecar compact, only small per-place references are appended to `places`.
+Repeated data is normalized into companion tables:
 
-- structured address components: freeform, postcode, locality, region and country;
-- operating status;
-- Overture `basic_category`;
-- `taxonomy.primary`, the full hierarchy and alternates;
-- a normalized category search field;
-- source provider/resource (or legacy dataset), source record id and source version.
+- `address_contexts` retains postcode, locality, region and country while `places` retains freeform;
+- `search_categories` stores each Overture category once;
+- `place_categories` links a place row to basic/hierarchy/alternate taxonomy membership and hierarchy order;
+- `search_sources` stores repeated provider/resource/version identity once while `places` retains the source record id;
+- `places` also retains operating status plus direct basic/primary category references.
+
+Category relations use SQLite integer row ids internally; RoadPilot's public Overture place id remains
+unchanged in the v1 `places.id` column.
 
 September 2026 Overture data uses `basic_category` and `taxonomy`; the removed legacy
 `categories` object is accepted only as an input fallback for reproducible older-source rebuilds.
