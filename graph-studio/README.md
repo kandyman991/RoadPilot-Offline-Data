@@ -167,3 +167,26 @@ Each export produces both JSON and Markdown and records:
 
 Changing either selected graph clears the previous pair's road-diff/report state before another
 report can be exported.
+
+
+## Exact RoadPilot visual PMTiles inspector
+
+Graph Studio builds visual packs immediately after routing validation for regions with `visual.enabled`.
+Visual versions are retained separately under the Graph Studio workspace so routing and visual
+artifacts can evolve independently.
+
+The Visual map inspector reads the exact retained `.pmtiles` file through bounded Tauri byte
+ranges and the official PMTiles browser decoder. It does not unpack or regenerate a debug tile tree.
+
+The inspector provides:
+- RoadPilot's lightweight offline visual map;
+- the online OpenFreeMap style as an optional reference;
+- independent toggles for the visual map, reference map, Valhalla edges/nodes/shortcuts/access
+  restrictions, border buffer, Graph A/B overlays, calculated route, route expansion and handoffs;
+- package version, size, tile count, zoom/coverage, SHA-256, source/profile fingerprints and
+  major/border-road validation counts;
+- retained visual Build A/B comparison using original OSM feature IDs embedded by tilemaker,
+  classifying roads in the currently loaded map window as unchanged, removed, added or changed.
+
+The exact visual package remains independent from the routing pack and from the future POI/search
+artifact.
