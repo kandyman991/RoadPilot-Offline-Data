@@ -632,3 +632,36 @@ button { cursor: pointer; }
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+
+.search-results {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  max-height: 420px;
+  overflow: auto;
+}
+.search-result {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: inherit;
+  cursor: pointer;
+}
+.search-result:hover { border-color: var(--accent); }
+.search-result span, .search-result small {
+  opacity: .78;
+  overflow-wrap: anywhere;
+}
+.check-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 12px;
+}
