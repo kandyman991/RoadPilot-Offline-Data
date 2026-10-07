@@ -1102,7 +1102,28 @@ jobs:
           (root / "to" / "manifest-region-b-stale.json").write_text(
               json.dumps(stale, indent=2) + "\n"
           )
+
+          inventory = json.loads((root / "region-b-connectors-matrix.json").read_text())
+          ab = json.loads((root / "runtime-connectivity.json").read_text())
+          ab_crossing = next(
+              crossing for crossing in ab["crossings"]
+              if crossing["modes"]["MOTORCYCLE"]["fromTo"]
+              and not crossing["modes"]["MOTORCYCLE"]["toFrom"]
+          )
+          keep_ids = {ab_crossing["candidateId"], bc["crossings"][0]["candidateId"]}
+          inventory["anchors"] = [
+              anchor for anchor in inventory["anchors"]
+              if anchor["candidateId"] in keep_ids
+          ]
+          inventory["anchorCount"] = len(inventory["anchors"])
+          assert inventory["anchorCount"] == 2
+          (root / "region-b-connectors-matrix.json").write_text(
+              json.dumps(inventory, indent=2) + "\n"
+          )
           PY
+
+          python tools/validate_region_connector_inventory.py \
+            --artifact "$root/region-b-connectors-matrix.json"
 
           cat > "$root/bin/valhalla_service" <<'PY'
           #!/usr/bin/env python3
@@ -1114,7 +1135,7 @@ jobs:
           action = sys.argv[2]
           request = json.loads(sys.argv[3])
           root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
-          inventory = json.loads((root / "region-b-connectors.json").read_text())
+          inventory = json.loads((root / "region-b-connectors-matrix.json").read_text())
 
           def graph_id_for(location):
               lat = float(location["lat"])
@@ -1197,7 +1218,7 @@ jobs:
           chmod +x "$root/bin/valhalla_service"
 
           PATH="$root/bin:$PATH" python tools/build_region_connector_matrix.py \
-            --inventory "$root/region-b-connectors.json" \
+            --inventory "$root/region-b-connectors-matrix.json" \
             --manifest "$root/to/manifest-region-b-matrix.json" \
             --output "$root/region-b-matrix.json"
 
@@ -1205,7 +1226,7 @@ jobs:
             --artifact "$root/region-b-matrix.json"
 
           if PATH="$root/bin:$PATH" python tools/build_region_connector_matrix.py \
-            --inventory "$root/region-b-connectors.json" \
+            --inventory "$root/region-b-connectors-matrix.json" \
             --manifest "$root/to/manifest-region-b-stale.json" \
             --output "$root/should-not-exist-region-b-matrix.json"; then
             echo "Expected stale region-c boundary fingerprint to fail matrix generation" >&2
@@ -1219,7 +1240,7 @@ jobs:
 
           root = Path(os.environ["RUNNER_TEMP"]) / "frontier-correlation"
           matrix = json.loads((root / "region-b-matrix.json").read_text())
-          inventory = json.loads((root / "region-b-connectors.json").read_text())
+          inventory = json.loads((root / "region-b-connectors-matrix.json").read_text())
           ab = json.loads((root / "runtime-connectivity.json").read_text())
           bc = json.loads((root / "runtime-bc.json").read_text())
 
