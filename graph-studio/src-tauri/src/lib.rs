@@ -1112,7 +1112,7 @@ fn run_build_queue(
         command
             .arg(pipeline.join("tools/build_routing_region.py"))
             .arg("--config")
-            .arg(config)
+            .arg(&config)
             .arg("--package-version")
             .arg(&package_version)
             .arg("--work-dir")
