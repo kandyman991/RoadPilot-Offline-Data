@@ -42,7 +42,28 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y osmium-tool
+          sudo apt-get install -y \
+            osmium-tool \
+            build-essential \
+            cmake \
+            liblua5.3-dev \
+            libsqlite3-dev \
+            libshp-dev \
+            libboost-program-options-dev \
+            libboost-filesystem-dev \
+            libboost-system-dev \
+            rapidjson-dev
+
+      - name: Build pinned tilemaker 3.2.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/tilemaker-v3.2.0"
+          git clone --filter=blob:none https://github.com/systemed/tilemaker.git "$root"
+          git -C "$root" checkout --detach c7d1dbfaf87baa9e0bc9b2e984e0dae90dcf00c5
+          cmake -S "$root" -B "$root/build" -DCMAKE_BUILD_TYPE=Release -DBoost_USE_DEBUG_RUNTIME=OFF
+          cmake --build "$root/build" --target tilemaker --parallel 2
+          "$root/build/tilemaker" --help | head -n 1
 
       - name: Compile Python tooling
         run: python -m py_compile tools/*.py
@@ -382,6 +403,7 @@ jobs:
             --config "$root/region.json"
             --pbf "$root/fixture.osm.pbf"
             --version 1.0.0
+            --tilemaker-bin "$RUNNER_TEMP/tilemaker-v3.2.0/build/tilemaker"
             --required-layer transportation
             --required-layer transportation_name
             --required-layer place
