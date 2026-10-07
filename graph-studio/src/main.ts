@@ -71,6 +71,15 @@ type VisualBuildArtifact = {
   missing_road_count: number;
 };
 
+type PublicationKind = "ROUTING" | "VISUAL";
+type PublicationTarget = {
+  artifactKind: PublicationKind;
+  region_id: string;
+  version: string;
+  sha256: string;
+  manifest_path: string;
+};
+
 type R2CredentialStatus = {
   configured: boolean;
   accountId: string | null;
@@ -435,7 +444,14 @@ app.innerHTML = `
           <p>Secrets are stored only in Graph Studio app data with private file permissions. They are never written to the repository or publication artifacts.</p>
         </details>
         <div class="field">
-          <label for="publishBuildSelect">Local validated routing build</label>
+          <label for="publicationKind">Artifact</label>
+          <select id="publicationKind">
+            <option value="ROUTING">Routing graph</option>
+            <option value="VISUAL">Visual PMTiles</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="publishBuildSelect">Local validated build</label>
           <select id="publishBuildSelect"></select>
         </div>
         <div class="actions">
@@ -758,6 +774,7 @@ const r2Endpoint = document.querySelector<HTMLInputElement>("#r2Endpoint")!;
 const saveR2CredentialsBtn = document.querySelector<HTMLButtonElement>("#saveR2CredentialsBtn")!;
 const testR2CredentialsBtn = document.querySelector<HTMLButtonElement>("#testR2CredentialsBtn")!;
 const clearR2CredentialsBtn = document.querySelector<HTMLButtonElement>("#clearR2CredentialsBtn")!;
+const publicationKind = document.querySelector<HTMLSelectElement>("#publicationKind")!;
 const publishBuildSelect = document.querySelector<HTMLSelectElement>("#publishBuildSelect")!;
 const refreshPublicationBtn = document.querySelector<HTMLButtonElement>("#refreshPublicationBtn")!;
 const publishBuildBtn = document.querySelector<HTMLButtonElement>("#publishBuildBtn")!;
@@ -889,19 +906,50 @@ function escapeHtml(value: unknown): string {
     .replaceAll("'", "&#039;");
 }
 
-function selectedPublicationBuild(): BuildArtifact | null {
+function activePublicationKind(): PublicationKind {
+  return publicationKind.value === "VISUAL" ? "VISUAL" : "ROUTING";
+}
+
+function publicationPrefix(): "routing" | "visual" {
+  return activePublicationKind() === "VISUAL" ? "visual" : "routing";
+}
+
+function publicationTargets(): PublicationTarget[] {
+  if (activePublicationKind() === "VISUAL") {
+    return visualArtifacts.map(item => ({
+      artifactKind: "VISUAL",
+      region_id: item.region_id,
+      version: item.version,
+      sha256: item.sha256,
+      manifest_path: item.manifest_path,
+    }));
+  }
+  return artifacts.map(item => ({
+    artifactKind: "ROUTING",
+    region_id: item.region_id,
+    version: item.version,
+    sha256: item.sha256,
+    manifest_path: item.manifest_path,
+  }));
+}
+
+function selectedPublicationBuild(): PublicationTarget | null {
   const manifestPath = publishBuildSelect.value;
-  return artifacts.find(item => item.manifest_path === manifestPath) ?? null;
+  return publicationTargets().find(item => item.manifest_path === manifestPath) ?? null;
 }
 
 function renderPublicationBuildSelector(): void {
   const previous = publishBuildSelect.value;
+  const kind = activePublicationKind();
+  const targets = publicationTargets();
   publishBuildSelect.innerHTML = "";
   const empty = document.createElement("option");
   empty.value = "";
-  empty.textContent = "Choose build…";
+  empty.textContent = targets.length
+    ? `Choose ${kind === "VISUAL" ? "visual" : "routing"} build…`
+    : `No retained ${kind === "VISUAL" ? "visual" : "routing"} builds`;
   publishBuildSelect.appendChild(empty);
-  for (const item of artifacts) {
+  for (const item of targets) {
     const option = document.createElement("option");
     option.value = item.manifest_path;
     option.textContent = `${item.region_id} • ${item.version}`;
@@ -910,6 +958,8 @@ function renderPublicationBuildSelector(): void {
   if ([...publishBuildSelect.options].some(option => option.value === previous)) {
     publishBuildSelect.value = previous;
   }
+  remotePublication = null;
+  renderPublicationRemoteStatus();
   updatePublicationControls();
 }
 
@@ -1013,6 +1063,8 @@ function renderPublicationRemoteStatus(): void {
   const stateClass = state === "CURRENT" ? "ok" : state === "NOT PUBLISHED" ? "warn" : "warn";
   publicationVersionSummary.className = "kv";
   publicationVersionSummary.innerHTML = `
+    <dt>Artifact</dt><dd>${escapeHtml(local.artifactKind)}</dd>
+    <dt>Namespace</dt><dd>${escapeHtml(publicationPrefix())}/${escapeHtml(local.region_id)}</dd>
     <dt>Region</dt><dd>${escapeHtml(local.region_id)}</dd>
     <dt>Local</dt><dd>${escapeHtml(local.version)}</dd>
     <dt>R2 latest</dt><dd>${escapeHtml(latest?.packageVersion ?? "none")}</dd>
@@ -1084,6 +1136,7 @@ async function refreshR2Publication(): Promise<void> {
   try {
     remotePublication = await invoke<R2RegionPublicationStatus>("r2_region_publication_status", {
       regionId: local.region_id,
+      prefix: publicationPrefix(),
     });
     renderPublicationRemoteStatus();
   } catch (error) {
@@ -3172,6 +3225,7 @@ function renderVisualBuildSummary(build: VisualBuildArtifact | null): void {
 async function refreshVisualBuilds(): Promise<void> {
   visualArtifacts = await invoke<VisualBuildArtifact[]>("list_visual_builds");
   renderVisualBuildSelectors();
+  if (activePublicationKind() === "VISUAL") renderPublicationBuildSelector();
 }
 
 const visualCompareSourceA = "roadpilot-visual-compare-a";
@@ -3560,6 +3614,11 @@ clearR2CredentialsBtn.addEventListener("click", async () => {
   }
 });
 
+publicationKind.addEventListener("change", () => {
+  remotePublication = null;
+  renderPublicationBuildSelector();
+});
+
 publishBuildSelect.addEventListener("change", () => {
   remotePublication = null;
   renderPublicationRemoteStatus();
@@ -3575,11 +3634,17 @@ publishBuildBtn.addEventListener("click", async () => {
   if (!build) return;
   publishBuildBtn.disabled = true;
   publicationProgressText.className = "status-line";
-  publicationProgressText.textContent = `Starting validated publication for ${build.region_id} • ${build.version}…`;
+  publicationProgressText.textContent =
+    `Starting validated ${build.artifactKind.toLowerCase()} publication for ${build.region_id} • ${build.version}…`;
   try {
-    await invoke("start_r2_publication", { manifestPath: build.manifest_path });
+    await invoke("start_r2_publication", {
+      manifestPath: build.manifest_path,
+      artifactKind: build.artifactKind,
+    });
     await refreshPublicationStatus();
-    appendLog(`R2 publication started: ${build.region_id} • ${build.version}`);
+    appendLog(
+      `R2 ${build.artifactKind} publication started: ${build.region_id} • ${build.version}`,
+    );
   } catch (error) {
     publicationProgressText.className = "status-line bad";
     publicationProgressText.textContent = `Could not start R2 publication: ${String(error)}`;
