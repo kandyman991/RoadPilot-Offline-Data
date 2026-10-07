@@ -26,32 +26,31 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Issue #14 — Cloudflare R2 publication manager, milestone 3: Graph Studio publication UI.**
+**Issue #16 — visual map production/inspection, milestone 1: PMTiles artifact foundation.**
 
-Issue #35 is complete and closed:
-- PR #36 — graph-bound connector anchor inventories;
-- PR #37 — exact-edge Motorcycle/Car entry→exit matrices;
-- PR #38 — sparse matrix-backed hierarchical FASTER/SHORTER composition;
-- PR #39 — Graph Studio matrix topology/weights/freshness inspection and lifecycle refresh planning.
+Issue #14 is complete and closed:
+- PR #40 — immutable publication contract;
+- PR #41 — plan-backed R2 upload/verification/history/rollback;
+- PR #42 — Graph Studio R2 publication manager.
 
-Current branch: `r2-graph-studio-manager-m3`.
+Current branch: `visual-map-foundation-m1`.
 
-M1 publication contract is merged in PR #40.
-M2 plan-backed R2 publisher is merged in PR #41.
+M1 visual architecture:
+- visual packages remain independent from routing and POI/search;
+- format is PMTiles v3 containing MVT;
+- tilemaker 3.2.0 is pinned through an exact official container digest; an explicitly supplied native binary must report the same version;
+- first profile contains transportation, transportation_name, place, water, waterway, boundary and mountain_peak;
+- buildings and POIs are deliberately excluded; #17 remains the POI/search pipeline;
+- source identity is inherited from the region's configured primary Geofabrik PBF;
+- visualFingerprint is the exact PMTiles SHA-256;
+- profileFingerprint binds config + Lua + pinned toolchain;
+- sourceFingerprint binds primary source URL/size/SHA;
+- validator opens the exact PMTiles archive, verifies header/metadata/counts/bounds/zooms, decodes real MVT tiles, proves required layers and rejects forbidden dense layers;
+- CI builds the same synthetic OSM fixture twice and requires byte-identical PMTiles, then proves a truncated archive fails validation.
 
-M3 Graph Studio architecture:
-- credentials are stored only in Graph Studio app data, with Unix mode 0600; never in the repo or publication artifacts;
-- frontend receives only masked credential state, never the stored secret;
-- saved credentials are injected into publisher child processes through environment variables;
-- UI can save/clear credentials and run the non-mutating bucket connection test;
-- any retained validated routing build can be selected for publication;
-- Graph Studio compares local package version/SHA with remote latest.json;
-- publication runs asynchronously and streams M2 upload/confirmation events into the UI;
-- immutable release history is displayed per region;
-- rollback buttons invoke the same full-release verification before moving latest.json;
-- no alternate/direct upload path exists.
-
-Cloudflare R2 credentials are still not configured against a real bucket. Do not claim R2 is connected or live-tested.
+M2 will integrate the same contract with real regional source download/cache, retained visual builds, road-content validation and refresh lifecycle.
+M3 will render/compare the exact user-download PMTiles in Graph Studio.
+M4 will publish visual artifacts independently through the R2 contract.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -72,10 +71,11 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get #14 M3 Graph Studio publication-manager CI green and merge it.
-2. Verify issue #14 acceptance against M1–M3 and close #14.
-3. Once the user supplies real R2 credentials/bucket configuration, run the connection test and a controlled first live publication.
-4. Then proceed to #16 visual map production/inspection, keeping #17 POI/search as its own later milestone.
+1. Get #16 M1 deterministic PMTiles builder/validator smoke green and merge it.
+2. M2: integrate actual regional PBF source/cache/build handling, retained visual builds, major/border road validation and visual refresh planning.
+3. M3: Graph Studio exact-PMTiles rendering, reference-map comparison, layer toggles and changed/missing visual road diff.
+4. M4: independent visual artifact R2 publication.
+5. Keep #17 POI/search separate.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
