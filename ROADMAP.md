@@ -52,8 +52,8 @@ Each region is intended to expose independently versioned routing, visual, and s
 | Build-time cross-region connectivity | #26 | Complete | Fingerprint-bound pair manifests, discovery/proof/runtime pipeline, multi-hop composition, F8 fallback |
 | Regional connector matrices | #35 | Complete | Exact graph-bound entry→exit matrices, sparse hierarchical ranking, Graph Studio inspection and lifecycle refresh |
 | Cloudflare R2 publication manager | #14 | Complete | Safe immutable release contract, R2 publication, latest/history/rollback in Graph Studio |
-| Visual map production/inspection | #16 | Active | Lightweight RoadPilot offline vector-map artifact |
-| POI/search production/inspection | #17 | Planned | Overture/SQLite offline search artifact |
+| Visual map production/inspection | #16 | Complete | Retained PMTiles builds, exact Graph Studio inspection/diff and independent visual R2 publication |
+| POI/search production/inspection | #17 | Active | Overture/SQLite offline search artifact |
 | Scheduled updates + retention | #15 | Later | Rebuild only changed regions and retain prior versions |
 
 ## Completed
@@ -321,6 +321,24 @@ M4 publication contract:
 
 POI/search remains separate in #17.
 
+## Completed — Visual map production / inspection (#16)
+
+Issue #16 is complete across PRs #43-#46.
+
+Implemented:
+- deterministic PMTiles v3 / MVT artifact profile with pinned tilemaker toolchain;
+- independent source/profile/visual fingerprints and exact archive validation;
+- retained regional visual builds with source caching and immutable version directories;
+- major-road and border-road coverage proof against the same regional source PBF;
+- visual refresh planning that separates source/profile/road-validation changes;
+- Graph Studio rendering from the exact retained PMTiles artifact RoadPilot downloads;
+- optional online reference basemap plus independent layer toggles;
+- retained visual build A/B road comparison using stable OSM feature identity;
+- visual package metadata inspection including size, tile count, coverage, SHA and fingerprints;
+- independent immutable R2 publication under `visual/<region>/...` with latest/history/rollback;
+- routing, visual and search artifacts remain independently versioned.
+
+POI/search remains a separate artifact pipeline in #17.
 ## Additional artifact pipelines
 
 ### Visual map layer (#16)
