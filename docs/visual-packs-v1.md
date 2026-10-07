@@ -22,10 +22,10 @@ The production profile is under `visual/tilemaker/`.
 
 `toolchain.json` pins:
 - tilemaker version;
-- exact Docker image digest;
-- source release tag.
+- source release tag;
+- exact upstream Git commit.
 
-The builder verifies the reported tilemaker version before generating a pack. A matching native tilemaker binary may be supplied explicitly; otherwise the pinned container is used.
+The builder verifies the reported tilemaker version before generating a pack. Hosted CI compiles the exact pinned source commit and uses that binary for both reproducibility builds. Graph Studio/production may use an installed native tilemaker binary only when it reports the pinned version.
 
 ## Build
 
