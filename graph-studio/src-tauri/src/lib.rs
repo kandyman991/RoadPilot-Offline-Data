@@ -121,6 +121,25 @@ struct VisualBuildArtifact {
 }
 
 #[derive(Debug, Clone, Serialize)]
+struct SearchBuildArtifact {
+    region_id: String,
+    version: String,
+    built_at_utc: String,
+    artifact_file: String,
+    size_bytes: u64,
+    sha256: String,
+    record_count: u64,
+    source_release: String,
+    source_fingerprint: String,
+    database_schema: String,
+    runtime_contracts: Vec<String>,
+    categorized_record_count: u64,
+    structured_address_record_count: u64,
+    source_identified_record_count: u64,
+    manifest_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 struct BuildLog {
     line: String,
 }
@@ -491,6 +510,13 @@ fn visual_dist_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn search_dist_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = workspace_root(app)?.join("search-builds");
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("Could not create search build directory: {e}"))?;
+    Ok(path)
+}
+
 fn python_env_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let path = app
         .path()
@@ -519,6 +545,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
     let pipeline = pipeline_root(app)?;
     let routing_requirements = pipeline.join("requirements-routing.txt");
     let visual_requirements = pipeline.join("requirements-visual.txt");
+    let search_requirements = pipeline.join("requirements-search.txt");
 
     if !python.is_file() {
         emit_log(app, "Preparing Graph Studio Python environment…");
@@ -535,7 +562,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
     }
 
     let marker = env_dir.join(".roadpilot-requirements-ready");
-    let requirements_stamp = [&routing_requirements, &visual_requirements]
+    let requirements_stamp = [&routing_requirements, &visual_requirements, &search_requirements]
         .iter()
         .map(|path| {
             fs::metadata(path)
@@ -559,7 +586,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
             return Err("pip upgrade failed.".into());
         }
 
-        for requirements in [&routing_requirements, &visual_requirements] {
+        for requirements in [&routing_requirements, &visual_requirements, &search_requirements] {
             let status = Command::new(&python)
                 .args(["-m", "pip", "install", "-r"])
                 .arg(requirements)
@@ -1001,6 +1028,12 @@ fn stage_for_log(line: &str) -> Option<&'static str> {
         Some("Validating visual road coverage")
     } else if line.contains("retained visual build:") {
         Some("Retaining visual package")
+    } else if line.contains("search source: downloading") {
+        Some("Downloading Overture Places")
+    } else if line.contains("search source: reusing") {
+        Some("Reusing cached Overture Places")
+    } else if line.contains("retained search build:") {
+        Some("Retaining search package")
     } else if line.starts_with("built:") {
         Some("Finalizing package")
     } else {
@@ -1189,6 +1222,122 @@ fn run_build_queue(
     Ok(())
 }
 
+fn run_search_build(
+    app: AppHandle,
+    state: BuildState,
+    region_id: String,
+    package_version: String,
+    refresh_source: bool,
+) -> Result<(), String> {
+    let pipeline = pipeline_root(&app)?;
+    let python = ensure_python_env(&app)?;
+    let config = region_config_dir(&app)?.join(format!("{region_id}.json"));
+    if !config.is_file() {
+        return Err(format!("Region config does not exist: {}", config.display()));
+    }
+
+    let config_value: Value = serde_json::from_str(
+        &fs::read_to_string(&config)
+            .map_err(|e| format!("Could not read region config for search build: {e}"))?,
+    )
+    .map_err(|e| format!("Could not parse region config for search build: {e}"))?;
+    if config_value.pointer("/overture/enabled").and_then(Value::as_bool) != Some(true) {
+        return Err(format!("Search/POI is not enabled for {region_id}."));
+    }
+
+    let work = work_dir(&app)?.join("search");
+    let dist = search_dist_dir(&app)?;
+    set_stage(&app, &state, "Preparing retained search package");
+    emit_log(&app, format!("→ {region_id}: building RoadPilot search database…"));
+
+    let mut command = Command::new(&python);
+    command
+        .arg(pipeline.join("tools/build_search_region_from_source.py"))
+        .arg("--config")
+        .arg(&config)
+        .arg("--package-version")
+        .arg(&package_version)
+        .arg("--work-dir")
+        .arg(&work)
+        .arg("--dist-dir")
+        .arg(&dist);
+    if refresh_source {
+        command.arg("--refresh-source");
+    }
+    run_process_streaming(&app, &state, command)?;
+    emit_log(&app, format!("✓ {region_id} search package validated."));
+    Ok(())
+}
+
+#[tauri::command]
+fn start_search_build(
+    app: AppHandle,
+    state: State<'_, BuildState>,
+    region_id: String,
+    package_version: String,
+    refresh_source: bool,
+) -> Result<(), String> {
+    if !safe_token(&region_id) {
+        return Err("Region id is invalid.".into());
+    }
+    if !safe_token(&package_version) {
+        return Err("Package version contains unsupported characters.".into());
+    }
+
+    let owned = state.inner().clone();
+    {
+        let mut status = owned.status.lock().expect("build status poisoned");
+        if status.running {
+            return Err("Another Graph Studio build is already running.".into());
+        }
+        *status = BuildStatus {
+            running: true,
+            current_region: Some(region_id.clone()),
+            queue: vec![region_id.clone()],
+            stage: "Starting search build".into(),
+            started_at_epoch_ms: Some(now_epoch_ms()),
+            last_error: None,
+        };
+    }
+    owned.cancel.store(false, Ordering::SeqCst);
+    emit_status(&app, &owned);
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = run_search_build(
+            app.clone(),
+            owned.clone(),
+            region_id,
+            package_version,
+            refresh_source,
+        );
+        let mut snapshot = owned.status.lock().expect("build status poisoned");
+        snapshot.running = false;
+        snapshot.current_region = None;
+        snapshot.queue.clear();
+        match result {
+            Ok(()) => {
+                snapshot.stage = "Search build complete".into();
+                snapshot.last_error = None;
+                emit_log(&app, "✓ Search build complete.");
+            }
+            Err(error) => {
+                let cancelled = owned.cancel.load(Ordering::SeqCst);
+                snapshot.stage = if cancelled {
+                    "Build cancelled".into()
+                } else {
+                    "Search build failed".into()
+                };
+                snapshot.last_error = Some(error.clone());
+                emit_log(&app, format!("✗ {error}"));
+            }
+        }
+        owned.cancel.store(false, Ordering::SeqCst);
+        drop(snapshot);
+        emit_status(&app, &owned);
+    });
+    Ok(())
+}
+
 #[tauri::command]
 fn start_build_queue(
     app: AppHandle,
@@ -1364,6 +1513,164 @@ fn list_builds(app: AppHandle) -> Result<Vec<BuildArtifact>, String> {
     Ok(result)
 }
 
+
+#[tauri::command]
+fn list_search_builds(app: AppHandle) -> Result<Vec<SearchBuildArtifact>, String> {
+    let root = search_dist_dir(&app)?;
+    let mut result = Vec::new();
+    let Ok(regions) = fs::read_dir(&root) else {
+        return Ok(result);
+    };
+
+    for region_dir in regions.flatten().filter(|entry| entry.path().is_dir()) {
+        let Ok(versions) = fs::read_dir(region_dir.path()) else {
+            continue;
+        };
+        for version_dir in versions.flatten().filter(|entry| entry.path().is_dir()) {
+            let Ok(files) = fs::read_dir(version_dir.path()) else {
+                continue;
+            };
+            for entry in files.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|v| v.to_str()) != Some("json") {
+                    continue;
+                }
+                let Ok(text) = fs::read_to_string(&path) else {
+                    continue;
+                };
+                let Ok(value) = serde_json::from_str::<Value>(&text) else {
+                    continue;
+                };
+                if value.get("schema").and_then(Value::as_str) != Some("roadpilot-search-pack") {
+                    continue;
+                }
+                let runtime_contracts = value
+                    .pointer("/capabilities/runtimeContracts")
+                    .and_then(Value::as_array)
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_string)
+                            .collect()
+                    })
+                    .unwrap_or_else(|| {
+                        value
+                            .pointer("/validation/runtimeContract")
+                            .and_then(Value::as_str)
+                            .map(|v| vec![v.to_string()])
+                            .unwrap_or_default()
+                    });
+
+                result.push(SearchBuildArtifact {
+                    region_id: value.get("regionId").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    version: value.get("packVersion").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    built_at_utc: value.get("builtAtUtc").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    artifact_file: value.get("fileName").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    size_bytes: value.get("sizeBytes").and_then(Value::as_u64).unwrap_or(0),
+                    sha256: value.get("sha256").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    record_count: value.get("recordCount").and_then(Value::as_u64).unwrap_or(0),
+                    source_release: value.pointer("/source/dataRelease").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    source_fingerprint: value.get("sourceFingerprint").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    database_schema: value.get("databaseSchema").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    runtime_contracts,
+                    categorized_record_count: value.pointer("/enrichment/categorizedRecordCount").and_then(Value::as_u64).unwrap_or(0),
+                    structured_address_record_count: value.pointer("/enrichment/structuredAddressRecordCount").and_then(Value::as_u64).unwrap_or(0),
+                    source_identified_record_count: value.pointer("/enrichment/sourceIdentifiedRecordCount").and_then(Value::as_u64).unwrap_or(0),
+                    manifest_path: path.display().to_string(),
+                });
+            }
+        }
+    }
+    result.sort_by(|a, b| b.built_at_utc.cmp(&a.built_at_utc));
+    Ok(result)
+}
+
+fn safe_search_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, String> {
+    let requested = PathBuf::from(raw)
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve search manifest {raw}: {e}"))?;
+    let root = search_dist_dir(app)?
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve Graph Studio search-build directory: {e}"))?;
+    if !requested.starts_with(&root) || !requested.is_file() {
+        return Err("Search manifest is outside the Graph Studio search-build workspace.".into());
+    }
+    let value: Value = serde_json::from_str(
+        &fs::read_to_string(&requested)
+            .map_err(|e| format!("Could not read search manifest: {e}"))?,
+    )
+    .map_err(|e| format!("Could not parse search manifest: {e}"))?;
+    if value.get("schema").and_then(Value::as_str) != Some("roadpilot-search-pack") {
+        return Err("Selected file is not a RoadPilot search manifest.".into());
+    }
+    Ok(requested)
+}
+
+fn search_database_for_manifest(app: &AppHandle, raw: &str) -> Result<PathBuf, String> {
+    let manifest = safe_search_manifest_path(app, raw)?;
+    let value: Value = serde_json::from_str(
+        &fs::read_to_string(&manifest)
+            .map_err(|e| format!("Could not read search manifest: {e}"))?,
+    )
+    .map_err(|e| format!("Could not parse search manifest: {e}"))?;
+    let file_name = value
+        .get("fileName")
+        .and_then(Value::as_str)
+        .ok_or("Search manifest does not name its SQLite artifact.")?;
+    let database = manifest.parent().unwrap_or(Path::new(".")).join(file_name);
+    if !database.is_file() {
+        return Err(format!("Search database is missing: {}", database.display()));
+    }
+    Ok(database)
+}
+
+#[tauri::command]
+fn query_search_build(
+    app: AppHandle,
+    manifest_path: String,
+    query: String,
+    category: String,
+    origin_lat: Option<f64>,
+    origin_lng: Option<f64>,
+    limit: u32,
+) -> Result<Value, String> {
+    if query.trim().is_empty() && category.trim().is_empty() {
+        return Ok(json!([]));
+    }
+    if origin_lat.is_some() != origin_lng.is_some() {
+        return Err("Search origin requires both latitude and longitude.".into());
+    }
+    let database = search_database_for_manifest(&app, &manifest_path)?;
+    let python = ensure_python_env(&app)?;
+    let pipeline = pipeline_root(&app)?;
+    let mut command = Command::new(&python);
+    command
+        .arg(pipeline.join("tools/roadpilot_search_v2.py"))
+        .arg("--database")
+        .arg(&database)
+        .arg("--limit")
+        .arg(limit.clamp(1, 50).to_string())
+        .arg("--json");
+    if !query.trim().is_empty() {
+        command.arg("--query").arg(query.trim());
+    }
+    if !category.trim().is_empty() {
+        command.arg("--category").arg(category.trim());
+    }
+    if let (Some(lat), Some(lng)) = (origin_lat, origin_lng) {
+        command.arg("--origin-lat").arg(lat.to_string());
+        command.arg("--origin-lng").arg(lng.to_string());
+    }
+    let output = command
+        .output()
+        .map_err(|e| format!("Could not run RoadPilot search runtime: {e}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|e| format!("RoadPilot search runtime returned invalid JSON: {e}"))
+}
 
 #[tauri::command]
 fn list_visual_builds(app: AppHandle) -> Result<Vec<VisualBuildArtifact>, String> {
@@ -3943,8 +4250,11 @@ pub fn run() {
             system_stats,
             build_status,
             start_build_queue,
+            start_search_build,
             cancel_build,
             list_builds,
+            list_search_builds,
+            query_search_build,
             list_visual_builds,
             visual_archive_range,
             r2_credential_status,
