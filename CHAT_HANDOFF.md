@@ -26,32 +26,28 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Issue #35 — precomputed per-region border-entry → border-exit routing matrices.**
+**Issue #35 — regional connector matrices, milestone 3: sparse hierarchical composition.**
 
-Issue #26 is completed and remains the foundation:
-- stable OSM frontier discovery;
-- independent Graph A/B correlation;
-- exact-edge Valhalla crossing proof;
-- compact validated runtime connectivity;
-- multi-hop chain composition;
-- graph/boundary fingerprint freshness;
-- F8 fallback.
+Merged #35 milestones:
+- PR #36 — deterministic per-region connector anchor inventories with proven Motorcycle/Car ENTRY/EXIT roles;
+- PR #37 — Valhalla sources-to-targets entry→exit matrices, with normal-route + trace exact first/last DirectedEdge validation and explicit REACHABLE/UNREACHABLE/INCONCLUSIVE cells.
 
-Organic Maps' cross-MWM architecture revealed the next missing layer: a valid A→B crossing and a valid B→C crossing do not by themselves prove that the selected entry into B can reach the selected exit from B. #35 adds that proof and cost at build time.
+Current branch: `regional-connector-matrix-m3`.
 
-Target #35 architecture:
-- collect every validated RoadPilot border anchor touching a region;
-- classify graph-bound entry/exit states per Motorcycle and Car;
-- use plain Valhalla many-to-many / sources-to-targets on the regional graph;
-- store sparse reachable entry→exit time and distance metrics;
-- bind those weights to the exact regional graph fingerprint;
-- keep unreachable pairs explicit;
-- use the matrix for genuine FASTER/SHORTER sparse-chain ranking;
-- keep multiple candidate chains until detailed Valhalla routing resolves the final journey;
-- inspect topology/weights/freshness in Graph Studio;
-- execute #35 before #14 Cloudflare R2 publication.
+M3 architecture:
+- keep #26's adjacency-only composer intact as fallback/diagnostic behavior;
+- add a stricter matrix-backed hierarchical composer;
+- a selected crossing enters an intermediate region at its exact connector ENTRY anchor;
+- the next crossing may leave that region only if the regional matrix has a `REACHABLE` ENTRY→EXIT cell for the requested mode;
+- `UNREACHABLE` and `INCONCLUSIVE` cells are unusable, never penalized into existence;
+- matrix distance/time is the only build-time intermediate-region ranking cost;
+- tiny local border-proof probe metrics are not counted as journey costs;
+- FASTER uses proven intermediate time; SHORTER uses proven intermediate distance;
+- score scope is explicitly `INTERMEDIATE_REGIONS_ONLY` because origin/destination legs depend on the live route query;
+- multiple sparse crossing chains are retained for final detailed Valhalla selection;
+- graph/inventory/matrix fingerprints must agree exactly.
 
-Do not copy Organic Maps' strict same-geometry twin assumption. RoadPilot keeps independent A/B correlation and fingerprint-bound graph-local bindings.
+Issue #26 remains the physical-crossing/proof foundation and F8 remains fallback for missing/stale/ambiguous precomputed metadata.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -72,11 +68,10 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Implement #35 regional connector matrices in milestones.
-2. First milestone: define the graph-fingerprint-bound matrix artifact and deterministic anchor inventory for one regional graph.
-3. Next: populate entry→exit reachability/time/distance with plain Valhalla for Motorcycle and Car.
-4. Then replace adjacency-only multi-hop scoring with matrix-backed FASTER/SHORTER candidate chains and add Graph Studio inspection.
-5. After #35 is green and merged, proceed to #14 Cloudflare R2 publication.
+1. Get #35 M3 matrix-backed hierarchical composition green and merged.
+2. M4: expose connector anchors, REACHABLE/UNREACHABLE/INCONCLUSIVE matrix cells, weights and freshness in Graph Studio.
+3. Integrate connector-matrix staleness/surgical rebuild state into the lifecycle and close #35 when acceptance is met.
+4. Then proceed to #14 Cloudflare R2 publication.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
