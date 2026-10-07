@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-07T19:40:33.492Z",
+  "generatedAt": "2026-10-07T23:08:44.774Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,9 +11,9 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "ac3bc61de6160fabfe929ac6c93797d1543ec8cd",
-    "message": "Merge pull request #49 from kandyman991/search-enrichment-m2\n\nEnrich RoadPilot search artifacts with taxonomy and proximity",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/ac3bc61de6160fabfe929ac6c93797d1543ec8cd"
+    "sha": "092c8792e11e62c8527ad2c8094ef58b501436ce",
+    "message": "Merge pull request #50 from kandyman991/search-poi-workspace-m3\n\nGraph Studio: add Search and POI inspector workspace",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/092c8792e11e62c8527ad2c8094ef58b501436ce"
   },
   "openPullRequests": [],
   "openIssues": [
@@ -44,36 +44,80 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 37676261519,
+      "id": 37700473321,
       "name": "Build RoadPilot Graph Studio",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "092c8792e11e62c8527ad2c8094ef58b501436ce",
+      "event": "push",
+      "updatedAt": "2026-10-07T23:08:05Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37700473321"
+    },
+    {
+      "id": 37700473207,
+      "name": "Validate offline-data repository",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "092c8792e11e62c8527ad2c8094ef58b501436ce",
+      "event": "push",
+      "updatedAt": "2026-10-07T23:08:06Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37700473207"
+    },
+    {
+      "id": 37699189875,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "search-poi-workspace-m3",
+      "headSha": "5cee23d1dc7e8830aca0a2994e45eac477e3be10",
+      "event": "pull_request",
+      "updatedAt": "2026-10-07T22:58:36Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37699189875"
+    },
+    {
+      "id": 37699189829,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "search-poi-workspace-m3",
+      "headSha": "5cee23d1dc7e8830aca0a2994e45eac477e3be10",
+      "event": "pull_request",
+      "updatedAt": "2026-10-07T22:58:51Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37699189829"
+    },
+    {
+      "id": 37676261519,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "ac3bc61de6160fabfe929ac6c93797d1543ec8cd",
       "event": "push",
-      "updatedAt": "2026-10-07T19:40:31Z",
+      "updatedAt": "2026-10-07T19:48:35Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37676261519"
     },
     {
       "id": 37676261319,
       "name": "Validate offline-data repository",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "ac3bc61de6160fabfe929ac6c93797d1543ec8cd",
       "event": "push",
-      "updatedAt": "2026-10-07T19:40:30Z",
+      "updatedAt": "2026-10-07T19:43:47Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37676261319"
     },
     {
       "id": 37676261299,
       "name": "Publish RoadPilot Overture Sidecar Pack",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "ac3bc61de6160fabfe929ac6c93797d1543ec8cd",
       "event": "push",
-      "updatedAt": "2026-10-07T19:40:31Z",
+      "updatedAt": "2026-10-07T19:42:25Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37676261299"
     },
     {
@@ -108,50 +152,6 @@
       "event": "pull_request",
       "updatedAt": "2026-10-07T19:34:21Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37675077430"
-    },
-    {
-      "id": 37675035419,
-      "name": "Publish RoadPilot Overture Sidecar Pack",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "search-enrichment-m2",
-      "headSha": "550938b36a808a38c6e4595356f727ca4ccb510f",
-      "event": "pull_request",
-      "updatedAt": "2026-10-07T19:32:14Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37675035419"
-    },
-    {
-      "id": 37675035315,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "search-enrichment-m2",
-      "headSha": "550938b36a808a38c6e4595356f727ca4ccb510f",
-      "event": "pull_request",
-      "updatedAt": "2026-10-07T19:34:20Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37675035315"
-    },
-    {
-      "id": 37675035313,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "search-enrichment-m2",
-      "headSha": "550938b36a808a38c6e4595356f727ca4ccb510f",
-      "event": "pull_request",
-      "updatedAt": "2026-10-07T19:36:22Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37675035313"
-    },
-    {
-      "id": 37674941242,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "search-enrichment-m2",
-      "headSha": "e18332816b0eca42b532f1f954764fc5d87f27bb",
-      "event": "pull_request",
-      "updatedAt": "2026-10-07T19:33:31Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37674941242"
     }
   ]
 }
