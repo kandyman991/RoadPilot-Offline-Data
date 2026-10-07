@@ -2921,6 +2921,8 @@ function configFromEditor(): Record<string, unknown> {
   const existing = editorExistingConfig ? structuredClone(editorExistingConfig) : {};
   const existingOverture = existing["overture"];
   const existingRouting = (existing["routing"] ?? {}) as Record<string, unknown>;
+  const existingVisual = (existing["visual"] ?? {}) as Record<string, unknown>;
+  const existingVisualValidation = (existingVisual.validation ?? {}) as Record<string, unknown>;
   const existingRoutes = Array.isArray(existingRouting.validationRoutes)
     ? existingRouting.validationRoutes as Array<Record<string, unknown>>
     : [];
@@ -2959,6 +2961,28 @@ function configFromEditor(): Record<string, unknown> {
         manifestFileNameTemplate: `${regionId}-routing-{version}-manifest.json`,
       },
       validationRoutes,
+    },
+    visual: {
+      ...existingVisual,
+      enabled: true,
+      source: {
+        primaryGeofabrikId: editorPreview.geofabrikId,
+        url: editorPreview.pbfUrl,
+        polygonUrl: editorPreview.polygonUrl,
+      },
+      buildThreads: Number(existingVisual.buildThreads ?? 4),
+      package: {
+        fileNameTemplate: `${regionId}-visual-{version}.pmtiles`,
+        manifestFileNameTemplate: `${regionId}-visual-{version}-manifest.json`,
+        roadIndexFileNameTemplate: `${regionId}-visual-{version}-road-index.json`,
+      },
+      validation: {
+        ...existingVisualValidation,
+        majorRoadClasses: Array.isArray(existingVisualValidation.majorRoadClasses)
+          ? existingVisualValidation.majorRoadClasses
+          : ["motorway", "trunk", "primary", "secondary"],
+        borderToleranceMeters: Number(existingVisualValidation.borderToleranceMeters ?? 75),
+      },
     },
   };
   if (existingOverture) config["overture"] = existingOverture;
@@ -3433,6 +3457,36 @@ async function renderComparison(): Promise<void> {
 compareA.addEventListener("change", () => { void renderComparison(); });
 compareB.addEventListener("change", () => { void renderComparison(); });
 
+visualBuildSelect.addEventListener("change", () => {
+  const build = selectedVisualBuild();
+  loadVisualBuildBtn.disabled = build == null;
+  fitVisualBuildBtn.disabled = build == null;
+  renderVisualBuildSummary(build);
+});
+loadVisualBuildBtn.addEventListener("click", () => {
+  const build = selectedVisualBuild();
+  if (!build) return;
+  try {
+    addVisualBuildLayer(build);
+    fitVisualBuild(build);
+    appendLog(`Loaded exact visual PMTiles: ${build.region_id} • ${build.version}`);
+  } catch (error) {
+    visualBuildSummary.className = "bad";
+    visualBuildSummary.textContent = `Could not load visual PMTiles: ${String(error)}`;
+  }
+});
+fitVisualBuildBtn.addEventListener("click", () => {
+  const build = selectedVisualBuild();
+  if (build) fitVisualBuild(build);
+});
+visualCompareA.addEventListener("change", () => {
+  compareVisualBuildsBtn.disabled = !(visualCompareA.value && visualCompareB.value);
+});
+visualCompareB.addEventListener("change", () => {
+  compareVisualBuildsBtn.disabled = !(visualCompareA.value && visualCompareB.value);
+});
+compareVisualBuildsBtn.addEventListener("click", compareVisualBuilds);
+
 saveR2CredentialsBtn.addEventListener("click", async () => {
   saveR2CredentialsBtn.disabled = true;
   r2CredentialSummary.className = "empty";
@@ -3754,7 +3808,10 @@ async function bootstrap(): Promise<void> {
   await listen<{ line: string }>("graph-studio://build-log", event => appendLog(event.payload.line));
   await listen<BuildStatus>("graph-studio://build-status", event => {
     renderBuildStatus(event.payload);
-    if (!event.payload.running) refreshBuilds().catch(() => {});
+    if (!event.payload.running) {
+      refreshBuilds().catch(() => {});
+      refreshVisualBuilds().catch(() => {});
+    }
   });
   await listen<PublicationStatus>("graph-studio://publication-status", event => {
     renderPublicationStatus(event.payload);
@@ -3771,6 +3828,7 @@ async function bootstrap(): Promise<void> {
     refreshToolchain(),
     refreshBuildStatus(),
     refreshBuilds(),
+    refreshVisualBuilds(),
     refreshHandoffOverrides(),
     refreshStats(),
     refreshR2CredentialStatus(),
