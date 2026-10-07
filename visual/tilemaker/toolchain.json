@@ -2,6 +2,7 @@
   "schema": "roadpilot-visual-toolchain",
   "version": 1,
   "tilemakerVersion": "3.2.0",
-  "dockerImage": "ghcr.io/systemed/tilemaker:master@sha256:d32505d7827907089c2dd07517524276946d8930b4b82e93cf5c25ec989bbe41",
-  "sourceTag": "v3.2.0"
+  "sourceRepository": "https://github.com/systemed/tilemaker",
+  "sourceTag": "v3.2.0",
+  "sourceCommit": "c7d1dbfaf87baa9e0bc9b2e984e0dae90dcf00c5"
 }
