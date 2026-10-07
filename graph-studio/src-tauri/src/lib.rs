@@ -1326,6 +1326,151 @@ fn list_builds(app: AppHandle) -> Result<Vec<BuildArtifact>, String> {
 }
 
 
+#[tauri::command]
+fn list_visual_builds(app: AppHandle) -> Result<Vec<VisualBuildArtifact>, String> {
+    let root = visual_dist_dir(&app)?;
+    let mut result = Vec::new();
+    let Ok(regions) = fs::read_dir(&root) else {
+        return Ok(result);
+    };
+
+    for region_dir in regions.flatten().filter(|entry| entry.path().is_dir()) {
+        let Ok(versions) = fs::read_dir(region_dir.path()) else {
+            continue;
+        };
+        for version_dir in versions.flatten().filter(|entry| entry.path().is_dir()) {
+            let Ok(files) = fs::read_dir(version_dir.path()) else {
+                continue;
+            };
+            for entry in files.flatten() {
+                let path = entry.path();
+                let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                    continue;
+                };
+                if !name.ends_with("-manifest.json") {
+                    continue;
+                }
+                let Ok(text) = fs::read_to_string(&path) else {
+                    continue;
+                };
+                let Ok(value) = serde_json::from_str::<Value>(&text) else {
+                    continue;
+                };
+                if value.get("schema").and_then(Value::as_str) != Some("roadpilot-visual-pack") {
+                    continue;
+                }
+                let Some(artifact) = value.get("artifact") else {
+                    continue;
+                };
+                let layers = value
+                    .get("layers")
+                    .and_then(Value::as_array)
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_string)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                result.push(VisualBuildArtifact {
+                    region_id: value.get("regionId").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    version: value.get("packageVersion").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    built_at_utc: value.get("builtAtUtc").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    artifact_file: artifact.get("fileName").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    size_bytes: artifact.get("sizeBytes").and_then(Value::as_u64).unwrap_or(0),
+                    sha256: artifact.get("sha256").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    tile_count: artifact.get("tileCount").and_then(Value::as_u64).unwrap_or(0),
+                    min_zoom: artifact.get("minZoom").and_then(Value::as_u64).unwrap_or(0),
+                    max_zoom: artifact.get("maxZoom").and_then(Value::as_u64).unwrap_or(0),
+                    bounds: artifact.get("bounds").cloned().unwrap_or_else(|| json!({})),
+                    source_fingerprint: value.get("sourceFingerprint").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    profile_fingerprint: value.get("profileFingerprint").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    manifest_path: path.display().to_string(),
+                    layers,
+                    road_index_file: value.pointer("/roadIndex/fileName").and_then(Value::as_str).map(str::to_string),
+                    major_road_count: value.pointer("/roadIndex/majorRoadCount").and_then(Value::as_u64).unwrap_or(0),
+                    border_road_count: value.pointer("/roadIndex/borderRoadCount").and_then(Value::as_u64).unwrap_or(0),
+                    missing_road_count: value.pointer("/roadIndex/missingRoadCount").and_then(Value::as_u64).unwrap_or(0),
+                });
+            }
+        }
+    }
+    result.sort_by(|a, b| b.built_at_utc.cmp(&a.built_at_utc));
+    Ok(result)
+}
+
+fn safe_visual_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, String> {
+    let requested = PathBuf::from(raw)
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve visual manifest {raw}: {e}"))?;
+    let root = visual_dist_dir(app)?
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve Graph Studio visual build directory: {e}"))?;
+    if !requested.starts_with(&root) || !requested.is_file() {
+        return Err("Visual manifest is outside the Graph Studio visual-build workspace.".into());
+    }
+    let text = fs::read_to_string(&requested)
+        .map_err(|e| format!("Could not read visual manifest: {e}"))?;
+    let value: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse visual manifest: {e}"))?;
+    if value.get("schema").and_then(Value::as_str) != Some("roadpilot-visual-pack") {
+        return Err("Selected manifest is not a RoadPilot visual pack.".into());
+    }
+    Ok(requested)
+}
+
+#[tauri::command]
+fn visual_archive_range(
+    app: AppHandle,
+    manifest_path: String,
+    offset: u64,
+    length: u64,
+) -> Result<Vec<u8>, String> {
+    const MAX_RANGE: u64 = 4 * 1024 * 1024;
+    if length == 0 || length > MAX_RANGE {
+        return Err(format!("Visual archive range length must be 1..={MAX_RANGE} bytes."));
+    }
+    let manifest_path = safe_visual_manifest_path(&app, &manifest_path)?;
+    let text = fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("Could not read visual manifest: {e}"))?;
+    let value: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Could not parse visual manifest: {e}"))?;
+    let file_name = value
+        .pointer("/artifact/fileName")
+        .and_then(Value::as_str)
+        .ok_or("Visual manifest is missing artifact.fileName.")?;
+    let parent = manifest_path.parent().ok_or("Visual manifest has no parent directory.")?;
+    let package = parent
+        .join(file_name)
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve visual PMTiles artifact: {e}"))?;
+    if !package.starts_with(parent) || !package.is_file() {
+        return Err("Visual PMTiles artifact is outside its retained build directory.".into());
+    }
+
+    let mut file = fs::File::open(&package)
+        .map_err(|e| format!("Could not open visual PMTiles artifact: {e}"))?;
+    let file_len = file
+        .metadata()
+        .map_err(|e| format!("Could not stat visual PMTiles artifact: {e}"))?
+        .len();
+    let end = offset
+        .checked_add(length)
+        .ok_or("Visual archive range overflow.")?;
+    if offset > file_len || end > file_len {
+        return Err(format!(
+            "Visual archive range is outside artifact bounds: offset={offset} length={length} size={file_len}"
+        ));
+    }
+    file.seek(SeekFrom::Start(offset))
+        .map_err(|e| format!("Could not seek visual PMTiles artifact: {e}"))?;
+    let mut bytes = vec![0_u8; length as usize];
+    file.read_exact(&mut bytes)
+        .map_err(|e| format!("Could not read visual PMTiles range: {e}"))?;
+    Ok(bytes)
+}
+
 fn safe_build_manifest_path(app: &AppHandle, raw: &str) -> Result<PathBuf, String> {
     let requested = PathBuf::from(raw)
         .canonicalize()
@@ -3714,6 +3859,8 @@ pub fn run() {
             start_build_queue,
             cancel_build,
             list_builds,
+            list_visual_builds,
+            visual_archive_range,
             r2_credential_status,
             save_r2_credentials,
             clear_r2_credentials,
