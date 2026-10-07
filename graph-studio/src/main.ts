@@ -846,6 +846,7 @@ let connectorInspection: ConnectorMatrixInspection | null = null;
 let r2Credentials: R2CredentialStatus | null = null;
 let remotePublication: R2RegionPublicationStatus | null = null;
 let currentPublicationStatus: PublicationStatus | null = null;
+let toolchainReady = false;
 let handoffMarkerA: Marker | null = null;
 let handoffMarkerB: Marker | null = null;
 let routePickMode: "start" | "end" | null = null;
@@ -2772,6 +2773,7 @@ function setActiveRegion(region: RegionSummary): void {
   }
   fitActiveRegion();
   renderRegions();
+  renderVisualBuildSelectors();
 }
 
 function renderRegions(): void {
@@ -3073,7 +3075,8 @@ async function refreshToolchain(): Promise<void> {
     row.append(name, state);
     toolHost.appendChild(row);
   }
-  buildBtn.disabled = !status.ready;
+  toolchainReady = status.ready;
+  buildBtn.disabled = !toolchainReady;
 }
 
 async function refreshStats(): Promise<void> {
@@ -3094,7 +3097,7 @@ function renderBuildStatus(status: BuildStatus): void {
   document.querySelector("#statusQueue")!.textContent = status.queue.length ? `Queue: ${status.queue.join(" → ")}` : "";
   document.querySelector("#progress")!.classList.toggle("idle", !status.running);
   cancelBtn.disabled = !status.running;
-  buildBtn.disabled = status.running;
+  buildBtn.disabled = status.running || !toolchainReady;
 }
 
 async function refreshBuildStatus(): Promise<void> {
@@ -3152,6 +3155,7 @@ function renderVisualBuildSummary(build: VisualBuildArtifact | null): void {
   visualBuildSummary.className = "kv";
   visualBuildSummary.innerHTML = `
     <dt>Region / version</dt><dd>${escapeHtml(build.region_id)} • ${escapeHtml(build.version)}</dd>
+    <dt>Artifact</dt><dd>${escapeHtml(build.artifact_file)}</dd>
     <dt>Size</dt><dd>${bytes(build.size_bytes)}</dd>
     <dt>Tiles</dt><dd>${build.tile_count}</dd>
     <dt>Zoom</dt><dd>${build.min_zoom}–${build.max_zoom}</dd>
