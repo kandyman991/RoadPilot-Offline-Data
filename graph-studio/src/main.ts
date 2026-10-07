@@ -48,6 +48,51 @@ type BuildArtifact = {
   internal_fingerprint: string | null;
   boundary_fingerprints: Record<string, string>;
 };
+type R2CredentialStatus = {
+  configured: boolean;
+  accountId: string | null;
+  bucket: string | null;
+  accessKeySuffix: string | null;
+  endpointUrl: string | null;
+};
+type PublicationStatus = {
+  running: boolean;
+  regionId: string | null;
+  packageVersion: string | null;
+  stage: string;
+  currentKey: string | null;
+  bytesTransferred: number;
+  totalBytes: number;
+  lastError: string | null;
+};
+type PublishedLatest = {
+  schema: string;
+  version: number;
+  artifactKind: string;
+  regionId: string;
+  packageVersion: string;
+  releaseKey: string;
+  releaseSha256: string;
+  builtAtUtc: string;
+};
+type PublishedRelease = {
+  key: string;
+  sha256: string | null;
+  artifactKind: string;
+  regionId: string;
+  packageVersion: string;
+  builtAtUtc: string;
+};
+type R2RegionPublicationStatus = {
+  schema: string;
+  version: number;
+  regionId: string;
+  namespace: string;
+  latestKey: string;
+  latest: PublishedLatest | null;
+  releases: PublishedRelease[];
+};
+
 type GeofabrikCatalogItem = {
   id: string;
   name: string;
@@ -335,6 +380,52 @@ app.innerHTML = `
         <p>Builds run sequentially and keep source/cache data in Graph Studio's local workspace.</p>
       </section>
       <section class="section">
+        <h2>R2 publication</h2>
+        <div id="r2CredentialSummary" class="empty">R2 credentials are not configured.</div>
+        <details class="route-options" style="margin-top:8px">
+          <summary>Credentials</summary>
+          <div class="field">
+            <label for="r2AccountId">Cloudflare account ID</label>
+            <input id="r2AccountId" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="r2Bucket">R2 bucket</label>
+            <input id="r2Bucket" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="r2AccessKey">Access key ID</label>
+            <input id="r2AccessKey" type="password" autocomplete="off" placeholder="Leave blank to keep saved key" />
+          </div>
+          <div class="field">
+            <label for="r2SecretKey">Secret access key</label>
+            <input id="r2SecretKey" type="password" autocomplete="off" placeholder="Leave blank to keep saved secret" />
+          </div>
+          <div class="field">
+            <label for="r2Endpoint">Custom endpoint (optional)</label>
+            <input id="r2Endpoint" autocomplete="off" placeholder="https://…" />
+          </div>
+          <div class="actions">
+            <button id="saveR2CredentialsBtn" class="btn primary" type="button">Save locally</button>
+            <button id="testR2CredentialsBtn" class="btn" type="button">Test</button>
+            <button id="clearR2CredentialsBtn" class="btn danger" type="button">Clear</button>
+          </div>
+          <p>Secrets are stored only in Graph Studio app data with private file permissions. They are never written to the repository or publication artifacts.</p>
+        </details>
+        <div class="field">
+          <label for="publishBuildSelect">Local validated routing build</label>
+          <select id="publishBuildSelect"></select>
+        </div>
+        <div class="actions">
+          <button id="refreshPublicationBtn" class="btn" type="button">Refresh R2</button>
+          <button id="publishBuildBtn" class="btn primary" type="button" disabled>Publish selected</button>
+        </div>
+        <div id="publicationVersionSummary" class="empty" style="margin-top:8px">Choose a local build.</div>
+        <div id="publicationProgress" class="publication-progress"><div></div></div>
+        <div id="publicationProgressText" class="status-line">Publication idle.</div>
+        <div class="status-title" style="margin-top:10px">Published history</div>
+        <div id="publicationHistory" class="empty">No region selected.</div>
+      </section>
+      <section class="section">
         <h2>Toolchain</h2>
         <div id="tools" class="empty">Checking local tools…</div>
       </section>
@@ -589,6 +680,22 @@ const saveRegionBtn = document.querySelector<HTMLButtonElement>("#saveRegionBtn"
 const closeRegionEditorBtn = document.querySelector<HTMLButtonElement>("#closeRegionEditorBtn")!;
 const buildBtn = document.querySelector<HTMLButtonElement>("#buildBtn")!;
 const cancelBtn = document.querySelector<HTMLButtonElement>("#cancelBtn")!;
+const r2CredentialSummary = document.querySelector<HTMLDivElement>("#r2CredentialSummary")!;
+const r2AccountId = document.querySelector<HTMLInputElement>("#r2AccountId")!;
+const r2Bucket = document.querySelector<HTMLInputElement>("#r2Bucket")!;
+const r2AccessKey = document.querySelector<HTMLInputElement>("#r2AccessKey")!;
+const r2SecretKey = document.querySelector<HTMLInputElement>("#r2SecretKey")!;
+const r2Endpoint = document.querySelector<HTMLInputElement>("#r2Endpoint")!;
+const saveR2CredentialsBtn = document.querySelector<HTMLButtonElement>("#saveR2CredentialsBtn")!;
+const testR2CredentialsBtn = document.querySelector<HTMLButtonElement>("#testR2CredentialsBtn")!;
+const clearR2CredentialsBtn = document.querySelector<HTMLButtonElement>("#clearR2CredentialsBtn")!;
+const publishBuildSelect = document.querySelector<HTMLSelectElement>("#publishBuildSelect")!;
+const refreshPublicationBtn = document.querySelector<HTMLButtonElement>("#refreshPublicationBtn")!;
+const publishBuildBtn = document.querySelector<HTMLButtonElement>("#publishBuildBtn")!;
+const publicationVersionSummary = document.querySelector<HTMLDivElement>("#publicationVersionSummary")!;
+const publicationProgress = document.querySelector<HTMLDivElement>("#publicationProgress")!;
+const publicationProgressText = document.querySelector<HTMLDivElement>("#publicationProgressText")!;
+const publicationHistory = document.querySelector<HTMLDivElement>("#publicationHistory")!;
 const graphLayerBtn = document.querySelector<HTMLButtonElement>("#graphLayerBtn")!;
 const fitBtn = document.querySelector<HTMLButtonElement>("#fitBtn")!;
 const locateBtn = document.querySelector<HTMLButtonElement>("#locateBtn")!;
@@ -655,6 +762,9 @@ let handoffSnapA: HandoffSnap | null = null;
 let handoffSnapB: HandoffSnap | null = null;
 let handoffValidation: HandoffValidation | null = null;
 let connectorInspection: ConnectorMatrixInspection | null = null;
+let r2Credentials: R2CredentialStatus | null = null;
+let remotePublication: R2RegionPublicationStatus | null = null;
+let currentPublicationStatus: PublicationStatus | null = null;
 let handoffMarkerA: Marker | null = null;
 let handoffMarkerB: Marker | null = null;
 let routePickMode: "start" | "end" | null = null;
