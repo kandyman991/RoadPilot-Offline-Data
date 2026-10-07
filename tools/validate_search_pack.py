@@ -14,9 +14,41 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from roadpilot_search_v1 import search
+from roadpilot_search_v2 import search as enhanced_search
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = REPO_ROOT / "schemas" / "search-pack-manifest.schema.json"
+ENRICHMENT_SCHEMA = "roadpilot-search-enrichment-v2"
+ENHANCED_RUNTIME_CONTRACT = "roadpilot-search-v2"
+
+BASE_COLUMNS = [
+    "id",
+    "name",
+    "name_norm",
+    "address",
+    "address_norm",
+    "latitude",
+    "longitude",
+    "confidence",
+]
+ENRICHED_COLUMNS = [
+    "freeform",
+    "postcode",
+    "locality",
+    "locality_norm",
+    "region",
+    "country",
+    "operating_status",
+    "basic_category",
+    "taxonomy_primary",
+    "taxonomy_hierarchy",
+    "taxonomy_alternates",
+    "category_norm",
+    "source_provider",
+    "source_dataset",
+    "source_record_id",
+    "source_version",
+]
 
 
 def fail(message: str) -> None:
@@ -44,6 +76,16 @@ def validate_schema(value: dict[str, Any]) -> None:
             for error in errors[:20]
         )
         fail(f"Search manifest schema validation failed:\n{detail}")
+
+
+def parse_count(metadata: dict[str, str], key: str, maximum: int) -> int:
+    try:
+        value = int(metadata[key])
+    except (KeyError, TypeError, ValueError):
+        fail(f"SQLite metadata {key} is missing or invalid")
+    if not (0 <= value <= maximum):
+        fail(f"SQLite metadata {key} is outside record-count bounds")
+    return value
 
 
 def main() -> int:
@@ -94,14 +136,50 @@ def main() -> int:
         if quick is None or quick[0] != "ok":
             fail(f"SQLite quick_check failed: {quick}")
         columns = [row[1] for row in db.execute("PRAGMA table_info(places)").fetchall()]
-        expected_columns = [
-            "id","name","name_norm","address","address_norm",
-            "latitude","longitude","confidence",
-        ]
-        if columns != expected_columns:
-            fail(f"Unexpected roadpilot-overture-v1 places schema: {columns}")
         metadata = dict(db.execute("SELECT key, value FROM meta").fetchall())
         count = int(db.execute("SELECT COUNT(*) FROM places").fetchone()[0])
+
+        enrichment_schema = str(metadata.get("search_enrichment_schema") or "").strip()
+        if enrichment_schema:
+            if enrichment_schema != ENRICHMENT_SCHEMA:
+                fail(f"Unsupported SQLite search enrichment schema: {enrichment_schema!r}")
+            if columns != BASE_COLUMNS + ENRICHED_COLUMNS:
+                fail(f"Unexpected enriched roadpilot-overture-v1 places schema: {columns}")
+            categorized_count = int(
+                db.execute("SELECT COUNT(*) FROM places WHERE category_norm <> ''").fetchone()[0]
+            )
+            structured_count = int(
+                db.execute(
+                    """
+                    SELECT COUNT(*) FROM places
+                    WHERE freeform <> '' OR postcode <> '' OR locality <> ''
+                       OR region <> '' OR country <> ''
+                    """
+                ).fetchone()[0]
+            )
+            source_identified_count = int(
+                db.execute(
+                    """
+                    SELECT COUNT(*) FROM places
+                    WHERE source_provider <> '' OR source_dataset <> ''
+                       OR source_record_id <> ''
+                    """
+                ).fetchone()[0]
+            )
+            enhanced_sample = db.execute(
+                """
+                SELECT id, basic_category, latitude, longitude
+                FROM places
+                WHERE basic_category <> '' AND operating_status <> 'permanently_closed'
+                ORDER BY id
+                LIMIT 1
+                """
+            ).fetchone()
+        else:
+            if columns != BASE_COLUMNS:
+                fail(f"Unexpected roadpilot-overture-v1 places schema: {columns}")
+            categorized_count = structured_count = source_identified_count = 0
+            enhanced_sample = None
     finally:
         db.close()
 
@@ -134,6 +212,64 @@ def main() -> int:
             f"got {manifest['sourceFingerprint']}"
         )
 
+    enrichment = manifest.get("enrichment")
+    capabilities = manifest.get("capabilities")
+    if enrichment_schema:
+        if not isinstance(enrichment, dict) or not isinstance(capabilities, dict):
+            fail("Enriched search database is missing manifest enrichment/capabilities")
+        if enrichment["schema"] != enrichment_schema:
+            fail("Manifest search enrichment schema does not match SQLite metadata")
+        recorded_counts = {
+            "categorizedRecordCount": parse_count(metadata, "categorized_record_count", count),
+            "structuredAddressRecordCount": parse_count(
+                metadata, "structured_address_record_count", count
+            ),
+            "sourceIdentifiedRecordCount": parse_count(
+                metadata, "source_identified_record_count", count
+            ),
+        }
+        actual_counts = {
+            "categorizedRecordCount": categorized_count,
+            "structuredAddressRecordCount": structured_count,
+            "sourceIdentifiedRecordCount": source_identified_count,
+        }
+        if any(value <= 0 for value in actual_counts.values()):
+            fail(f"Enriched search pack is missing required enrichment coverage: {actual_counts}")
+        if recorded_counts != actual_counts:
+            fail(
+                f"SQLite search enrichment counts changed: recorded={recorded_counts} "
+                f"actual={actual_counts}"
+            )
+        for key, actual in actual_counts.items():
+            if enrichment[key] != actual:
+                fail(f"Manifest {key} does not match enriched SQLite content")
+        if metadata.get("enhanced_runtime_contract") != ENHANCED_RUNTIME_CONTRACT:
+            fail("SQLite enhanced runtime contract metadata is invalid")
+        runtime_contracts = capabilities["runtimeContracts"]
+        if ENHANCED_RUNTIME_CONTRACT not in runtime_contracts:
+            fail("Manifest does not advertise the enhanced search runtime contract")
+        if "android-overture-place-search-v1" not in runtime_contracts:
+            fail("Manifest dropped the Android v1 compatibility runtime contract")
+        if enhanced_sample is None:
+            fail("Enriched search pack has no open categorized runtime sample")
+        sample_id, sample_category, sample_lat, sample_lng = enhanced_sample
+        enhanced_results = enhanced_search(
+            database,
+            category=str(sample_category),
+            origin_lat=float(sample_lat),
+            origin_lng=float(sample_lng),
+            limit=8,
+        )
+        if not enhanced_results:
+            fail(
+                f"Enhanced runtime returned no results for category sample "
+                f"{sample_category!r} at {sample_id!r}"
+            )
+        if enhanced_results[0].scoreProximity <= 0:
+            fail("Enhanced runtime proximity scoring did not activate")
+    elif enrichment is not None or capabilities is not None:
+        fail("Historical v1 database must not advertise M2 enrichment capabilities")
+
     validation = manifest["validation"]
     if validation["targetCount"] != len(validation["results"]):
         fail("Search validation targetCount does not match result list")
@@ -159,9 +295,13 @@ def main() -> int:
     if not re.fullmatch(r"\d+\.\d+\.\d+", source["clientVersion"]):
         fail("Source client version is not semantic")
 
+    enrichment_text = (
+        f" enriched={categorized_count}/{count}" if enrichment_schema else ""
+    )
     print(
         f"valid search pack: {manifest['regionId']} {manifest['packVersion']} "
-        f"release={source['dataRelease']} records={count} targets={validation['targetCount']}"
+        f"release={source['dataRelease']} records={count} "
+        f"targets={validation['targetCount']}{enrichment_text}"
     )
     return 0
 

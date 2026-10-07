@@ -7,6 +7,9 @@ import unicodedata
 from pathlib import Path
 
 DATABASE_SCHEMA = "roadpilot-overture-v1"
+ENRICHMENT_SCHEMA = "roadpilot-search-enrichment-v2"
+ENHANCED_RUNTIME_CONTRACT = "roadpilot-search-v2"
+
 
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
@@ -15,6 +18,7 @@ def sha256_file(path: Path) -> str:
             digest.update(chunk)
     return digest.hexdigest()
 
+
 def normalize(value: str) -> str:
     decomposed = unicodedata.normalize("NFKD", value or "")
     without_marks = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
@@ -22,8 +26,25 @@ def normalize(value: str) -> str:
         "".join(ch.lower() if ch.isalnum() else " " for ch in without_marks).split()
     )
 
+
 def clean(value) -> str:
     return " ".join(str(value or "").split()).strip()
+
+
+def clean_list(value) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    result: list[str] = []
+    for item in value:
+        text = clean(item)
+        if text and text not in result:
+            result.append(text)
+    return result
+
+
+def compact_json(values: list[str]) -> str:
+    return json.dumps(values, ensure_ascii=False, separators=(",", ":"))
+
 
 def full_address(address: dict) -> str:
     parts = [
@@ -38,6 +59,64 @@ def full_address(address: dict) -> str:
         if part and all(part.casefold() != existing.casefold() for existing in result):
             result.append(part)
     return ", ".join(result)
+
+
+def taxonomy_fields(props: dict) -> tuple[str, str, list[str], list[str], str]:
+    basic_category = clean(props.get("basic_category"))
+    taxonomy = props.get("taxonomy")
+    if not isinstance(taxonomy, dict):
+        taxonomy = {}
+
+    primary = clean(taxonomy.get("primary"))
+    hierarchy = clean_list(taxonomy.get("hierarchy"))
+    alternates = clean_list(taxonomy.get("alternates"))
+
+    # Older Overture inputs may still contain the deprecated categories object.
+    # Keeping this fallback makes retained/replay builds possible while September
+    # 2026+ production data uses basic_category + taxonomy.
+    legacy = props.get("categories")
+    if isinstance(legacy, dict):
+        if not primary:
+            primary = clean(legacy.get("primary"))
+        if not alternates:
+            alternates = clean_list(legacy.get("alternate"))
+
+    if primary and primary not in hierarchy:
+        hierarchy.append(primary)
+
+    category_terms: list[str] = []
+    for value in [basic_category, primary, *hierarchy, *alternates]:
+        normalized = normalize(value)
+        if normalized and normalized not in category_terms:
+            category_terms.append(normalized)
+
+    return basic_category, primary, hierarchy, alternates, " ".join(category_terms)
+
+
+def preferred_source(props: dict) -> tuple[str, str, str, str]:
+    sources = [item for item in (props.get("sources") or []) if isinstance(item, dict)]
+    if not sources:
+        return "", "", "", ""
+
+    def score(item: dict) -> tuple[float, str, str, str, str]:
+        try:
+            confidence = float(item.get("confidence"))
+        except (TypeError, ValueError):
+            confidence = -1.0
+        provider = clean(item.get("provider"))
+        dataset = clean(item.get("dataset") or item.get("resource"))
+        record_id = clean(item.get("record_id") or item.get("recordId"))
+        version = clean(item.get("version"))
+        return (confidence, provider, dataset, record_id, version)
+
+    selected = max(sources, key=score)
+    return (
+        clean(selected.get("provider")),
+        clean(selected.get("dataset") or selected.get("resource")),
+        clean(selected.get("record_id") or selected.get("recordId")),
+        clean(selected.get("version")),
+    )
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -68,13 +147,36 @@ def main() -> None:
             address_norm TEXT NOT NULL,
             latitude REAL NOT NULL,
             longitude REAL NOT NULL,
-            confidence REAL NOT NULL
+            confidence REAL NOT NULL,
+            freeform TEXT NOT NULL,
+            postcode TEXT NOT NULL,
+            locality TEXT NOT NULL,
+            locality_norm TEXT NOT NULL,
+            region TEXT NOT NULL,
+            country TEXT NOT NULL,
+            operating_status TEXT NOT NULL,
+            basic_category TEXT NOT NULL,
+            taxonomy_primary TEXT NOT NULL,
+            taxonomy_hierarchy TEXT NOT NULL,
+            taxonomy_alternates TEXT NOT NULL,
+            category_norm TEXT NOT NULL,
+            source_provider TEXT NOT NULL,
+            source_dataset TEXT NOT NULL,
+            source_record_id TEXT NOT NULL,
+            source_version TEXT NOT NULL
         );
         CREATE INDEX idx_places_name_norm ON places(name_norm);
+        CREATE INDEX idx_places_category_norm ON places(category_norm);
+        CREATE INDEX idx_places_locality_norm ON places(locality_norm);
+        CREATE INDEX idx_places_lat_lon ON places(latitude, longitude);
         """
     )
 
     inserted = 0
+    categorized_records = 0
+    structured_address_records = 0
+    source_identified_records = 0
+
     with open(args.input, "r", encoding="utf-8") as source:
         for line in source:
             line = line.strip()
@@ -110,8 +212,38 @@ def main() -> None:
             if not place_id:
                 place_id = f"{normalize(name)}:{latitude:.6f}:{longitude:.6f}"
 
+            freeform = clean(address_obj.get("freeform"))
+            postcode = clean(address_obj.get("postcode"))
+            locality = clean(address_obj.get("locality"))
+            region = clean(address_obj.get("region"))
+            operating_status = clean(props.get("operating_status"))
+            (
+                basic_category,
+                taxonomy_primary,
+                taxonomy_hierarchy,
+                taxonomy_alternates,
+                category_norm,
+            ) = taxonomy_fields(props)
+            (
+                source_provider,
+                source_dataset,
+                source_record_id,
+                source_version,
+            ) = preferred_source(props)
+
             cursor = db.execute(
-                "INSERT OR IGNORE INTO places VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                """
+                INSERT OR IGNORE INTO places (
+                    id, name, name_norm, address, address_norm,
+                    latitude, longitude, confidence,
+                    freeform, postcode, locality, locality_norm, region, country,
+                    operating_status, basic_category, taxonomy_primary,
+                    taxonomy_hierarchy, taxonomy_alternates, category_norm,
+                    source_provider, source_dataset, source_record_id, source_version
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                )
+                """,
                 (
                     place_id,
                     name,
@@ -121,9 +253,33 @@ def main() -> None:
                     latitude,
                     longitude,
                     confidence,
+                    freeform,
+                    postcode,
+                    locality,
+                    normalize(locality),
+                    region,
+                    country,
+                    operating_status,
+                    basic_category,
+                    taxonomy_primary,
+                    compact_json(taxonomy_hierarchy),
+                    compact_json(taxonomy_alternates),
+                    category_norm,
+                    source_provider,
+                    source_dataset,
+                    source_record_id,
+                    source_version,
                 ),
             )
-            inserted += cursor.rowcount
+            if cursor.rowcount:
+                inserted += 1
+                if category_norm:
+                    categorized_records += 1
+                if freeform or postcode or locality or region or country:
+                    structured_address_records += 1
+                if source_provider or source_dataset or source_record_id:
+                    source_identified_records += 1
+
             if inserted and inserted % 5000 == 0:
                 db.commit()
 
@@ -140,13 +296,23 @@ def main() -> None:
             ("source_client", "overturemaps"),
             ("source_client_version", args.source_client_version.strip() or "unknown"),
             ("source_input_sha256", source_input_sha256),
+            ("search_enrichment_schema", ENRICHMENT_SCHEMA),
+            ("enhanced_runtime_contract", ENHANCED_RUNTIME_CONTRACT),
+            ("categorized_record_count", str(categorized_records)),
+            ("structured_address_record_count", str(structured_address_records)),
+            ("source_identified_record_count", str(source_identified_records)),
         ],
     )
     db.commit()
     db.execute("ANALYZE")
     db.execute("VACUUM")
     db.close()
-    print(f"Wrote {inserted} Overture places to {output}")
+    print(
+        f"Wrote {inserted} Overture places to {output} "
+        f"(categorized={categorized_records}, structuredAddress={structured_address_records}, "
+        f"sourceIdentified={source_identified_records})"
+    )
+
 
 if __name__ == "__main__":
     main()
