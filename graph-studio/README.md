@@ -110,33 +110,41 @@ canonicalized rendered geometry plus supported access/use/speed/surface/structur
 The map classifies boundary ways as added, removed, changed, or unchanged without treating
 graph-local edge IDs as durable identity.
 
-## Handoff artifact overlay
+## Connectivity and handoff artifact overlay
 
-The Border Inspector can normalize and display RoadPilot handoff evidence from the local Graph Studio
-workspace. It recognizes:
+The Border Inspector normalizes and displays both the current build-time connectivity pipeline
+and older RoadPilot handoff evidence from the local Graph Studio workspace.
 
-- `roadpilot.transition-candidates` — automatic offline candidate pairs;
-- `roadpilot.bound-cross-graph-transitions` — Valhalla-proven, graph-bound transitions;
-- `roadpilot.cross-graph-transitions` — F8-learned physical proof artifacts;
+Current connectivity schemas:
+
+- `roadpilot.crossing-candidates` — generated `UNPROVEN` Graph A × Graph B candidate pairs;
+- `roadpilot.runtime-connectivity` — compact `VALIDATED` crossings promoted only after exact-edge plain-Valhalla proof.
+
+Legacy/debug schemas remain inspectable for development history:
+
+- `roadpilot.transition-candidates`;
+- `roadpilot.bound-cross-graph-transitions`;
+- `roadpilot.cross-graph-transitions` (F8-learned physical proofs);
 - Graph Studio manual overrides.
 
-Generated transition artifacts belong under:
+Generated connectivity artifacts belong under:
 
 ```text
-~/RoadPilotGraphStudio/transitions/
+~/RoadPilotGraphStudio/connectivity/
 ```
 
-Artifacts copied from a device or another workstation can be placed under:
+Artifacts copied from another machine/device can be placed under:
 
 ```text
-~/RoadPilotGraphStudio/imports/handoffs/
+~/RoadPilotGraphStudio/imports/connectivity/
 ```
 
-Graph Studio compares every artifact's region-pair graph fingerprints against the latest local
-routing builds and marks it CURRENT/VALID or STALE. Graph-local IDs are never compared between
-independent graphs.
+Legacy transition/handoff imports remain supported under `transitions/` and `imports/handoffs/`.
 
-
+For current connectivity artifacts, Graph Studio compares both exact regional graph fingerprints
+and the relevant per-neighbor boundary fingerprints against the latest local builds. It shows
+`UNPROVEN` vs `VALIDATED` separately from `CURRENT` vs `STALE`. Graph-local ids are trusted only
+inside artifacts bound to their exact graph fingerprints and are never used as cross-build identity.
 ## Border diagnostics report
 
 The Border Inspector can export a compact development report for the currently selected regional
