@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.example/schemas/region-connector-matrix-v1.json",
+  "title": "RoadPilot regional connector entry-to-exit matrix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "regionId",
+    "graph",
+    "sourceInventorySha256",
+    "sourceAnchorCount",
+    "modes",
+    "generator"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot.region-connector-matrix"
+    },
+    "version": {
+      "const": 1
+    },
+    "regionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "graph": {
+      "$ref": "#/$defs/graph"
+    },
+    "sourceInventorySha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "sourceAnchorCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "modes": {
+      "$ref": "#/$defs/modes"
+    },
+    "generator": {
+      "$ref": "#/$defs/generator"
+    }
+  },
+  "$defs": {
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "regionId",
+        "packageVersion",
+        "graphFingerprint",
+        "primaryGeofabrikId"
+      ],
+      "properties": {
+        "regionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packageVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "graphFingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "primaryGeofabrikId": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fromAnchorId",
+        "toAnchorId",
+        "status",
+        "distanceKm",
+        "timeSeconds",
+        "matrixDistanceKm",
+        "matrixTimeSeconds",
+        "matrixCost",
+        "actualFromGraphId",
+        "actualToGraphId",
+        "error"
+      ],
+      "properties": {
+        "fromAnchorId": {
+          "type": "string",
+          "pattern": "^rca1-[0-9a-f]{24}$"
+        },
+        "toAnchorId": {
+          "type": "string",
+          "pattern": "^rca1-[0-9a-f]{24}$"
+        },
+        "status": {
+          "enum": [
+            "REACHABLE",
+            "UNREACHABLE",
+            "INCONCLUSIVE"
+          ]
+        },
+        "distanceKm": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "timeSeconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "matrixDistanceKm": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "matrixTimeSeconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "matrixCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "actualFromGraphId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "actualToGraphId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "modeMatrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryAnchorIds",
+        "exitAnchorIds",
+        "candidatePairCount",
+        "reachableCount",
+        "unreachableCount",
+        "inconclusiveCount",
+        "cells"
+      ],
+      "properties": {
+        "entryAnchorIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^rca1-[0-9a-f]{24}$"
+          }
+        },
+        "exitAnchorIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^rca1-[0-9a-f]{24}$"
+          }
+        },
+        "candidatePairCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reachableCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unreachableCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inconclusiveCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cell"
+          }
+        }
+      }
+    },
+    "modes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "MOTORCYCLE",
+        "CAR"
+      ],
+      "properties": {
+        "MOTORCYCLE": {
+          "$ref": "#/$defs/modeMatrix"
+        },
+        "CAR": {
+          "$ref": "#/$defs/modeMatrix"
+        }
+      }
+    }
+  }
+}
