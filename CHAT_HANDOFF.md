@@ -26,36 +26,31 @@ Rebuilding one artifact or one region must not force unrelated regional/artifact
 
 ## Current focus
 
-**Issue #35 — regional connector matrices, milestone 4: inspection and lifecycle integration.**
+**Issue #14 — Cloudflare R2 publication manager, milestone 1: immutable publication contract.**
 
-Merged #35 milestones:
-- PR #36 — deterministic per-region connector anchor inventories with proven Motorcycle/Car ENTRY/EXIT roles;
-- PR #37 — Valhalla sources-to-targets entry→exit matrices, with normal-route + trace exact first/last DirectedEdge validation and explicit REACHABLE/UNREACHABLE/INCONCLUSIVE cells;
-- PR #38 — sparse matrix-backed hierarchical composition with distinct FASTER/SHORTER ranking and strict exclusion of UNREACHABLE/INCONCLUSIVE intermediate traversals.
+Issue #35 is complete and closed:
+- PR #36 — graph-bound connector anchor inventories;
+- PR #37 — exact-edge Motorcycle/Car entry→exit matrices;
+- PR #38 — sparse matrix-backed hierarchical FASTER/SHORTER composition;
+- PR #39 — Graph Studio matrix topology/weights/freshness inspection and lifecycle refresh planning.
 
-Current branch: `regional-connector-matrix-m4`.
+Current branch: `r2-publication-contract-m1`.
 
-M4 architecture:
-- Graph Studio inspects a selected region's connector inventory and matrix;
-- map overlay shows connector anchors plus REACHABLE/UNREACHABLE/INCONCLUSIVE entry→exit cells by Motorcycle/Car;
-- summary exposes exact matrix weights, inventory/matrix source binding and current graph/boundary freshness;
-- lifecycle classification is CURRENT / BUILD_MATRIX / REBUILD_MATRIX / BUILD_INVENTORY_AND_MATRIX / REBUILD_INVENTORY_AND_MATRIX;
-- a standalone planner produces the same refresh action for automation and later R2 publication workflows.
+M1 publication architecture:
+- keep the existing routing-pack validator as the publication gate;
+- generate a credential-free `roadpilot.publication-plan`;
+- payload keys are immutable and versioned;
+- a deterministic immutable `release.json` describes the complete version;
+- `latest.json` is the only mutable pointer;
+- update order is payload objects → release.json → latest.json;
+- exact retries are safe/idempotent;
+- immutable key collisions with different bytes fail;
+- a partial failed release cannot advance latest;
+- rollback only repoints latest to an existing fully verified immutable release;
+- graph-index is included when the routing manifest provides it;
+- local object-store CI proves semantics before R2 credentials are involved.
 
-M3 architecture:
-- keep #26's adjacency-only composer intact as fallback/diagnostic behavior;
-- add a stricter matrix-backed hierarchical composer;
-- a selected crossing enters an intermediate region at its exact connector ENTRY anchor;
-- the next crossing may leave that region only if the regional matrix has a `REACHABLE` ENTRY→EXIT cell for the requested mode;
-- `UNREACHABLE` and `INCONCLUSIVE` cells are unusable, never penalized into existence;
-- matrix distance/time is the only build-time intermediate-region ranking cost;
-- tiny local border-proof probe metrics are not counted as journey costs;
-- FASTER uses proven intermediate time; SHORTER uses proven intermediate distance;
-- score scope is explicitly `INTERMEDIATE_REGIONS_ONLY` because origin/destination legs depend on the live route query;
-- multiple sparse crossing chains are retained for final detailed Valhalla selection;
-- graph/inventory/matrix fingerprints must agree exactly.
-
-Issue #26 remains the physical-crossing/proof foundation and F8 remains fallback for missing/stale/ambiguous precomputed metadata.
+Cloudflare R2 credentials are not configured or tested yet. Do not claim R2 is connected.
 ## Critical architectural decisions
 
 - Regional graphs stay independent.
@@ -76,9 +71,9 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 
 ## Next exact action
 
-1. Get #35 M4 Graph Studio inspection and connector lifecycle planning green and merged.
-2. Verify issue #35 acceptance against M1–M4 and close #35.
-3. Then proceed to #14 Cloudflare R2 publication.
+1. Get #14 M1 publication-contract CI green and merge it.
+2. M2: make the R2 publisher consume the validated publication plan, configure/test credentials outside repository files, upload/HEAD-verify every immutable object, then advance latest.
+3. M3: add Graph Studio local-vs-published status, upload progress, release history and rollback controls.
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
