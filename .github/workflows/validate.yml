@@ -473,6 +473,138 @@ jobs:
             exit 1
           fi
 
+      - name: Smoke-test retained regional visual build lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/visual-regional-smoke"
+          work="$root/work"
+          dist="$root/dist"
+          mkdir -p "$work/cache/visual" "$dist"
+
+          cp "$RUNNER_TEMP/visual-pack-smoke/fixture.osm.pbf"             "$work/cache/visual/test__visual-regional.osm.pbf"
+
+          cat > "$work/cache/visual/test__visual-regional.poly" <<'POLY'
+          visual-regional
+          1
+            12.0000 46.0000
+            12.0110 46.0000
+            12.0110 46.0110
+            12.0000 46.0110
+            12.0000 46.0000
+          END
+          END
+          POLY
+
+          cat > "$root/region.json" <<'JSON'
+          {
+            "schemaVersion": 1,
+            "id": "visual-regional",
+            "name": "Visual Regional Smoke",
+            "visual": {
+              "enabled": true,
+              "source": {
+                "primaryGeofabrikId": "test/visual-regional",
+                "url": "https://example.invalid/visual-regional-latest.osm.pbf",
+                "polygonUrl": "https://example.invalid/visual-regional.poly"
+              },
+              "buildThreads": 2,
+              "package": {
+                "fileNameTemplate": "visual-regional-visual-{version}.pmtiles",
+                "manifestFileNameTemplate": "visual-regional-visual-{version}-manifest.json",
+                "roadIndexFileNameTemplate": "visual-regional-visual-{version}-road-index.json"
+              },
+              "validation": {
+                "majorRoadClasses": ["primary"],
+                "borderToleranceMeters": 20
+              }
+            }
+          }
+          JSON
+
+          python tools/build_visual_region_pack.py             --config "$root/region.json"             --package-version 2026.10.07-1             --work-dir "$work"             --dist-dir "$dist"             --tilemaker-bin "$RUNNER_TEMP/tilemaker-v3.2.0/build/tilemaker"
+
+          retained="$dist/visual-regional/2026.10.07-1"
+          manifest="$retained/visual-regional-visual-2026.10.07-1-manifest.json"
+          pbf="$work/cache/visual/test__visual-regional.osm.pbf"
+
+          python tools/validate_visual_pack.py             --manifest "$manifest"             --expect-current-profile
+
+          python tools/plan_visual_refresh.py             --manifest "$manifest"             --config "$root/region.json"             --pbf "$pbf"             --output "$root/current.json"
+          python tools/validate_visual_refresh_plan.py --plan "$root/current.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "visual-regional-smoke"
+          manifest_path = root / "dist/visual-regional/2026.10.07-1/visual-regional-visual-2026.10.07-1-manifest.json"
+          manifest = json.loads(manifest_path.read_text())
+          road_path = manifest_path.parent / manifest["roadIndex"]["fileName"]
+          roads = json.loads(road_path.read_text())
+          current = json.loads((root / "current.json").read_text())
+
+          assert manifest["roadIndex"]["missingRoadCount"] == 0
+          assert roads["majorRoadCount"] >= 1
+          assert roads["borderRoadCount"] >= 1
+          assert roads["observedRoadCount"] == roads["sourceRoadCount"]
+          assert current["status"] == "CURRENT"
+          assert current["action"] == "NONE"
+          print("retained visual road coverage is complete")
+          PY
+
+          # Changing validation criteria does not require a PMTiles rebuild.
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "visual-regional-smoke"
+          config = json.loads((root / "region.json").read_text())
+          config["visual"]["validation"]["borderToleranceMeters"] = 25
+          (root / "region-road-change.json").write_text(json.dumps(config, indent=2) + "\n")
+          PY
+          python tools/plan_visual_refresh.py             --manifest "$manifest"             --config "$root/region-road-change.json"             --pbf "$pbf"             --output "$root/revalidate.json"
+          python tools/validate_visual_refresh_plan.py --plan "$root/revalidate.json"
+
+          # A different profile fingerprint requires rebuilding PMTiles.
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "visual-regional-smoke"
+          manifest = json.loads(
+              (root / "dist/visual-regional/2026.10.07-1/visual-regional-visual-2026.10.07-1-manifest.json").read_text()
+          )
+          manifest["profileFingerprint"] = "sha256:" + "0" * 64
+          (root / "old-profile-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+          python tools/plan_visual_refresh.py             --manifest "$root/old-profile-manifest.json"             --config "$root/region.json"             --pbf "$pbf"             --output "$root/rebuild-profile.json"
+          python tools/validate_visual_refresh_plan.py --plan "$root/rebuild-profile.json"
+
+          # Changed source bytes outrank every cheaper refresh action.
+          cp "$pbf" "$root/changed.osm.pbf"
+          printf x >> "$root/changed.osm.pbf"
+          python tools/plan_visual_refresh.py             --manifest "$manifest"             --config "$root/region.json"             --pbf "$root/changed.osm.pbf"             --output "$root/rebuild-source.json"
+          python tools/validate_visual_refresh_plan.py --plan "$root/rebuild-source.json"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "visual-regional-smoke"
+          assert json.loads((root / "revalidate.json").read_text())["action"] == "REVALIDATE_ROADS"
+          assert json.loads((root / "rebuild-profile.json").read_text())["action"] == "REBUILD_PROFILE"
+          assert json.loads((root / "rebuild-source.json").read_text())["action"] == "REBUILD_SOURCE"
+          print("visual refresh action precedence passed")
+          PY
+
+          # Retained versions are immutable.
+          if python tools/build_visual_region_pack.py             --config "$root/region.json"             --package-version 2026.10.07-1             --work-dir "$work"             --dist-dir "$dist"             --tilemaker-bin "$RUNNER_TEMP/tilemaker-v3.2.0/build/tilemaker"; then
+            echo "Expected retained visual version overwrite to be refused" >&2
+            exit 1
+          fi
+
       - name: Smoke-test Geofabrik Graph Studio discovery
         shell: bash
         run: |
