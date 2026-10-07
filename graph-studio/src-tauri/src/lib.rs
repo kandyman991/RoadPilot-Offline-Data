@@ -956,6 +956,12 @@ fn stage_for_log(line: &str) -> Option<&'static str> {
         Some("Packing Valhalla tile extract")
     } else if line.contains("validation passed:") {
         Some("Validating routes")
+    } else if line.contains("visual pack:") {
+        Some("Building visual PMTiles")
+    } else if line.contains("visual road index:") {
+        Some("Validating visual road coverage")
+    } else if line.contains("retained visual build:") {
+        Some("Retaining visual package")
     } else if line.starts_with("built:") {
         Some("Finalizing package")
     } else {
@@ -1038,6 +1044,7 @@ fn run_build_queue(
     let python = ensure_python_env(&app)?;
     let work = work_dir(&app)?;
     let dist = dist_dir(&app)?;
+    let visual_dist = visual_dist_dir(&app)?;
 
     for (index, region_id) in region_ids.iter().enumerate() {
         if state.cancel.load(Ordering::SeqCst) {
@@ -1102,6 +1109,37 @@ fn run_build_queue(
             .map_err(|e| format!("Could not validate completed package: {e}"))?;
         if !status.success() {
             return Err(format!("Routing pack validation failed for {region_id}."));
+        }
+
+        let config_value: Value = serde_json::from_str(
+            &fs::read_to_string(&config)
+                .map_err(|e| format!("Could not read region config for visual build: {e}"))?,
+        )
+        .map_err(|e| format!("Could not parse region config for visual build: {e}"))?;
+        let visual_enabled = config_value
+            .pointer("/visual/enabled")
+            .and_then(Value::as_bool)
+            == Some(true);
+
+        if visual_enabled {
+            set_stage(&app, &state, "Building retained visual package");
+            emit_log(&app, format!("→ {region_id}: building visual PMTiles…"));
+            let mut visual_command = Command::new(&python);
+            visual_command
+                .arg(pipeline.join("tools/build_visual_region_pack.py"))
+                .arg("--config")
+                .arg(&config)
+                .arg("--package-version")
+                .arg(&package_version)
+                .arg("--work-dir")
+                .arg(work.join("visual"))
+                .arg("--dist-dir")
+                .arg(&visual_dist);
+            if refresh_sources {
+                visual_command.arg("--refresh-sources");
+            }
+            run_process_streaming(&app, &state, visual_command)?;
+            emit_log(&app, format!("✓ {region_id} visual package validated."));
         }
 
         let cache = work.join("inspector-cache").join(region_id);
