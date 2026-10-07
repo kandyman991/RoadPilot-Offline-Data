@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.example/schemas/region-connector-inventory-v1.json",
+  "title": "RoadPilot regional connector anchor inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "regionId",
+    "graph",
+    "sourceConnectivity",
+    "anchorCount",
+    "anchors",
+    "generator"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot.region-connector-inventory"
+    },
+    "version": {
+      "const": 1
+    },
+    "regionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "graph": {
+      "$ref": "#/$defs/graph"
+    },
+    "sourceConnectivity": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "anchorCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "anchors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/anchorRecord"
+      }
+    },
+    "generator": {
+      "$ref": "#/$defs/generator"
+    }
+  },
+  "$defs": {
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "regionId",
+        "packageVersion",
+        "graphFingerprint",
+        "primaryGeofabrikId"
+      ],
+      "properties": {
+        "regionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packageVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "graphFingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "primaryGeofabrikId": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pairId",
+        "sha256",
+        "neighborRegionId",
+        "neighborPrimaryGeofabrikId",
+        "regionBoundaryFingerprint"
+      ],
+      "properties": {
+        "pairId": {
+          "type": "string",
+          "minLength": 3
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "neighborRegionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "neighborPrimaryGeofabrikId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "regionBoundaryFingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "coordinate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lat",
+        "lng"
+      ],
+      "properties": {
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "lng": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      }
+    },
+    "graphAnchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coordinate",
+        "graphId",
+        "wayId",
+        "percentAlong"
+      ],
+      "properties": {
+        "coordinate": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "graphId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "wayId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "percentAlong": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "modeRoles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "MOTORCYCLE",
+        "CAR"
+      ],
+      "properties": {
+        "MOTORCYCLE": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "ENTRY",
+              "EXIT"
+            ]
+          }
+        },
+        "CAR": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "ENTRY",
+              "EXIT"
+            ]
+          }
+        }
+      }
+    },
+    "anchorRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "candidateId",
+        "frontierRoadId",
+        "stableWayId",
+        "neighborRegionId",
+        "sourcePairId",
+        "graphAnchor",
+        "roles"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^rca1-[0-9a-f]{24}$"
+        },
+        "candidateId": {
+          "type": "string",
+          "pattern": "^xpc1-[0-9a-f]{24}$"
+        },
+        "frontierRoadId": {
+          "type": "string",
+          "pattern": "^fri1-[0-9a-f]{24}$"
+        },
+        "stableWayId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "neighborRegionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourcePairId": {
+          "type": "string",
+          "minLength": 3
+        },
+        "graphAnchor": {
+          "$ref": "#/$defs/graphAnchor"
+        },
+        "roles": {
+          "$ref": "#/$defs/modeRoles"
+        }
+      }
+    }
+  }
+}
