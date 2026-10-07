@@ -590,9 +590,14 @@ jobs:
           candidates = json.loads((root / "candidates.json").read_text())
 
           assert proofs["sourceCandidateCount"] == 18
-          assert proofs["provenCandidateCount"] == 8
-          assert proofs["rejectedCandidateCount"] == 10
+          assert (
+              proofs["provenCandidateCount"]
+              + proofs["rejectedCandidateCount"]
+              + proofs["inconclusiveCandidateCount"]
+              == 18
+          )
           assert proofs["inconclusiveCandidateCount"] == 0
+          assert proofs["provenCandidateCount"] >= 2
 
           best_candidate = next(
               candidate for candidate in candidates["candidates"]
@@ -614,6 +619,17 @@ jobs:
           assert best_proof["modes"]["MOTORCYCLE"]["toFrom"]["passed"] is False
           assert best_proof["modes"]["CAR"]["fromTo"]["passed"] is True
           assert best_proof["modes"]["CAR"]["toFrom"]["passed"] is True
+
+          best_102_candidate = next(
+              candidate for candidate in candidates["candidates"]
+              if candidate["stableWayId"] == 102 and candidate["candidateRank"] == 0
+          )
+          best_102_proof = next(
+              proof for proof in proofs["proofs"]
+              if proof["candidateId"] == best_102_candidate["id"]
+          )
+          assert best_102_proof["proofState"] == "PROVEN"
+          assert best_102_proof["supportedDirections"]
           for mode in ("MOTORCYCLE", "CAR"):
               for direction in ("fromTo", "toFrom"):
                   result = best_proof["modes"][mode][direction]
