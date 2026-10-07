@@ -1,0 +1,7 @@
+{
+  "schema": "roadpilot-visual-toolchain",
+  "version": 1,
+  "tilemakerVersion": "3.2.0",
+  "dockerImage": "ghcr.io/systemed/tilemaker:master@sha256:d32505d7827907089c2dd07517524276946d8930b4b82e93cf5c25ec989bbe41",
+  "sourceTag": "v3.2.0"
+}
