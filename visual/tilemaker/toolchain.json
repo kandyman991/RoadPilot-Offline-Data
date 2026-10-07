@@ -1,0 +1,8 @@
+{
+  "schema": "roadpilot-visual-toolchain",
+  "version": 1,
+  "tilemakerVersion": "3.2.0",
+  "sourceRepository": "https://github.com/systemed/tilemaker",
+  "sourceTag": "v3.2.0",
+  "sourceCommit": "c7d1dbfaf87baa9e0bc9b2e984e0dae90dcf00c5"
+}

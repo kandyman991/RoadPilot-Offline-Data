@@ -12,7 +12,10 @@ on:
       - ".github/workflows/validate.yml"
       - ".github/workflows/build-routing-pack.yml"
       - "requirements-routing.txt"
+      - "requirements-visual.txt"
+      - "visual/**"
       - "docs/routing-packs-v1.md"
+      - "docs/visual-packs-v1.md"
 
 permissions:
   contents: read
@@ -31,6 +34,36 @@ jobs:
 
       - name: Install routing Python dependencies
         run: python -m pip install -r requirements-routing.txt
+
+      - name: Install visual Python dependencies
+        run: python -m pip install -r requirements-visual.txt
+
+      - name: Install visual smoke tooling
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            osmium-tool \
+            build-essential \
+            cmake \
+            liblua5.3-dev \
+            libsqlite3-dev \
+            libshp-dev \
+            libboost-program-options-dev \
+            libboost-filesystem-dev \
+            libboost-system-dev \
+            rapidjson-dev
+
+      - name: Build pinned tilemaker 3.2.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/tilemaker-v3.2.0"
+          git clone --filter=blob:none https://github.com/systemed/tilemaker.git "$root"
+          git -C "$root" checkout --detach c7d1dbfaf87baa9e0bc9b2e984e0dae90dcf00c5
+          cmake -S "$root" -B "$root/build" -DCMAKE_BUILD_TYPE=Release -DBoost_USE_DEBUG_RUNTIME=OFF
+          cmake --build "$root/build" --target tilemaker --parallel 2
+          "$root/build/tilemaker" --help | head -n 1
 
       - name: Compile Python tooling
         run: python -m py_compile tools/*.py
@@ -280,6 +313,165 @@ jobs:
           python tools/smoke_r2_publication_backend.py \
             --plan-a "$root/2026.10.07-1-plan.json" \
             --plan-b "$root/2026.10.07-3-plan.json"
+
+      - name: Smoke-test deterministic RoadPilot visual PMTiles pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/visual-pack-smoke"
+          mkdir -p "$root/out-a" "$root/out-b"
+
+          cat > "$root/fixture.osm" <<'OSM'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <osm version="0.6" generator="roadpilot-ci">
+            <bounds minlat="45.9950" minlon="11.9950" maxlat="46.0150" maxlon="12.0150"/>
+            <node id="1" lat="46.0000" lon="12.0000" />
+            <node id="2" lat="46.0000" lon="12.0100" />
+            <node id="3" lat="46.0100" lon="12.0100" />
+            <node id="4" lat="46.0100" lon="12.0000" />
+            <node id="5" lat="46.0050" lon="12.0050">
+              <tag k="place" v="city"/>
+              <tag k="name" v="RoadPilot Test City"/>
+              <tag k="population" v="50000"/>
+            </node>
+            <node id="6" lat="46.0120" lon="12.0040">
+              <tag k="natural" v="peak"/>
+              <tag k="name" v="RoadPilot Peak"/>
+              <tag k="ele" v="1800"/>
+            </node>
+            <node id="7" lat="46.0030" lon="12.0020" />
+            <node id="8" lat="46.0070" lon="12.0080" />
+            <node id="9" lat="45.9980" lon="12.0040" />
+            <node id="10" lat="46.0120" lon="12.0040" />
+            <node id="11" lat="46.0020" lon="12.0020" />
+            <node id="12" lat="46.0020" lon="12.0060" />
+            <node id="13" lat="46.0060" lon="12.0060" />
+            <node id="14" lat="46.0060" lon="12.0020" />
+
+            <way id="100">
+              <nd ref="1"/><nd ref="2"/><nd ref="3"/>
+              <tag k="highway" v="primary"/>
+              <tag k="name" v="RoadPilot Primary"/>
+              <tag k="ref" v="RP1"/>
+              <tag k="surface" v="asphalt"/>
+            </way>
+
+            <way id="101">
+              <nd ref="7"/><nd ref="8"/>
+              <tag k="waterway" v="river"/>
+              <tag k="name" v="RoadPilot River"/>
+            </way>
+
+            <way id="102">
+              <nd ref="11"/><nd ref="12"/><nd ref="13"/><nd ref="14"/><nd ref="11"/>
+              <tag k="natural" v="water"/>
+              <tag k="water" v="lake"/>
+              <tag k="name" v="RoadPilot Lake"/>
+            </way>
+
+            <way id="103">
+              <nd ref="9"/><nd ref="10"/>
+              <tag k="boundary" v="administrative"/>
+              <tag k="admin_level" v="4"/>
+            </way>
+          </osm>
+          OSM
+
+          osmium cat "$root/fixture.osm" -o "$root/fixture.osm.pbf"
+
+          cat > "$root/region.json" <<'JSON'
+          {
+            "schemaVersion": 1,
+            "id": "visual-smoke",
+            "name": "Visual Smoke",
+            "routing": {
+              "enabled": true,
+              "source": {
+                "primaryGeofabrikId": "test/visual-smoke",
+                "pbfs": [
+                  {
+                    "id": "test/visual-smoke",
+                    "url": "https://example.invalid/visual-smoke.osm.pbf"
+                  }
+                ]
+              }
+            }
+          }
+          JSON
+
+          visual_args=(
+            --config "$root/region.json"
+            --pbf "$root/fixture.osm.pbf"
+            --version 1.0.0
+            --tilemaker-bin "$RUNNER_TEMP/tilemaker-v3.2.0/build/tilemaker"
+            --required-layer transportation
+            --required-layer transportation_name
+            --required-layer place
+            --required-layer water
+            --required-layer waterway
+            --required-layer boundary
+            --required-layer mountain_peak
+          )
+
+          python tools/build_visual_region.py \
+            "${visual_args[@]}" \
+            --output-dir "$root/out-a"
+
+          python tools/build_visual_region.py \
+            "${visual_args[@]}" \
+            --output-dir "$root/out-b"
+
+          cmp \
+            "$root/out-a/visual-smoke-visual-1.0.0.pmtiles" \
+            "$root/out-b/visual-smoke-visual-1.0.0.pmtiles"
+
+          python tools/validate_visual_pack.py \
+            --manifest "$root/out-a/visual-smoke-visual-1.0.0-manifest.json" \
+            --package "$root/out-a/visual-smoke-visual-1.0.0.pmtiles" \
+            --expect-current-profile
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "visual-pack-smoke"
+          manifest = json.loads(
+              (root / "out-a/visual-smoke-visual-1.0.0-manifest.json").read_text()
+          )
+          expected = {
+              "transportation",
+              "transportation_name",
+              "place",
+              "water",
+              "waterway",
+              "boundary",
+              "mountain_peak",
+          }
+          assert set(manifest["validation"]["requiredLayers"]) == expected
+          assert expected <= set(manifest["layers"])
+          assert "building" not in manifest["layers"]
+          assert "poi" not in manifest["layers"]
+          assert "poi_detail" not in manifest["layers"]
+          assert manifest["artifact"]["tileCount"] > 0
+          assert manifest["artifact"]["format"] == "pmtiles"
+          assert manifest["artifact"]["tileType"] == "mvt"
+          assert manifest["visualFingerprint"] == "sha256:" + manifest["artifact"]["sha256"]
+          assert manifest["sourceFingerprint"].startswith("sha256:")
+          assert manifest["profileFingerprint"].startswith("sha256:")
+          print("visual PMTiles manifest contract smoke test passed")
+          PY
+
+          cp \
+            "$root/out-a/visual-smoke-visual-1.0.0.pmtiles" \
+            "$root/out-a/corrupt.pmtiles"
+          truncate -s 100 "$root/out-a/corrupt.pmtiles"
+          if python tools/validate_visual_pack.py \
+            --manifest "$root/out-a/visual-smoke-visual-1.0.0-manifest.json" \
+            --package "$root/out-a/corrupt.pmtiles"; then
+            echo "Expected truncated PMTiles validation to fail" >&2
+            exit 1
+          fi
 
       - name: Smoke-test Geofabrik Graph Studio discovery
         shell: bash
