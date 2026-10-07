@@ -711,6 +711,10 @@ jobs:
               crossing for crossing in runtime["crossings"]
               if crossing["candidateId"] == best_candidate["id"]
           )
+          best_proof = next(
+              proof for proof in proofs["proofs"]
+              if proof["candidateId"] == best_candidate["id"]
+          )
           assert best_runtime["modes"]["MOTORCYCLE"] == {
               "fromTo": True,
               "toFrom": False,
