@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-08T13:27:00.632Z",
+  "generatedAt": "2026-10-08T13:56:13.527Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,9 +11,9 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "3e9551c489aeee1e2074cf24bd6daa057a6bbe3f",
-    "message": "Fix Graph Studio Valhalla toolchain handling\n\n* Fix Valhalla version detection\n\n* CI: guard Valhalla version parsing\n\n* Graph Studio: reuse cached regional sources by default\n\n* Graph Studio: stream regional source download progress\n\n* Fix pyvalhalla route validation output parsing\n\n* CI: cover pyvalhalla service launcher output\n\n* Graph Studio: prefer native pyvalhalla executables",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/3e9551c489aeee1e2074cf24bd6daa057a6bbe3f"
+    "sha": "a569dda3fc3e72c36fdc7974b1825291ce371116",
+    "message": "Graph Studio: add searchable region catalog browser\n\n* Graph Studio: add unified region catalog browser\n\n* Graph Studio: style region catalog browser\n\n* Graph Studio: expose primary Geofabrik region identity",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/a569dda3fc3e72c36fdc7974b1825291ce371116"
   },
   "openPullRequests": [],
   "openIssues": [
@@ -44,25 +44,58 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 37784412497,
+      "id": 37788325129,
       "name": "Build RoadPilot Graph Studio",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "a569dda3fc3e72c36fdc7974b1825291ce371116",
+      "event": "push",
+      "updatedAt": "2026-10-08T13:56:09Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37788325129"
+    },
+    {
+      "id": 37787293705,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "graph-studio-region-browser",
+      "headSha": "fb8ac2e215ab26c05406edb0505a8c1afcc0c31c",
+      "event": "pull_request",
+      "updatedAt": "2026-10-08T13:55:23Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37787293705"
+    },
+    {
+      "id": 37787293636,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "graph-studio-region-browser",
+      "headSha": "fb8ac2e215ab26c05406edb0505a8c1afcc0c31c",
+      "event": "pull_request",
+      "updatedAt": "2026-10-08T13:52:09Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37787293636"
+    },
+    {
+      "id": 37784412497,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "3e9551c489aeee1e2074cf24bd6daa057a6bbe3f",
       "event": "push",
-      "updatedAt": "2026-10-08T13:26:59Z",
+      "updatedAt": "2026-10-08T13:43:12Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37784412497"
     },
     {
       "id": 37784412040,
       "name": "Validate offline-data repository",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "3e9551c489aeee1e2074cf24bd6daa057a6bbe3f",
       "event": "push",
-      "updatedAt": "2026-10-08T13:26:57Z",
+      "updatedAt": "2026-10-08T13:30:11Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37784412040"
     },
     {
@@ -119,39 +152,6 @@
       "event": "pull_request",
       "updatedAt": "2026-10-08T13:17:49Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37782810574"
-    },
-    {
-      "id": 37782810563,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "fix-valhalla-version-detection",
-      "headSha": "460e85fd72a4424bd2c4f99014e7a167d6de746d",
-      "event": "pull_request",
-      "updatedAt": "2026-10-08T13:16:08Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37782810563"
-    },
-    {
-      "id": 37774684402,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "fix-valhalla-version-detection",
-      "headSha": "17456f993cf3c8160990b9b7712af48d7a182064",
-      "event": "pull_request",
-      "updatedAt": "2026-10-08T12:10:57Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37774684402"
-    },
-    {
-      "id": 37774684346,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "fix-valhalla-version-detection",
-      "headSha": "17456f993cf3c8160990b9b7712af48d7a182064",
-      "event": "pull_request",
-      "updatedAt": "2026-10-08T12:13:43Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/37774684346"
     }
   ]
 }
