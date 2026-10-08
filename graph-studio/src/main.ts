@@ -3135,9 +3135,17 @@ function setActiveRegion(region: RegionSummary): void {
   graphLayerBtn.disabled = false;
   editRegionBtn.disabled = false;
   locateBtn.disabled = true;
+  locateCandidates = [];
+  locateCandidateIndex = 0;
+  locatePrevBtn.disabled = true;
+  locateNextBtn.disabled = true;
+  locateCandidateSummary.className = "empty";
+  locateCandidateSummary.textContent = "Right-click the map to inspect directed edges from the exact selected graph.";
+  locateCandidateDetails.innerHTML = "";
   featureJson.textContent = "No graph feature selected.";
   inspectorSummary.textContent = `${region.id} • ${region.border_buffer_km} km border buffer • Valhalla ${region.expected_valhalla_version}`;
   removeGraphLayer();
+  removeLocateEdgeOverlay();
   removeRouteLayers();
   routeStartMarker?.remove();
   routeEndMarker?.remove();
