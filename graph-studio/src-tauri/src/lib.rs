@@ -266,6 +266,36 @@ fn set_stage(app: &AppHandle, state: &BuildState, stage: impl Into<String>) {
     emit_status(app, state);
 }
 
+fn pyvalhalla_native_bin_dir() -> Option<PathBuf> {
+    let launcher = executable_path("valhalla_service")?;
+    let output = Command::new(&launcher).arg("--version").output().ok()?;
+    let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+    text.push_str(&String::from_utf8_lossy(&output.stderr));
+
+    for line in text.lines() {
+        let Some(start) = line.find("[INFO] Running ") else {
+            continue;
+        };
+        let rest = &line[start + "[INFO] Running ".len()..];
+        let Some(end) = rest.find(" with args:") else {
+            continue;
+        };
+        let native = PathBuf::from(&rest[..end]);
+        if native.file_name().and_then(|name| name.to_str()) != Some("valhalla_service")
+            || !native.is_file()
+        {
+            continue;
+        }
+        let dir = native.parent()?.to_path_buf();
+        if dir.join("valhalla_build_tiles").is_file()
+            && dir.join("valhalla_build_admins").is_file()
+        {
+            return Some(dir);
+        }
+    }
+    None
+}
+
 fn normalize_process_path() {
     let home = env::var("HOME").unwrap_or_default();
     let current = env::var_os("PATH").unwrap_or_default();
@@ -282,8 +312,19 @@ fn normalize_process_path() {
             paths.push(p);
         }
     }
-    if let Ok(joined) = env::join_paths(paths) {
+    if let Ok(joined) = env::join_paths(&paths) {
         env::set_var("PATH", joined);
+    }
+
+    // pyvalhalla console entry points print an informational launcher line to stdout.
+    // That corrupts JSON responses and binary graph-tile output from valhalla_service.
+    // Prefer the wheel's real native Valhalla binaries whenever we can discover them.
+    if let Some(native_bin) = pyvalhalla_native_bin_dir() {
+        paths.retain(|path| path != &native_bin);
+        paths.insert(0, native_bin);
+        if let Ok(joined) = env::join_paths(paths) {
+            env::set_var("PATH", joined);
+        }
     }
 }
 

@@ -75,6 +75,48 @@ jobs:
       - name: Compile Python tooling
         run: python -m py_compile tools/*.py
 
+      - name: Regression-test Valhalla semantic version parsing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import re
+
+          pattern = re.compile(r"(?<!\d)(\d+\.\d+\.\d+)(?!\d)")
+          samples = {
+              "3.6.3": "3.6.3",
+              "[INFO] wrapper\n3.6.3\n": "3.6.3",
+              "valhalla 3.6.3": "3.6.3",
+          }
+          for output, expected in samples.items():
+              match = pattern.search(output)
+              actual = match.group(1) if match else None
+              assert actual == expected, (output, actual, expected)
+          print("Valhalla semantic-version parsing regression passed")
+          PY
+
+      - name: Regression-test pyvalhalla service wrapper output
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from tools.build_routing_region import parse_valhalla_service_json
+
+          payload = '{"trip":{"status":0,"summary":{"length":12.3}}}'
+          launcher = "[INFO] Running /tmp/valhalla/bin/valhalla_service with args: ['config', 'route', '{...}']..."
+
+          for output in (
+              payload,
+              payload + "\n" + launcher + "\n",
+              launcher + "\n" + payload + "\n",
+          ):
+              parsed = parse_valhalla_service_json(output, "smoke")
+              assert parsed["trip"]["status"] == 0
+              assert parsed["trip"]["summary"]["length"] == 12.3
+
+          print("pyvalhalla service wrapper JSON regression passed")
+          PY
+
       - name: Validate JSON files
         shell: bash
         run: |

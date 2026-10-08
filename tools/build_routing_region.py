@@ -178,18 +178,50 @@ def download(url: str, destination: Path, *, refresh: bool = False) -> Path:
     if refresh:
         destination.unlink(missing_ok=True)
     if destination.is_file() and destination.stat().st_size > 0:
-        print(f"cache hit: {destination}")
+        print(f"cache hit: {destination}", flush=True)
         return destination
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(destination.suffix + ".part")
     temporary.unlink(missing_ok=True)
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    print(f"download: {url}")
+    print(f"download: {url}", flush=True)
     with urllib.request.urlopen(request) as response, temporary.open("wb") as output:
-        shutil.copyfileobj(response, output, length=1024 * 1024)
+        total_header = response.headers.get("Content-Length")
+        total = int(total_header) if total_header and total_header.isdigit() else None
+        downloaded = 0
+        next_report = 0
+        chunk_size = 1024 * 1024
+        while True:
+            chunk = response.read(chunk_size)
+            if not chunk:
+                break
+            output.write(chunk)
+            downloaded += len(chunk)
+            if total:
+                percent = int(downloaded * 100 / total)
+                if percent >= next_report:
+                    print(
+                        f"download progress: {destination.name} "
+                        f"{downloaded / (1024 * 1024):.1f} / {total / (1024 * 1024):.1f} MiB "
+                        f"({percent}%)",
+                        flush=True,
+                    )
+                    next_report = ((percent // 10) + 1) * 10
+            elif downloaded >= next_report:
+                print(
+                    f"download progress: {destination.name} "
+                    f"{downloaded / (1024 * 1024):.1f} MiB",
+                    flush=True,
+                )
+                next_report = downloaded + 64 * 1024 * 1024
     if temporary.stat().st_size <= 0:
         fail(f"Downloaded empty file: {url}")
     temporary.replace(destination)
+    print(
+        f"download complete: {destination.name} "
+        f"({destination.stat().st_size / (1024 * 1024):.1f} MiB)",
+        flush=True,
+    )
     return destination
 
 
@@ -258,12 +290,31 @@ def valhalla_version() -> str:
     for command in (["valhalla_build_tiles", "--version"], ["valhalla_service", "--version"]):
         try:
             output = run(command, capture=True).strip()
-            match = re.search(r"(?<!\\d)(\\d+\\.\\d+\\.\\d+)(?!\\d)", output)
+            match = re.search(r"(?<!\d)(\d+\.\d+\.\d+)(?!\d)", output)
             if match:
                 return match.group(1)
         except subprocess.CalledProcessError:
             pass
     return "unknown"
+
+
+PYVALHALLA_LAUNCHER_LINE = re.compile(r"^\[INFO\] Running .+ with args: .+\.\.\.$")
+
+
+def parse_valhalla_service_json(output: str, route_name: str) -> dict:
+    cleaned_lines = [
+        line
+        for line in output.splitlines()
+        if not PYVALHALLA_LAUNCHER_LINE.match(line.strip())
+    ]
+    cleaned = "\n".join(cleaned_lines).strip()
+    try:
+        response = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        fail(f"Validation route '{route_name}' returned invalid JSON: {exc}")
+    if not isinstance(response, dict):
+        fail(f"Validation route '{route_name}' returned a non-object JSON response")
+    return response
 
 
 def validate_routes(config_path: Path, nominal_geometry, routes):
@@ -295,10 +346,7 @@ def validate_routes(config_path: Path, nominal_geometry, routes):
             ["valhalla_service", config_path, "route", json.dumps(request, separators=(",", ":"))],
             capture=True,
         )
-        try:
-            response = json.loads(output)
-        except json.JSONDecodeError as exc:
-            fail(f"Validation route '{name}' returned invalid JSON: {exc}")
+        response = parse_valhalla_service_json(output, name)
 
         trip = response.get("trip")
         if not isinstance(trip, dict):

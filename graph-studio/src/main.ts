@@ -4067,7 +4067,7 @@ buildBtn.addEventListener("click", async () => {
     return;
   }
   try {
-    await invoke("start_build_queue", { regionIds: queue, packageVersion: version, refreshSources: true });
+    await invoke("start_build_queue", { regionIds: queue, packageVersion: version, refreshSources: false });
     await refreshBuildStatus();
   } catch (error) {
     appendLog(`Could not start build: ${String(error)}`);
