@@ -32,6 +32,7 @@ struct RegionSummary {
     name: String,
     border_buffer_km: f64,
     expected_valhalla_version: String,
+    primary_geofabrik_id: Option<String>,
     source_ids: Vec<String>,
     coverage: Option<Coverage>,
 }
@@ -762,6 +763,10 @@ fn list_regions(app: AppHandle) -> Result<Vec<RegionSummary>, String> {
                 .and_then(Value::as_str)
                 .unwrap_or("unknown")
                 .to_string(),
+            primary_geofabrik_id: routing
+                .pointer("/source/primaryGeofabrikId")
+                .and_then(Value::as_str)
+                .map(str::to_string),
             source_ids,
             coverage,
         });
