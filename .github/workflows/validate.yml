@@ -75,6 +75,26 @@ jobs:
       - name: Compile Python tooling
         run: python -m py_compile tools/*.py
 
+      - name: Regression-test Valhalla semantic version parsing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import re
+
+          pattern = re.compile(r"(?<!\d)(\d+\.\d+\.\d+)(?!\d)")
+          samples = {
+              "3.6.3": "3.6.3",
+              "[INFO] wrapper\n3.6.3\n": "3.6.3",
+              "valhalla 3.6.3": "3.6.3",
+          }
+          for output, expected in samples.items():
+              match = pattern.search(output)
+              actual = match.group(1) if match else None
+              assert actual == expected, (output, actual, expected)
+          print("Valhalla semantic-version parsing regression passed")
+          PY
+
       - name: Validate JSON files
         shell: bash
         run: |
