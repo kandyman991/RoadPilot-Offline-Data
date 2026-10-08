@@ -40,9 +40,6 @@ jobs:
   linux:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
-    env:
-      CARGO_TARGET_DIR: ${{ runner.temp }}/graph-studio-target
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,8 +83,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APPIMAGE="$(find "$CARGO_TARGET_DIR/release/bundle/appimage" -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
-          DEB="$(find "$CARGO_TARGET_DIR/release/bundle/deb" -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          APPIMAGE="$(find graph-studio/src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          DEB="$(find graph-studio/src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
           test -s "$APPIMAGE"
           test -s "$DEB"
           echo "GRAPH_STUDIO_APPIMAGE=$APPIMAGE" >> "$GITHUB_ENV"
