@@ -298,6 +298,25 @@ def valhalla_version() -> str:
     return "unknown"
 
 
+PYVALHALLA_LAUNCHER_LINE = re.compile(r"^\[INFO\] Running .+ with args: .+\.\.\.$")
+
+
+def parse_valhalla_service_json(output: str, route_name: str) -> dict:
+    cleaned_lines = [
+        line
+        for line in output.splitlines()
+        if not PYVALHALLA_LAUNCHER_LINE.match(line.strip())
+    ]
+    cleaned = "\n".join(cleaned_lines).strip()
+    try:
+        response = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        fail(f"Validation route '{route_name}' returned invalid JSON: {exc}")
+    if not isinstance(response, dict):
+        fail(f"Validation route '{route_name}' returned a non-object JSON response")
+    return response
+
+
 def validate_routes(config_path: Path, nominal_geometry, routes):
     results = []
     for route in routes:
@@ -327,10 +346,7 @@ def validate_routes(config_path: Path, nominal_geometry, routes):
             ["valhalla_service", config_path, "route", json.dumps(request, separators=(",", ":"))],
             capture=True,
         )
-        try:
-            response = json.loads(output)
-        except json.JSONDecodeError as exc:
-            fail(f"Validation route '{name}' returned invalid JSON: {exc}")
+        response = parse_valhalla_service_json(output, name)
 
         trip = response.get("trip")
         if not isinstance(trip, dict):
