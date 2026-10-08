@@ -15,6 +15,7 @@ type RegionSummary = {
   name: string;
   border_buffer_km: number;
   expected_valhalla_version: string;
+  primary_geofabrik_id: string | null;
   source_ids: string[];
   coverage: Coverage;
 };
@@ -443,9 +444,15 @@ app.innerHTML = `
 
   <main class="workspace">
     <aside class="sidebar">
-      <section class="section">
+      <section class="section region-browser-section">
         <h2>Regions</h2>
-        <div id="regions"></div>
+        <div class="region-tabs" role="tablist" aria-label="Region browser">
+          <button id="configuredRegionsTab" class="region-tab active" type="button" role="tab" aria-selected="true">Configured</button>
+          <button id="catalogRegionsTab" class="region-tab" type="button" role="tab" aria-selected="false">All catalog</button>
+        </div>
+        <input id="regionSearch" class="region-search" type="search" autocomplete="off" placeholder="Search regions…" aria-label="Search regions" />
+        <div id="regionBrowserSummary" class="region-browser-summary">Loading regions…</div>
+        <div id="regions" class="region-browser"></div>
       </section>
       <section class="section">
         <h2>Region configuration</h2>
@@ -825,6 +832,10 @@ app.innerHTML = `
 `;
 
 const regionHost = document.querySelector<HTMLDivElement>("#regions")!;
+const configuredRegionsTab = document.querySelector<HTMLButtonElement>("#configuredRegionsTab")!;
+const catalogRegionsTab = document.querySelector<HTMLButtonElement>("#catalogRegionsTab")!;
+const regionSearch = document.querySelector<HTMLInputElement>("#regionSearch")!;
+const regionBrowserSummary = document.querySelector<HTMLDivElement>("#regionBrowserSummary")!;
 const toolHost = document.querySelector<HTMLDivElement>("#tools")!;
 const logHost = document.querySelector<HTMLPreElement>("#consoleLog")!;
 const buildsHost = document.querySelector<HTMLDivElement>("#builds")!;
@@ -953,6 +964,8 @@ let visualArtifacts: VisualBuildArtifact[] = [];
 let searchArtifacts: SearchBuildArtifact[] = [];
 let currentSearchResults: SearchResult[] = [];
 let geofabrikCatalog: GeofabrikCatalogItem[] = [];
+let regionBrowserMode: "configured" | "catalog" = "configured";
+let regionBrowserQuery = "";
 let editorPreview: RegionPreview | null = null;
 let editorExistingConfig: Record<string, unknown> | null = null;
 let activeRegion: RegionSummary | null = null;
@@ -3160,33 +3173,238 @@ function setActiveRegion(region: RegionSummary): void {
   renderVisualBuildSelectors();
 }
 
+function normalizedRegionSearchText(value: string): string {
+  return value.trim().toLocaleLowerCase();
+}
+
+function regionIsBuilt(regionId: string): boolean {
+  return artifacts.some(artifact => artifact.region_id === regionId);
+}
+
+function configuredRegionForCatalog(item: GeofabrikCatalogItem): RegionSummary | null {
+  return regions.find(region => region.primary_geofabrik_id === item.id) ?? null;
+}
+
+function catalogContinent(item: GeofabrikCatalogItem): string {
+  try {
+    const path = new URL(item.pbfUrl).pathname.split("/").filter(Boolean);
+    const root = path[0] ?? "other";
+    const labels: Record<string, string> = {
+      "africa": "Africa",
+      "asia": "Asia",
+      "australia-oceania": "Australia / Oceania",
+      "central-america": "Central America",
+      "europe": "Europe",
+      "north-america": "North America",
+      "south-america": "South America",
+    };
+    return labels[root] ?? "Other";
+  } catch {
+    return "Other";
+  }
+}
+
+function regionMatchesQuery(name: string, id: string, country = ""): boolean {
+  if (!regionBrowserQuery) return true;
+  const haystack = normalizedRegionSearchText(`${name} ${id} ${country}`);
+  return haystack.includes(regionBrowserQuery);
+}
+
+function makeStatusBadge(text: "AVAILABLE" | "CONFIGURED" | "BUILT"): HTMLSpanElement {
+  const badge = document.createElement("span");
+  badge.className = `region-status ${text.toLocaleLowerCase()}`;
+  badge.textContent = text;
+  return badge;
+}
+
+function makeConfiguredRegionRow(region: RegionSummary): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "region-row" + (activeRegion?.id === region.id ? " active" : "");
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = selected.has(region.id);
+  checkbox.title = "Include in build queue";
+  checkbox.addEventListener("change", () => {
+    if (checkbox.checked) selected.add(region.id);
+    else selected.delete(region.id);
+  });
+
+  const label = document.createElement("button");
+  label.type = "button";
+  label.className = "region-label-button";
+  const titleLine = document.createElement("span");
+  titleLine.className = "region-title-line";
+  const name = document.createElement("span");
+  name.className = "region-name";
+  name.textContent = region.name;
+  titleLine.append(name, makeStatusBadge(regionIsBuilt(region.id) ? "BUILT" : "CONFIGURED"));
+  const meta = document.createElement("span");
+  meta.className = "region-meta";
+  meta.textContent = `${region.border_buffer_km} km buffer • ${region.source_ids.length} sources`;
+  label.append(titleLine, meta);
+  label.addEventListener("click", () => setActiveRegion(region));
+
+  const focus = document.createElement("button");
+  focus.type = "button";
+  focus.className = "region-focus";
+  focus.title = "Inspect region";
+  focus.textContent = "›";
+  focus.addEventListener("click", () => setActiveRegion(region));
+
+  row.append(checkbox, label, focus);
+  return row;
+}
+
+async function selectCatalogRegion(item: GeofabrikCatalogItem): Promise<void> {
+  const configured = configuredRegionForCatalog(item);
+  if (configured) {
+    setActiveRegion(configured);
+    return;
+  }
+
+  map.fitBounds(
+    [[item.bounds.minLng, item.bounds.minLat], [item.bounds.maxLng, item.bounds.maxLat]],
+    { padding: 44, duration: 350 },
+  );
+  resetRegionEditor();
+  openRegionEditor();
+  if (!geofabrikCatalog.length) await loadGeofabrikCatalog(false);
+  editorGeofabrik.value = item.id;
+  editorName.value = item.name;
+  editorRoadpilotId.value = item.id.replaceAll("/", "-");
+  await previewEditorRegion(false);
+}
+
+function makeCatalogRegionRow(item: GeofabrikCatalogItem): HTMLElement {
+  const configured = configuredRegionForCatalog(item);
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "catalog-region-row";
+  row.title = configured ? "Open configured RoadPilot region" : "Preview and configure region";
+
+  const text = document.createElement("span");
+  text.className = "catalog-region-copy";
+  const titleLine = document.createElement("span");
+  titleLine.className = "region-title-line";
+  const name = document.createElement("span");
+  name.className = "region-name";
+  name.textContent = item.name;
+  const status = configured
+    ? (regionIsBuilt(configured.id) ? "BUILT" : "CONFIGURED")
+    : "AVAILABLE";
+  titleLine.append(name, makeStatusBadge(status));
+  const meta = document.createElement("span");
+  meta.className = "region-meta";
+  meta.textContent = item.id;
+  text.append(titleLine, meta);
+
+  const arrow = document.createElement("span");
+  arrow.className = "region-focus";
+  arrow.textContent = "›";
+  row.append(text, arrow);
+  row.addEventListener("click", () => {
+    selectCatalogRegion(item).catch(error => appendLog(`Could not preview ${item.name}: ${String(error)}`));
+  });
+  return row;
+}
+
+function renderConfiguredRegions(): void {
+  const filtered = regions.filter(region =>
+    regionMatchesQuery(region.name, region.id, region.primary_geofabrik_id ?? "")
+  );
+  regionBrowserSummary.textContent =
+    `${filtered.length} of ${regions.length} configured • ${artifacts.length} retained routing build${artifacts.length === 1 ? "" : "s"}`;
+
+  if (!filtered.length) {
+    regionHost.innerHTML = '<div class="region-empty">No configured regions match this search.</div>';
+    return;
+  }
+  for (const region of filtered) regionHost.appendChild(makeConfiguredRegionRow(region));
+}
+
+function renderCatalogRegions(): void {
+  if (!geofabrikCatalog.length) {
+    regionBrowserSummary.textContent = "Loading Geofabrik catalog…";
+    regionHost.innerHTML = '<div class="region-empty">Catalog is loading…</div>';
+    return;
+  }
+
+  const filtered = geofabrikCatalog.filter(item =>
+    regionMatchesQuery(item.name, item.id, item.countryName ?? "")
+  );
+  regionBrowserSummary.textContent =
+    `${filtered.length} of ${geofabrikCatalog.length} Geofabrik regions • click an available region to configure it`;
+
+  if (!filtered.length) {
+    regionHost.innerHTML = '<div class="region-empty">No catalog regions match this search.</div>';
+    return;
+  }
+
+  const continents = new Map<string, GeofabrikCatalogItem[]>();
+  for (const item of filtered) {
+    const continent = catalogContinent(item);
+    const list = continents.get(continent) ?? [];
+    list.push(item);
+    continents.set(continent, list);
+  }
+
+  for (const continentName of [...continents.keys()].sort()) {
+    const continent = document.createElement("details");
+    continent.className = "catalog-group catalog-continent";
+    continent.open = !!regionBrowserQuery || continentName === "Europe";
+    const continentSummary = document.createElement("summary");
+    continentSummary.textContent = continentName;
+    continent.appendChild(continentSummary);
+
+    const byCountry = new Map<string, GeofabrikCatalogItem[]>();
+    for (const item of continents.get(continentName) ?? []) {
+      const country = item.countryName || "Other";
+      const list = byCountry.get(country) ?? [];
+      list.push(item);
+      byCountry.set(country, list);
+    }
+
+    for (const countryName of [...byCountry.keys()].sort()) {
+      const items = (byCountry.get(countryName) ?? []).sort((a, b) => a.name.localeCompare(b.name));
+      const directCountry =
+        items.length === 1 &&
+        normalizedRegionSearchText(items[0].name) === normalizedRegionSearchText(countryName);
+
+      if (directCountry) {
+        continent.appendChild(makeCatalogRegionRow(items[0]));
+        continue;
+      }
+
+      const country = document.createElement("details");
+      country.className = "catalog-group catalog-country";
+      country.open = !!regionBrowserQuery;
+      const countrySummary = document.createElement("summary");
+      countrySummary.textContent = countryName;
+      country.appendChild(countrySummary);
+      for (const item of items) country.appendChild(makeCatalogRegionRow(item));
+      continent.appendChild(country);
+    }
+    regionHost.appendChild(continent);
+  }
+}
+
 function renderRegions(): void {
   regionHost.innerHTML = "";
-  for (const region of regions) {
-    const row = document.createElement("div");
-    row.className = "region-row" + (activeRegion?.id === region.id ? " active" : "");
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = selected.has(region.id);
-    checkbox.addEventListener("change", () => checkbox.checked ? selected.add(region.id) : selected.delete(region.id));
+  configuredRegionsTab.classList.toggle("active", regionBrowserMode === "configured");
+  catalogRegionsTab.classList.toggle("active", regionBrowserMode === "catalog");
+  configuredRegionsTab.setAttribute("aria-selected", String(regionBrowserMode === "configured"));
+  catalogRegionsTab.setAttribute("aria-selected", String(regionBrowserMode === "catalog"));
 
-    const label = document.createElement("div");
-    label.className = "region-name";
-    label.textContent = region.name;
-    const meta = document.createElement("span");
-    meta.className = "region-meta";
-    meta.textContent = `${region.border_buffer_km} km buffer • ${region.source_ids.length} sources`;
-    label.appendChild(meta);
-    label.addEventListener("click", () => setActiveRegion(region));
+  if (regionBrowserMode === "configured") renderConfiguredRegions();
+  else renderCatalogRegions();
+}
 
-    const focus = document.createElement("button");
-    focus.type = "button";
-    focus.className = "region-focus";
-    focus.title = "Inspect region";
-    focus.textContent = "›";
-    focus.addEventListener("click", () => setActiveRegion(region));
-    row.append(checkbox, label, focus);
-    regionHost.appendChild(row);
+function setRegionBrowserMode(mode: "configured" | "catalog"): void {
+  regionBrowserMode = mode;
+  renderRegions();
+  if (mode === "catalog" && !geofabrikCatalog.length) {
+    loadGeofabrikCatalog(false).catch(error => appendLog(`Geofabrik catalog error: ${String(error)}`));
   }
 }
 
@@ -3225,6 +3443,7 @@ async function loadGeofabrikCatalog(refresh = false): Promise<void> {
     appendLog(`Geofabrik catalog error: ${String(error)}`);
   } finally {
     editorGeofabrik.disabled = false;
+    renderRegions();
   }
 }
 
@@ -3381,10 +3600,18 @@ function configFromEditor(): Record<string, unknown> {
   return config;
 }
 
+configuredRegionsTab.addEventListener("click", () => setRegionBrowserMode("configured"));
+catalogRegionsTab.addEventListener("click", () => setRegionBrowserMode("catalog"));
+regionSearch.addEventListener("input", () => {
+  regionBrowserQuery = normalizedRegionSearchText(regionSearch.value);
+  renderRegions();
+});
+
 newRegionBtn.addEventListener("click", async () => {
-  resetRegionEditor();
-  openRegionEditor();
+  closeRegionEditor();
+  setRegionBrowserMode("catalog");
   if (!geofabrikCatalog.length) await loadGeofabrikCatalog(false);
+  regionSearch.focus();
 });
 
 editRegionBtn.addEventListener("click", async () => {
@@ -3836,6 +4063,7 @@ async function refreshBuilds(): Promise<void> {
   renderCompareSelectors();
   renderBorderRegionSelectors();
   renderPublicationBuildSelector();
+  renderRegions();
 }
 
 function renderCompareSelectors(): void {
@@ -4307,6 +4535,7 @@ async function bootstrap(): Promise<void> {
 
   await Promise.all([
     refreshRegions(),
+    loadGeofabrikCatalog(false),
     refreshToolchain(),
     refreshBuildStatus(),
     refreshBuilds(),
