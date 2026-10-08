@@ -178,18 +178,50 @@ def download(url: str, destination: Path, *, refresh: bool = False) -> Path:
     if refresh:
         destination.unlink(missing_ok=True)
     if destination.is_file() and destination.stat().st_size > 0:
-        print(f"cache hit: {destination}")
+        print(f"cache hit: {destination}", flush=True)
         return destination
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(destination.suffix + ".part")
     temporary.unlink(missing_ok=True)
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    print(f"download: {url}")
+    print(f"download: {url}", flush=True)
     with urllib.request.urlopen(request) as response, temporary.open("wb") as output:
-        shutil.copyfileobj(response, output, length=1024 * 1024)
+        total_header = response.headers.get("Content-Length")
+        total = int(total_header) if total_header and total_header.isdigit() else None
+        downloaded = 0
+        next_report = 0
+        chunk_size = 1024 * 1024
+        while True:
+            chunk = response.read(chunk_size)
+            if not chunk:
+                break
+            output.write(chunk)
+            downloaded += len(chunk)
+            if total:
+                percent = int(downloaded * 100 / total)
+                if percent >= next_report:
+                    print(
+                        f"download progress: {destination.name} "
+                        f"{downloaded / (1024 * 1024):.1f} / {total / (1024 * 1024):.1f} MiB "
+                        f"({percent}%)",
+                        flush=True,
+                    )
+                    next_report = ((percent // 10) + 1) * 10
+            elif downloaded >= next_report:
+                print(
+                    f"download progress: {destination.name} "
+                    f"{downloaded / (1024 * 1024):.1f} MiB",
+                    flush=True,
+                )
+                next_report = downloaded + 64 * 1024 * 1024
     if temporary.stat().st_size <= 0:
         fail(f"Downloaded empty file: {url}")
     temporary.replace(destination)
+    print(
+        f"download complete: {destination.name} "
+        f"({destination.stat().st_size / (1024 * 1024):.1f} MiB)",
+        flush=True,
+    )
     return destination
 
 
