@@ -258,7 +258,7 @@ def valhalla_version() -> str:
     for command in (["valhalla_build_tiles", "--version"], ["valhalla_service", "--version"]):
         try:
             output = run(command, capture=True).strip()
-            match = re.search(r"(?<!\\d)(\\d+\\.\\d+\\.\\d+)(?!\\d)", output)
+            match = re.search(r"(?<!\d)(\d+\.\d+\.\d+)(?!\d)", output)
             if match:
                 return match.group(1)
         except subprocess.CalledProcessError:
