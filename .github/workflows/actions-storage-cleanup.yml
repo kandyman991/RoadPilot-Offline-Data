@@ -1,0 +1,50 @@
+name: RoadPilot Offline Data Actions Storage Cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/actions-storage-cleanup.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  purge-actions-storage:
+    # This job only calls the GitHub API; it does not execute repository code.
+    # Keep it hosted so storage can be reclaimed even if the Legion is offline.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Purge legacy Actions caches and artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          CACHE_IDS="$RUNNER_TEMP/roadpilot-offline-actions-cache-ids.txt"
+          ARTIFACT_IDS="$RUNNER_TEMP/roadpilot-offline-actions-artifact-ids.txt"
+
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/caches?per_page=100"             --jq '.actions_caches[]?.id' > "$CACHE_IDS"
+
+          cache_count="$(grep -c . "$CACHE_IDS" || true)"
+          echo "Deleting $cache_count Actions cache entries..."
+          while read -r cache_id; do
+            [ -n "$cache_id" ] || continue
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/caches/$cache_id"
+          done < "$CACHE_IDS"
+
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100"             --jq '.artifacts[]? | select(.expired == false) | .id' > "$ARTIFACT_IDS"
+
+          artifact_count="$(grep -c . "$ARTIFACT_IDS" || true)"
+          echo "Deleting $artifact_count Actions artifacts..."
+          while read -r artifact_id; do
+            [ -n "$artifact_id" ] || continue
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id"
+          done < "$ARTIFACT_IDS"
+
+          echo "RoadPilot Offline Data Actions cache/artifact cleanup complete."
