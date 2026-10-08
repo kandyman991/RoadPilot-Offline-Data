@@ -103,6 +103,30 @@ type SearchBuildComparison = {
   categoryDeltas: Array<{category:string;a:number;b:number;delta:number}>;
 };
 
+type LocateEdgeCandidate = {
+  edge_id?: unknown;
+  correlated_lat?: number;
+  correlated_lon?: number;
+  distance?: number;
+  percent_along?: number;
+  heading?: number;
+  linear_reference?: string;
+  edge_info?: {
+    way_id?: string | number;
+    names?: string[];
+    shape?: string;
+    [key: string]: unknown;
+  };
+  edge?: {
+    access?: Record<string, boolean>;
+    start_restriction?: Record<string, boolean>;
+    end_restriction?: Record<string, boolean>;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+type LocateResult = Array<{ edges?: LocateEdgeCandidate[]; [key: string]: unknown }>;
+
 type PublicationKind = "ROUTING" | "VISUAL" | "SEARCH";
 type PublicationTarget = {
   artifactKind: PublicationKind;
@@ -622,12 +646,16 @@ app.innerHTML = `
       <section class="section">
         <h2>Graph inspector</h2>
         <div id="inspectorSummary" class="empty">
-          Select a built region, enable the graph layer, then click an edge or node.
+          Click a rendered graph feature for its MVT properties, or right-click any road for exact Valhalla locate candidates.
         </div>
-        <pre id="featureJson" class="feature-json">No graph feature selected.</pre>
+        <div id="locateCandidateSummary" class="empty" style="margin-top:8px">Right-click the map to inspect directed edges from the exact selected graph.</div>
         <div class="actions" style="margin-top:8px">
-          <button id="locateBtn" class="btn" type="button" disabled>Deep locate</button>
+          <button id="locatePrevBtn" class="btn" type="button" disabled>← Previous edge</button>
+          <button id="locateNextBtn" class="btn" type="button" disabled>Next edge →</button>
+          <button id="locateBtn" class="btn" type="button" disabled>Deep locate last click</button>
         </div>
+        <div id="locateCandidateDetails" class="kv" style="margin-top:8px"></div>
+        <pre id="featureJson" class="feature-json">No graph feature selected.</pre>
       </section>
       <section class="section">
         <h2>Border inspector</h2>
@@ -741,6 +769,11 @@ app.innerHTML = `
         </div>
         <div class="field inline-field">
           <label><input id="routeExpansionToggle" type="checkbox" /> Show search expansion</label>
+        </div>
+        <div id="expansionPlayback" class="empty" hidden>
+          <label for="expansionProgress">Expansion playback <span id="expansionProgressLabel">0 / 0 edges</span></label>
+          <input id="expansionProgress" type="range" min="0" max="1000" step="1" value="1000" />
+          <small>Drag backward to replay Valhalla's native expansion order. The final selected route remains visible above the explored graph.</small>
         </div>
         <details class="route-options">
           <summary>Costing options</summary>
@@ -858,6 +891,10 @@ const visualComparisonSummary = document.querySelector<HTMLDivElement>("#visualC
 const graphLayerBtn = document.querySelector<HTMLButtonElement>("#graphLayerBtn")!;
 const fitBtn = document.querySelector<HTMLButtonElement>("#fitBtn")!;
 const locateBtn = document.querySelector<HTMLButtonElement>("#locateBtn")!;
+const locatePrevBtn = document.querySelector<HTMLButtonElement>("#locatePrevBtn")!;
+const locateNextBtn = document.querySelector<HTMLButtonElement>("#locateNextBtn")!;
+const locateCandidateSummary = document.querySelector<HTMLDivElement>("#locateCandidateSummary")!;
+const locateCandidateDetails = document.querySelector<HTMLDivElement>("#locateCandidateDetails")!;
 const borderRegionA = document.querySelector<HTMLSelectElement>("#borderRegionA")!;
 const borderRegionB = document.querySelector<HTMLSelectElement>("#borderRegionB")!;
 const loadBorderPairBtn = document.querySelector<HTMLButtonElement>("#loadBorderPairBtn")!;
@@ -892,6 +929,9 @@ const pickRouteStartBtn = document.querySelector<HTMLButtonElement>("#pickRouteS
 const pickRouteEndBtn = document.querySelector<HTMLButtonElement>("#pickRouteEndBtn")!;
 const runRouteBtn = document.querySelector<HTMLButtonElement>("#runRouteBtn")!;
 const routeExpansionToggle = document.querySelector<HTMLInputElement>("#routeExpansionToggle")!;
+const expansionPlayback = document.querySelector<HTMLDivElement>("#expansionPlayback")!;
+const expansionProgress = document.querySelector<HTMLInputElement>("#expansionProgress")!;
+const expansionProgressLabel = document.querySelector<HTMLSpanElement>("#expansionProgressLabel")!;
 const routeUseHighways = document.querySelector<HTMLInputElement>("#routeUseHighways")!;
 const routeUseTolls = document.querySelector<HTMLInputElement>("#routeUseTolls")!;
 const routeUseFerry = document.querySelector<HTMLInputElement>("#routeUseFerry")!;
@@ -936,6 +976,9 @@ let routePickMode: "start" | "end" | null = null;
 let routeStartMarker: Marker | null = null;
 let routeEndMarker: Marker | null = null;
 let lastMapClick: { lat: number; lng: number } | null = null;
+let currentExpansion: FeatureCollection | null = null;
+let locateCandidates: LocateEdgeCandidate[] = [];
+let locateCandidateIndex = 0;
 const selected = new Set<string>();
 
 function bytes(value: number | null): string {
@@ -2662,12 +2705,66 @@ const routeSourceId = "roadpilot-route";
 const routeLayerId = "roadpilot-route-line";
 const expansionSourceId = "roadpilot-expansion";
 const expansionLayerId = "roadpilot-expansion-line";
+const locateEdgeSourceId = "roadpilot-locate-edge";
+const locateEdgeLayerId = "roadpilot-locate-edge-line";
 
 function removeRouteLayers(): void {
   if (map.getLayer(expansionLayerId)) map.removeLayer(expansionLayerId);
   if (map.getSource(expansionSourceId)) map.removeSource(expansionSourceId);
   if (map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
   if (map.getSource(routeSourceId)) map.removeSource(routeSourceId);
+  currentExpansion = null;
+  expansionPlayback.hidden = true;
+  expansionProgress.value = "1000";
+  expansionProgressLabel.textContent = "0 / 0 edges";
+}
+
+function removeLocateEdgeOverlay(): void {
+  if (map.getLayer(locateEdgeLayerId)) map.removeLayer(locateEdgeLayerId);
+  if (map.getSource(locateEdgeSourceId)) map.removeSource(locateEdgeSourceId);
+}
+
+function decodePolyline6(encoded: string): number[][] {
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  const coordinates: number[][] = [];
+  const read = (): number => {
+    let result = 0;
+    let shift = 0;
+    let byte = 0;
+    do {
+      if (index >= encoded.length) throw new Error("Truncated polyline6 shape.");
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    return (result & 1) ? ~(result >> 1) : (result >> 1);
+  };
+  while (index < encoded.length) {
+    lat += read();
+    lng += read();
+    coordinates.push([lng * 1e-6, lat * 1e-6]);
+  }
+  return coordinates;
+}
+
+function expansionVisibleCount(): number {
+  const total = currentExpansion?.features.length ?? 0;
+  if (!total) return 0;
+  const progress = Number(expansionProgress.value) / 1000;
+  return Math.min(total, Math.floor(progress * Math.max(0, total - 1)) + 1);
+}
+
+function updateExpansionPlayback(): void {
+  const total = currentExpansion?.features.length ?? 0;
+  if (!total || !map.getLayer(expansionLayerId)) {
+    expansionProgressLabel.textContent = "0 / 0 edges";
+    return;
+  }
+  const progress = Number(expansionProgress.value) / 1000;
+  map.setFilter(expansionLayerId, ["<=", ["get", "_rp_progress"], progress]);
+  expansionProgressLabel.textContent = `${expansionVisibleCount().toLocaleString()} / ${total.toLocaleString()} edges`;
 }
 
 function showRouteGeometry(geometry: Geometry): void {
@@ -2702,18 +2799,161 @@ function showRouteGeometry(geometry: Geometry): void {
 function showExpansion(expansion: FeatureCollection): void {
   if (map.getLayer(expansionLayerId)) map.removeLayer(expansionLayerId);
   if (map.getSource(expansionSourceId)) map.removeSource(expansionSourceId);
-  map.addSource(expansionSourceId, { type: "geojson", data: expansion });
+  const total = expansion.features.length;
+  const denom = Math.max(1, total - 1);
+  currentExpansion = {
+    type: "FeatureCollection",
+    features: expansion.features.map((feature, index) => ({
+      ...feature,
+      properties: {
+        ...(feature.properties ?? {}),
+        _rp_index: index,
+        _rp_progress: index / denom,
+      },
+    })),
+  };
+  map.addSource(expansionSourceId, { type: "geojson", data: currentExpansion });
   map.addLayer({
     id: expansionLayerId,
     type: "line",
     source: expansionSourceId,
     paint: {
-      "line-color": "#d68c45",
-      "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1, 14, 2],
-      "line-opacity": 0.45,
+      "line-color": [
+        "interpolate", ["linear"], ["get", "_rp_progress"],
+        0, "#9b4dca",
+        0.5, "#d68c45",
+        1, "#f1c453",
+      ],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1.2, 14, 2.4],
+      "line-opacity": 0.62,
     },
   }, routeLayerId);
+  expansionPlayback.hidden = total === 0;
+  expansionProgress.value = "1000";
+  updateExpansionPlayback();
   applyMapLayerToggles();
+}
+
+
+function candidateWayId(edge: LocateEdgeCandidate): string {
+  return String(edge.edge_info?.way_id ?? "—");
+}
+
+function activeAccess(edge: LocateEdgeCandidate): string[] {
+  const access = edge.edge?.access;
+  if (!access) return [];
+  return Object.entries(access).filter(([, allowed]) => allowed).map(([mode]) => mode);
+}
+
+function activeRestrictions(value: Record<string, boolean> | undefined): string[] {
+  if (!value) return [];
+  return Object.entries(value).filter(([, enabled]) => enabled).map(([name]) => name);
+}
+
+function edgeIdLabel(value: unknown): string {
+  if (value == null) return "—";
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    return String(object.value ?? object.id ?? JSON.stringify(value));
+  }
+  return String(value);
+}
+
+function showLocateCandidate(index: number): void {
+  if (!locateCandidates.length) {
+    locateCandidateIndex = 0;
+    locateCandidateSummary.className = "empty";
+    locateCandidateSummary.textContent = "No directed-edge candidates.";
+    locateCandidateDetails.innerHTML = "";
+    locatePrevBtn.disabled = true;
+    locateNextBtn.disabled = true;
+    removeLocateEdgeOverlay();
+    return;
+  }
+  locateCandidateIndex = Math.max(0, Math.min(index, locateCandidates.length - 1));
+  const edge = locateCandidates[locateCandidateIndex];
+  const names = edge.edge_info?.names?.join(" / ") || "unnamed road";
+  const access = activeAccess(edge);
+  const startRestrictions = activeRestrictions(edge.edge?.start_restriction);
+  const endRestrictions = activeRestrictions(edge.edge?.end_restriction);
+  locateCandidateSummary.className = "ok";
+  locateCandidateSummary.textContent =
+    `Directed edge ${locateCandidateIndex + 1} of ${locateCandidates.length} • ${names}`;
+  locateCandidateDetails.innerHTML = `
+    <dt>OSM way</dt><dd>${escapeHtml(candidateWayId(edge))}</dd>
+    <dt>Graph edge</dt><dd>${escapeHtml(edgeIdLabel(edge.edge_id))}</dd>
+    <dt>Snap distance</dt><dd>${edge.distance == null ? "—" : Number(edge.distance).toFixed(1) + " m"}</dd>
+    <dt>Percent along</dt><dd>${edge.percent_along == null ? "—" : (Number(edge.percent_along) * 100).toFixed(1) + "%"}</dd>
+    <dt>Heading</dt><dd>${edge.heading == null ? "—" : Number(edge.heading).toFixed(1) + "°"}</dd>
+    <dt>Access</dt><dd>${escapeHtml(access.length ? access.join(", ") : "none reported")}</dd>
+    <dt>Start restrictions</dt><dd>${escapeHtml(startRestrictions.length ? startRestrictions.join(", ") : "none")}</dd>
+    <dt>End restrictions</dt><dd>${escapeHtml(endRestrictions.length ? endRestrictions.join(", ") : "none")}</dd>
+  `;
+  locatePrevBtn.disabled = locateCandidateIndex === 0;
+  locateNextBtn.disabled = locateCandidateIndex >= locateCandidates.length - 1;
+  featureJson.textContent = JSON.stringify(edge, null, 2);
+
+  removeLocateEdgeOverlay();
+  const shape = edge.edge_info?.shape;
+  if (shape) {
+    try {
+      const coordinates = decodePolyline6(shape);
+      if (coordinates.length >= 2) {
+        map.addSource(locateEdgeSourceId, {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates },
+          },
+        });
+        map.addLayer({
+          id: locateEdgeLayerId,
+          type: "line",
+          source: locateEdgeSourceId,
+          paint: {
+            "line-color": "#ff3b30",
+            "line-width": ["interpolate", ["linear"], ["zoom"], 6, 4, 14, 8],
+            "line-opacity": 0.95,
+          },
+        });
+      }
+    } catch (error) {
+      appendLog(`Could not decode located edge shape: ${String(error)}`);
+    }
+  }
+  applyMapLayerToggles();
+}
+
+async function inspectEdgesAt(lat: number, lng: number): Promise<void> {
+  if (!activeRegion) return;
+  locateCandidateSummary.className = "empty";
+  locateCandidateSummary.textContent = "Running verbose Valhalla locate against the exact selected graph…";
+  locateCandidateDetails.innerHTML = "";
+  locatePrevBtn.disabled = true;
+  locateNextBtn.disabled = true;
+  try {
+    const result = await invoke<LocateResult>("inspect_locate", {
+      regionId: activeRegion.id,
+      lat,
+      lng,
+    });
+    const edges = Array.isArray(result) && result.length && Array.isArray(result[0]?.edges)
+      ? result[0].edges ?? []
+      : [];
+    locateCandidates = edges.slice(0, 12);
+    showLocateCandidate(0);
+    if (!locateCandidates.length) {
+      featureJson.textContent = JSON.stringify(result, null, 2);
+    }
+  } catch (error) {
+    locateCandidates = [];
+    removeLocateEdgeOverlay();
+    locateCandidateSummary.className = "bad";
+    locateCandidateSummary.textContent = `Locate failed: ${String(error)}`;
+    featureJson.textContent = `Locate failed: ${String(error)}`;
+  }
 }
 
 function routeCoordinate(field: HTMLInputElement, label: string, min: number, max: number): number {
@@ -4016,22 +4256,26 @@ map.on("click", (event) => {
   featureJson.textContent = JSON.stringify(payload, null, 2);
 });
 
+map.on("contextmenu", (event) => {
+  event.originalEvent.preventDefault();
+  lastMapClick = { lat: event.lngLat.lat, lng: event.lngLat.lng };
+  locateBtn.disabled = !activeRegion;
+  inspectEdgesAt(event.lngLat.lat, event.lngLat.lng).catch(error => appendLog(String(error)));
+});
+
+locatePrevBtn.addEventListener("click", () => showLocateCandidate(locateCandidateIndex - 1));
+locateNextBtn.addEventListener("click", () => showLocateCandidate(locateCandidateIndex + 1));
 locateBtn.addEventListener("click", async () => {
   if (!activeRegion || !lastMapClick) return;
   locateBtn.disabled = true;
   try {
-    const result = await invoke<unknown>("inspect_locate", {
-      regionId: activeRegion.id,
-      lat: lastMapClick.lat,
-      lng: lastMapClick.lng,
-    });
-    featureJson.textContent = JSON.stringify(result, null, 2);
-  } catch (error) {
-    featureJson.textContent = `Locate failed: ${String(error)}`;
+    await inspectEdgesAt(lastMapClick.lat, lastMapClick.lng);
   } finally {
     locateBtn.disabled = false;
   }
 });
+
+expansionProgress.addEventListener("input", updateExpansionPlayback);
 
 async function bootstrap(): Promise<void> {
   await listen<{ line: string }>("graph-studio://build-log", event => appendLog(event.payload.line));
