@@ -9,7 +9,9 @@ on:
       - "tools/**"
       - "requirements-routing.txt"
       - "requirements-visual.txt"
+      - "requirements-search.txt"
       - "visual/**"
+      - "search/**"
       - ".github/workflows/graph-studio.yml"
   push:
     branches: [main]
@@ -18,23 +20,70 @@ on:
       - "config/**"
       - "schemas/**"
       - "tools/**"
-      - "visual/**"
       - "requirements-routing.txt"
       - "requirements-visual.txt"
+      - "requirements-search.txt"
+      - "visual/**"
+      - "search/**"
       - ".github/workflows/graph-studio.yml"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
-  contents: read
+  contents: write
+  actions: read
 
 jobs:
   linux:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    # Never expose the Legion runner to arbitrary fork PR code in this public repo.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Switch Legion to performance mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v powerprofilesctl >/dev/null 2>&1; then
+            if powerprofilesctl set performance; then
+              echo "Runner power profile: $(powerprofilesctl get)"
+            else
+              echo "::warning::Could not switch runner to performance mode."
+              powerprofilesctl get || true
+            fi
+          fi
+
+      - name: Configure persistent local Graph Studio caches
+        shell: bash
+        run: |
+          set -euo pipefail
+          CACHE_ROOT="$HOME/.cache/roadpilot-graph-studio-ci"
+          mkdir -p "$CACHE_ROOT/npm" "$CACHE_ROOT/cargo-target"
+          echo "npm_config_cache=$CACHE_ROOT/npm" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_DIR=$CACHE_ROOT/cargo-target" >> "$GITHUB_ENV"
+          echo "GRAPH_STUDIO_CACHE_ROOT=$CACHE_ROOT" >> "$GITHUB_ENV"
+          echo "Using persistent local cache root: $CACHE_ROOT"
+
+      - name: Verify self-hosted Graph Studio runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in git curl wget file gh sudo; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              echo "Required self-hosted runner tool missing: $tool"
+              exit 1
+            fi
+          done
+          uname -a
+          df -h "$HOME"
+          echo "Self-hosted Graph Studio runner preflight passed."
 
       - name: Install Tauri Linux dependencies
         shell: bash
@@ -50,11 +99,6 @@ jobs:
 
       - name: Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: graph-studio/src-tauri
 
       - name: Install frontend dependencies
         working-directory: graph-studio
@@ -76,13 +120,55 @@ jobs:
         working-directory: graph-studio
         run: npm run tauri build -- --bundles appimage,deb
 
-      - name: Upload Graph Studio packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: roadpilot-graph-studio-linux
-          path: |
-            graph-studio/src-tauri/target/release/bundle/appimage/*.AppImage
-            graph-studio/src-tauri/target/release/bundle/deb/*.deb
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 14
+      - name: Verify Graph Studio packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          APPIMAGE="$(find "$CARGO_TARGET_DIR/release/bundle/appimage" -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          DEB="$(find "$CARGO_TARGET_DIR/release/bundle/deb" -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -s "$APPIMAGE"
+          test -s "$DEB"
+          echo "GRAPH_STUDIO_APPIMAGE=$APPIMAGE" >> "$GITHUB_ENV"
+          echo "GRAPH_STUDIO_DEB=$DEB" >> "$GITHUB_ENV"
+          ls -lh "$APPIMAGE" "$DEB"
+
+      - name: Publish rolling Graph Studio Linux release
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="roadpilot-graph-studio-linux"
+          APPIMAGE_RELEASE="$RUNNER_TEMP/RoadPilot-Graph-Studio-Linux.AppImage"
+          DEB_RELEASE="$RUNNER_TEMP/RoadPilot-Graph-Studio-Linux.deb"
+          cp "$GRAPH_STUDIO_APPIMAGE" "$APPIMAGE_RELEASE"
+          cp "$GRAPH_STUDIO_DEB" "$DEB_RELEASE"
+          chmod +x "$APPIMAGE_RELEASE"
+
+          NOTES="Rolling Linux build of RoadPilot Graph Studio from main.
+
+          Commit: $GITHUB_SHA
+          Run: $GITHUB_RUN_NUMBER
+
+          Packages:
+          - RoadPilot-Graph-Studio-Linux.AppImage
+          - RoadPilot-Graph-Studio-Linux.deb"
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG"               -f "sha=$GITHUB_SHA" -F force=true >/dev/null
+            gh release edit "$TAG"               --repo "$GITHUB_REPOSITORY"               --title "RoadPilot Graph Studio - Linux"               --notes "$NOTES"               --prerelease
+          else
+            gh release create "$TAG"               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --title "RoadPilot Graph Studio - Linux"               --notes "$NOTES"               --prerelease
+          fi
+
+          gh release upload "$TAG"             "$APPIMAGE_RELEASE"             "$DEB_RELEASE"             --repo "$GITHUB_REPOSITORY"             --clobber
+
+      - name: Return Legion to power-saver
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if command -v powerprofilesctl >/dev/null 2>&1; then
+            powerprofilesctl set power-saver || true
+            powerprofilesctl get || true
+          fi

@@ -1,0 +1,68 @@
+name: RoadPilot Offline Data Actions Storage Cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/actions-storage-cleanup.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  purge-actions-storage:
+    # This job only calls the GitHub API; it does not execute repository code.
+    # Keep it hosted so storage can be reclaimed even if the Legion is offline.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Purge legacy Actions caches and artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          CACHE_IDS="$RUNNER_TEMP/roadpilot-offline-actions-cache-ids.txt"
+          ARTIFACT_ROWS="$RUNNER_TEMP/roadpilot-offline-actions-artifacts.tsv"
+
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/caches?per_page=100"             --jq '.actions_caches[]?.id' > "$CACHE_IDS"
+
+          cache_count="$(grep -c . "$CACHE_IDS" || true)"
+          echo "Deleting $cache_count Actions cache entries..."
+          while read -r cache_id; do
+            [ -n "$cache_id" ] || continue
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/caches/$cache_id"
+          done < "$CACHE_IDS"
+
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100"             --jq '.artifacts[]? | select(.expired == false) | [.id, .name, .created_at] | @tsv'             > "$ARTIFACT_ROWS"
+
+          preserve_id=""
+          if ! gh release view roadpilot-graph-studio-linux --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            preserve_id="$(
+              awk -F '	' '$2 == "roadpilot-graph-studio-linux" {print $1 "	" $3}' "$ARTIFACT_ROWS"                 | sort -t $'	' -k2,2r                 | head -n1                 | cut -f1
+            )"
+            if [ -n "$preserve_id" ]; then
+              echo "Rolling Graph Studio release does not exist yet; preserving newest Graph Studio artifact id=$preserve_id."
+            fi
+          fi
+
+          artifact_count="$(grep -c . "$ARTIFACT_ROWS" || true)"
+          deleted=0
+          echo "Reviewing $artifact_count Actions artifacts..."
+          while IFS=$'	' read -r artifact_id artifact_name artifact_created; do
+            [ -n "$artifact_id" ] || continue
+            if [ "$artifact_id" = "$preserve_id" ]; then
+              echo "Preserving artifact: $artifact_name ($artifact_id)"
+              continue
+            fi
+            echo "Deleting artifact: $artifact_name ($artifact_id, $artifact_created)"
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id"
+            deleted=$((deleted + 1))
+          done < "$ARTIFACT_ROWS"
+
+          echo "Deleted $deleted Actions artifacts."
+          echo "RoadPilot Offline Data Actions cache/artifact cleanup complete."
