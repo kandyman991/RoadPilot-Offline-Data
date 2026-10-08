@@ -38,52 +38,14 @@ permissions:
 
 jobs:
   linux:
-    # Never expose the Legion runner to arbitrary fork PR code in this public repo.
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 60
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      CARGO_TARGET_DIR: ${{ runner.temp }}/graph-studio-target
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Switch Legion to performance mode
-        shell: bash
-        run: |
-          set -euo pipefail
-          if command -v powerprofilesctl >/dev/null 2>&1; then
-            if powerprofilesctl set performance; then
-              echo "Runner power profile: $(powerprofilesctl get)"
-            else
-              echo "::warning::Could not switch runner to performance mode."
-              powerprofilesctl get || true
-            fi
-          fi
-
-      - name: Configure persistent local Graph Studio caches
-        shell: bash
-        run: |
-          set -euo pipefail
-          CACHE_ROOT="$HOME/.cache/roadpilot-graph-studio-ci"
-          mkdir -p "$CACHE_ROOT/npm" "$CACHE_ROOT/cargo-target"
-          echo "npm_config_cache=$CACHE_ROOT/npm" >> "$GITHUB_ENV"
-          echo "CARGO_TARGET_DIR=$CACHE_ROOT/cargo-target" >> "$GITHUB_ENV"
-          echo "GRAPH_STUDIO_CACHE_ROOT=$CACHE_ROOT" >> "$GITHUB_ENV"
-          echo "Using persistent local cache root: $CACHE_ROOT"
-
-      - name: Verify self-hosted Graph Studio runner
-        shell: bash
-        run: |
-          set -euo pipefail
-          for tool in git curl wget file gh sudo; do
-            if ! command -v "$tool" >/dev/null 2>&1; then
-              echo "Required self-hosted runner tool missing: $tool"
-              exit 1
-            fi
-          done
-          uname -a
-          df -h "$HOME"
-          echo "Self-hosted Graph Studio runner preflight passed."
 
       - name: Install Tauri Linux dependencies
         shell: bash
@@ -163,12 +125,3 @@ jobs:
           fi
 
           gh release upload "$TAG"             "$APPIMAGE_RELEASE"             "$DEB_RELEASE"             --repo "$GITHUB_REPOSITORY"             --clobber
-
-      - name: Return Legion to power-saver
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          if command -v powerprofilesctl >/dev/null 2>&1; then
-            powerprofilesctl set power-saver || true
-            powerprofilesctl get || true
-          fi
