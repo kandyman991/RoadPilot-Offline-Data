@@ -1376,8 +1376,8 @@ addProtocol("roadpilot-visual", async (request) => {
 const map = new MapLibreMap({
   container: "map",
   style: "https://tiles.openfreemap.org/styles/bright",
-  center: [11.8, 46.2],
-  zoom: 6.2,
+  center: [0, 25],
+  zoom: 1.6,
 });
 map.addControl(new NavigationControl({ showCompass: true }), "bottom-right");
 
@@ -3411,7 +3411,6 @@ function setRegionBrowserMode(mode: "configured" | "catalog"): void {
 async function refreshRegions(): Promise<void> {
   regions = await invoke<RegionSummary[]>("list_regions");
   renderRegions();
-  if (!activeRegion && regions.length) setActiveRegion(regions[0]);
 }
 
 async function loadGeofabrikCatalog(refresh = false): Promise<void> {
