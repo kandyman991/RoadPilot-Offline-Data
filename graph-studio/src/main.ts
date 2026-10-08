@@ -453,16 +453,42 @@ app.innerHTML = `
         <input id="regionSearch" class="region-search" type="search" autocomplete="off" placeholder="Search regions…" aria-label="Search regions" />
         <div id="regionBrowserSummary" class="region-browser-summary">Loading regions…</div>
         <div id="regions" class="region-browser"></div>
-      </section>
-      <section class="section">
-        <h2>Region configuration</h2>
-        <div class="actions">
+        <div class="region-tree-actions">
           <button id="newRegionBtn" class="btn" type="button">New region</button>
           <button id="editRegionBtn" class="btn" type="button" disabled>Edit selected</button>
         </div>
-        <p>Graph Studio keeps editable region definitions in your local workspace and seeds them from the production repository.</p>
       </section>
-      <section class="section">
+    </aside>
+
+    <div id="leftSplitter" class="pane-splitter vertical-splitter" role="separator" aria-orientation="vertical" title="Drag to resize regions pane"></div>
+    <section class="map-wrap">
+      <div id="map"></div>
+      <div class="map-toolbar">
+        <span id="activeRegionBadge" class="map-badge">No region selected</span>
+        <button id="graphLayerBtn" class="btn" type="button" disabled>Show graph</button>
+        <button id="fitBtn" class="btn" type="button" disabled>Fit region</button>
+      </div>
+    </section>
+
+    <div id="rightSplitter" class="pane-splitter vertical-splitter" role="separator" aria-orientation="vertical" title="Drag to resize tools pane"></div>
+    <aside class="inspector">
+      <div class="tool-menu-shell">
+        <label for="toolMenu">Tool</label>
+        <select id="toolMenu">
+          <option value="build">Build</option>
+          <option value="region">Region editor</option>
+          <option value="graph">Graph inspector</option>
+          <option value="border">Border inspector</option>
+          <option value="route">Route planner</option>
+          <option value="visual">Visual map</option>
+          <option value="search">Search / POI</option>
+          <option value="compare">Build comparison</option>
+          <option value="publish">R2 publication</option>
+          <option value="toolchain">Toolchain</option>
+        </select>
+      </div>
+
+      <section class="section tool-panel" data-tool="build">
         <h2>Build</h2>
         <div class="field">
           <label for="packageVersion">Package version</label>
@@ -472,9 +498,10 @@ app.innerHTML = `
           <button id="buildBtn" class="btn primary" type="button">Build selected</button>
           <button id="cancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
-        <p>Routing, visual and search artifacts are independently versioned. Search/POI builds can be inspected and published without moving routing or visual release pointers.</p>
+        <p>Routing, visual and search artifacts are independently versioned. Select regions in the left tree, then build them here.</p>
       </section>
-      <section class="section">
+
+      <section class="section tool-panel" data-tool="publish" hidden>
         <h2>R2 publication</h2>
         <div id="r2CredentialSummary" class="empty">R2 credentials are not configured.</div>
         <details class="route-options" style="margin-top:8px">
@@ -528,23 +555,13 @@ app.innerHTML = `
         <div class="status-title" style="margin-top:10px">Published history</div>
         <div id="publicationHistory" class="empty">No region selected.</div>
       </section>
-      <section class="section">
+
+      <section class="section tool-panel" data-tool="toolchain" hidden>
         <h2>Toolchain</h2>
         <div id="tools" class="empty">Checking local tools…</div>
       </section>
-    </aside>
 
-    <section class="map-wrap">
-      <div id="map"></div>
-      <div class="map-toolbar">
-        <span id="activeRegionBadge" class="map-badge">No region selected</span>
-        <button id="graphLayerBtn" class="btn" type="button" disabled>Show graph</button>
-        <button id="fitBtn" class="btn" type="button" disabled>Fit region</button>
-      </div>
-    </section>
-
-    <aside class="inspector">
-      <section id="regionEditorSection" class="section" hidden>
+      <section id="regionEditorSection" class="section tool-panel" data-tool="region" hidden>
         <h2>Region editor</h2>
         <div class="field">
           <label for="editorRoadpilotId">RoadPilot region id</label>
@@ -586,7 +603,7 @@ app.innerHTML = `
           <button id="closeRegionEditorBtn" class="btn" type="button">Close</button>
         </div>
       </section>
-      <section class="section">
+      <section class="section tool-panel" data-tool="search" hidden>
         <h2>Search / POI inspector</h2>
         <div class="field"><label for="searchBuildSelect">Retained search build</label><select id="searchBuildSelect"></select></div>
         <div id="searchBuildSummary" class="empty">No retained search build selected.</div>
@@ -604,7 +621,7 @@ app.innerHTML = `
           <pre id="searchCompareSummary" class="feature-json">Choose two builds of the same region.</pre>
         </details>
       </section>
-      <section class="section">
+      <section class="section tool-panel" data-tool="visual" hidden>
         <h2>Visual map inspector</h2>
         <div class="field">
           <label for="visualBuildSelect">RoadPilot visual build</label>
@@ -650,7 +667,7 @@ app.innerHTML = `
           <span><i class="artifact-candidate"></i>Changed</span>
         </div>
       </section>
-      <section class="section">
+      <section class="section tool-panel" data-tool="graph" hidden>
         <h2>Graph inspector</h2>
         <div id="inspectorSummary" class="empty">
           Click a rendered graph feature for its MVT properties, or right-click any road for exact Valhalla locate candidates.
@@ -664,7 +681,7 @@ app.innerHTML = `
         <div id="locateCandidateDetails" class="kv" style="margin-top:8px"></div>
         <pre id="featureJson" class="feature-json">No graph feature selected.</pre>
       </section>
-      <section class="section">
+      <section class="section tool-panel" data-tool="border" hidden>
         <h2>Border inspector</h2>
         <div class="coord-grid">
           <div class="field">
@@ -752,7 +769,7 @@ app.innerHTML = `
         <h2 style="margin-top:16px">Saved manual overrides</h2>
         <div id="handoffOverrideList" class="empty">No manual overrides.</div>
       </section>
-      <section class="section">
+      <section class="section tool-panel" data-tool="route" hidden>
         <h2>Valhalla route planner</h2>
         <div class="field">
           <label for="routeCosting">Costing</label>
@@ -800,7 +817,7 @@ app.innerHTML = `
         <div id="routeSummary" class="empty">Build/select a graph, then choose start and destination.</div>
         <div id="routeManeuvers" class="maneuver-list"></div>
       </section>
-      <section class="section">
+      <section class="section tool-panel" data-tool="compare" hidden>
         <h2>Build comparison</h2>
         <div class="field">
           <label for="compareA">Build A</label>
@@ -815,6 +832,7 @@ app.innerHTML = `
     </aside>
   </main>
 
+  <div id="consoleSplitter" class="pane-splitter horizontal-splitter" role="separator" aria-orientation="horizontal" title="Drag to resize console"></div>
   <footer class="console">
     <section class="console-summary">
       <div id="statusTitle" class="status-title">Idle</div>
@@ -831,7 +849,13 @@ app.innerHTML = `
 </div>
 `;
 
+const appRoot = document.querySelector<HTMLDivElement>(".app")!;
 const regionHost = document.querySelector<HTMLDivElement>("#regions")!;
+const toolMenu = document.querySelector<HTMLSelectElement>("#toolMenu")!;
+const toolPanels = [...document.querySelectorAll<HTMLElement>(".tool-panel")];
+const leftSplitter = document.querySelector<HTMLDivElement>("#leftSplitter")!;
+const rightSplitter = document.querySelector<HTMLDivElement>("#rightSplitter")!;
+const consoleSplitter = document.querySelector<HTMLDivElement>("#consoleSplitter")!;
 const configuredRegionsTab = document.querySelector<HTMLButtonElement>("#configuredRegionsTab")!;
 const catalogRegionsTab = document.querySelector<HTMLButtonElement>("#catalogRegionsTab")!;
 const regionSearch = document.querySelector<HTMLInputElement>("#regionSearch")!;
@@ -993,6 +1017,33 @@ let currentExpansion: FeatureCollection | null = null;
 let locateCandidates: LocateEdgeCandidate[] = [];
 let locateCandidateIndex = 0;
 const selected = new Set<string>();
+
+type ToolId = "build" | "region" | "graph" | "border" | "route" | "visual" | "search" | "compare" | "publish" | "toolchain";
+const TOOL_STORAGE_KEY = "roadpilot.graph-studio.active-tool";
+let activeTool: ToolId = "build";
+let lastNonRegionTool: ToolId = "build";
+
+function isToolId(value: string | null): value is ToolId {
+  return ["build", "region", "graph", "border", "route", "visual", "search", "compare", "publish", "toolchain"].includes(value ?? "");
+}
+
+function activateTool(tool: ToolId, remember = true): void {
+  if (tool !== "region") lastNonRegionTool = tool;
+  activeTool = tool;
+  toolMenu.value = tool;
+  for (const panel of toolPanels) panel.hidden = panel.dataset.tool !== tool;
+  if (remember) localStorage.setItem(TOOL_STORAGE_KEY, tool);
+}
+
+const storedTool = localStorage.getItem(TOOL_STORAGE_KEY);
+if (isToolId(storedTool)) {
+  activeTool = storedTool;
+  if (activeTool !== "region") lastNonRegionTool = activeTool;
+}
+activateTool(activeTool, false);
+toolMenu.addEventListener("change", () => {
+  if (isToolId(toolMenu.value)) activateTool(toolMenu.value);
+});
 
 function bytes(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return "—";
@@ -1380,6 +1431,128 @@ const map = new MapLibreMap({
   zoom: 1.6,
 });
 map.addControl(new NavigationControl({ showCompass: true }), "bottom-right");
+
+const LAYOUT_KEYS = {
+  left: "roadpilot.graph-studio.left-pane",
+  right: "roadpilot.graph-studio.right-pane",
+  console: "roadpilot.graph-studio.console-height",
+};
+
+function readStoredSize(key: string, fallback: number): number {
+  const value = Number(localStorage.getItem(key));
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function applyStoredLayout(): void {
+  appRoot.style.setProperty("--left-pane", `${readStoredSize(LAYOUT_KEYS.left, 300)}px`);
+  appRoot.style.setProperty("--right-pane", `${readStoredSize(LAYOUT_KEYS.right, 360)}px`);
+  appRoot.style.setProperty("--console-height", `${readStoredSize(LAYOUT_KEYS.console, 196)}px`);
+}
+
+function numericCssVar(name: string, fallback: number): number {
+  const value = Number.parseFloat(getComputedStyle(appRoot).getPropertyValue(name));
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function persistLayout(): void {
+  localStorage.setItem(LAYOUT_KEYS.left, String(Math.round(numericCssVar("--left-pane", 300))));
+  localStorage.setItem(LAYOUT_KEYS.right, String(Math.round(numericCssVar("--right-pane", 360))));
+  localStorage.setItem(LAYOUT_KEYS.console, String(Math.round(numericCssVar("--console-height", 196))));
+}
+
+function installVerticalSplitter(splitter: HTMLElement, side: "left" | "right"): void {
+  splitter.addEventListener("pointerdown", event => {
+    event.preventDefault();
+    splitter.setPointerCapture(event.pointerId);
+    document.body.classList.add("pane-resizing");
+    const workspace = document.querySelector<HTMLElement>(".workspace")!;
+
+    const move = (moveEvent: PointerEvent) => {
+      const rect = workspace.getBoundingClientRect();
+      const leftWidth = numericCssVar("--left-pane", 300);
+      const rightWidth = numericCssVar("--right-pane", 360);
+      const centerMinimum = 420;
+      const splitterSpace = 10;
+
+      if (side === "left") {
+        const maximum = Math.max(220, rect.width - rightWidth - centerMinimum - splitterSpace);
+        const next = Math.min(maximum, Math.max(220, moveEvent.clientX - rect.left));
+        appRoot.style.setProperty("--left-pane", `${next}px`);
+      } else {
+        const maximum = Math.max(280, rect.width - leftWidth - centerMinimum - splitterSpace);
+        const next = Math.min(maximum, Math.max(280, rect.right - moveEvent.clientX));
+        appRoot.style.setProperty("--right-pane", `${next}px`);
+      }
+      map.resize();
+    };
+
+    const end = () => {
+      document.body.classList.remove("pane-resizing");
+      splitter.removeEventListener("pointermove", move);
+      splitter.removeEventListener("pointerup", end);
+      splitter.removeEventListener("pointercancel", end);
+      persistLayout();
+      map.resize();
+    };
+
+    splitter.addEventListener("pointermove", move);
+    splitter.addEventListener("pointerup", end);
+    splitter.addEventListener("pointercancel", end);
+  });
+}
+
+function installConsoleSplitter(): void {
+  consoleSplitter.addEventListener("pointerdown", event => {
+    event.preventDefault();
+    consoleSplitter.setPointerCapture(event.pointerId);
+    document.body.classList.add("pane-resizing");
+
+    const move = (moveEvent: PointerEvent) => {
+      const rect = appRoot.getBoundingClientRect();
+      const topbar = 52;
+      const splitterSize = 5;
+      const mainMinimum = 280;
+      const maximum = Math.max(140, rect.height - topbar - splitterSize - mainMinimum);
+      const next = Math.min(maximum, Math.max(120, rect.bottom - moveEvent.clientY));
+      appRoot.style.setProperty("--console-height", `${next}px`);
+      map.resize();
+    };
+
+    const end = () => {
+      document.body.classList.remove("pane-resizing");
+      consoleSplitter.removeEventListener("pointermove", move);
+      consoleSplitter.removeEventListener("pointerup", end);
+      consoleSplitter.removeEventListener("pointercancel", end);
+      persistLayout();
+      map.resize();
+    };
+
+    consoleSplitter.addEventListener("pointermove", move);
+    consoleSplitter.addEventListener("pointerup", end);
+    consoleSplitter.addEventListener("pointercancel", end);
+  });
+}
+
+applyStoredLayout();
+installVerticalSplitter(leftSplitter, "left");
+installVerticalSplitter(rightSplitter, "right");
+installConsoleSplitter();
+
+leftSplitter.addEventListener("dblclick", () => {
+  appRoot.style.setProperty("--left-pane", "300px");
+  persistLayout();
+  map.resize();
+});
+rightSplitter.addEventListener("dblclick", () => {
+  appRoot.style.setProperty("--right-pane", "360px");
+  persistLayout();
+  map.resize();
+});
+consoleSplitter.addEventListener("dblclick", () => {
+  appRoot.style.setProperty("--console-height", "196px");
+  persistLayout();
+  map.resize();
+});
 
 const visualSourceId = "roadpilot-offline-visual";
 const visualLayerIds = [
@@ -3466,13 +3639,12 @@ function resetRegionEditor(): void {
 }
 
 function openRegionEditor(): void {
-  regionEditorSection.hidden = false;
-  regionEditorSection.scrollIntoView({ block: "start" });
+  activateTool("region");
 }
 
 function closeRegionEditor(): void {
-  regionEditorSection.hidden = true;
   removeEditorOverlays();
+  activateTool(lastNonRegionTool === "region" ? "build" : lastNonRegionTool);
 }
 
 async function previewEditorRegion(refresh = false): Promise<void> {
@@ -4493,6 +4665,7 @@ map.on("click", (event) => {
 
 map.on("contextmenu", (event) => {
   event.originalEvent.preventDefault();
+  activateTool("graph");
   lastMapClick = { lat: event.lngLat.lat, lng: event.lngLat.lng };
   locateBtn.disabled = !activeRegion;
   inspectEdgesAt(event.lngLat.lat, event.lngLat.lng).catch(error => appendLog(String(error)));
