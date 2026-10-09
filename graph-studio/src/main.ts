@@ -3451,10 +3451,23 @@ async function selectCatalogRegion(item: GeofabrikCatalogItem): Promise<void> {
 
 function makeCatalogRegionRow(item: GeofabrikCatalogItem): HTMLElement {
   const configured = configuredRegionForCatalog(item);
-  const row = document.createElement("button");
-  row.type = "button";
-  row.className = "catalog-region-row";
-  row.title = configured ? "Open configured RoadPilot region" : "Preview and configure region";
+  const row = document.createElement("div");
+  row.className = "catalog-region-row" + (configured && selected.has(configured.id) ? " selected" : "");
+  row.title = configured ? "Select configured region for building" : "Configure region before building";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.className = "catalog-region-checkbox";
+  checkbox.disabled = !configured;
+  checkbox.checked = !!configured && selected.has(configured.id);
+  checkbox.title = configured ? "Include in build queue" : "Configure this region before building";
+  checkbox.setAttribute("aria-label", `Build ${item.name}`);
+  checkbox.addEventListener("change", () => {
+    if (!configured) return;
+    if (checkbox.checked) selected.add(configured.id);
+    else selected.delete(configured.id);
+    row.classList.toggle("selected", checkbox.checked);
+  });
 
   const text = document.createElement("span");
   text.className = "catalog-region-copy";
@@ -3475,10 +3488,15 @@ function makeCatalogRegionRow(item: GeofabrikCatalogItem): HTMLElement {
   const arrow = document.createElement("span");
   arrow.className = "region-focus";
   arrow.textContent = "›";
-  row.append(text, arrow);
-  row.addEventListener("click", () => {
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "catalog-region-open";
+  open.append(text, arrow);
+  open.title = configured ? "Inspect configured region" : "Preview and configure region";
+  open.addEventListener("click", () => {
     selectCatalogRegion(item).catch(error => appendLog(`Could not preview ${item.name}: ${String(error)}`));
   });
+  row.append(checkbox, open);
   return row;
 }
 
@@ -3507,7 +3525,7 @@ function renderCatalogRegions(): void {
     regionMatchesQuery(item.name, item.id, item.countryName ?? "")
   );
   regionBrowserSummary.textContent =
-    `${filtered.length} of ${geofabrikCatalog.length} Geofabrik regions • click an available region to configure it`;
+    `${filtered.length} of ${geofabrikCatalog.length} Geofabrik regions • check configured regions to build; open available regions to configure`;
 
   if (!filtered.length) {
     regionHost.innerHTML = '<div class="region-empty">No catalog regions match this search.</div>';
