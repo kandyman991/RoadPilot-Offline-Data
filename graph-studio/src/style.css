@@ -855,3 +855,47 @@ button { cursor: pointer; }
   margin: 8px 0;
   font-size: 12px;
 }
+
+/* Keep native form controls readable with the dark Graph Studio theme (GTK/WebKit included). */
+:root { color-scheme: dark; }
+input, select, textarea { color-scheme: dark; }
+select, select option, select optgroup {
+  background-color: #0e151d;
+  color: #e7edf5;
+}
+select option:checked { background-color: #235f99; color: #fff; }
+input::placeholder { color: #8290a0; opacity: 1; }
+input:disabled, select:disabled { opacity: .6; }
+
+/* Catalog entries have a real queue checkbox, separate from the inspect/configure action. */
+.catalog-region-row {
+  grid-template-columns: 18px minmax(0, 1fr);
+  padding: 3px 5px;
+  margin: 1px 0;
+}
+.catalog-region-row.selected { background: #1c2936; }
+.catalog-region-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #4187c4;
+  cursor: pointer;
+}
+.catalog-region-checkbox:disabled { cursor: not-allowed; opacity: .35; }
+.catalog-region-open {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  gap: 5px;
+  align-items: center;
+  padding: 3px 1px;
+  color: #e8edf3;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.catalog-region-open:focus-visible, .catalog-region-checkbox:focus-visible {
+  outline: 2px solid #4c86b8;
+  outline-offset: 2px;
+}
