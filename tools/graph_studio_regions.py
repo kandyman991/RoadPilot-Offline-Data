@@ -12,11 +12,15 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from pyproj import CRS, Transformer
-from shapely.geometry import Point, mapping, shape
-from shapely.ops import transform
-
-from build_routing_region import parse_poly
+# The catalog command only needs the Python standard library. Loading Shapely,
+# PyProj and the routing build pipeline is deferred to geometry operations so
+# that a newly installed desktop app can browse regions before pip setup.
+def load_geometry_dependencies() -> None:
+    global CRS, Transformer, Point, mapping, shape, transform, parse_poly
+    from pyproj import CRS, Transformer
+    from shapely.geometry import Point, mapping, shape
+    from shapely.ops import transform
+    from build_routing_region import parse_poly
 
 INDEX_URL = "https://download.geofabrik.de/index-v1.json"
 USER_AGENT = "RoadPilot-Graph-Studio/0.1"
@@ -40,15 +44,23 @@ def download(url: str, destination: Path, *, refresh: bool = False) -> Path:
     temporary = destination.with_suffix(destination.suffix + ".part")
     temporary.unlink(missing_ok=True)
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=90) as response, temporary.open("wb") as out:
-        while True:
-            chunk = response.read(1024 * 1024)
-            if not chunk:
-                break
-            out.write(chunk)
-    if temporary.stat().st_size <= 0:
-        fail(f"Downloaded empty file: {url}")
-    temporary.replace(destination)
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response, temporary.open("wb") as out:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                out.write(chunk)
+        if temporary.stat().st_size <= 0:
+            fail(f"Downloaded empty file: {url}")
+        temporary.replace(destination)
+    except (OSError, TimeoutError) as exc:
+        # A valid-looking cached file is still useful offline or when the
+        # upstream Geofabrik server cannot be reached after the cache TTL.
+        if not destination.is_file() or destination.stat().st_size <= 0:
+            fail(f"Cannot download {url}: {exc}")
+    finally:
+        temporary.unlink(missing_ok=True)
     return destination
 
 
@@ -219,6 +231,35 @@ def bounds_dict(geometry) -> dict[str, float]:
     }
 
 
+def geojson_bounds(feature: dict[str, Any]) -> dict[str, float]:
+    """Find coordinate bounds without requiring GEOS/Shapely during catalog loading."""
+    geometry = feature.get("geometry")
+    if not isinstance(geometry, dict):
+        fail(f"Geofabrik feature {feature_id(feature)} has no geometry")
+    coordinates = geometry.get("coordinates")
+    min_lat = min_lng = float("inf")
+    max_lat = max_lng = float("-inf")
+
+    def walk(value: Any) -> None:
+        nonlocal min_lat, min_lng, max_lat, max_lng
+        if not isinstance(value, (list, tuple)):
+            return
+        if len(value) >= 2 and all(type(v) in (int, float) for v in value[:2]):
+            lng, lat = float(value[0]), float(value[1])
+            if not math.isfinite(lng) or not math.isfinite(lat):
+                fail(f"Non-finite Geofabrik geometry for {feature_id(feature)}")
+            min_lng, max_lng = min(min_lng, lng), max(max_lng, lng)
+            min_lat, max_lat = min(min_lat, lat), max(max_lat, lat)
+        else:
+            for child in value:
+                walk(child)
+
+    walk(coordinates)
+    if not math.isfinite(min_lng):
+        fail(f"Geofabrik feature {feature_id(feature)} has no coordinates")
+    return {"minLat": min_lat, "maxLat": max_lat, "minLng": min_lng, "maxLng": max_lng}
+
+
 def catalog_payload(root: dict[str, Any]) -> list[dict[str, Any]]:
     nodes = nodes_by_id(root)
     children = children_by_parent(nodes)
@@ -229,7 +270,6 @@ def catalog_payload(root: dict[str, Any]) -> list[dict[str, Any]]:
         url = pbf_url(feature)
         if not url:
             continue
-        geometry = geometry_for(feature)
         country_id, country_name = country_info(feature, nodes)
         props = feature.get("properties", {})
         result.append(
@@ -242,7 +282,7 @@ def catalog_payload(root: dict[str, Any]) -> list[dict[str, Any]]:
                 "polygonUrl": poly_url_for_pbf(url),
                 "countryId": country_id,
                 "countryName": country_name,
-                "bounds": bounds_dict(geometry),
+                "bounds": geojson_bounds(feature),
             }
         )
     result.sort(key=lambda item: ((item.get("countryName") or ""), item["name"], item["id"]))
@@ -418,6 +458,7 @@ def main() -> None:
         root = load_index(cache_dir, args.refresh)
         payload: Any = catalog_payload(root)
     elif args.command == "preview":
+        load_geometry_dependencies()
         root = load_index(cache_dir, args.refresh)
         payload = preview_payload(
             root,
@@ -427,6 +468,7 @@ def main() -> None:
             args.refresh,
         )
     elif args.command == "validate-config":
+        load_geometry_dependencies()
         payload = validate_config_geometry(
             Path(args.config),
             cache_dir,
