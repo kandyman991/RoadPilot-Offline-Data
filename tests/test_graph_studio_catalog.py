@@ -54,6 +54,23 @@ class CatalogTests(unittest.TestCase):
                          {"minLat": 44.0, "maxLat": 47.0, "minLng": 10.0, "maxLng": 14.0})
         self.assertTrue(nord_est["polygonUrl"].endswith("/nord-est.poly"))
 
+    def test_empty_multipolygon_keeps_downloadable_region_in_catalog(self):
+        # Geofabrik index-v1.json currently contains a real leaf like this:
+        # Japan/Chubu: "geometry": {"type":"MultiPolygon","coordinates":[[[]]]}
+        self.root["features"].extend([
+            feature("japan", "asia", "Japan", [129, 30, 146, 46],
+                    "https://download.geofabrik.de/asia/japan-latest.osm.pbf", "JP"),
+            feature("chubu", "japan", "Chubu", [135, 34, 140, 38],
+                    "https://download.geofabrik.de/asia/japan/chubu-latest.osm.pbf"),
+        ])
+        self.root["features"][-1]["geometry"] = {"type": "MultiPolygon", "coordinates": [[[]]]}
+        items = catalog.catalog_payload(self.root)
+        chubu = next(item for item in items if item["id"] == "asia/japan/chubu" or
+                     item["id"] == "japan/chubu")
+        self.assertIsNone(chubu["bounds"])
+        self.assertTrue(chubu["polygonUrl"].endswith("chubu.poly"))
+        self.assertIn("italy/nord-est", {item["id"] for item in items})
+
     def test_cached_index_remains_available_on_network_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
             cached = Path(tmp) / "index-v1.json"
