@@ -70,3 +70,8 @@ PRs #5 and #6 are older transition-artifact/offline-transition experiments. Do n
 ## Handoff maintenance
 
 Update this file after each meaningful architectural decision or milestone transition. The automatic workflow updates only `handoff/state.json`.
+
+
+## Persistent ChatGPT continuity
+
+For all future sessions read `AGENTS.md` and the decision/rejection registers under `docs/`. At every meaningful milestone update this curated handoff with exact tested results and next action, independently of `handoff/state.json`. See `docs/CONTINUITY_PLAYBOOK.md`.
