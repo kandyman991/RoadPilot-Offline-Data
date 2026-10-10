@@ -190,7 +190,9 @@ type GeofabrikCatalogItem = {
   polygonUrl: string;
   countryId: string | null;
   countryName: string | null;
-  bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number };
+  // Geofabrik includes downloadable extracts with empty index geometry.
+  // The exact .poly geometry is retrieved when opening their region editor.
+  bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null;
 };
 type RegionPreviewSource = {
   id: string;
@@ -3438,10 +3440,12 @@ async function selectCatalogRegion(item: GeofabrikCatalogItem): Promise<void> {
     return;
   }
 
-  map.fitBounds(
-    [[item.bounds.minLng, item.bounds.minLat], [item.bounds.maxLng, item.bounds.maxLat]],
-    { padding: 44, duration: 350 },
-  );
+  if (item.bounds) {
+    map.fitBounds(
+      [[item.bounds.minLng, item.bounds.minLat], [item.bounds.maxLng, item.bounds.maxLat]],
+      { padding: 44, duration: 350 },
+    );
+  }
   resetRegionEditor();
   openRegionEditor();
   if (!geofabrikCatalog.length) await loadGeofabrikCatalog(false);
