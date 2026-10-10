@@ -778,7 +778,15 @@ fn run_graph_studio_region_helper(
     app: &AppHandle,
     arguments: &[String],
 ) -> Result<Value, String> {
-    let python = ensure_python_env(app)?;
+    // Browsing the catalog must work on the first launch, even when the
+    // expensive build/geometry Python environment is not installed yet.
+    // graph_studio_regions.py imports optional geometry modules lazily.
+    let catalog_only = arguments.last().map(String::as_str) == Some("catalog");
+    let python = if catalog_only {
+        PathBuf::from("python3")
+    } else {
+        ensure_python_env(app)?
+    };
     let pipeline = pipeline_root(app)?;
     let script = pipeline.join("tools/graph_studio_regions.py");
     if !script.is_file() {
