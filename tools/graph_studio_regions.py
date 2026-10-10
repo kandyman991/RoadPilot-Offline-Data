@@ -231,11 +231,16 @@ def bounds_dict(geometry) -> dict[str, float]:
     }
 
 
-def geojson_bounds(feature: dict[str, Any]) -> dict[str, float]:
-    """Find coordinate bounds without requiring GEOS/Shapely during catalog loading."""
+def geojson_bounds(feature: dict[str, Any]) -> dict[str, float] | None:
+    """Find catalog bounds without GEOS; missing upstream geometry is permitted.
+
+    Geofabrik includes downloadable leaf extracts (for example Japan/Chubu)
+    with valid PBF/.poly URLs but an empty MultiPolygon [[[ ]]] in the index.
+    Keep those entries available rather than failing the entire catalog.
+    """
     geometry = feature.get("geometry")
     if not isinstance(geometry, dict):
-        fail(f"Geofabrik feature {feature_id(feature)} has no geometry")
+        return None
     coordinates = geometry.get("coordinates")
     min_lat = min_lng = float("inf")
     max_lat = max_lng = float("-inf")
@@ -256,7 +261,7 @@ def geojson_bounds(feature: dict[str, Any]) -> dict[str, float]:
 
     walk(coordinates)
     if not math.isfinite(min_lng):
-        fail(f"Geofabrik feature {feature_id(feature)} has no coordinates")
+        return None
     return {"minLat": min_lat, "maxLat": max_lat, "minLng": min_lng, "maxLng": max_lng}
 
 
@@ -333,6 +338,11 @@ def preview_payload(
     sources = []
     for candidate_id in leaf_ids:
         feature = nodes[candidate_id]
+        # Some catalog entries have no index geometry. Their exact .poly
+        # remains available for a primary preview, but without index geometry
+        # we cannot establish that they intersect another region's buffer.
+        if geojson_bounds(feature) is None:
+            continue
         candidate_public_id = canonical_id(candidate_id, nodes)
         candidate_geometry = geometry_for(feature)
         if not candidate_geometry.intersects(buffered):
