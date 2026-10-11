@@ -147,7 +147,8 @@ button { cursor: pointer; }
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  /* Header, tabs, search, summary, scrollable tree, actions. */
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
   gap: 8px;
 }
 .region-tabs {
@@ -180,7 +181,9 @@ button { cursor: pointer; }
 }
 .region-search:focus { border-color: #4c86b8; }
 .region-browser-summary {
-  color: #758292;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #9cabb9;
   font-size: 10px;
   line-height: 1.35;
 }
@@ -195,6 +198,12 @@ button { cursor: pointer; }
   gap: 7px;
   padding-top: 4px;
   border-top: 1px solid #27303b;
+}
+.region-tree-actions .configure-queued {
+  grid-column: 1 / -1;
+}
+.catalog-region-row.selected {
+  background: #1b3040;
 }
 .region-empty {
   padding: 10px 6px;
