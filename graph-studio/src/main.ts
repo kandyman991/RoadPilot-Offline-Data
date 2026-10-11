@@ -458,6 +458,7 @@ app.innerHTML = `
         <div class="region-tree-actions">
           <button id="newRegionBtn" class="btn" type="button">New region</button>
           <button id="editRegionBtn" class="btn" type="button" disabled>Edit selected</button>
+          <button id="configureQueuedBtn" class="btn configure-queued" type="button" disabled>Configure queued regions</button>
         </div>
       </section>
     </aside>
@@ -500,7 +501,8 @@ app.innerHTML = `
           <button id="buildBtn" class="btn primary" type="button">Build selected</button>
           <button id="cancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
-        <p>Routing, visual and search artifacts are independently versioned. Select regions in the left tree, then build them here.</p>
+        <div id="buildSelectionSummary" class="status-line">No regions selected.</div>
+        <p>Choose regions in the left tree. Available catalog regions can be queued for setup, but only validated configured regions can be built.</p>
       </section>
 
       <section class="section tool-panel" data-tool="publish" hidden>
@@ -862,6 +864,8 @@ const configuredRegionsTab = document.querySelector<HTMLButtonElement>("#configu
 const catalogRegionsTab = document.querySelector<HTMLButtonElement>("#catalogRegionsTab")!;
 const regionSearch = document.querySelector<HTMLInputElement>("#regionSearch")!;
 const regionBrowserSummary = document.querySelector<HTMLDivElement>("#regionBrowserSummary")!;
+const configureQueuedBtn = document.querySelector<HTMLButtonElement>("#configureQueuedBtn")!;
+const buildSelectionSummary = document.querySelector<HTMLDivElement>("#buildSelectionSummary")!;
 const toolHost = document.querySelector<HTMLDivElement>("#tools")!;
 const logHost = document.querySelector<HTMLPreElement>("#consoleLog")!;
 const buildsHost = document.querySelector<HTMLDivElement>("#builds")!;
@@ -1020,7 +1024,8 @@ let lastMapClick: { lat: number; lng: number } | null = null;
 let currentExpansion: FeatureCollection | null = null;
 let locateCandidates: LocateEdgeCandidate[] = [];
 let locateCandidateIndex = 0;
-const selected = new Set<string>();
+const selected = new Set<string>(); // Validated, configured region IDs for building.
+const pendingCatalogSelection = new Set<string>(); // Geofabrik IDs awaiting configuration.
 
 type ToolId = "build" | "region" | "graph" | "border" | "route" | "visual" | "search" | "compare" | "publish" | "toolchain";
 const TOOL_STORAGE_KEY = "roadpilot.graph-studio.active-tool";
@@ -3394,6 +3399,42 @@ function makeStatusBadge(text: "AVAILABLE" | "CONFIGURED" | "BUILT"): HTMLSpanEl
   return badge;
 }
 
+function updateRegionSelectionSummary(): void {
+  const ready = selected.size;
+  const toConfigure = pendingCatalogSelection.size;
+  const status = `${ready} ready to build · ${toConfigure} awaiting setup`;
+  buildSelectionSummary.textContent = ready || toConfigure ? status : "No regions selected.";
+  configureQueuedBtn.disabled = toConfigure === 0;
+  configureQueuedBtn.textContent = toConfigure
+    ? `Configure queued (${toConfigure})` : "Configure queued regions";
+  if (regionBrowserMode === "catalog" && geofabrikCatalog.length) {
+    const count = geofabrikCatalog.filter(item =>
+      regionMatchesQuery(item.name, item.id, item.countryName ?? "")
+    ).length;
+    regionBrowserSummary.textContent =
+      `${count}/${geofabrikCatalog.length} regions · ${status}`;
+  } else if (regionBrowserMode === "configured") {
+    const count = regions.filter(item =>
+      regionMatchesQuery(item.name, item.id, item.primary_geofabrik_id ?? "")
+    ).length;
+    regionBrowserSummary.textContent =
+      `${count}/${regions.length} configured · ${status}`;
+  }
+}
+
+async function configureNextQueuedRegion(): Promise<void> {
+  const nextId = pendingCatalogSelection.values().next().value as string | undefined;
+  if (!nextId) return;
+  const item = geofabrikCatalog.find(region => region.id === nextId);
+  if (!item) {
+    appendLog(`Queued Geofabrik region is missing from the catalog: ${nextId}`);
+    return;
+  }
+  await selectCatalogRegion(item);
+  regionPreviewSummary.insertAdjacentHTML("afterbegin",
+    '<span class="warn">Queued for setup. A real road-crossing validation route is required before building.</span><br/>');
+}
+
 function makeConfiguredRegionRow(region: RegionSummary): HTMLElement {
   const row = document.createElement("div");
   row.className = "region-row" + (activeRegion?.id === region.id ? " active" : "");
@@ -3405,6 +3446,7 @@ function makeConfiguredRegionRow(region: RegionSummary): HTMLElement {
   checkbox.addEventListener("change", () => {
     if (checkbox.checked) selected.add(region.id);
     else selected.delete(region.id);
+    updateRegionSelectionSummary();
   });
 
   const label = document.createElement("button");
@@ -3458,21 +3500,28 @@ async function selectCatalogRegion(item: GeofabrikCatalogItem): Promise<void> {
 function makeCatalogRegionRow(item: GeofabrikCatalogItem): HTMLElement {
   const configured = configuredRegionForCatalog(item);
   const row = document.createElement("div");
-  row.className = "catalog-region-row" + (configured && selected.has(configured.id) ? " selected" : "");
-  row.title = configured ? "Select configured region for building" : "Configure region before building";
+  const isChecked = configured
+    ? selected.has(configured.id) : pendingCatalogSelection.has(item.id);
+  row.className = "catalog-region-row" + (isChecked ? " selected" : "");
+  row.title = configured ? "Select validated region for building" : "Queue this region for setup";
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.className = "catalog-region-checkbox";
-  checkbox.disabled = !configured;
-  checkbox.checked = !!configured && selected.has(configured.id);
-  checkbox.title = configured ? "Include in build queue" : "Configure this region before building";
-  checkbox.setAttribute("aria-label", `Build ${item.name}`);
+  checkbox.checked = isChecked;
+  checkbox.title = configured ? "Include configured region in build" : "Select for setup before building";
+  checkbox.setAttribute("aria-label",
+    configured ? `Build ${item.name}` : `Queue ${item.name} for setup`);
   checkbox.addEventListener("change", () => {
-    if (!configured) return;
-    if (checkbox.checked) selected.add(configured.id);
-    else selected.delete(configured.id);
+    if (configured) {
+      if (checkbox.checked) selected.add(configured.id);
+      else selected.delete(configured.id);
+    } else {
+      if (checkbox.checked) pendingCatalogSelection.add(item.id);
+      else pendingCatalogSelection.delete(item.id);
+    }
     row.classList.toggle("selected", checkbox.checked);
+    updateRegionSelectionSummary();
   });
 
   const text = document.createElement("span");
@@ -3511,7 +3560,7 @@ function renderConfiguredRegions(): void {
     regionMatchesQuery(region.name, region.id, region.primary_geofabrik_id ?? "")
   );
   regionBrowserSummary.textContent =
-    `${filtered.length} of ${regions.length} configured • ${artifacts.length} retained routing build${artifacts.length === 1 ? "" : "s"}`;
+    `${filtered.length}/${regions.length} configured · ${selected.size} ready · ${pendingCatalogSelection.size} to set up`;
 
   if (!filtered.length) {
     regionHost.innerHTML = '<div class="region-empty">No configured regions match this search.</div>';
@@ -3549,7 +3598,7 @@ function renderCatalogRegions(): void {
     regionMatchesQuery(item.name, item.id, item.countryName ?? "")
   );
   regionBrowserSummary.textContent =
-    `${filtered.length} of ${geofabrikCatalog.length} Geofabrik regions • check configured regions to build; open available regions to configure`;
+    `${filtered.length}/${geofabrikCatalog.length} regions · ${selected.size} ready · ${pendingCatalogSelection.size} to set up`;
 
   if (!filtered.length) {
     regionHost.innerHTML = '<div class="region-empty">No catalog regions match this search.</div>';
@@ -3613,6 +3662,7 @@ function renderRegions(): void {
 
   if (regionBrowserMode === "configured") renderConfiguredRegions();
   else renderCatalogRegions();
+  updateRegionSelectionSummary();
 }
 
 function setRegionBrowserMode(mode: "configured" | "catalog"): void {
@@ -3738,8 +3788,12 @@ async function previewEditorRegion(refresh = false): Promise<void> {
 }
 
 function numberField(field: HTMLInputElement, label: string): number {
-  const value = Number(field.value);
-  if (!Number.isFinite(value)) throw new Error(`${label} is required.`);
+  const raw = field.value.trim();
+  if (!raw) throw new Error(`${label} is required. Provide a real road-crossing route to save this region.`);
+  const value = Number(raw);
+  if (!Number.isFinite(value)) throw new Error(`${label} must be a valid number.`);
+  const limit = label.toLowerCase().includes("latitude") ? 90 : 180;
+  if (Math.abs(value) > limit) throw new Error(`${label} must be within ±${limit}°.`);
   return value;
 }
 
@@ -3756,6 +3810,9 @@ function configFromEditor(): Record<string, unknown> {
   const startLng = numberField(editorStartLng, "Start longitude");
   const endLat = numberField(editorEndLat, "End latitude");
   const endLng = numberField(editorEndLng, "End longitude");
+  if (startLat === endLat && startLng === endLng) {
+    throw new Error("The border route start and end must differ and cross the selected region boundary.");
+  }
   const existing = editorExistingConfig ? structuredClone(editorExistingConfig) : {};
   const existingOverture = existing["overture"];
   const existingRouting = (existing["routing"] ?? {}) as Record<string, unknown>;
@@ -3879,6 +3936,9 @@ refreshCatalogBtn.addEventListener("click", async () => {
   if (!catalogLoadError) appendLog("Geofabrik catalog refreshed.");
 });
 closeRegionEditorBtn.addEventListener("click", closeRegionEditor);
+configureQueuedBtn.addEventListener("click", () => {
+  configureNextQueuedRegion().catch(error => appendLog(`Could not prepare queued region: ${String(error)}`));
+});
 
 saveRegionBtn.addEventListener("click", async () => {
   saveRegionBtn.disabled = true;
@@ -3886,6 +3946,11 @@ saveRegionBtn.addEventListener("click", async () => {
     const config = configFromEditor();
     const saved = await invoke<Record<string, unknown>>("save_region_config", { config, refreshGeometry: false });
     appendLog(`Saved and validated region config: ${String(saved.id)}`);
+    const catalogId = editorPreview?.geofabrikId;
+    if (catalogId && pendingCatalogSelection.delete(catalogId)) {
+      selected.add(String(saved.id));
+      appendLog(`${String(saved.id)} promoted from setup queue to build selection.`);
+    }
     await refreshRegions();
     const savedRegion = regions.find(region => region.id === String(saved.id));
     if (savedRegion) setActiveRegion(savedRegion);
@@ -4511,7 +4576,12 @@ publishBuildBtn.addEventListener("click", async () => {
 });
 
 buildBtn.addEventListener("click", async () => {
-  const queue = [...selected];
+  if (pendingCatalogSelection.size) {
+    appendLog(`${pendingCatalogSelection.size} selected catalog region(s) need configuration and a valid border route before building.`);
+    await configureNextQueuedRegion().catch(error => appendLog(`Could not open setup: ${String(error)}`));
+    return;
+  }
+  const queue = [...selected].filter(id => regions.some(region => region.id === id));
   if (!queue.length) {
     appendLog("Select at least one region.");
     return;
