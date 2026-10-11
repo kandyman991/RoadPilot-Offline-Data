@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-11T05:36:44.910Z",
+  "generatedAt": "2026-10-11T20:31:15.927Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,9 +11,9 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "d56390e87e6e70244842f34ce1912e140004e4f2",
-    "message": "Fix Graph Studio catalog loading after Linux updates (#60)\n\n* fix(graph-studio): make catalog standalone and reuse stale cache offline\n\n* fix(graph-studio): avoid build dependencies when opening region catalog\n\n* fix(graph-studio): show catalog failures and offer in-pane retry\n\n* test(graph-studio): cover dependency-free and offline Geofabrik browsing\n\n* ci(graph-studio): test catalog startup before packaging\n\n* fix: tolerate empty Geofabrik polygons without hiding catalog regions\n\n* fix: allow nullable catalog bounds in region editor preview\n\n* test: Geofabrik empty Japanese leaf geometry must not break catalog",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/d56390e87e6e70244842f34ce1912e140004e4f2"
+    "sha": "bc6b9f01b38d80327931d66792bf4744afadd631",
+    "message": "Fix Graph Studio catalog selection, setup queue, and sidebar overlap (#61)\n\n* fix(graph-studio): queue catalog regions for setup, validate inputs, and block premature builds\n\n* fix(graph-studio): separate catalog summary row and clarify queued selections",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/bc6b9f01b38d80327931d66792bf4744afadd631"
   },
   "openPullRequests": [],
   "openIssues": [
@@ -44,25 +44,58 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 38115338441,
+      "id": 38172546331,
       "name": "Build RoadPilot Graph Studio",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "bc6b9f01b38d80327931d66792bf4744afadd631",
+      "event": "push",
+      "updatedAt": "2026-10-11T20:31:12Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38172546331"
+    },
+    {
+      "id": 38171095563,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "fix/graph-studio-catalog-queue-layout-20261011",
+      "headSha": "7db520e3eab15a8f3cc80d4b948c910886632d64",
+      "event": "pull_request",
+      "updatedAt": "2026-10-11T20:16:39Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38171095563"
+    },
+    {
+      "id": 38171095521,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "fix/graph-studio-catalog-queue-layout-20261011",
+      "headSha": "7db520e3eab15a8f3cc80d4b948c910886632d64",
+      "event": "pull_request",
+      "updatedAt": "2026-10-11T20:13:35Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38171095521"
+    },
+    {
+      "id": 38115338441,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "d56390e87e6e70244842f34ce1912e140004e4f2",
       "event": "push",
-      "updatedAt": "2026-10-11T05:36:42Z",
+      "updatedAt": "2026-10-11T05:43:34Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38115338441"
     },
     {
       "id": 38115338432,
       "name": "Validate offline-data repository",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "d56390e87e6e70244842f34ce1912e140004e4f2",
       "event": "push",
-      "updatedAt": "2026-10-11T05:36:41Z",
+      "updatedAt": "2026-10-11T05:39:47Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38115338432"
     },
     {
@@ -119,39 +152,6 @@
       "event": "pull_request",
       "updatedAt": "2026-10-10T16:09:30Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38066289722"
-    },
-    {
-      "id": 38066289628,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "fix/graph-studio-catalog-load-20261010",
-      "headSha": "baebb4c4ec2d8453364b00db718be199c6ad1729",
-      "event": "pull_request",
-      "updatedAt": "2026-10-10T16:06:24Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38066289628"
-    },
-    {
-      "id": 38065892352,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "failure",
-      "branch": "fix/graph-studio-catalog-load-20261010",
-      "headSha": "4f6fbcc8b1028c6320cac62040c2c13dcdf0e968",
-      "event": "pull_request",
-      "updatedAt": "2026-10-10T16:03:31Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38065892352"
-    },
-    {
-      "id": 38065892310,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "fix/graph-studio-catalog-load-20261010",
-      "headSha": "4f6fbcc8b1028c6320cac62040c2c13dcdf0e968",
-      "event": "pull_request",
-      "updatedAt": "2026-10-10T16:06:28Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38065892310"
     }
   ]
 }
