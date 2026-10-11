@@ -190,7 +190,9 @@ type GeofabrikCatalogItem = {
   polygonUrl: string;
   countryId: string | null;
   countryName: string | null;
-  bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number };
+  // Geofabrik includes downloadable extracts with empty index geometry.
+  // The exact .poly geometry is retrieved when opening their region editor.
+  bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null;
 };
 type RegionPreviewSource = {
   id: string;
@@ -988,6 +990,8 @@ let visualArtifacts: VisualBuildArtifact[] = [];
 let searchArtifacts: SearchBuildArtifact[] = [];
 let currentSearchResults: SearchResult[] = [];
 let geofabrikCatalog: GeofabrikCatalogItem[] = [];
+let catalogLoadError: string | null = null;
+let catalogLoadPromise: Promise<void> | null = null;
 let regionBrowserMode: "configured" | "catalog" = "configured";
 let regionBrowserQuery = "";
 let editorPreview: RegionPreview | null = null;
@@ -3436,10 +3440,12 @@ async function selectCatalogRegion(item: GeofabrikCatalogItem): Promise<void> {
     return;
   }
 
-  map.fitBounds(
-    [[item.bounds.minLng, item.bounds.minLat], [item.bounds.maxLng, item.bounds.maxLat]],
-    { padding: 44, duration: 350 },
-  );
+  if (item.bounds) {
+    map.fitBounds(
+      [[item.bounds.minLng, item.bounds.minLat], [item.bounds.maxLng, item.bounds.maxLat]],
+      { padding: 44, duration: 350 },
+    );
+  }
   resetRegionEditor();
   openRegionEditor();
   if (!geofabrikCatalog.length) await loadGeofabrikCatalog(false);
@@ -3516,8 +3522,26 @@ function renderConfiguredRegions(): void {
 
 function renderCatalogRegions(): void {
   if (!geofabrikCatalog.length) {
-    regionBrowserSummary.textContent = "Loading Geofabrik catalog…";
-    regionHost.innerHTML = '<div class="region-empty">Catalog is loading…</div>';
+    regionHost.innerHTML = "";
+    regionBrowserSummary.textContent = catalogLoadError
+      ? "Geofabrik catalog unavailable"
+      : catalogLoadPromise ? "Loading Geofabrik catalog…" : "Catalog has no regions";
+    const message = document.createElement("div");
+    message.className = "region-empty";
+    message.textContent = catalogLoadError
+      ? `Unable to load region catalog: ${catalogLoadError}`
+      : catalogLoadPromise ? "Loading catalog from Geofabrik…" : "No catalog regions were returned.";
+    regionHost.appendChild(message);
+    if (!catalogLoadPromise) {
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "btn";
+      retry.textContent = "Retry catalog";
+      retry.addEventListener("click", () => {
+        loadGeofabrikCatalog(true).catch(error => appendLog(`Catalog retry failed: ${String(error)}`));
+      });
+      regionHost.appendChild(retry);
+    }
     return;
   }
 
@@ -3605,10 +3629,24 @@ async function refreshRegions(): Promise<void> {
 }
 
 async function loadGeofabrikCatalog(refresh = false): Promise<void> {
+  if (catalogLoadPromise) return catalogLoadPromise;
+  catalogLoadPromise = performCatalogLoad(refresh);
+  try {
+    await catalogLoadPromise;
+  } finally {
+    catalogLoadPromise = null;
+    renderRegions();
+  }
+}
+
+async function performCatalogLoad(refresh: boolean): Promise<void> {
+  catalogLoadError = null;
   editorGeofabrik.disabled = true;
   editorGeofabrik.innerHTML = '<option value="">Loading Geofabrik catalog…</option>';
   try {
-    geofabrikCatalog = await invoke<GeofabrikCatalogItem[]>("geofabrik_catalog", { refresh });
+    const result = await invoke<GeofabrikCatalogItem[]>("geofabrik_catalog", { refresh });
+    if (!Array.isArray(result) || !result.length) throw new Error("Geofabrik returned an empty catalog");
+    geofabrikCatalog = result;
     const groups = new globalThis.Map<string, GeofabrikCatalogItem[]>();
     for (const item of geofabrikCatalog) {
       const country = item.countryName || "Other";
@@ -3629,11 +3667,11 @@ async function loadGeofabrikCatalog(refresh = false): Promise<void> {
       editorGeofabrik.appendChild(group);
     }
   } catch (error) {
+    catalogLoadError = String(error);
     editorGeofabrik.innerHTML = '<option value="">Catalog unavailable</option>';
-    appendLog(`Geofabrik catalog error: ${String(error)}`);
+    appendLog(`Geofabrik catalog error: ${catalogLoadError}`);
   } finally {
     editorGeofabrik.disabled = false;
-    renderRegions();
   }
 }
 
@@ -3838,7 +3876,7 @@ editRegionBtn.addEventListener("click", async () => {
 previewRegionBtn.addEventListener("click", () => previewEditorRegion(false));
 refreshCatalogBtn.addEventListener("click", async () => {
   await loadGeofabrikCatalog(true);
-  appendLog("Geofabrik catalog refreshed.");
+  if (!catalogLoadError) appendLog("Geofabrik catalog refreshed.");
 });
 closeRegionEditorBtn.addEventListener("click", closeRegionEditor);
 

@@ -51,6 +51,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y             libwebkit2gtk-4.1-dev             build-essential             curl             wget             file             libxdo-dev             libssl-dev             libayatana-appindicator3-dev             librsvg2-dev
 
+      - name: Catalog startup regression tests
+        run: python3 -m unittest discover -s tests -p 'test_graph_studio_catalog.py'
+
       - name: Node.js
         uses: actions/setup-node@v4
         with:
