@@ -340,6 +340,15 @@ button { cursor: pointer; }
   background: #18222d;
 }
 .btn:hover { background: #202d3a; }
+.editor-pin-actions { margin: 9px 0 5px; }
+.editor-pin-actions .btn { flex: 1 1 auto; }
+.editor-pin-actions .btn.active-pin {
+  border-color: #70b9e7;
+  background: #234a63;
+  color: #fff;
+}
+.catalog-region-row.selected { background: #1b3040; }
+
 .btn.primary { background: #235f99; border-color: #3479b8; }
 .btn.primary:hover { background: #2a6ca9; }
 .btn.danger { background: #51282c; border-color: #744047; }
