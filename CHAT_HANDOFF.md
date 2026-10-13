@@ -1,5 +1,15 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Latest verified merge — 2026-10-13: PR #64 Austria overlapping PBF fix
+
+- Device failure: Austria build, configured with 18 extracts including `austria`, `dach`, `alps`, and neighbors, failed `osmium extract` with `Node ID twice in input`, before Valhalla; on-device console supplied by user.
+- Cause: `osmium merge` deduplicates identical versions but emits multiple revisions of a node/way when overlapping Geofabrik snapshots differ in time. Normal `osmium extract` refuses history-like inputs.
+- PR https://github.com/kandyman991/RoadPilot-Offline-Data/pull/64 — **merged** as `541656ed87a534c27cb491daa5fafa5c5d18aee6`; required CI repository validation and Linux app build **both green**. CI uses real Osmium commands on synthetic overlapping versions to reproduce old failure and verify normal extraction after fix.
+- Production pipeline now first uses cached exact .poly geometry to select smaller sources contributing novel buffer coverage (automatically skips redundant aggregate/thematic PBFs, no region hardcodes), then streams remaining `osmium merge -f pbf` into `osmium time-filter -F pbf` to normalize current object versions. Keeps memory low and avoids another huge intermediate PBF.
+- `osmium check-refs` remains mandatory; graph construction/Valhalla proof and raw cached Geofabrik sources untouched. Users **must not delete PBF cache or builds** to apply fix.
+- **NEXT EXACT ACTION:** Verify rolling release tag `roadpilot-graph-studio-linux` points to merged commit `541656e` and assets are published. Update Ubuntu .deb on Legion, re-run the same Austria build with the existing cache and report source-pruning logs, absence of duplicate ID, real route validation, and any further errors. Full Austria desktop validation **not yet done**.
+
+
 ## Latest merged milestone — 2026-10-13: PR #63 shared source cache
 
 - PR https://github.com/kandyman991/RoadPilot-Offline-Data/pull/63 **merged** as commit `7d255b40e7939fe4ea2cdd89cfb1bab0ca3a5084`. Both required PR CI checks green; real Legion full build/rebuild is **not yet device tested**.
