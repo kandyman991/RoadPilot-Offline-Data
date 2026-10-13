@@ -225,3 +225,53 @@ and the trusted GUI may call `ai_verify_route`. Both use the shared Rust Valhall
 request/geometry functions. Only an explicitly requested local, bounded route
 probe is run: it neither builds nor publishes graphs. See
 [AI Control](docs/AI_CONTROL.md) for evidence semantics and safety limits.
+
+## Automatic F8-derived graph connectivity production
+
+After **Build selected** completes a region's routing and optional visual packs,
+Graph Studio runs `tools/refresh_graph_connectivity.py` against the locally
+retained routing manifests, buffered OSM and cached nominal Geofabrik polygons.
+It discovers locally available, mutually adjacent independent graphs by their
+per-neighbor boundary fingerprints. For each pair affected by a newly rebuilt
+graph, it runs the existing production sequence:
+
+1. fingerprint-bound pair manifest;
+2. frontier road inventory from the existing buffered OSM;
+3. independent Valhalla correlation of each side;
+4. exhaustive unproven candidate construction (no heading/separation cuts);
+5. directional car/motorcycle Valhalla proof for each candidate;
+6. validated runtime connectivity, followed by regional connector inventory
+   and exact-entry/exit route matrix.
+
+All stages use their existing schema validators. Products are first generated
+in a temporary workspace. Previously validated runtime metadata is never
+replaced with unproven candidates; a failed refresh leaves earlier artifacts
+on disk, but stale graph/boundary fingerprints prevent using them as current.
+Only pairs whose exact graph/boundary fingerprints changed are regenerated.
+Regional connector matrices reuse matching source-inventory SHA and graph
+fingerprint, preventing redundant many-to-many routing.
+
+The **Refresh connections** button in the Build tool scans all currently
+retained neighboring graphs and performs connectivity production without
+rebuilding or redownloading routing graphs. For direct CLI use:
+
+```bash
+python tools/refresh_graph_connectivity.py \
+  --dist-dir ~/RoadPilotGraphStudio/builds \
+  --work-dir ~/RoadPilotGraphStudio/work \
+  --connectivity-dir ~/RoadPilotGraphStudio/connectivity \
+  --connector-matrix-dir ~/RoadPilotGraphStudio/connector-matrices
+```
+
+Local artifacts are stored under `connectivity/<regionA>__<regionB>/`
+and `connector-matrices/<region>/`, visible in the Border Inspector.
+They are not automatically uploaded to R2 or installed on Android.
+Real Italy–Austria–Germany graph and Android integration validation
+remain a separate, required on-device gate.
+
+If either region's source polygon or buffered OSM has not been retained,
+the stage **fails explicitly** rather than using fabricated data, invoking a
+new map build, or downloading new extracts. Region packs already validated
+remain intact; check the Build console to see which connectivity stage failed.
+A `VALIDATED` connectivity artifact with zero proven crossings is an honest
+negative result and requires RoadPilot's established F8 runtime fallback.
