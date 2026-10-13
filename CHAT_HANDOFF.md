@@ -1,5 +1,43 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Legion on-device results — 2026-10-13: AI M1/M2 inspection
+
+- User installed the Graph Studio Linux package on `mircea-gitmachine`
+  (Legion, Ubuntu 26.04) and supplied **actual terminal JSON output** from
+  `roadpilot-graph-studio --ai-inspect` and `--ai-diagnose`.
+- M1: workspacePresent=true, runtime.attached=false (correct for headless),
+  warnings=[], 3 configured routing regions: `austria` (18 sources, auto
+  validation), `belgium` (16), `italy-nord-est` (9).
+- M1 retained routing inventories (all package `2026.10.13-1`):
+  `austria`: 338 tiles, builtAtUtc 2026-10-13T21:20:33.468220Z;
+  `italy-nord-est`: 367 tiles, builtAtUtc 2026-10-13T21:29:28.106564Z;
+  `belgium`: 185 tiles, builtAtUtc 2026-10-13T18:06:10.080248Z.
+- M2: `artifactPresent=true` for all 3; Valhalla 3.6.3, each routing
+  manifest has `routeValidation.status=recorded_pass`, `failedCount=0`.
+  Austria and Belgium each have 1 recorded border route; Italy Nord-Est has
+  1 border plus 1 interior route. `replayed=false`: these are **historical
+  manifest records**, NOT independent fresh route probes or retained archive
+  checksum verification. `borderReports.count=0` simply means no separately
+  exported diagnostics report.
+- M2 last build record: `regionId=italy-nord-est`,
+  `outcome=succeeded`, `failureCategory=none`,
+  `lastObservedStage=visual_retention`. No diagnostic warnings.
+- Austria's successful routing manifest after the prior duplicate-ID build
+  error is **strong device evidence** that processing got past the earlier
+  Osmium failure. Do **not** claim its exact Osmium source-pruning log was
+  independently inspected or that a cross-region graph chain was validated.
+- Release gate: the rolling `roadpilot-graph-studio-linux` release's
+  documented source was verified as M3 merge `4844bd2b` after successful
+  post-merge GitHub run #136.
+- **NEXT EXACT ACTION:** on the Legion run M3 against existing Austria
+  working graph using `roadpilot-graph-studio --ai-verify-route austria
+  47.582889 12.162319 47.609970 12.200709 motorcycle`; capture complete
+  JSON and exit code. This is an explicitly requested single-region route
+  test, not yet a border proof. If it fails, diagnose with output and
+  reproduce against the existing `valhalla.json`, preserving graph/source
+  caches. Follow with a deliberate negative test; do not automatically
+  rebuild Austria. Desktop AI M3 verification remains **pending**.
+
 ## Latest verified merge — 2026-10-13: Graph Studio AI Control M3 PR #67
 
 - PR https://github.com/kandyman991/RoadPilot-Offline-Data/pull/67 **merged**
