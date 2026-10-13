@@ -13,7 +13,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from source_cache import cached_geofabrik_pbf
+if __package__:
+    from .source_cache import cached_geofabrik_pbf
+else:
+    from source_cache import cached_geofabrik_pbf
 
 USER_AGENT = "RoadPilot-Offline-Data/visual-builder"
 REPO_ROOT = Path(__file__).resolve().parents[1]
