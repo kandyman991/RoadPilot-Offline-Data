@@ -4693,7 +4693,7 @@ async function autoPrepareSelectedRegions(): Promise<void> {
 
 buildBtn.addEventListener("click", async () => {
   const version = packageVersionInput.value.trim();
-  if (!/^\\d{4}\\.\\d{2}\\.\\d{2}-[A-Za-z0-9._-]+$/.test(version)) {
+  if (!/^\d{4}\.\d{2}\.\d{2}-[A-Za-z0-9._-]+$/.test(version)) {
     appendLog("Package version must look like 2026.10.06-1.");
     return;
   }
