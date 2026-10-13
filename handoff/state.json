@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-13T19:59:50.962Z",
+  "generatedAt": "2026-10-13T20:22:27.301Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,9 +11,9 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "b3f5539ac959ea48de8d8b848fb4dff0d5378567",
-    "message": "Graph Studio M1: shared read-only AI inspection engine (#65)\n\n* feat(graph-studio): add shared read-only AI inspection command engine\n\n* fix(graph-studio): keep Tauri AI inspection free of filesystem writes",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/b3f5539ac959ea48de8d8b848fb4dff0d5378567"
+    "sha": "b3a4400e311bf1c2fe9c085cac0487888aa3ae38",
+    "message": "Graph Studio AI M2: inspect recorded Valhalla proof, border reports and build failures (#66)\n\n* feat(graph-studio): AI M2 retained Valhalla evidence and sanitized build diagnostics\n\n* fix(graph-studio): recognize sanitized streamed failure hints and preserve verified SHA-256 identities",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/b3a4400e311bf1c2fe9c085cac0487888aa3ae38"
   },
   "openPullRequests": [],
   "openIssues": [
@@ -44,14 +44,69 @@
   ],
   "recentWorkflowRuns": [
     {
+      "id": 38462281976,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "b3a4400e311bf1c2fe9c085cac0487888aa3ae38",
+      "event": "push",
+      "updatedAt": "2026-10-13T20:22:24Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38462281976"
+    },
+    {
+      "id": 38461202797,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "graph-studio-ai-control-m2-diagnostics",
+      "headSha": "8426755bdb4a5cda9e2509cc3856077949f6a868",
+      "event": "pull_request",
+      "updatedAt": "2026-10-13T20:17:30Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38461202797"
+    },
+    {
+      "id": 38461202731,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "graph-studio-ai-control-m2-diagnostics",
+      "headSha": "8426755bdb4a5cda9e2509cc3856077949f6a868",
+      "event": "pull_request",
+      "updatedAt": "2026-10-13T20:21:47Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38461202731"
+    },
+    {
+      "id": 38460883922,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "graph-studio-ai-control-m2-diagnostics",
+      "headSha": "001ac58e19f262b17623421e4974c239a8f34deb",
+      "event": "pull_request",
+      "updatedAt": "2026-10-13T20:15:15Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38460883922"
+    },
+    {
+      "id": 38460883911,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "branch": "graph-studio-ai-control-m2-diagnostics",
+      "headSha": "001ac58e19f262b17623421e4974c239a8f34deb",
+      "event": "pull_request",
+      "updatedAt": "2026-10-13T20:14:37Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38460883911"
+    },
+    {
       "id": 38459256133,
       "name": "Build RoadPilot Graph Studio",
-      "status": "queued",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "b3f5539ac959ea48de8d8b848fb4dff0d5378567",
       "event": "push",
-      "updatedAt": "2026-10-13T19:59:44Z",
+      "updatedAt": "2026-10-13T20:08:34Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38459256133"
     },
     {
@@ -97,61 +152,6 @@
       "event": "pull_request",
       "updatedAt": "2026-10-13T19:52:08Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38457806579"
-    },
-    {
-      "id": 38450377808,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "541656ed87a534c27cb491daa5fafa5c5d18aee6",
-      "event": "push",
-      "updatedAt": "2026-10-13T18:59:30Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38450377808"
-    },
-    {
-      "id": 38450377438,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "541656ed87a534c27cb491daa5fafa5c5d18aee6",
-      "event": "push",
-      "updatedAt": "2026-10-13T18:56:23Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38450377438"
-    },
-    {
-      "id": 38449421807,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "fix/austria-osmium-overlapping-sources-20261013",
-      "headSha": "bf34e30a16ac6feb03ba46863f5b954851184c55",
-      "event": "pull_request",
-      "updatedAt": "2026-10-13T18:48:52Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38449421807"
-    },
-    {
-      "id": 38449421804,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "fix/austria-osmium-overlapping-sources-20261013",
-      "headSha": "bf34e30a16ac6feb03ba46863f5b954851184c55",
-      "event": "pull_request",
-      "updatedAt": "2026-10-13T18:52:45Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38449421804"
-    },
-    {
-      "id": 38444524084,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "7d255b40e7939fe4ea2cdd89cfb1bab0ca3a5084",
-      "event": "push",
-      "updatedAt": "2026-10-13T18:18:33Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38444524084"
     }
   ]
 }
