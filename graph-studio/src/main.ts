@@ -206,6 +206,15 @@ type RegionPreviewSource = {
 type RoutePlanResult = {
   elapsedMs: number;
   geometry: Geometry;
+  arrival: {
+    actualStart: { lat: number; lng: number };
+    actualEnd: { lat: number; lng: number };
+    startOffsetMeters: number;
+    endOffsetMeters: number;
+    startMatched: boolean;
+    destinationReached: boolean;
+    maxAcceptedEndpointOffsetMeters: number;
+  };
   response: {
     trip?: {
       summary?: {
@@ -1032,6 +1041,7 @@ let handoffMarkerB: Marker | null = null;
 let routePickMode: "start" | "end" | null = null;
 let routeStartMarker: Marker | null = null;
 let routeEndMarker: Marker | null = null;
+let routeActualEndMarker: Marker | null = null;
 let lastMapClick: { lat: number; lng: number } | null = null;
 let currentExpansion: FeatureCollection | null = null;
 let locateCandidates: LocateEdgeCandidate[] = [];
@@ -2916,6 +2926,8 @@ const locateEdgeSourceId = "roadpilot-locate-edge";
 const locateEdgeLayerId = "roadpilot-locate-edge-line";
 
 function removeRouteLayers(): void {
+  routeActualEndMarker?.remove();
+  routeActualEndMarker = null;
   if (map.getLayer(expansionLayerId)) map.removeLayer(expansionLayerId);
   if (map.getSource(expansionSourceId)) map.removeSource(expansionSourceId);
   if (map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
@@ -2974,7 +2986,7 @@ function updateExpansionPlayback(): void {
   expansionProgressLabel.textContent = `${expansionVisibleCount().toLocaleString()} / ${total.toLocaleString()} edges`;
 }
 
-function showRouteGeometry(geometry: Geometry): void {
+function showRouteGeometry(geometry: Geometry, requestedEnd?: { lat: number; lng: number }): void {
   if (map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
   if (map.getSource(routeSourceId)) map.removeSource(routeSourceId);
   map.addSource(routeSourceId, {
@@ -2995,6 +3007,10 @@ function showRouteGeometry(geometry: Geometry): void {
   if (line.length >= 2) {
     const lngs = line.map(point => Number(point[0]));
     const lats = line.map(point => Number(point[1]));
+    if (requestedEnd) {
+      lngs.push(requestedEnd.lng);
+      lats.push(requestedEnd.lat);
+    }
     map.fitBounds(
       [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
       { padding: 70, duration: 400 },
@@ -3210,12 +3226,20 @@ function renderRouteResult(result: RoutePlanResult, expansion?: ExpansionResult)
   const trip = result.response.trip;
   const summary = trip?.summary;
   routeSummary.className = "kv";
+  const arrival = result.arrival;
+  const arrivalLabel = arrival.destinationReached
+    ? "Destination reached"
+    : `INCOMPLETE — ${Math.round(arrival.endOffsetMeters).toLocaleString()} m from destination`;
   routeSummary.innerHTML = `
     <dt>Graph</dt><dd>${activeRegion?.id ?? "—"}</dd>
     <dt>Costing</dt><dd>${routeCosting.value}</dd>
     <dt>Distance</dt><dd>${summary?.length == null ? "—" : summary.length.toFixed(2) + " km"}</dd>
     <dt>Duration</dt><dd>${formatDuration(summary?.time)}</dd>
     <dt>Valhalla time</dt><dd>${result.elapsedMs} ms</dd>
+    <dt>Arrival</dt><dd class="${arrival.destinationReached ? "" : "bad"}">${arrivalLabel}</dd>
+    <dt>Start deviation</dt><dd>${arrival.startOffsetMeters.toFixed(1)} m</dd>
+    <dt>Destination deviation</dt><dd>${arrival.endOffsetMeters.toFixed(1)} m</dd>
+    <dt>Actual route end</dt><dd>${arrival.actualEnd.lat.toFixed(6)}, ${arrival.actualEnd.lng.toFixed(6)}</dd>
     <dt>Highway</dt><dd>${summary?.has_highway ? "yes" : "no"}</dd>
     <dt>Toll</dt><dd>${summary?.has_toll ? "yes" : "no"}</dd>
     <dt>Ferry</dt><dd>${summary?.has_ferry ? "yes" : "no"}</dd>
@@ -3254,7 +3278,19 @@ async function runStandardRoute(): Promise<void> {
     };
     removeRouteLayers();
     const result = await invoke<RoutePlanResult>("plan_route", payload);
-    showRouteGeometry(result.geometry);
+    showRouteGeometry(result.geometry, { lat: payload.endLat, lng: payload.endLng });
+    // Successful Valhalla status does not necessarily mean the route arrived.
+    setRoutePoint("start", payload.startLat, payload.startLng);
+    setRoutePoint("end", payload.endLat, payload.endLng);
+    if (!result.arrival.destinationReached) {
+      routeActualEndMarker = new Marker({ color: "#e69b28" })
+        .setLngLat([result.arrival.actualEnd.lng, result.arrival.actualEnd.lat])
+        .addTo(map);
+      appendLog(
+        `Incomplete ${payload.regionId} route: ${result.arrival.endOffsetMeters.toFixed(1)} m from destination; ` +
+        `actual end ${result.arrival.actualEnd.lat.toFixed(6)},${result.arrival.actualEnd.lng.toFixed(6)}`,
+      );
+    }
     let expansion: ExpansionResult | undefined;
     let expansionError: string | undefined;
     if (routeExpansionToggle.checked) {
