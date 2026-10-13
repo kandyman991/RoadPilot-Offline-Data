@@ -42,3 +42,9 @@ PR #63 consolidates routing/visual PBF acquisition into the stable routing works
 Explicitly do **not** treat arbitrary PBF HTTP byte ranges as geographic border extracts. The first uncached neighboring source still requires complete PBF transfer with current Geofabrik endpoints. Do not crop admin relations before proving replacement context equivalent to full-source data in a real validation fixture. Routing/visual/search distribution packs remain independently versioned.
 
 Source: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/63 (merged, CI green; Legion full build validation pending). See `docs/geofabrik-shared-cache.md`.
+
+## D-007 — Normalize overlapping OSM object versions before graph extraction (2026-10-13)
+
+Geofabrik country/thematic aggregates may overlap smaller regional leaves. Select the smallest exact .poly sources that genuinely add coverage within the buffer, preserving the primary extract. Never select source PBFs merely because an index polygon intersects the buffer without checking redundant coverage. **Independently refreshed OSM extracts may contain different versions of the same type/ID**: pass the low-memory `osmium merge` stream through `osmium time-filter` to generate a normal current snapshot, not through `osmium sort` (which retains duplicates). Continue requiring `osmium check-refs` and existing Valhalla route proof. Do not hard-code DACH, Alps, motorway or border exceptions.
+
+PR #64 merged after synthetic actual-Osmium CI passed; full on-device Austria rebuild not yet verified. https://github.com/kandyman991/RoadPilot-Offline-Data/pull/64
