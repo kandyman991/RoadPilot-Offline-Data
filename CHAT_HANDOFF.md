@@ -1,5 +1,32 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Austria cross-border partial-route observation — issue #69 (2026-10-13)
+
+- User reports that before GUI routing stopped working, Graph Studio's
+  Austria local graph **successfully routed across national borders several
+  times**. Some tests reached the requested destination; others crossed
+  the border but ended short, resembling the earlier RoadPilot F8 partial-route
+  symptom. Specific failed GPS pairs/miss distances were not retained.
+- Code verified: M3 `ai_verify::evaluate` requires start/end routed geometry
+  within 150 m to pass; GUI `plan_route` checks Valhalla status/geometry
+  but doesn't check endpoint arrival. Automatic border discovery verifies a
+  real national-border crossing with a deliberately looser **5-km** endpoint
+  tolerance. Those prove **different things**.
+- Crossing a national boundary inside one buffered Austria graph is *not* proof
+  of a handoff between two independent regional graphs. Potential explanations
+  for partial routes include snapped endpoints outside actual graph coverage
+  or disconnected road coverage; none confirmed without a failed GPS sample.
+- Tracked work: https://github.com/kandyman991/RoadPilot-Offline-Data/issues/69
+  ("distinguish proven border crossing from destination arrival"): show actual
+  route-end offsets, separately report crossing vs arrival, regression-test
+  clipped routes, reuse M3's endpoint geometry evaluation.
+- **NEXT EXPERIMENT:** once the PR #68 GUI launcher fix is installed, re-run
+  one known cross-border route that arrives and one that stops short; record
+  start/destination coordinates and actual last geometry point. Do not rebuild
+  Austria, add hard-coded F8 portals, or raise border proof to full cross-graph
+  connectivity on this evidence alone.
+
+
 ## GUI route parity fix — PR #68 merged (2026-10-13)
 
 - User confirmed that standard GUI routing failed even Austria-to-Austria,
