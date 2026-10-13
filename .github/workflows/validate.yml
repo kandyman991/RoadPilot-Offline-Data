@@ -139,6 +139,9 @@ jobs:
             python tools/validate_region_config.py --config "$file"
           done
 
+      - name: Automatic cross-region connectivity orchestration regression tests
+        run: python3 -m unittest discover -s tests -p 'test_connectivity_automation.py'
+
       - name: Shared Geofabrik PBF cache regression tests
         run: python3 -m unittest discover -s tests -p 'test_source_cache.py'
 
