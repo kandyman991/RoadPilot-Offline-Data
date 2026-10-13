@@ -139,6 +139,9 @@ jobs:
             python tools/validate_region_config.py --config "$file"
           done
 
+      - name: Shared Geofabrik PBF cache regression tests
+        run: python3 -m unittest discover -s tests -p 'test_source_cache.py'
+
       - name: Regression-test automatic Geofabrik setup and real Valhalla crossing proof
         run: python -m unittest discover -s tests -p 'test_graph_studio_auto_build.py'
 
