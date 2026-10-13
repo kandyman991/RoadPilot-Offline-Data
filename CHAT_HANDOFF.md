@@ -1,5 +1,21 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Latest verified merge — 2026-10-13: PR #62 automatic region builds
+
+- PR: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/62 — **merged into main**.
+- Merge SHA: `a0ba5f653f3d3527d36495121154b286e65cee9c`.
+- PR-head CI: validation and Graph Studio Linux build **both green**; no real large regional graph build or Legion smoke test completed.
+- User-visible workflow: select a Geofabrik catalog region → Build selected → Graph Studio auto-saves a routing-only config with exact buffered sources → builds Valhalla tiles → tries to discover a real nominal-border road route with Valhalla.
+- Safety: new `routing.validationMode=auto` allows **no initial route**, but package publication requires at least one actual Valhalla-proved road crossing whose decoded routed polyline crosses the nominal boundary. No fallback fabricated GPS, no unconditional green. Existing manual configs remain compatible.
+- Region editor provides **Pick start/end on map**, draggable pins synchronized to coordinate fields, and Clear pins. Manual route is fallback if auto proof fails.
+- Visual and search packs are **not** rebuilt by an automatic routing-only region config.
+- CI includes offline synthetic positive/negative proof tests; device test evidence **missing**.
+
+**Next exact action:** Confirm the rolling Linux release tag and package assets were refreshed to merge SHA `a0ba5f6`; update Graph Studio on Legion. Exercise Belgium from the catalog with *Build selected* and capture the build console, actual Valhalla proof, and any errors. If auto crossing cannot be proved, inspect the retained tile build and select two road points via map pins; do not hard-code an exception. Explicitly check download footprint of source PBF neighbors (especially coastal intersections).
+
+The previous October 6 search/POI notes below remain historical and are not proof of the current work queue.
+
+
 _Last curated: 2026-10-06_
 
 ## New-chat recovery procedure
