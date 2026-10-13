@@ -82,3 +82,14 @@ raw stderr and return structured result metadata. Never modify routing packs,
 publish, infer cross-region seam validity, or claim a retained package is the
 running graph. The Tauri invocation refuses probes while the application is
 building. Headless callers must ensure no separate build is active.
+
+## D-011 — Preserve headless/GUI Valhalla command parity (2026-10-13)
+
+A successful M3 headless local route can be at odds with a failed GUI planner
+if GUI startup prepends pyvalhalla's *native* binary directory to PATH.
+Preserve the original pyvalhalla launcher for route/locate/expansion commands
+in the desktop process, and use the already-tested bounded M3 JSON runner for
+both headless and GUI use. Leave native binary tile rendering and build-tool
+selection unchanged. Distinguish optional expansion failures from actual
+routing failures. No region rebuild or cache purge is justified by GUI stderr
+warnings about a missing optional traffic archive alone.

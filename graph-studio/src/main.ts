@@ -3256,14 +3256,29 @@ async function runStandardRoute(): Promise<void> {
     const result = await invoke<RoutePlanResult>("plan_route", payload);
     showRouteGeometry(result.geometry);
     let expansion: ExpansionResult | undefined;
+    let expansionError: string | undefined;
     if (routeExpansionToggle.checked) {
-      expansion = await invoke<ExpansionResult>("route_expansion", payload);
-      showExpansion(expansion.geojson);
+      try {
+        expansion = await invoke<ExpansionResult>("route_expansion", payload);
+        showExpansion(expansion.geojson);
+      } catch (error) {
+        // Optional expansion is diagnostic only: a failed expansion must not
+        // replace a successfully calculated route with "Route failed".
+        expansionError = String(error);
+        appendLog(`Valhalla expansion failed for ${payload.regionId}: ${expansionError}`);
+      }
     }
     renderRouteResult(result, expansion);
+    if (expansionError) {
+      const title = document.createElement("dt");
+      title.textContent = "Expansion";
+      const message = document.createElement("dd");
+      message.textContent = `Unavailable: ${expansionError}`;
+      routeSummary.append(title, message);
+    }
   } catch (error) {
     routeSummary.className = "bad";
-    routeSummary.textContent = `Route failed: ${String(error)}`;
+    routeSummary.textContent = `Route failed for ${activeRegion?.id ?? "unknown region"}: ${String(error)}`;
     appendLog(`Valhalla route failed: ${String(error)}`);
   } finally {
     runRouteBtn.disabled = false;
