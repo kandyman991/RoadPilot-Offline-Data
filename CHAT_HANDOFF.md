@@ -1,5 +1,29 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Reproducible cross-border incomplete route: Trento → Innsbruck (2026-10-14)
+
+- Two new Legion screenshots show Graph Studio GUI selected `italy-nord-est`,
+  motorcycle, requested start `46.064320,11.119191` (Trento) to end
+  `47.250124,11.395549` (Innsbruck). GUI reports 175.96 km, 2h 1m,
+  Valhalla time 201 ms, successful route.
+- Blue route visibly crosses Brenner/Italy–Austria national border yet
+  appears to terminate well south of the **red requested endpoint** in a
+  zoomed Innsbruck screenshot. Exact actual route endpoint/offset not yet
+  known; don't infer precise distance from map screenshot alone. Italy
+  Nord-Est's 25 km border buffer might explain missing farther-north roads.
+- **Next exact test:** Run
+  `roadpilot-graph-studio --ai-verify-route italy-nord-est
+  46.064320 11.119191 47.250124 11.395549 motorcycle` on installed
+  Legion CLI and record JSON `route.endOffsetMeters`, `failureCategory`
+  and exit code. M3 tests actual geometry arrival to 150 m, GUI just
+  accepts trip.status and geometry. M3 and GUI have different default
+  costing_options, so route selections might differ.
+- Case added to issue #69:
+  https://github.com/kandyman991/RoadPilot-Offline-Data/issues/69
+  Do not rebuild Italy region, delete source/PBF cache, or assume national
+  border crossing demonstrates independent graph handoff.
+  
+
 ## GUI routing fixed for known Austria–Germany buffered-graph test (2026-10-13)
 
 - User screenshot on Legion after installing PR #68 demonstrates an actual
