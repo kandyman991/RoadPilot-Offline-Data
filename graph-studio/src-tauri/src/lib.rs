@@ -1304,6 +1304,8 @@ fn run_build_queue(
                 .arg(&package_version)
                 .arg("--work-dir")
                 .arg(work.join("visual"))
+                .arg("--source-cache-dir")
+                .arg(work.join("cache"))
                 .arg("--dist-dir")
                 .arg(&visual_dist);
             if refresh_sources {
