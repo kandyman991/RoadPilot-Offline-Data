@@ -1,20 +1,35 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
-## GUI routing parity bugfix — PR pending (2026-10-13)
+## GUI route parity fix — PR #68 merged (2026-10-13)
 
-- User confirmed standard GUI routing fails even Austria-to-Austria,
-  whereas headless M3 executed Austria route in 161 ms (4.725 km).
-- Root cause hypothesis grounded in code: GUI `normalize_process_path`
-  prepends pyvalhalla's native binary before route execution; headless M3
-  bypasses that rewrite and uses the working launcher. GUI also displays
-  stderr warnings on nonzero exit, obscuring actual errors.
-- Branch `graph-studio-fix-gui-valhalla-routing` preserves working
-  route launcher path before PATH rewrite and uses M3 JSON runner for
-  GUI plan_route, expansion, locate, handoff probes, and M3. Keeps native
-  graph tile rendering. Optional expansion failure no longer masks route
-  success. Adds launcher regression test.
-- NEXT: verify PR CI, merge if green, install updated Graph Studio on Legion
-  and test same Austria coordinates in GUI. Do not rebuild/clear graphs.
+- User confirmed that standard GUI routing failed even Austria-to-Austria,
+  although headless M3 routed the same Austria coordinates in 161 ms
+  (4.725 km, 181 vertices and 8.36 m/4.32 m endpoint offsets).
+- PR https://github.com/kandyman991/RoadPilot-Offline-Data/pull/68 **merged**
+  as `a113eb84b4f9464967f46152c6fee0d9b3e49884`. Final PR head
+  `827d4740b9a3ac993b3d981d96bf5257d2f476ba` has **both checks green**:
+  Graph Studio Linux build plus Rust tests and offline-data repo validation.
+- Code review showed GUI `normalize_process_path` prepended pyvalhalla native
+  tool dir for all Valhalla operations, whereas headless M3 used the proven
+  pyvalhalla launcher. Fix preserves the launcher for normal GUI routes,
+  expansions, locate, handoff probes and M3, all via bounded JSON-aware
+  execution; native binary tile rendering remains unchanged.
+- Optional route-expansion failures cannot mask a successful standard route.
+  GUI failure messages now identify region and a bounded failure category,
+  rather than printing unrelated optional traffic warnings as root cause.
+- Post-merge release workflow:
+  https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38476097939
+  **running** at this handoff update. The rolling `.deb` is not an
+  installable #68 fix until its release notes explicitly cite `a113eb84`.
+- **NEXT EXACT ACTION:** after the rolling release identifies merge
+  `a113eb84`, upgrade the existing `.deb` on Legion (retain
+  `~/RoadPilotGraphStudio/` intact), restart the app, select region
+  `austria` and calculate:
+  `47.582889,12.162319 -> 47.609970,12.200709`, Motorcycle.
+  Confirm route displayed and distance around the proven 4.725 km.
+  Retest route expansion separately. CI is green but the GUI fix remains
+  **not yet proven on the physical Legion**; do not call it device-verified.
+- Never delete PBF cache or rebuild graphs just for this GUI issue.
 
 ## Legion M3 verified — 2026-10-13: successful real Austria route
 
