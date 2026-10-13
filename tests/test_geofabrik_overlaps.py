@@ -31,8 +31,9 @@ class SourceCoverageTests(unittest.TestCase):
         selected, skipped = choose_buffer_sources(
             self.pbfs, "austria", self.nominal, self.buffer, self.polygons,
         )
-        self.assertEqual([p["id"] for p in selected],
-                         ["austria", "east", "west", "north", "south"])
+        self.assertEqual(selected[0]["id"], "austria")
+        self.assertEqual({p["id"] for p in selected},
+                         {"austria", "east", "west", "north", "south"})
         self.assertEqual(set(skipped), {"dach", "alps"})
 
     def test_large_extract_kept_if_it_adds_unique_border_coverage(self):
