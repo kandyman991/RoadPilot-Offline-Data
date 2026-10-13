@@ -48,3 +48,14 @@ Source: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/63 (merged, C
 Geofabrik country/thematic aggregates may overlap smaller regional leaves. Select the smallest exact .poly sources that genuinely add coverage within the buffer, preserving the primary extract. Never select source PBFs merely because an index polygon intersects the buffer without checking redundant coverage. **Independently refreshed OSM extracts may contain different versions of the same type/ID**: pass the low-memory `osmium merge` stream through `osmium time-filter` to generate a normal current snapshot, not through `osmium sort` (which retains duplicates). Continue requiring `osmium check-refs` and existing Valhalla route proof. Do not hard-code DACH, Alps, motorway or border exceptions.
 
 PR #64 merged after synthetic actual-Osmium CI passed; full on-device Austria rebuild not yet verified. https://github.com/kandyman991/RoadPilot-Offline-Data/pull/64
+
+## D-007 — Shared, read-only AI inspection before AI operations (2026-10-13)
+
+Graph Studio must be operable and verifiable by authorized AI tools without
+duplicating its core behavior. Start with a versioned **Rust command engine**
+used by the Tauri UI and headless CLI alike; `capabilities` and `inspect`
+are deliberately read-only and never imply running build state when outside
+the process. Do not introduce an HTTP listener or automatic mutating agent
+in the first milestone. Inspect only allowlisted routing config/manifest fields,
+never R2 credentials or raw logs. Future local bridges require user opt-in and
+narrow permissions; any mutation must be explicitly authorized and tested.

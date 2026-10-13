@@ -18,6 +18,8 @@ use std::{
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+pub mod ai_control;
+
 #[derive(Debug, Clone, Serialize)]
 struct Coverage {
     min_lat: f64,
@@ -4172,12 +4174,37 @@ fn graph_tile(
     render_graph_tile(&config, z, x, y)
 }
 
+#[tauri::command]
+fn ai_control_command(
+    app: AppHandle,
+    state: State<'_, BuildState>,
+    command: String,
+) -> Result<Value, String> {
+    // Unlike normal build operations, inspection must not create a workspace.
+    let root = app.path()
+        .home_dir()
+        .map_err(|e| format!("Could not resolve home directory: {e}"))?
+        .join("RoadPilotGraphStudio");
+    // Only selected status fields are exposed. Raw errors may contain paths,
+    // secrets or arbitrary subprocess output and must not reach the AI layer.
+    let snapshot = state.status.lock().map_err(|_| "Build status lock poisoned.")?.clone();
+    let runtime = json!({
+        "running": snapshot.running,
+        "currentRegion": snapshot.current_region,
+        "queueLength": snapshot.queue.len(),
+        "stage": snapshot.stage,
+        "startedAtEpochMs": snapshot.started_at_epoch_ms
+    });
+    ai_control::execute(&root, &command, Some(runtime))
+}
+
 pub fn run() {
     normalize_process_path();
     tauri::Builder::default()
         .manage(BuildState::default())
         .manage(PublicationState::default())
         .invoke_handler(tauri::generate_handler![
+            ai_control_command,
             list_regions,
             geofabrik_catalog,
             preview_region,
