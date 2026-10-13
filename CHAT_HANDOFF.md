@@ -1,5 +1,32 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## GUI routing fixed for known Austria–Germany buffered-graph test (2026-10-13)
+
+- User screenshot on Legion after installing PR #68 demonstrates an actual
+  standard Graph Studio **GUI route displayed successfully** with Austria
+  active. This supersedes the old assumption that GUI cannot route at all.
+- Start `47.582889,12.162319`, destination `47.609970,12.200709`,
+  motorcycle. GUI: **4.72 km**, **14m48s**, **221 ms**. Independent M3 headless
+  verification of same journey: **4.725 km**, 161 ms, start/end offsets
+  8.36 m/4.32 m.
+- User explicitly confirms **German graph is NOT installed**; German-side
+  destination falls **inside Austria's configured 25 km border buffer**.
+  Graph Studio drew the connected route normally across the national boundary
+  by using neighboring road coverage inside the *same* Austria Valhalla graph.
+- National border != regional graph coverage boundary. This confirms ordinary
+  buffered single-graph routing in Austria, but **does not** verify handoffs
+  between two independently built graphs or eliminate RoadPilot F8 outside
+  buffered coverage.
+- PR #68 GUI parity fix **verified for this reproducible Austrian route**;
+  do not claim all countries/routes fixed (prior screenshot shows GUI failure
+  for a longer Italy→Austria request that may exceed Austria graph coverage).
+- Evidence added to issue #69: https://github.com/kandyman991/RoadPilot-Offline-Data/issues/69
+- **NEXT EXACT ACTION:** reproduce user-observed border crossing that finishes
+  short of destination; capture start/destination and actual route last point,
+  use M3 `--ai-verify-route` to distinguish border proof from destination
+  arrival. No graph rebuild, cache purge or forced handoff heuristics.
+
+
 ## GUI route failure after PR #68 update — screenshot from Legion (2026-10-13)
 
 - Screenshot shows installed GUI's standard Route Planner reporting
