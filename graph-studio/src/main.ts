@@ -502,6 +502,10 @@ app.innerHTML = `
           <button id="cancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
         <div id="buildSelectionSummary" class="status-line">No regions selected.</div>
+        <label class="check-row"><input id="refreshSourceCheckbox" type="checkbox" />
+          Force source re-download (ignore unchanged source cache)
+        </label>
+        <p class="status-line">Normal builds reuse locally cached Geofabrik PBFs and check their upstream checksums daily.</p>
         <p>Select any Geofabrik region and click Build selected. Unconfigured regions are prepared automatically; completed routing packages still require Valhalla border proof.</p>
       </section>
 
@@ -871,6 +875,7 @@ const toolHost = document.querySelector<HTMLDivElement>("#tools")!;
 const logHost = document.querySelector<HTMLPreElement>("#consoleLog")!;
 const buildsHost = document.querySelector<HTMLDivElement>("#builds")!;
 const packageVersionInput = document.querySelector<HTMLInputElement>("#packageVersion")!;
+const refreshSourceCheckbox = document.querySelector<HTMLInputElement>("#refreshSourceCheckbox")!;
 const newRegionBtn = document.querySelector<HTMLButtonElement>("#newRegionBtn")!;
 const editRegionBtn = document.querySelector<HTMLButtonElement>("#editRegionBtn")!;
 const regionEditorSection = document.querySelector<HTMLElement>("#regionEditorSection")!;
@@ -4708,7 +4713,9 @@ buildBtn.addEventListener("click", async () => {
     await autoPrepareSelectedRegions();
     const queue = [...selected].filter(id => regions.some(region => region.id === id));
     if (!queue.length) throw new Error("No configured regions remain in the build queue.");
-    await invoke("start_build_queue", { regionIds: queue, packageVersion: version, refreshSources: false });
+    await invoke("start_build_queue", {
+      regionIds: queue, packageVersion: version, refreshSources: refreshSourceCheckbox.checked,
+    });
     await refreshBuildStatus();
   } catch (error) {
     appendLog(`Could not start automatic build: ${String(error)}`);
