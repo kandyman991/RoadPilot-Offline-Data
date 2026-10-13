@@ -1,5 +1,16 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Latest merged milestone — 2026-10-13: PR #63 shared source cache
+
+- PR https://github.com/kandyman991/RoadPilot-Offline-Data/pull/63 **merged** as commit `7d255b40e7939fe4ea2cdd89cfb1bab0ca3a5084`. Both required PR CI checks green; real Legion full build/rebuild is **not yet device tested**.
+- One shared `work/cache/<source-id>.osm.pbf` for routing and visual, hardlink-migrating earlier visual source files; 24h checksum sidecar detection, atomic MD5-checked downloads, fail-closed force refresh and explicitly warned offline reuse.
+- Repeated unchanged graph build skips broad PBF merge, buffering extraction and administrative data regeneration via `work/<region>/build/source-preparation.json` keyed by all input SHA-256s, exact polygon SHA-256 and Valhalla engine version. Retained prepared outputs verified by SHA-256. Temporary full `merged.osm.pbf` deleted after admin DB construction.
+- Build panel exposes **Force source re-download** unchecked by default. Existing independently versioned routing, visual and search artifacts remain independent.
+- Limits: first uncached use still downloads whole required Geofabrik leaf neighbors. Admins still require complete broad source context for *first* build; cropping this prematurely risks truncated administrative relations. See `docs/geofabrik-shared-cache.md`.
+
+**Next exact action:** Verify rolling Linux release tag points to `7d255b4`, install updated .deb on Legion, perform one small-border-region graph build and a version-bumped repeat. Confirm cache hit and skipped full-source merge; compare validated artifacts/Valhalla route diagnostics. After real smoke tests evaluate smaller boundary-only downloads by safe admin-context filtering or diff-based updates — do not assume source byte-range clipping works.
+
+
 ## Latest verified merge — 2026-10-13: PR #62 automatic region builds
 
 - PR: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/62 — **merged into main**.
