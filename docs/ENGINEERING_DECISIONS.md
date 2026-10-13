@@ -59,3 +59,14 @@ the process. Do not introduce an HTTP listener or automatic mutating agent
 in the first milestone. Inspect only allowlisted routing config/manifest fields,
 never R2 credentials or raw logs. Future local bridges require user opt-in and
 narrow permissions; any mutation must be explicitly authorized and tested.
+
+## D-008 — Evidence-graduated AI diagnosis (2026-10-13)
+
+Expose retained **manifest-recorded** Valhalla route outcomes and existing
+exported border reports through a bounded, read-only AI diagnostic command.
+Never describe manifest presence as an independently rerun route or report
+existence as proof of freshness. At build completion, write one sanitized latest
+outcome using stable stage/error categories rather than persisting potentially
+sensitive subprocess stderr. The diagnostic inspector itself writes nothing and
+must operate without launching the desktop UI or requiring a network service.
+No graph or publication operations are authorized by this interface.

@@ -68,6 +68,8 @@ by the Tauri frontend and installed binary's `--ai-inspect` /
 and retained routing manifests without launching a GUI, rebuilding graphs,
 exposing credentials or starting a local listener.
 See [AI Control](docs/AI_CONTROL.md) for its contract, limitations and tests.
+M2 adds `--ai-diagnose` with recorded Valhalla route evidence, retained border
+report summaries and sanitized build outcome categories (no raw logs or route replays).
 
 ## Inspector architecture
 

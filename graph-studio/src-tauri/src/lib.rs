@@ -19,6 +19,7 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 pub mod ai_control;
+pub mod ai_diagnostics;
 
 #[derive(Debug, Clone, Serialize)]
 struct Coverage {
@@ -133,6 +134,7 @@ struct BuildState {
     status: Arc<Mutex<BuildStatus>>,
     cancel: Arc<AtomicBool>,
     current_pid: Arc<Mutex<Option<u32>>>,
+    failure_hint: Arc<Mutex<Option<&'static str>>>,
 }
 
 impl Default for BuildState {
@@ -141,6 +143,7 @@ impl Default for BuildState {
             status: Arc::new(Mutex::new(BuildStatus::default())),
             cancel: Arc::new(AtomicBool::new(false)),
             current_pid: Arc::new(Mutex::new(None)),
+            failure_hint: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -1174,6 +1177,21 @@ fn run_process_streaming(
     loop {
         match rx.recv_timeout(std::time::Duration::from_millis(150)) {
             Ok(line) => {
+                // Recognize only safe, fixed error signatures. Never retain
+                // arbitrary stderr in the AI diagnostic state or outcome file.
+                let marker = if line.contains("Node ID twice in input") ||
+                    line.contains("Way ID twice in input") {
+                    Some("Node ID twice in input")
+                } else if line.contains("No unvalidated routing package") {
+                    Some("No unvalidated routing package")
+                } else {
+                    None
+                };
+                if let Some(marker) = marker {
+                    if let Ok(mut hint) = state.failure_hint.lock() {
+                        *hint = Some(marker);
+                    }
+                }
                 if let Some(stage) = stage_for_log(&line) {
                     set_stage(app, state, stage);
                 }
@@ -1359,9 +1377,11 @@ fn start_build_queue(
         };
     }
     owned.cancel.store(false, Ordering::SeqCst);
+    *owned.failure_hint.lock().expect("failure hint poisoned") = None;
     emit_status(&app, &owned);
 
     tauri::async_runtime::spawn_blocking(move || {
+        let outcome_version = package_version.clone();
         let result = run_build_queue(
             app.clone(),
             owned.clone(),
@@ -1371,6 +1391,26 @@ fn start_build_queue(
         );
 
         let mut snapshot = owned.status.lock().expect("build status poisoned");
+        let observed_region = snapshot.current_region.clone();
+        let observed_stage = snapshot.stage.clone();
+        let outcome = if result.is_ok() {
+            "succeeded"
+        } else if owned.cancel.load(Ordering::SeqCst) {
+            "cancelled"
+        } else {
+            "failed"
+        };
+        let streamed_failure_hint = owned.failure_hint.lock().ok().and_then(|v| *v);
+        let error_for_classification = streamed_failure_hint.or_else(|| result.as_ref().err().map(String::as_str));
+        // Persist only a stable failure category; never copy subprocess stderr.
+        if let Ok(root) = workspace_root(&app) {
+            if ai_diagnostics::record_build_outcome(
+                &root, observed_region.as_deref(), &outcome_version,
+                &observed_stage, outcome, error_for_classification,
+            ).is_err() {
+                emit_log(&app, "AI build diagnostic outcome could not be recorded.");
+            }
+        }
         snapshot.running = false;
         snapshot.current_region = None;
         snapshot.queue.clear();
