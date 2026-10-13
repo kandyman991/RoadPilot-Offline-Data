@@ -1245,6 +1245,7 @@ fn run_build_queue(
     region_ids: Vec<String>,
     package_version: String,
     refresh_sources: bool,
+    connectivity_only: bool,
 ) -> Result<(), String> {
     let pipeline = pipeline_root(&app)?;
     let python = ensure_python_env(&app)?;
@@ -1252,6 +1253,7 @@ fn run_build_queue(
     let dist = dist_dir(&app)?;
     let visual_dist = visual_dist_dir(&app)?;
 
+    if !connectivity_only {
     for (index, region_id) in region_ids.iter().enumerate() {
         if state.cancel.load(Ordering::SeqCst) {
             return Err("Build cancelled.".into());
@@ -1354,6 +1356,28 @@ fn run_build_queue(
         let _ = fs::remove_dir_all(cache);
         emit_log(&app, format!("✓ {region_id} build validated."));
     }
+    }
+
+    // Work from retained local graphs and their fingerprint-bound neighbors.
+    // Building one graph should refresh only its affected connections;
+    // connectivity-only mode refreshes ALL locally available graph pairs.
+    set_stage(&app, &state, "Discovering and validating cross-region connectivity");
+    emit_log(&app, "→ F8-derived cross-region connectivity: discovering adjacent graph pairs…");
+    let mut connectivity = Command::new(&python);
+    connectivity.arg(pipeline.join("tools/refresh_graph_connectivity.py"))
+        .arg("--dist-dir").arg(&dist)
+        .arg("--work-dir").arg(&work)
+        .arg("--connectivity-dir").arg(workspace_root(&app)?.join("connectivity"))
+        .arg("--connector-matrix-dir").arg(workspace_root(&app)?.join("connector-matrices"));
+    if !connectivity_only {
+        for region_id in &region_ids {
+            connectivity.arg("--changed-region").arg(region_id);
+        }
+    }
+    run_process_streaming(&app, &state, connectivity).map_err(|error| {
+        format!("Regional graph packs remain valid, but connectivity validation failed: {error}")
+    })?;
+    emit_log(&app, "✓ Cross-region connectivity refresh completed.");
 
     Ok(())
 }
@@ -1365,8 +1389,10 @@ fn start_build_queue(
     region_ids: Vec<String>,
     package_version: String,
     refresh_sources: bool,
+    connectivity_only: Option<bool>,
 ) -> Result<(), String> {
-    if region_ids.is_empty() {
+    let connectivity_only = connectivity_only.unwrap_or(false);
+    if region_ids.is_empty() && !connectivity_only {
         return Err("Select at least one region.".into());
     }
     if !region_ids.iter().all(|id| safe_token(id)) {
@@ -1386,7 +1412,11 @@ fn start_build_queue(
             running: true,
             current_region: None,
             queue: region_ids.clone(),
-            stage: "Starting build queue".into(),
+            stage: if connectivity_only {
+                "Starting connectivity refresh (existing graphs)".into()
+            } else {
+                "Starting build queue".into()
+            },
             started_at_epoch_ms: Some(now_epoch_ms()),
             last_error: None,
         };
@@ -1403,6 +1433,7 @@ fn start_build_queue(
             region_ids,
             package_version,
             refresh_sources,
+            connectivity_only,
         );
 
         let mut snapshot = owned.status.lock().expect("build status poisoned");
