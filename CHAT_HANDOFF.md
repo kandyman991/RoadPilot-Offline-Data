@@ -1,5 +1,19 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## M3 AI Control implementation — branch in review (2026-10-13)
+
+- Branch `graph-studio-ai-control-m3-valhalla-verify`. On-demand `--ai-verify-route`
+  and Tauri `ai_verify_route` share one Rust verification engine and the existing
+  Valhalla route request and polyline decoding helpers.
+- Input allowlists, strict local graph checks, no shell, 20s timeout and 1-MiB
+  output cap; structured endpoint-checked results without raw stderr.
+- Graph work/tiles must exist; no source downloads, writes, builds or publishing.
+  Cross-region validity and retained package fingerprint are explicitly not proven.
+- NEXT: check PR Linux Rust tests and validation CI; merge only if green. Verify
+  installed commands later on Legion. Pending Austria full build remains untested.
+
+
+
 ## Latest verified merge — 2026-10-13: AI Control M2 PR #66
 
 - PR: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/66 — **merged**

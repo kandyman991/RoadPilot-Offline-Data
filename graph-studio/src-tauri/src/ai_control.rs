@@ -18,7 +18,8 @@ pub fn execute(workspace: &Path, command: &str, runtime_status: Option<Value>) -
             "commands": [
                 {"name": "capabilities", "readOnly": true, "description": "Describe the versioned inspection contract"},
                 {"name": "inspect", "readOnly": true, "description": "Inspect configured routing regions, retained routing manifests and optional in-process build state"},
-                {"name": "diagnose", "readOnly": true, "description": "Inspect recorded Valhalla proof summaries, exported border reports and sanitized latest build outcome"}
+                {"name": "diagnose", "readOnly": true, "description": "Inspect recorded Valhalla proof summaries, exported border reports and sanitized latest build outcome"},
+                {"name": "verify_route", "readOnly": true, "invocation": "explicit", "interface": ["headless_cli", "tauri_ai_verify_route"], "description": "Run one bounded local Valhalla route probe against already-built working graph tiles; no border or retained-pack proof"}
             ],
             "externalListener": false
         })),
@@ -225,7 +226,7 @@ mod tests {
         let result = execute(Path::new("/nonexistent"), "capabilities", None).unwrap();
         assert_eq!(result["schema"], SCHEMA);
         assert_eq!(result["readOnly"], true);
-        assert_eq!(result["commands"].as_array().unwrap().len(), 3);
+        assert_eq!(result["commands"].as_array().unwrap().len(), 4);
         assert!(!Path::new("/nonexistent").exists());
         assert!(execute(Path::new("."), "start_build_queue", None).is_err());
         assert!(execute(Path::new("."), "delete_handoff_override", None).is_err());

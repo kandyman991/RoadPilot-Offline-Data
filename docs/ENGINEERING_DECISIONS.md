@@ -70,3 +70,15 @@ outcome using stable stage/error categories rather than persisting potentially
 sensitive subprocess stderr. The diagnostic inspector itself writes nothing and
 must operate without launching the desktop UI or requiring a network service.
 No graph or publication operations are authorized by this interface.
+
+## D-010 — Explicit and bounded AI route probes (2026-10-13)
+
+AI route verification is a narrowly scoped **explicit** Valhalla operation,
+not a scheduler or an automatically granted external agent. The local CLI and
+Tauri command use the same Rust engine and share the application's request
+validation and polyline decoder. Accept only a safe region id, two finite
+locations and an allowlisted travel mode. Bound wall time and output, discard
+raw stderr and return structured result metadata. Never modify routing packs,
+publish, infer cross-region seam validity, or claim a retained package is the
+running graph. The Tauri invocation refuses probes while the application is
+building. Headless callers must ensure no separate build is active.
