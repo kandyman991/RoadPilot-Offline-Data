@@ -20,6 +20,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 pub mod ai_control;
 pub mod ai_diagnostics;
+pub mod ai_verify;
 
 #[derive(Debug, Clone, Serialize)]
 struct Coverage {
@@ -4238,6 +4239,35 @@ fn ai_control_command(
     ai_control::execute(&root, &command, Some(runtime))
 }
 
+/// On-demand real Valhalla route verification, never an implicit background job.
+/// Unlike the existing GUI's plan_route, this exposes only bounded numeric
+/// evidence and excludes the complete Valhalla reply or geometry.
+#[tauri::command]
+async fn ai_verify_route(
+    app: AppHandle,
+    state: State<'_, BuildState>,
+    region_id: String,
+    start_lat: f64,
+    start_lng: f64,
+    end_lat: f64,
+    end_lng: f64,
+    costing: String,
+) -> Result<Value, String> {
+    // The headless CLI can't observe process state, but the Tauri wrapper can.
+    if state.status.lock().map_err(|_| "Build status lock poisoned.")?.running {
+        return Err("A graph build is running. AI route verification is unavailable.".into());
+    }
+    let workspace = app.path().home_dir()
+        .map_err(|_| "Could not resolve home directory")?
+        .join("RoadPilotGraphStudio");
+    let probe = ai_verify::RouteProbe {
+        region_id, start_lat, start_lng, end_lat, end_lng, costing,
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        ai_verify::verify_route(&workspace, &probe)
+    }).await.map_err(|_| "AI route verification worker failed".to_string())?
+}
+
 pub fn run() {
     normalize_process_path();
     tauri::Builder::default()
@@ -4245,6 +4275,7 @@ pub fn run() {
         .manage(PublicationState::default())
         .invoke_handler(tauri::generate_handler![
             ai_control_command,
+            ai_verify_route,
             list_regions,
             geofabrik_catalog,
             preview_region,

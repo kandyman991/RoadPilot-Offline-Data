@@ -1,4 +1,4 @@
-# Graph Studio AI Control — Milestones 1–2
+# Graph Studio AI Control — Milestones 1–3
 
 ## Purpose
 
@@ -126,3 +126,55 @@ upload or real regional build was added.
 actual manifests and border reports, and complete the pending Austria rebuild
 smoke test. Future M3 can add explicit, permissioned graph integrity/Valhalla
 verification operations without duplicating the existing tools.
+
+## M3 — explicit on-demand Valhalla route verification
+
+M3 deliberately **does not** expose unrestricted agent control. One request
+runs one local Valhalla route probe using the same request validation, route
+request encoding, and route polyline decoding as Graph Studio's own route
+planner. It uses the current working graph under
+`~/RoadPilotGraphStudio/work/<region>/build/`.
+
+```bash
+roadpilot-graph-studio --ai-verify-route geofabrik-austria 47.582889 12.162319 47.609970 12.200709 motorcycle
+```
+
+No desktop window or HTTP listener is required. The CLI exits 0 only if its
+endpoint-correlated route passes, 1 on a bounded Valhalla failure, 2 on invalid
+arguments or missing/unsafe local graph. Output is a **bounded structured
+summary**, not arbitrary Valhalla JSON or stderr.
+
+From a **trusted Graph Studio frontend**, the same Rust verifier is called as:
+
+```ts
+await invoke("ai_verify_route", {
+  regionId: "geofabrik-austria",
+  startLat: 47.582889, startLng: 12.162319,
+  endLat: 47.609970, endLng: 12.200709,
+  costing: "motorcycle",
+});
+```
+
+Security and resource boundaries:
+
+- Explicit operation only; no schedule, discovery scan or silent route probes.
+- Valid region id and finite GPS coordinates; allowed costings:
+  motorcycle/auto/bicycle/pedestrian.
+- Local existing config/tiles only, no downloads or graph generation. 
+  Traversal and symlinked graph directories are rejected.
+- Fixed `valhalla_service` executable, **no shell interpolation**, no arbitrary
+  commands, paths or custom costing JSON. 20-second timeout, 1-MiB output cap.
+- Test uses ordinary Valhalla `route`, status 0, decoded route geometry, summary,
+  and checks both actual returned endpoints within 150 m of the requested ones.
+- Reports distance, travel time, vertex count, endpoint offsets, duration,
+  graph source and failure category. Raw engine stderr is discarded.
+- Tauri refuses to start the probe during an in-process graph build. A headless
+  invocation **cannot** know if the GUI is building: caller should ensure no
+  build is in progress.
+- `crossRegionProof=false`, `retainedPackHashVerified=false`: this is not
+  a border-crossing proof, exact retained-package replay or cross-region F8
+  test. These remain separate, stronger validations.
+
+This interface performs no intentional Graph Studio workspace writes; it
+invokes Valhalla against an existing local working graph. Passing CI tests
+of parsing and safeguards is **not** a real Legion graph test.

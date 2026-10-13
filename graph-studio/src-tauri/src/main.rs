@@ -32,5 +32,27 @@ fn main() {
             }
         }
     }
+    if std::env::args().nth(1).as_deref() == Some("--ai-verify-route") {
+        let args: Vec<String> = std::env::args().skip(2).collect();
+        let result = (|| -> Result<serde_json::Value, String> {
+            let probe = roadpilot_graph_studio_lib::ai_verify::RouteProbe::from_cli(&args)?;
+            let home = std::env::var_os("HOME").ok_or("HOME is not set")?;
+            let workspace = std::path::PathBuf::from(home).join("RoadPilotGraphStudio");
+            roadpilot_graph_studio_lib::ai_verify::verify_route(&workspace, &probe)
+        })();
+        match result {
+            Ok(value) => {
+                println!("{}", serde_json::to_string_pretty(&value).expect("serializable verification result"));
+                if value.get("passed").and_then(serde_json::Value::as_bool) != Some(true) {
+                    std::process::exit(1);
+                }
+                return;
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(2);
+            }
+        }
+    }
     roadpilot_graph_studio_lib::run();
 }

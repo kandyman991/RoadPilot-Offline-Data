@@ -217,3 +217,11 @@ The R2 publication panel can switch between **Routing graph**, **Visual PMTiles*
 - changing or rolling back any routing, visual or search pointer cannot move either of the other two.
 
 Real Cloudflare credentials remain local to Graph Studio app data and are not committed to this repository.
+
+## AI Valhalla verification (M3)
+
+The installed binary supports `--ai-verify-route REGION START_LAT START_LNG END_LAT END_LNG COSTING`
+and the trusted GUI may call `ai_verify_route`. Both use the shared Rust Valhalla
+request/geometry functions. Only an explicitly requested local, bounded route
+probe is run: it neither builds nor publishes graphs. See
+[AI Control](docs/AI_CONTROL.md) for evidence semantics and safety limits.
