@@ -531,13 +531,39 @@ def main() -> None:
     if "index.bin" not in names or tile_count <= 0:
         fail("Tile extract is missing index.bin or graph tiles")
 
-    route_results = validate_routes(
-        valhalla_config_path,
-        nominal_geometry,
-        routing.get("validationRoutes") or [],
-    )
+    validation_routes = routing.get("validationRoutes") or []
+    if routing.get("validationMode") == "auto" and not validation_routes:
+        # Only after producing actual Valhalla tiles can we discover a drivable
+        # crossing. Sampling the boundary alone is NOT a route validation.
+        from auto_boundary_routes import discover_border_route
+
+        neighbors = []
+        for source_item in pbfs:
+            if source_item["id"] == source["primaryGeofabrikId"]:
+                continue
+            polygon_url = geofabrik_polygon_url(source_item["url"])
+            neighbor_poly = download(
+                polygon_url,
+                cache_root / f"auto-neighbor__{source_item['id'].replace('/', '__')}.poly",
+                refresh=args.refresh_sources,
+            )
+            neighbors.append(parse_poly(neighbor_poly))
+        try:
+            proven = discover_border_route(
+                valhalla_config_path, nominal_geometry, border_buffer_km,
+                neighbor_geometries=neighbors,
+            )
+        except RuntimeError as exc:
+            fail(str(exc))
+        # Proof results are saved in the manifest for audit and reproducibility.
+        # They are not guessed into the persisted region configuration.
+        route_results = [proven]
+    else:
+        route_results = validate_routes(
+            valhalla_config_path, nominal_geometry, validation_routes,
+        )
     if not route_results:
-        fail("At least one routing validation route is required")
+        fail("At least one Valhalla-proven routing validation route is required")
 
     package_template = routing["package"]["fileNameTemplate"]
     manifest_template = routing["package"]["manifestFileNameTemplate"]
