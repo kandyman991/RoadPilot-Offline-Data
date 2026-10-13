@@ -5,7 +5,7 @@ use std::{
     fs,
     io::Read,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
     thread,
     time::{Duration, Instant},
 };
@@ -128,13 +128,54 @@ impl RunnerError {
     }
 }
 
+// A pyvalhalla launcher may wrap the actual JSON with a line of launcher
+// diagnostics. Accept one JSON object starting at a line boundary, never
+// arbitrary substrings or unbounded stdout.
+fn decode_json(bytes: &[u8]) -> Result<Value, RunnerError> {
+    if let Ok(value) = serde_json::from_slice(bytes) {
+        return Ok(value);
+    }
+    let text = std::str::from_utf8(bytes).map_err(|_| RunnerError::InvalidResponse)?;
+    let mut offset = 0;
+    for line in text.split_inclusive('\n') {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('{') {
+            let leading = line.len() - trimmed.len();
+            if let Some(Ok(value)) = serde_json::Deserializer::from_str(
+                &text[offset + leading..]
+            ).into_iter::<Value>().next() {
+                return Ok(value);
+            }
+        }
+        offset += line.len();
+    }
+    Err(RunnerError::InvalidResponse)
+}
+
+fn stop_child(child: &mut Child) {
+    // Valhalla may be started through a Python launcher. Kill the complete
+    // private process group so descendants cannot outlive the timeout.
+    #[cfg(unix)]
+    {
+        unsafe extern "C" { fn kill(pid: i32, sig: i32) -> i32; }
+        unsafe { let _ = kill(-(child.id() as i32), 9); }
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
 fn valhalla_result(
     program: &Path, config: &Path, request: &Value, timeout: Duration
 ) -> Result<Value, RunnerError> {
-    let mut child = Command::new(program)
-        .arg(config).arg("route").arg(request.to_string())
-        .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null())
-        .spawn().map_err(|_| RunnerError::Unavailable)?;
+    let mut command = Command::new(program);
+    command.arg(config).arg("route").arg(request.to_string())
+        .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child = command.spawn().map_err(|_| RunnerError::Unavailable)?;
     let stdout = child.stdout.take().ok_or(RunnerError::Unavailable)?;
     // Drain on a separate thread to prevent child stdout-pipe deadlocks.
     let reader = thread::spawn(move || {
@@ -148,8 +189,7 @@ fn valhalla_result(
             Ok(Some(status)) => break status,
             Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(20)),
             _ => {
-                let _ = child.kill();
-                let _ = child.wait();
+                stop_child(&mut child);
                 let _ = reader.join();
                 return Err(RunnerError::TimedOut);
             }
@@ -162,7 +202,7 @@ fn valhalla_result(
     if !exit.success() {
         return Err(RunnerError::Failed);
     }
-    serde_json::from_slice(&bytes).map_err(|_| RunnerError::InvalidResponse)
+    decode_json(&bytes)
 }
 
 fn haversine_meters(lat_a: f64, lng_a: f64, lat_b: f64, lng_b: f64) -> f64 {
@@ -347,6 +387,13 @@ mod tests {
     }
 
     #[test]
+    fn pyvalhalla_launcher_noise_does_not_hide_a_valid_reply() {
+        let bytes = b"[INFO] Running /tmp/valhalla_service with args: []\n{\"trip\":{\"status\":0}}\n[INFO] complete\n";
+        assert_eq!(decode_json(bytes).unwrap()["trip"]["status"], 0);
+        assert!(decode_json(b"[INFO] no result").is_err());
+    }
+
+    #[test]
     fn missing_graph_does_not_create_workspace() {
         let t=Temp::new();
         let root=t.0.join("missing");
@@ -382,8 +429,7 @@ mod tests {
         let err=valhalla_result(&file,Path::new("unused"),&json!({}),
             Duration::from_millis(60)).unwrap_err();
         assert!(matches!(err,RunnerError::TimedOut));
-        // A shell may leave a sleeping grandchild holding stdout after the
-        // shell is killed. This test only proves direct-child cancellation.
-        assert!(start.elapsed() < Duration::from_secs(4));
+        // The entire process group, including the shell's children, must stop.
+        assert!(start.elapsed() < Duration::from_secs(1));
     }
 }
