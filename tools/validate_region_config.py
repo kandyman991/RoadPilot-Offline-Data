@@ -223,8 +223,13 @@ def validate_routing(routing) -> bool:
         fail("routing package file templates contain unsafe characters")
 
     routes = routing.get("validationRoutes")
-    if not isinstance(routes, list) or not routes:
-        fail("routing.validationRoutes must be non-empty")
+    validation_mode = routing.get("validationMode", "manual")
+    if validation_mode not in {"manual", "auto"}:
+        fail("routing.validationMode must be 'manual' or 'auto'")
+    if not isinstance(routes, list):
+        fail("routing.validationRoutes must be an array")
+    if not routes and validation_mode != "auto":
+        fail("routing.validationRoutes must be non-empty for manual validation")
     border_count = 0
     for index, route in enumerate(routes):
         if not isinstance(route, dict):
@@ -238,7 +243,10 @@ def validate_routing(routing) -> bool:
             border_count += 1
         validate_coordinate(route.get("start"), f"routing.validationRoutes[{index}].start")
         validate_coordinate(route.get("end"), f"routing.validationRoutes[{index}].end")
-    if border_count == 0:
+    # Automatic mode can start without fabricated coordinates: the actual
+    # border route is discovered and proved against freshly built Valhalla tiles
+    # before a routing package can be published.
+    if border_count == 0 and validation_mode != "auto":
         fail("at least one routing border validation route is required")
     return True
 

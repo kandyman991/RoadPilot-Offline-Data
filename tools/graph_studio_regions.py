@@ -414,7 +414,7 @@ def validate_config_geometry(config_path: Path, cache_dir: Path, refresh: bool) 
         for route in routing.get("validationRoutes", [])
         if isinstance(route, dict) and route.get("kind") == "border"
     ]
-    if not border_routes:
+    if not border_routes and routing.get("validationMode") != "auto":
         fail("At least one border validation route is required")
 
     checked = []
@@ -442,7 +442,8 @@ def validate_config_geometry(config_path: Path, cache_dir: Path, refresh: bool) 
             }
         )
 
-    return {"valid": True, "borderRoutes": checked}
+    return {"valid": True, "borderRoutes": checked,
+            "pendingAutomaticProof": not checked and routing.get("validationMode") == "auto"}
 
 
 def main() -> None:

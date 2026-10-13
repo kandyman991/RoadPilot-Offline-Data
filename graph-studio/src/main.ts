@@ -502,7 +502,7 @@ app.innerHTML = `
           <button id="cancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
         <div id="buildSelectionSummary" class="status-line">No regions selected.</div>
-        <p>Choose regions in the left tree. Available catalog regions can be queued for setup, but only validated configured regions can be built.</p>
+        <p>Select any Geofabrik region and click Build selected. Unconfigured regions are prepared automatically; completed routing packages still require Valhalla border proof.</p>
       </section>
 
       <section class="section tool-panel" data-tool="publish" hidden>
@@ -601,7 +601,8 @@ app.innerHTML = `
           <div class="field"><label for="editorEndLat">End lat</label><input id="editorEndLat" type="number" step="0.000001" /></div>
           <div class="field"><label for="editorEndLng">End lng</label><input id="editorEndLng" type="number" step="0.000001" /></div>
         </div>
-        <p>Exactly one endpoint must be inside the nominal Geofabrik region. You can copy coordinates from the map inspector.</p>
+        <div class="actions editor-pin-actions"><button id="pickEditorStartBtn" class="btn" type="button">Pick start on map</button><button id="pickEditorEndBtn" class="btn" type="button">Pick end on map</button><button id="clearEditorPinsBtn" class="btn" type="button">Clear pins</button></div>
+        <p>Click Pick start/end, then click a road on the map. Drag pins to refine. This is an optional manual fallback; automatic builds find Valhalla-proved crossings.</p>
         <div class="actions">
           <button id="saveRegionBtn" class="btn primary" type="button" disabled>Save region</button>
           <button id="closeRegionEditorBtn" class="btn" type="button">Close</button>
@@ -886,6 +887,9 @@ const editorStartLat = document.querySelector<HTMLInputElement>("#editorStartLat
 const editorStartLng = document.querySelector<HTMLInputElement>("#editorStartLng")!;
 const editorEndLat = document.querySelector<HTMLInputElement>("#editorEndLat")!;
 const editorEndLng = document.querySelector<HTMLInputElement>("#editorEndLng")!;
+const pickEditorStartBtn = document.querySelector<HTMLButtonElement>("#pickEditorStartBtn")!;
+const pickEditorEndBtn = document.querySelector<HTMLButtonElement>("#pickEditorEndBtn")!;
+const clearEditorPinsBtn = document.querySelector<HTMLButtonElement>("#clearEditorPinsBtn")!;
 const saveRegionBtn = document.querySelector<HTMLButtonElement>("#saveRegionBtn")!;
 const closeRegionEditorBtn = document.querySelector<HTMLButtonElement>("#closeRegionEditorBtn")!;
 const buildBtn = document.querySelector<HTMLButtonElement>("#buildBtn")!;
@@ -1000,6 +1004,9 @@ let regionBrowserMode: "configured" | "catalog" = "configured";
 let regionBrowserQuery = "";
 let editorPreview: RegionPreview | null = null;
 let editorExistingConfig: Record<string, unknown> | null = null;
+let editorPickMode: "start" | "end" | null = null;
+let editorStartMarker: Marker | null = null;
+let editorEndMarker: Marker | null = null;
 let activeRegion: RegionSummary | null = null;
 let graphVisible = false;
 let activeVisualBuild: VisualBuildArtifact | null = null;
@@ -3725,7 +3732,62 @@ async function performCatalogLoad(refresh: boolean): Promise<void> {
   }
 }
 
+
+function setEditorPinMode(kind: "start" | "end" | null): void {
+  editorPickMode = kind;
+  pickEditorStartBtn.classList.toggle("active-pin", kind === "start");
+  pickEditorEndBtn.classList.toggle("active-pin", kind === "end");
+  map.getCanvas().style.cursor = kind ? "crosshair" : "";
+}
+function clearEditorPinMarkers(): void {
+  setEditorPinMode(null);
+  editorStartMarker?.remove();
+  editorEndMarker?.remove();
+  editorStartMarker = null;
+  editorEndMarker = null;
+}
+function setEditorPin(kind: "start" | "end", lat: number, lng: number): void {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
+  const latField = kind === "start" ? editorStartLat : editorEndLat;
+  const lngField = kind === "start" ? editorStartLng : editorEndLng;
+  latField.value = lat.toFixed(6);
+  lngField.value = lng.toFixed(6);
+  const marker = kind === "start" ? editorStartMarker : editorEndMarker;
+  marker?.remove();
+  const updated = new Marker({ color: kind === "start" ? "#2dcc84" : "#ff6c6c", draggable: true })
+    .setLngLat([lng, lat]).addTo(map);
+  updated.on("dragend", () => {
+    const position = updated.getLngLat();
+    setEditorPin(kind, position.lat, position.lng);
+  });
+  if (kind === "start") editorStartMarker = updated;
+  else editorEndMarker = updated;
+}
+function syncEditorPin(kind: "start" | "end"): void {
+  const latField = kind === "start" ? editorStartLat : editorEndLat;
+  const lngField = kind === "start" ? editorStartLng : editorEndLng;
+  if (!latField.value.trim() || !lngField.value.trim()) {
+    const marker = kind === "start" ? editorStartMarker : editorEndMarker;
+    marker?.remove();
+    if (kind === "start") editorStartMarker = null;
+    else editorEndMarker = null;
+    return;
+  }
+  setEditorPin(kind, Number(latField.value), Number(lngField.value));
+}
+pickEditorStartBtn.addEventListener("click", () =>
+  setEditorPinMode(editorPickMode === "start" ? null : "start"));
+pickEditorEndBtn.addEventListener("click", () =>
+  setEditorPinMode(editorPickMode === "end" ? null : "end"));
+clearEditorPinsBtn.addEventListener("click", () => {
+  clearEditorPinMarkers();
+  for (const field of [editorStartLat, editorStartLng, editorEndLat, editorEndLng]) field.value = "";
+});
+for (const field of [editorStartLat, editorStartLng]) field.addEventListener("change", () => syncEditorPin("start"));
+for (const field of [editorEndLat, editorEndLng]) field.addEventListener("change", () => syncEditorPin("end"));
+
 function resetRegionEditor(): void {
+  clearEditorPinMarkers();
   editorExistingConfig = null;
   editorPreview = null;
   editorRoadpilotId.value = "";
@@ -3749,6 +3811,7 @@ function openRegionEditor(): void {
 }
 
 function closeRegionEditor(): void {
+  clearEditorPinMarkers();
   removeEditorOverlays();
   activateTool(lastNonRegionTool === "region" ? "build" : lastNonRegionTool);
 }
@@ -3859,7 +3922,9 @@ function configFromEditor(): Record<string, unknown> {
     },
     visual: {
       ...existingVisual,
-      enabled: true,
+      // Editing an automatic routing-only region must not start building
+      // visual PMTiles unless the user explicitly enables that dataset.
+      enabled: existingVisual.enabled === false ? false : true,
       source: {
         primaryGeofabrikId: editorPreview.geofabrikId,
         url: editorPreview.pbfUrl,
@@ -3923,6 +3988,8 @@ editRegionBtn.addEventListener("click", async () => {
       editorStartLng.value = String(start.lng ?? "");
       editorEndLat.value = String(end.lat ?? "");
       editorEndLng.value = String(end.lng ?? "");
+      syncEditorPin("start");
+      syncEditorPin("end");
     }
     await previewEditorRegion(false);
   } catch (error) {
@@ -4575,27 +4642,77 @@ publishBuildBtn.addEventListener("click", async () => {
   }
 });
 
+
+function autoConfigFromPreview(item: GeofabrikCatalogItem, preview: RegionPreview): Record<string, unknown> {
+  const id = item.id.replaceAll("/", "-");
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new Error(`Unsafe region id ${item.id}`);
+  if (!preview.sources.some(source => source.primary && source.id === preview.geofabrikId))
+    throw new Error(`Primary extract missing for ${item.id}`);
+  return {
+    schemaVersion: 1, id, name: item.name,
+    routing: {
+      enabled: true, validationMode: "auto", validationRoutes: [],
+      expectedValhallaVersion: "3.6.3",
+      borderBufferKm: preview.borderBufferKm, buildConcurrency: 12, coverage: preview.bounds,
+      source: {
+        primaryGeofabrikId: preview.geofabrikId, polygonUrl: preview.polygonUrl,
+        pbfs: preview.sources.map(source => ({ id: source.id, url: source.pbfUrl })),
+      },
+      package: {
+        fileNameTemplate: `${id}-routing-{version}.tar`,
+        manifestFileNameTemplate: `${id}-routing-{version}-manifest.json`,
+      },
+    },
+    visual: { enabled: false },
+  };
+}
+
+async function autoPrepareSelectedRegions(): Promise<void> {
+  const pending = [...pendingCatalogSelection];
+  for (let i = 0; i < pending.length; i++) {
+    const geofabrikId = pending[i];
+    const existing = regions.find(region => region.primary_geofabrik_id === geofabrikId);
+    if (existing) {
+      selected.add(existing.id);
+      pendingCatalogSelection.delete(geofabrikId);
+      continue;
+    }
+    const item = geofabrikCatalog.find(row => row.id === geofabrikId);
+    if (!item) throw new Error(`Catalog item not found: ${geofabrikId}`);
+    appendLog(`Auto-setup ${i + 1}/${pending.length}: ${item.name} · finding exact sources…`);
+    const preview = await invoke<RegionPreview>("preview_region", {
+      geofabrikId, bufferKm: 25, refresh: false,
+    });
+    const config = autoConfigFromPreview(item, preview);
+    await invoke("save_region_config", { config, refreshGeometry: false });
+    pendingCatalogSelection.delete(geofabrikId);
+    selected.add(String(config.id));
+    appendLog(`Auto-configured ${item.name}; build-time Valhalla road-crossing proof required.`);
+    await refreshRegions();
+  }
+  renderRegions();
+}
+
 buildBtn.addEventListener("click", async () => {
-  if (pendingCatalogSelection.size) {
-    appendLog(`${pendingCatalogSelection.size} selected catalog region(s) need configuration and a valid border route before building.`);
-    await configureNextQueuedRegion().catch(error => appendLog(`Could not open setup: ${String(error)}`));
-    return;
-  }
-  const queue = [...selected].filter(id => regions.some(region => region.id === id));
-  if (!queue.length) {
-    appendLog("Select at least one region.");
-    return;
-  }
   const version = packageVersionInput.value.trim();
   if (!/^\d{4}\.\d{2}\.\d{2}-[A-Za-z0-9._-]+$/.test(version)) {
     appendLog("Package version must look like 2026.10.06-1.");
     return;
   }
+  if (!selected.size && !pendingCatalogSelection.size) {
+    appendLog("Select at least one region in the left tree.");
+    return;
+  }
+  buildBtn.disabled = true;
   try {
+    await autoPrepareSelectedRegions();
+    const queue = [...selected].filter(id => regions.some(region => region.id === id));
+    if (!queue.length) throw new Error("No configured regions remain in the build queue.");
     await invoke("start_build_queue", { regionIds: queue, packageVersion: version, refreshSources: false });
     await refreshBuildStatus();
   } catch (error) {
-    appendLog(`Could not start build: ${String(error)}`);
+    appendLog(`Could not start automatic build: ${String(error)}`);
+    buildBtn.disabled = !toolchainReady;
   }
 });
 
@@ -4755,6 +4872,12 @@ graphLayerBtn.addEventListener("click", () => {
 fitBtn.addEventListener("click", fitActiveRegion);
 
 map.on("click", (event) => {
+  if (editorPickMode && activeTool === "region") {
+    const kind = editorPickMode;
+    setEditorPinMode(null);
+    setEditorPin(kind, event.lngLat.lat, event.lngLat.lng);
+    return;
+  }
   lastMapClick = { lat: event.lngLat.lat, lng: event.lngLat.lng };
   locateBtn.disabled = !activeRegion;
   if (handoffPickMode) {
