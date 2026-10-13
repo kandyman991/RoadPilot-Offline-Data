@@ -93,3 +93,26 @@ both headless and GUI use. Leave native binary tile rendering and build-tool
 selection unchanged. Distinguish optional expansion failures from actual
 routing failures. No region rebuild or cache purge is justified by GUI stderr
 warnings about a missing optional traffic archive alone.
+
+## D-012 — F8 is the proven cross-region routing foundation (2026-10-14)
+
+**User correction to preserve across chats:** F8 was **not a failed
+experiment**. Generalized multi-hop F8 gave RoadPilot the correct path
+for cross-region routing between independent Valhalla graphs, including
+successful real-device handoff proofs. Failed approaches included the
+earlier F6 algorithm and restrictive pre-Valhalla frontier/heading filters
+we subsequently removed; do not mislabel those failures as F8 failing.
+
+Retain F8's principles: discover possible frontier handoffs without
+premature road-class, direction, heading or separation rejection; use
+plain Valhalla to prove mode-specific directed connectivity; search
+progressively and retain alternatives; permit multi-hop routes; and
+verify that the final geometry reaches the requested destination.
+
+**Graph Studio should move F8-derived discovery and validation into
+offline graph production** and emit fingerprint-bound, Valhalla-proven
+connectivity and connector matrices to eliminate repeated expensive
+first-route discovery on the phone. Precomputed artifacts optimize and
+operationalize F8; they are not a replacement architecture that repudiates
+it. F8 remains the essential on-device correctness/discovery fallback for
+missing, stale, ambiguous or uncovered connections.
