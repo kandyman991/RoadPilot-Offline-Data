@@ -1,5 +1,25 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Graph Studio incomplete-arrival instrumentation — branch in review (2026-10-14)
+
+- Reproduced **Trento → Innsbruck** on `italy-nord-est` via Legion M3:
+  `46.064320,11.119191` → `47.250124,11.395549`,
+  `route_endpoints_mismatch`, 1,566.47 m short, start offset 25.25 m,
+  175.958 km / 7312.182 s, 4,308 vertices, 181 ms, exit 1.
+- Existing Graph Studio GUI misleadingly reported that route as success
+  because it inspected trip status and geometry but not decoded endpoints.
+- Branch `graph-studio-route-arrival-evidence` adds **shared** endpoint
+  assessment for M3 + GUI, includes actual start/end lat/lng in M3
+  results, and makes GUI show INCOMPLETE, deviations, red requested end
+  marker, amber actual stopping-point marker and map bounds including both.
+  No region graph, OSM input, or F8 algorithm changes.
+- Issue #69: https://github.com/kandyman991/RoadPilot-Offline-Data/issues/69
+- **NEXT EXACT ACTION:** get Rust/UI CI green; merge the PR; verify rolling
+  `.deb` release points to merge; on Legion rerun exact journey, record
+  `route.actualEnd`, and check whether that position approaches Italy
+  Nord-Est's actual buffered road coverage edge. Avoid guesses from screenshots.
+
+
 ## Reproducible cross-border incomplete route: Trento → Innsbruck (2026-10-14)
 
 - Two new Legion screenshots show Graph Studio GUI selected `italy-nord-est`,
