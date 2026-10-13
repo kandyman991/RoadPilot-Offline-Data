@@ -54,6 +54,9 @@ jobs:
       - name: Catalog startup regression tests
         run: python3 -m unittest discover -s tests -p 'test_graph_studio_catalog.py'
 
+      - name: Shared Geofabrik PBF cache regression tests
+        run: python3 -m unittest discover -s tests -p 'test_source_cache.py'
+
       - name: Node.js
         uses: actions/setup-node@v4
         with:
