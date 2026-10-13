@@ -134,6 +134,7 @@ struct BuildState {
     status: Arc<Mutex<BuildStatus>>,
     cancel: Arc<AtomicBool>,
     current_pid: Arc<Mutex<Option<u32>>>,
+    failure_hint: Arc<Mutex<Option<&'static str>>>,
 }
 
 impl Default for BuildState {
@@ -142,6 +143,7 @@ impl Default for BuildState {
             status: Arc::new(Mutex::new(BuildStatus::default())),
             cancel: Arc::new(AtomicBool::new(false)),
             current_pid: Arc::new(Mutex::new(None)),
+            failure_hint: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -1175,6 +1177,21 @@ fn run_process_streaming(
     loop {
         match rx.recv_timeout(std::time::Duration::from_millis(150)) {
             Ok(line) => {
+                // Recognize only safe, fixed error signatures. Never retain
+                // arbitrary stderr in the AI diagnostic state or outcome file.
+                let marker = if line.contains("Node ID twice in input") ||
+                    line.contains("Way ID twice in input") {
+                    Some("Node ID twice in input")
+                } else if line.contains("No unvalidated routing package") {
+                    Some("No unvalidated routing package")
+                } else {
+                    None
+                };
+                if let Some(marker) = marker {
+                    if let Ok(mut hint) = state.failure_hint.lock() {
+                        *hint = Some(marker);
+                    }
+                }
                 if let Some(stage) = stage_for_log(&line) {
                     set_stage(app, state, stage);
                 }
@@ -1360,6 +1377,7 @@ fn start_build_queue(
         };
     }
     owned.cancel.store(false, Ordering::SeqCst);
+    *owned.failure_hint.lock().expect("failure hint poisoned") = None;
     emit_status(&app, &owned);
 
     tauri::async_runtime::spawn_blocking(move || {
@@ -1382,7 +1400,8 @@ fn start_build_queue(
         } else {
             "failed"
         };
-        let error_for_classification = result.as_ref().err().map(String::as_str);
+        let streamed_failure_hint = owned.failure_hint.lock().ok().and_then(|v| *v);
+        let error_for_classification = streamed_failure_hint.or_else(|| result.as_ref().err().map(String::as_str));
         // Persist only a stable failure category; never copy subprocess stderr.
         if let Ok(root) = workspace_root(&app) {
             if ai_diagnostics::record_build_outcome(

@@ -35,6 +35,29 @@ fn field(value: &Value, pointer: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
+fn fingerprint(value: &Value, pointer: &str) -> Option<String> {
+    let fingerprint = value.pointer(pointer).and_then(Value::as_str)?;
+    let hex = fingerprint.strip_prefix("sha256:")?;
+    if hex.len() == 64 && hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        Some(fingerprint.to_owned())
+    } else {
+        None
+    }
+}
+
+fn timestamp(value: &Value, pointer: &str) -> Option<String> {
+    let s = value.pointer(pointer).and_then(Value::as_str)?;
+    if (20..=40).contains(&s.len()) && s.as_bytes().get(4) == Some(&b'-')
+        && s.as_bytes().get(7) == Some(&b'-')
+        && s.as_bytes().get(10) == Some(&b'T')
+        && s.bytes().all(|b| b.is_ascii_digit() || matches!(b, b'-' | b':' | b'T' | b'Z' | b'+' | b'.'))
+    {
+        Some(s.to_owned())
+    } else {
+        None
+    }
+}
+
 fn is_regular_file(path: &Path) -> bool {
     fs::symlink_metadata(path).map(|m| m.file_type().is_file()).unwrap_or(false)
 }
@@ -150,11 +173,10 @@ fn routing_validation(workspace: &Path, warnings: &mut Vec<&'static str>) -> Val
             items.push(json!({
                 "regionId":field(&v, "/regionId"),
                 "packageVersion":field(&v, "/packageVersion"),
-                "builtAtUtc":v.get("builtAtUtc").and_then(Value::as_str)
-                    .map(|s| s.chars().take(40).collect::<String>()),
+                "builtAtUtc":timestamp(&v,"/builtAtUtc"),
                 "valhallaVersion":field(&v, "/valhallaVersion"),
                 "artifactPresent":artifact_present(&path,&v),
-                "graphFingerprint":field(&v, "/graphFingerprint"),
+                "graphFingerprint":fingerprint(&v, "/graphFingerprint"),
                 "routeValidation":route_evidence(&v)
             }));
         }
@@ -193,12 +215,12 @@ fn report_summary(value: &Value) -> Option<Value> {
         "graphA": {
             "regionId":field(value,"/graphA/regionId"),
             "packageVersion":field(value,"/graphA/packageVersion"),
-            "graphFingerprint":field(value,"/graphA/graphFingerprint")
+            "graphFingerprint":fingerprint(value,"/graphA/graphFingerprint")
         },
         "graphB": {
             "regionId":field(value,"/graphB/regionId"),
             "packageVersion":field(value,"/graphB/packageVersion"),
-            "graphFingerprint":field(value,"/graphB/graphFingerprint")
+            "graphFingerprint":fingerprint(value,"/graphB/graphFingerprint")
         },
         "selectedCrossing": {
             "status":proof_state,
