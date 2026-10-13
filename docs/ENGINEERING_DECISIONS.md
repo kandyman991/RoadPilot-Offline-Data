@@ -34,3 +34,11 @@ Keep `CHAT_HANDOFF.md` as the curated next-action source; use GitHub live state 
 PR #62 adopts the user workflow *Geofabrik selection → automatic configuration → build → Valhalla proof*. Manual GPS coordinates must not be a prerequisite to start region creation. A new routing-only config can use `routing.validationMode=auto` with zero manually supplied routes; it is **not** considered validated until the freshly built graph returns a routed line crossing the nominal Geofabrik polygon boundary. The routing manifest/pack remains unpublished on proof failure. Keep the decoded road geometry checks; do not turn mere polygon-normal samples into accepted routes. Allow optional map pins for manual start/end placement and retain existing user-authored region configs. Routing, visual and search artifacts remain separate.
 
 Source: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/62 (merged, CI verified; full regional device build still to be tested).
+
+## D-006 — Shared, checksum-aware Geofabrik source cache (2026-10-13)
+
+PR #63 consolidates routing/visual PBF acquisition into the stable routing workspace cache. Periodically check Geofabrik `.osm.pbf.md5` sidecars rather than downloading large source files merely to detect updates. Verify downloads before atomic replacement; keep SHA-256 input fingerprints in manifests and cached source preparation metadata. Existing buffered regional OSM and *full-context* Valhalla admin/timezone results can be reused only if every PBF SHA-256, exact buffer polygon hash and engine version match and prepared output checksums verify. Temporary large `merged.osm.pbf` must not be retained after successfully preparing admin DBs.
+
+Explicitly do **not** treat arbitrary PBF HTTP byte ranges as geographic border extracts. The first uncached neighboring source still requires complete PBF transfer with current Geofabrik endpoints. Do not crop admin relations before proving replacement context equivalent to full-source data in a real validation fixture. Routing/visual/search distribution packs remain independently versioned.
+
+Source: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/63 (merged, CI green; Legion full build validation pending). See `docs/geofabrik-shared-cache.md`.
