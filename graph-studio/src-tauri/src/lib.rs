@@ -4180,7 +4180,11 @@ fn ai_control_command(
     state: State<'_, BuildState>,
     command: String,
 ) -> Result<Value, String> {
-    let root = workspace_root(&app)?;
+    // Unlike normal build operations, inspection must not create a workspace.
+    let root = app.path()
+        .home_dir()
+        .map_err(|e| format!("Could not resolve home directory: {e}"))?
+        .join("RoadPilotGraphStudio");
     // Only selected status fields are exposed. Raw errors may contain paths,
     // secrets or arbitrary subprocess output and must not reach the AI layer.
     let snapshot = state.status.lock().map_err(|_| "Build status lock poisoned.")?.clone();
