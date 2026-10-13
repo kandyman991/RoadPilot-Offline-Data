@@ -112,6 +112,18 @@ def prove_crossing(response: dict, nominal, start: dict, end: dict) -> bool:
     if len(road) < 2:
         return False
     line = LineString(road)
+    # Reject a distant snapped road or a long detour that happens to cross
+    # some other piece of this boundary. Both projected endpoints must stay
+    # within five km of the proposed border point.
+    for actual, requested in [(road[0], start), (road[-1], end)]:
+        km = math.hypot((actual[0] - requested["lng"]) * 111.3 *
+                        math.cos(math.radians(requested["lat"])),
+                        (actual[1] - requested["lat"]) * 111.3)
+        if km > 5:
+            return False
+    summary = trip.get("summary") or {}
+    if isinstance(summary, dict) and float(summary.get("length", 0)) > 80:
+        return False
     # Check the actual routed road, not merely the requested coordinates.
     if not line.intersects(nominal.boundary):
         return False
@@ -151,6 +163,9 @@ def discover_border_route(config_path, nominal, buffer_km, neighbor_geometries=(
         if attempts >= max_probes:
             break
         attempts += 1
+        if attempts % 12 == 0:
+            print(f"auto border discovery: checked {attempts} actual Valhalla routes…",
+                  flush=True)
         request = {
             "locations": [
                 {"lat": inside["lat"], "lon": inside["lng"], "radius": 2000},
