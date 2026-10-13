@@ -165,10 +165,11 @@ fn stop_child(child: &mut Child) {
 }
 
 fn valhalla_result(
-    program: &Path, config: &Path, request: &Value, timeout: Duration
+    program: &Path, config: &Path, action: &str, request: &Value,
+    timeout: Duration, max_output_bytes: u64
 ) -> Result<Value, RunnerError> {
     let mut command = Command::new(program);
-    command.arg(config).arg("route").arg(request.to_string())
+    command.arg(config).arg(action).arg(request.to_string())
         .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
     #[cfg(unix)]
     {
@@ -180,7 +181,7 @@ fn valhalla_result(
     // Drain on a separate thread to prevent child stdout-pipe deadlocks.
     let reader = thread::spawn(move || {
         let mut buffer = Vec::new();
-        let _ = stdout.take(MAX_STDOUT + 1).read_to_end(&mut buffer);
+        let _ = stdout.take(max_output_bytes + 1).read_to_end(&mut buffer);
         buffer
     });
     let deadline = Instant::now() + timeout;
@@ -196,13 +197,28 @@ fn valhalla_result(
         }
     };
     let bytes = reader.join().map_err(|_| RunnerError::InvalidResponse)?;
-    if bytes.len() as u64 > MAX_STDOUT {
+    if bytes.len() as u64 > max_output_bytes {
         return Err(RunnerError::OutputTooLarge);
     }
     if !exit.success() {
         return Err(RunnerError::Failed);
     }
     decode_json(&bytes)
+}
+
+/// Shared process execution for desktop routes, expansion and locating.
+/// The native tile renderer continues to use its separate binary-safe path.
+/// Return bounded *categories*, never raw stderr or arbitrary engine output.
+pub(crate) fn run_gui_json(
+    program: &Path, config: &Path, action: &str, request: &Value
+) -> Result<Value, String> {
+    if !matches!(action, "route" | "locate" | "expansion") {
+        return Err("disallowed_action".into());
+    }
+    // Expansion GeoJSON may be larger than the M3 AI summary.
+    let limit = if action == "expansion" { 32 * 1024 * 1024 } else { 8 * 1024 * 1024 };
+    valhalla_result(program, config, action, request, Duration::from_secs(40), limit)
+        .map_err(|e| e.category().to_string())
 }
 
 fn haversine_meters(lat_a: f64, lng_a: f64, lat_b: f64, lng_b: f64) -> f64 {
@@ -300,7 +316,9 @@ pub fn verify_route(workspace: &Path, probe: &RouteProbe) -> Result<Value, Strin
     let request = crate::valhalla_route_request(
         probe.start_lat,probe.start_lng,probe.end_lat,probe.end_lng,&probe.costing,None);
     let started = Instant::now();
-    let response = valhalla_result(Path::new("valhalla_service"),&config,&request,TIMEOUT);
+    let response = valhalla_result(
+        &crate::route_service_executable(), &config, "route", &request, TIMEOUT, MAX_STDOUT,
+    );
     let elapsed = started.elapsed().as_millis();
     Ok(match response {
         Ok(reply) => evaluate(probe,reply,elapsed),
@@ -393,6 +411,24 @@ mod tests {
         assert!(decode_json(b"[INFO] no result").is_err());
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn desktop_route_handles_proven_pyvalhalla_launcher_output() {
+        use std::os::unix::fs::PermissionsExt;
+        let t=Temp::new();
+        let fake=t.0.join("fake-valhalla-service");
+        // The actual launcher prints an INFO line on stdout and warnings on
+        // stderr. Both must be harmless when a valid route JSON is returned.
+        fs::write(&fake, "#!/bin/sh\nprintf '[INFO] Running valhalla_service with args: []\\n'\nprintf '{\\\"trip\\\":{\\\"status\\\":0,\\\"summary\\\":{\\\"length\\\":4.725}}}\\n'\necho '[WARN] missing optional traffic.tar' >&2\n").unwrap();
+        let mut mode=fs::metadata(&fake).unwrap().permissions();
+        mode.set_mode(0o700);
+        fs::set_permissions(&fake,mode).unwrap();
+        let response=run_gui_json(&fake,Path::new("unused"),"route",&json!({})).unwrap();
+        assert_eq!(response["trip"]["status"],0);
+        assert_eq!(response["trip"]["summary"]["length"],4.725);
+        assert!(run_gui_json(&fake,Path::new("unused"),"arbitrary",&json!({})).is_err());
+    }
+
     #[test]
     fn missing_graph_does_not_create_workspace() {
         let t=Temp::new();
@@ -426,8 +462,8 @@ mod tests {
         let mut mode=fs::metadata(&file).unwrap().permissions();mode.set_mode(0o700);
         fs::set_permissions(&file,mode).unwrap();
         let start=Instant::now();
-        let err=valhalla_result(&file,Path::new("unused"),&json!({}),
-            Duration::from_millis(60)).unwrap_err();
+        let err=valhalla_result(&file,Path::new("unused"),"route",&json!({}),
+            Duration::from_millis(60),MAX_STDOUT).unwrap_err();
         assert!(matches!(err,RunnerError::TimedOut));
         // The entire process group, including the shell's children, must stop.
         assert!(start.elapsed() < Duration::from_secs(1));

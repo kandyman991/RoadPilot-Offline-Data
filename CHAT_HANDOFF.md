@@ -1,5 +1,21 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## GUI routing parity bugfix — PR pending (2026-10-13)
+
+- User confirmed standard GUI routing fails even Austria-to-Austria,
+  whereas headless M3 executed Austria route in 161 ms (4.725 km).
+- Root cause hypothesis grounded in code: GUI `normalize_process_path`
+  prepends pyvalhalla's native binary before route execution; headless M3
+  bypasses that rewrite and uses the working launcher. GUI also displays
+  stderr warnings on nonzero exit, obscuring actual errors.
+- Branch `graph-studio-fix-gui-valhalla-routing` preserves working
+  route launcher path before PATH rewrite and uses M3 JSON runner for
+  GUI plan_route, expansion, locate, handoff probes, and M3. Keeps native
+  graph tile rendering. Optional expansion failure no longer masks route
+  success. Adds launcher regression test.
+- NEXT: verify PR CI, merge if green, install updated Graph Studio on Legion
+  and test same Austria coordinates in GUI. Do not rebuild/clear graphs.
+
 ## Legion M3 verified — 2026-10-13: successful real Austria route
 
 - User ran the *installed* headless M3 CLI:

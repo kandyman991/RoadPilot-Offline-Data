@@ -178,3 +178,27 @@ Security and resource boundaries:
 This interface performs no intentional Graph Studio workspace writes; it
 invokes Valhalla against an existing local working graph. Passing CI tests
 of parsing and safeguards is **not** a real Legion graph test.
+
+## GUI routing parity fix (post-M3)
+
+A real Legion test proved M3 headless routing through Austria: 4.725 km,
+161 ms, endpoint offsets 8.36 m / 4.32 m. The desktop planner independently
+failed, even with both endpoints in Austria, and displayed only stderr messages
+about the optional Valhalla traffic archive.
+
+Graph Studio initialized the GUI by rewriting PATH to prepend pyvalhalla's
+**native** command directory for binary graph tile output. Headless M3 bypassed
+that rewrite and instead successfully used the pyvalhalla **launcher**.
+The GUI therefore did not actually use the same Valhalla executable as M3.
+
+After this fix Graph Studio retains the original launcher path before the
+native-tool rewrite. Route planning, route expansion, locate, handoff route
+probes and M3 verification choose that same launcher and use one bounded
+JSON-aware runner. Binary graph-tile rendering still uses the native command,
+because launcher stdout would corrupt binary output.
+
+The GUI now reports a bounded error category or Valhalla status instead
+of unrelated stderr warnings. A failed optional expansion no longer makes an
+otherwise successful normal route appear to fail. No graph, PBF, cache or
+package format changes are required. Desktop acceptance testing is still
+required to prove the fix against Austria on the Legion.

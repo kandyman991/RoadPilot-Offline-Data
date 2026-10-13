@@ -9,7 +9,7 @@ use std::{
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
     },
     thread,
     time::{Instant, SystemTime, UNIX_EPOCH},
@@ -273,6 +273,15 @@ fn set_stage(app: &AppHandle, state: &BuildState, stage: impl Into<String>) {
     emit_status(app, state);
 }
 
+// JSON route/locate/expansion commands must use the same launcher as the
+// successful M3 headless command. GUI's process PATH is rewritten to prefer
+// native tile tools: that must not change which executable handles routes.
+static ROUTE_SERVICE_LAUNCHER: OnceLock<PathBuf> = OnceLock::new();
+fn route_service_executable() -> PathBuf {
+    ROUTE_SERVICE_LAUNCHER.get().cloned()
+        .unwrap_or_else(|| PathBuf::from("valhalla_service"))
+}
+
 fn pyvalhalla_native_bin_dir() -> Option<PathBuf> {
     let launcher = executable_path("valhalla_service")?;
     let output = Command::new(&launcher).arg("--version").output().ok()?;
@@ -327,6 +336,11 @@ fn normalize_process_path() {
     // That corrupts JSON responses and binary graph-tile output from valhalla_service.
     // Prefer the wheel's real native Valhalla binaries whenever we can discover them.
     if let Some(native_bin) = pyvalhalla_native_bin_dir() {
+        // Capture the known-working pyvalhalla launcher BEFORE prepending
+        // native Valhalla tools to PATH for binary tile rendering.
+        if let Some(launcher) = executable_path("valhalla_service") {
+            let _ = ROUTE_SERVICE_LAUNCHER.set(launcher);
+        }
         paths.retain(|path| path != &native_bin);
         paths.insert(0, native_bin);
         if let Ok(joined) = env::join_paths(paths) {
@@ -3581,36 +3595,21 @@ fn handoff_route_probe(
         None,
     );
     let started = Instant::now();
-    let output = match Command::new("valhalla_service")
-        .arg(config)
-        .arg("route")
-        .arg(request.to_string())
-        .output()
-    {
-        Ok(output) => output,
-        Err(error) => {
-            return json!({"passed": false, "error": format!("Could not run Valhalla: {error}")})
-        }
-    };
+    let response = ai_verify::run_gui_json(
+        &route_service_executable(), &config, "route", &request,
+    );
     let elapsed_ms = started.elapsed().as_millis();
-    if !output.status.success() {
-        return json!({
-            "passed": false,
-            "elapsedMs": elapsed_ms,
-            "error": String::from_utf8_lossy(&output.stderr).trim()
-        });
-    }
-    match serde_json::from_slice::<Value>(&output.stdout) {
+    match response {
         Ok(response) => json!({
             "passed": response.pointer("/trip/status").and_then(Value::as_i64).unwrap_or(0) == 0,
             "elapsedMs": elapsed_ms,
             "summary": response.pointer("/trip/summary").cloned().unwrap_or(Value::Null),
             "statusMessage": response.pointer("/trip/status_message").cloned().unwrap_or(Value::Null)
         }),
-        Err(error) => json!({
+        Err(category) => json!({
             "passed": false,
             "elapsedMs": elapsed_ms,
-            "error": format!("Invalid Valhalla response: {error}")
+            "error": format!("Valhalla route check failed: {category}")
         }),
     }
 }
@@ -4092,19 +4091,16 @@ fn plan_route(
     );
 
     let started = Instant::now();
-    let output = Command::new("valhalla_service")
-        .arg(config)
-        .arg("route")
-        .arg(request.to_string())
-        .output()
-        .map_err(|e| format!("Could not run Valhalla route: {e}"))?;
+    let response = ai_verify::run_gui_json(
+        &route_service_executable(), &config, "route", &request,
+    ).map_err(|category| format!("Region {region_id}: Valhalla route {category}"))?;
     let elapsed_ms = started.elapsed().as_millis();
-
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    // Do not mistake a parseable Valhalla error response for a route.
+    if response.pointer("/trip/status").and_then(Value::as_i64) != Some(0) {
+        let code = response.pointer("/error_code").and_then(Value::as_i64)
+            .or_else(|| response.pointer("/trip/status").and_then(Value::as_i64));
+        return Err(format!("Region {region_id}: Valhalla returned no successful route (status {code:?})."));
     }
-    let response: Value = serde_json::from_slice(&output.stdout)
-        .map_err(|e| format!("Valhalla route returned invalid JSON: {e}"))?;
     let geometry = route_geometry(&response)?;
 
     Ok(json!({
@@ -4148,19 +4144,10 @@ fn route_expansion(
     ]);
 
     let started = Instant::now();
-    let output = Command::new("valhalla_service")
-        .arg(config)
-        .arg("expansion")
-        .arg(request.to_string())
-        .output()
-        .map_err(|e| format!("Could not run Valhalla expansion: {e}"))?;
+    let expansion = ai_verify::run_gui_json(
+        &route_service_executable(), &config, "expansion", &request,
+    ).map_err(|category| format!("Region {region_id}: Valhalla expansion {category}"))?;
     let elapsed_ms = started.elapsed().as_millis();
-
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    let expansion: Value = serde_json::from_slice(&output.stdout)
-        .map_err(|e| format!("Valhalla expansion returned invalid GeoJSON: {e}"))?;
     let feature_count = expansion
         .get("features")
         .and_then(Value::as_array)
@@ -4188,19 +4175,9 @@ fn inspect_locate(
     let request = json!({
         "locations": [{"lat": lat, "lon": lng}],
         "verbose": true
-    })
-    .to_string();
-    let output = Command::new("valhalla_service")
-        .arg(config)
-        .arg("locate")
-        .arg(request)
-        .output()
-        .map_err(|e| format!("Could not run Valhalla locate: {e}"))?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|e| format!("Valhalla locate returned invalid JSON: {e}"))
+    });
+    ai_verify::run_gui_json(&route_service_executable(), &config, "locate", &request)
+        .map_err(|category| format!("Region {region_id}: Valhalla locate {category}"))
 }
 
 #[tauri::command]
