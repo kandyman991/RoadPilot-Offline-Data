@@ -3922,7 +3922,9 @@ function configFromEditor(): Record<string, unknown> {
     },
     visual: {
       ...existingVisual,
-      enabled: true,
+      // Editing an automatic routing-only region must not start building
+      // visual PMTiles unless the user explicitly enables that dataset.
+      enabled: existingVisual.enabled === false ? false : true,
       source: {
         primaryGeofabrikId: editorPreview.geofabrikId,
         url: editorPreview.pbfUrl,
