@@ -1,5 +1,36 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## GUI route failure after PR #68 update — screenshot from Legion (2026-10-13)
+
+- Screenshot shows installed GUI's standard Route Planner reporting
+  `Route failed for austria: Region austria: Valhalla route valhalla_nonzero_exit`.
+  Build/region inventory is visible; selected graph badge says `Austria`,
+  25 km border buffer. Previous generic traffic-warning output is now a
+  stable error category, so PR #68 GUI code appears installed.
+- **Screenshot coordinates:** start `46.151338,12.999947` (Friuli,
+  Italy, visibly southwest of Austrian boundary), end
+  `47.813453,16.249428` (eastern Austria); motorcycle. The start
+  appears beyond Austrian 25 km buffer. This failure alone does **not**
+  prove Austria-to-Austria routing fails or demonstrate broken graph tiles.
+- Screenshot footer also shows repeated `valhalla_nonzero_exit` for
+  `austria` and a prior `italy-centro` route. The shared GUI runner
+  (`ai_verify::valhalla_result`) discards stderr and returns just
+  `valhalla_nonzero_exit` on any nonzero status, even if stdout has
+  structured Valhalla error JSON. Thus actual engine code remains unknown.
+- **Important request difference:** GUI always sends `costing_options`
+  for motorcycle/auto with `use_highways`, `use_tolls`, `use_ferry`=1.0
+  defaults. Headless M3 (success in 161 ms) omits costing_options.
+  Need test exact same endpoints in both paths before attributing cause.
+- **NEXT TEST:** select Austria in GUI and run the *previously proven* pair
+  `47.582889,12.162319 -> 47.609970,12.200709`, Motorcycle,
+  expansion disabled; compare with M3's passed 4.725 km. If GUI fails,
+  investigate caller's executable PATH and/or default GUI costing_options,
+  instrument sanitized Valhalla exit + error_code from bounded response;
+  do not rebuild, purge cache or blame optional traffic.tar without proof.
+- Existing issue #69 tracks separate border crossed vs destination reached
+  check; do not conflate it with this GUI subprocess failure.
+
+
 ## Austria cross-border partial-route observation — issue #69 (2026-10-13)
 
 - User reports that before GUI routing stopped working, Graph Studio's
