@@ -1,23 +1,35 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
-## Graph Studio incomplete-arrival instrumentation — branch in review (2026-10-14)
+## Graph Studio incomplete-arrival instrumentation — PR #70 merged (2026-10-14)
 
-- Reproduced **Trento → Innsbruck** on `italy-nord-est` via Legion M3:
-  `46.064320,11.119191` → `47.250124,11.395549`,
-  `route_endpoints_mismatch`, 1,566.47 m short, start offset 25.25 m,
-  175.958 km / 7312.182 s, 4,308 vertices, 181 ms, exit 1.
-- Existing Graph Studio GUI misleadingly reported that route as success
-  because it inspected trip status and geometry but not decoded endpoints.
-- Branch `graph-studio-route-arrival-evidence` adds **shared** endpoint
-  assessment for M3 + GUI, includes actual start/end lat/lng in M3
-  results, and makes GUI show INCOMPLETE, deviations, red requested end
-  marker, amber actual stopping-point marker and map bounds including both.
-  No region graph, OSM input, or F8 algorithm changes.
+- **PR:** https://github.com/kandyman991/RoadPilot-Offline-Data/pull/70,
+  merged as `9e590318cf82b108789d5416f3ae1889638362f6`.
+- Final PR head `164e911a5a1b7a2570d8001ad79c789b9612d665`
+  had **both required CI checks green**: Linux Graph Studio build,
+  Rust tests and offline-data repository validation.
+- Reproduced **Trento → Innsbruck** on `italy-nord-est` via real Legion M3:
+  `46.064320,11.119191` → `47.250124,11.395549`;
+  `route_endpoints_mismatch`, endpoint **1,566.47 m** short,
+  start offset 25.25 m, 175.958 km, 7,312.182 seconds,
+  4,308 vertices, elapsed 181 ms, exit code 1.
+- M3 and desktop planner now share **actual geometry endpoint assessment**.
+  M3 returns `route.actualStart`, `route.actualEnd` and
+  `route.destinationReached` even on an incomplete route.
+  GUI renders partial geometry with explicit **INCOMPLETE**, deviation,
+  actual coordinates, distinct actual-stop marker and requested end marker,
+  including both in map bounds. No route calculation, graph/PBF data,
+  F8 heuristics, or build pipeline changes.
+- Post-merge Linux release workflow:
+  https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38482056670.
+  **Check release notes/assets before installing:** rolling `.deb`
+  must explicitly cite merge commit `9e590318`, not earlier `a113eb84`.
 - Issue #69: https://github.com/kandyman991/RoadPilot-Offline-Data/issues/69
-- **NEXT EXACT ACTION:** get Rust/UI CI green; merge the PR; verify rolling
-  `.deb` release points to merge; on Legion rerun exact journey, record
-  `route.actualEnd`, and check whether that position approaches Italy
-  Nord-Est's actual buffered road coverage edge. Avoid guesses from screenshots.
+- **NEXT EXACT ACTION:** after published updated release, install the `.deb`
+  on Legion and run same Trento/Innsbruck pair in GUI and M3 CLI,
+  record exact `route.actualEnd`. Determine if the last geometry coordinate
+  lies near the graph's actual road coverage edge or if destination
+  correlation/connectivity explains the miss. Do not claim cause from
+  the 25 km buffer alone or rebuild/delete graph caches.
 
 
 ## Reproducible cross-border incomplete route: Trento → Innsbruck (2026-10-14)
