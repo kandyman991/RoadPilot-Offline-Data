@@ -89,6 +89,16 @@ class SourceCacheTests(unittest.TestCase):
         with self.assertRaises(urllib.error.URLError):
             self.get(check_interval_seconds=0)
 
+    def test_different_source_url_must_not_reuse_offline_bytes(self):
+        original = self.get().read_bytes()
+        self.remote.offline = True
+        different_url = URL.replace("belgium", "netherlands")
+        with self.assertRaises(urllib.error.URLError):
+            cached_geofabrik_pbf(
+                different_url, self.destination, check_interval_seconds=0
+            )
+        self.assertEqual(self.destination.read_bytes(), original)
+
     def test_explicit_refresh_is_fail_closed_if_offline(self):
         original = self.get().read_bytes()
         self.remote.offline = True
