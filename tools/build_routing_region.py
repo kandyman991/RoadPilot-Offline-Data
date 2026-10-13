@@ -21,11 +21,15 @@ if __package__:
     from .prepared_region_cache import (
         prepare_key, source_preparation_ready, record_source_preparation,
     )
+    from .geofabrik_source_selection import choose_buffer_sources
+    from .osmium_source_merge import merge_current_osm_snapshot
 else:
     from source_cache import cached_geofabrik_pbf
     from prepared_region_cache import (
         prepare_key, source_preparation_ready, record_source_preparation,
     )
+    from geofabrik_source_selection import choose_buffer_sources
+    from osmium_source_merge import merge_current_osm_snapshot
 
 
 USER_AGENT = "RoadPilot-Offline-Data/1"
@@ -459,6 +463,37 @@ def main() -> None:
         json.dumps(feature, separators=(",", ":")), encoding="utf-8"
     )
 
+    # Source configs may include nested umbrella extracts (DACH, Alps) and
+    # individual leaves. The official .poly polygons, not hard-coded names,
+    # tell us whether a source contributes any new buffered area.
+    # Download small .poly metadata *before* downloading giant PBFs.
+    source_polygons = {}
+    for item in pbfs:
+        source_id = str(item["id"])
+        if source_id == source["primaryGeofabrikId"]:
+            continue
+        poly_url = geofabrik_polygon_url(str(item["url"]))
+        poly_path = download(
+            poly_url,
+            cache_root / f"source-coverage__{source_id.replace('/', '__')}.poly",
+            refresh=args.refresh_sources,
+        )
+        source_polygons[source_id] = parse_poly(poly_path)
+    effective_pbfs, redundant = choose_buffer_sources(
+        pbfs, str(source["primaryGeofabrikId"]),
+        nominal_geometry, buffered_geometry, source_polygons,
+    )
+    if redundant:
+        print("Source selection: skipped geographically redundant overlapping "
+              "extracts: " + ", ".join(redundant), flush=True)
+    print(f"Geofabrik regional inputs: {len(effective_pbfs)}/{len(pbfs)} "
+          "PBFs needed for nominal region and border buffer", flush=True)
+    # Do not edit the user's persisted configuration, or change their catalog
+    # selection. Use only effective inputs in all build/index/proof stages.
+    source = dict(source)
+    source["pbfs"] = effective_pbfs
+    pbfs = effective_pbfs
+
     source_records = []
     source_paths = []
     for item in pbfs:
@@ -490,7 +525,10 @@ def main() -> None:
         merged.unlink(missing_ok=True)  # Clean up a large legacy temporary input.
     else:
         (build_root / "source-preparation.json").unlink(missing_ok=True)
-        run(["osmium", "merge", *source_paths, "-o", merged, "-O"])
+        # Normal merge can contain multiple versions of a node/way/relation
+        # when overlapping Geofabrik extracts have different update times.
+        # time-filter creates one current object per type/ID before extract.
+        merge_current_osm_snapshot(source_paths, merged)
         run(
             [
                 "osmium",

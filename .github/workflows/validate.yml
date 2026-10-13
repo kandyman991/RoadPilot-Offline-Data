@@ -145,6 +145,9 @@ jobs:
       - name: Reusable buffered OSM and admin-context cache regression tests
         run: python3 -m unittest discover -s tests -p 'test_prepared_region_cache.py'
 
+      - name: Regression-test overlapping Geofabrik regions and actual Osmium merge/extract
+        run: python -m unittest discover -s tests -p 'test_geofabrik_overlaps.py'
+
       - name: Regression-test automatic Geofabrik setup and real Valhalla crossing proof
         run: python -m unittest discover -s tests -p 'test_graph_studio_auto_build.py'
 
