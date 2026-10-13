@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-13T17:22:47.278Z",
+  "generatedAt": "2026-10-13T18:10:05.041Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,9 +11,9 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "a0ba5f653f3d3527d36495121154b286e65cee9c",
-    "message": "One-click Geofabrik region build with Valhalla border proof and draggable map pins (#62)\n\n* feat: permit route-free automatic setup while requiring build-time Valhalla proof\n\n* feat: validate automatic region config without pretending border route already proved\n\n* feat: discover and prove real nominal-border crossings against built Valhalla graph\n\n* feat: automatically prove one real Valhalla border route before publishing routing pack\n\n* feat(graph-studio): pick and drag border route endpoints directly on the map\n\n* feat(graph-studio): automatically prepare and build selected catalog regions\n\n* fix: validate default package version before automatic region setup\n\n* style: visibly distinguish active map pin placement controls\n\n* validation: reject far-off graph snaps and excessive detours in automatic border proof\n\n* test: automatic border proof and manual-mode validation regression\n\n* ci: test automatic region setup and border proof without expensive graph builds\n\n* fix: preserve independent visual-build setting when editing automatic routing region",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/a0ba5f653f3d3527d36495121154b286e65cee9c"
+    "sha": "7d255b40e7939fe4ea2cdd89cfb1bab0ca3a5084",
+    "message": "Share Geofabrik PBFs across routing/visual builds and reuse verified buffered graph inputs (#63)\n\n* feat: shared checksum-aware Geofabrik PBF cache with atomic replacement and offline reuse\n\n* feat: routing graphs reuse checksum-aware Geofabrik PBF cache\n\n* feat: visual maps consume shared routing PBF cache and migrate existing visual sources\n\n* feat: pass the shared routing PBF cache to visual build invocation\n\n* test: shared source cache MD5 change detection, offline reuse, atomicity, visual migration\n\n* ci: test shared source cache without downloading OSM extracts\n\n* ci: test shared source cache without downloading OSM extracts\n\n* feat: fingerprint buffered-region/admin inputs for safe reuse across graph rebuilds\n\n* feat: cache and validate buffered OSM/admin DB; skip full-neighbor merge on unchanged rebuilds\n\n* test: prepared regional buffer and admin cache invalidation/integrity\n\n* ci: verify region-source preparation cache invalidates safely on changed sources\n\n* ci: verify region-source preparation cache invalidates safely on changed sources\n\n* ui: expose explicit source refresh while reusing shared PBFs by default\n\n* docs: shared source cache, verified region-preparation reuse and first-download limits\n\n* fix: support both direct script execution and tools.* module imports in CI\n\n* fix: support both direct script execution and tools.* module imports in CI\n\n* fix: reject offline cache reuse after a source URL change and tolerate malformed freshness timestamps\n\n* test: do not reuse cached PBF from a different source URL while offline",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/7d255b40e7939fe4ea2cdd89cfb1bab0ca3a5084"
   },
   "openPullRequests": [],
   "openIssues": [
@@ -44,114 +44,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 38438151391,
+      "id": 38444524084,
       "name": "Build RoadPilot Graph Studio",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "a0ba5f653f3d3527d36495121154b286e65cee9c",
+      "headSha": "7d255b40e7939fe4ea2cdd89cfb1bab0ca3a5084",
       "event": "push",
-      "updatedAt": "2026-10-13T17:22:44Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38438151391"
+      "updatedAt": "2026-10-13T18:10:00Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38444524084"
     },
     {
-      "id": 38438151367,
+      "id": 38444524041,
       "name": "Validate offline-data repository",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "a0ba5f653f3d3527d36495121154b286e65cee9c",
+      "headSha": "7d255b40e7939fe4ea2cdd89cfb1bab0ca3a5084",
       "event": "push",
-      "updatedAt": "2026-10-13T17:22:44Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38438151367"
+      "updatedAt": "2026-10-13T18:10:01Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38444524041"
     },
     {
-      "id": 38437509322,
+      "id": 38443598665,
       "name": "Validate offline-data repository",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feat/graph-studio-auto-region-build-map-pins-20261013",
-      "headSha": "2c06194c4bc03b7b00e2559e18176aa36eccdd1c",
+      "branch": "feat/geofabrik-shared-cache-integrity-20261013",
+      "headSha": "547f5a3bcc6a7c5938a394b5e2d4224d2b3bff65",
       "event": "pull_request",
-      "updatedAt": "2026-10-13T17:21:24Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38437509322"
+      "updatedAt": "2026-10-13T18:06:38Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38443598665"
     },
     {
-      "id": 38437509316,
+      "id": 38443598448,
       "name": "Build RoadPilot Graph Studio",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feat/graph-studio-auto-region-build-map-pins-20261013",
-      "headSha": "2c06194c4bc03b7b00e2559e18176aa36eccdd1c",
+      "branch": "feat/geofabrik-shared-cache-integrity-20261013",
+      "headSha": "547f5a3bcc6a7c5938a394b5e2d4224d2b3bff65",
       "event": "pull_request",
-      "updatedAt": "2026-10-13T17:22:23Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38437509316"
+      "updatedAt": "2026-10-13T18:09:40Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38443598448"
     },
     {
-      "id": 38437337879,
+      "id": 38443579132,
       "name": "Validate offline-data repository",
       "status": "completed",
       "conclusion": "success",
-      "branch": "feat/graph-studio-auto-region-build-map-pins-20261013",
-      "headSha": "32202c52f84eb0484b4179bbc1e65f6ed3dac43a",
+      "branch": "feat/geofabrik-shared-cache-integrity-20261013",
+      "headSha": "e1a071a92ebef57b7375f5363961bc4c61052c15",
       "event": "pull_request",
-      "updatedAt": "2026-10-13T17:20:00Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38437337879"
+      "updatedAt": "2026-10-13T18:06:13Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38443579132"
     },
     {
-      "id": 38437337816,
+      "id": 38443578985,
       "name": "Build RoadPilot Graph Studio",
       "status": "completed",
       "conclusion": "cancelled",
-      "branch": "feat/graph-studio-auto-region-build-map-pins-20261013",
-      "headSha": "32202c52f84eb0484b4179bbc1e65f6ed3dac43a",
+      "branch": "feat/geofabrik-shared-cache-integrity-20261013",
+      "headSha": "e1a071a92ebef57b7375f5363961bc4c61052c15",
       "event": "pull_request",
-      "updatedAt": "2026-10-13T17:18:09Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38437337816"
+      "updatedAt": "2026-10-13T18:03:01Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38443578985"
     },
     {
-      "id": 38172546331,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "bc6b9f01b38d80327931d66792bf4744afadd631",
-      "event": "push",
-      "updatedAt": "2026-10-11T20:36:46Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38172546331"
-    },
-    {
-      "id": 38171095563,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "fix/graph-studio-catalog-queue-layout-20261011",
-      "headSha": "7db520e3eab15a8f3cc80d4b948c910886632d64",
-      "event": "pull_request",
-      "updatedAt": "2026-10-11T20:16:39Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38171095563"
-    },
-    {
-      "id": 38171095521,
+      "id": 38443387344,
       "name": "Validate offline-data repository",
       "status": "completed",
       "conclusion": "success",
-      "branch": "fix/graph-studio-catalog-queue-layout-20261011",
-      "headSha": "7db520e3eab15a8f3cc80d4b948c910886632d64",
+      "branch": "feat/geofabrik-shared-cache-integrity-20261013",
+      "headSha": "894eb0b41101a1f13c90145aacad6c8acc36650a",
       "event": "pull_request",
-      "updatedAt": "2026-10-11T20:13:35Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38171095521"
+      "updatedAt": "2026-10-13T18:04:57Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38443387344"
     },
     {
-      "id": 38115338441,
+      "id": 38443387254,
       "name": "Build RoadPilot Graph Studio",
       "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "d56390e87e6e70244842f34ce1912e140004e4f2",
-      "event": "push",
-      "updatedAt": "2026-10-11T05:43:34Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38115338441"
+      "conclusion": "cancelled",
+      "branch": "feat/geofabrik-shared-cache-integrity-20261013",
+      "headSha": "894eb0b41101a1f13c90145aacad6c8acc36650a",
+      "event": "pull_request",
+      "updatedAt": "2026-10-13T18:03:54Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38443387254"
+    },
+    {
+      "id": 38443137969,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "failure",
+      "branch": "feat/geofabrik-shared-cache-integrity-20261013",
+      "headSha": "169c519f48d0905ee9c69d2157d624bd66bd7adf",
+      "event": "pull_request",
+      "updatedAt": "2026-10-13T18:02:20Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38443137969"
+    },
+    {
+      "id": 38443137867,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "branch": "feat/geofabrik-shared-cache-integrity-20261013",
+      "headSha": "169c519f48d0905ee9c69d2157d624bd66bd7adf",
+      "event": "pull_request",
+      "updatedAt": "2026-10-13T18:02:30Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38443137867"
     }
   ]
 }
