@@ -84,6 +84,10 @@ jobs:
         working-directory: graph-studio/src-tauri
         run: cargo check --locked || cargo check
 
+      - name: AI control read-only Rust contract tests
+        working-directory: graph-studio/src-tauri
+        run: cargo test --lib
+
       - name: Build AppImage and Debian packages
         working-directory: graph-studio
         run: npm run tauri build -- --bundles appimage,deb

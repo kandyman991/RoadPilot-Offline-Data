@@ -60,6 +60,15 @@ npm run tauri dev
 
 Tauri v2 on Debian/Ubuntu requires WebKitGTK 4.1 development packages and the standard Linux build dependencies.
 
+## AI-operable inspection foundation
+
+Milestone 1 adds a versioned, allowlisted, read-only Rust command engine shared
+by the Tauri frontend and installed binary's `--ai-inspect` /
+`--ai-capabilities` headless interface. It inventories configured regions
+and retained routing manifests without launching a GUI, rebuilding graphs,
+exposing credentials or starting a local listener.
+See [AI Control](docs/AI_CONTROL.md) for its contract, limitations and tests.
+
 ## Inspector architecture
 
 MapLibre GL JS supports custom resource protocols. Graph Studio registers `roadpilot-graph://` and resolves requested vector tiles through the Tauri backend. The backend uses Valhalla's one-shot `tile` action against the region's retained `valhalla.json`.

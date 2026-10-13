@@ -1,3 +1,15 @@
+## In-progress branch — AI Control M1 (2026-10-13)
+
+- Branch: `graph-studio-ai-control-m1-readonly`; initial PR pending CI.
+- Goal: shared Rust read-only inspection engine, callable from Tauri and packaged
+  headless Graph Studio binary (`--ai-capabilities`, `--ai-inspect`).
+- Explicit constraints: no HTTP/MCP listener yet, no write/build/publish commands,
+  no raw credentials/logs; CLI inventory does not represent in-process job state.
+- NEXT ACTION for this branch: run Graph Studio CI on PR, fix failures if any,
+  review and merge when green; device-test headless output on Legion.
+- Previous pending device test is unchanged: repeat Austria build after PR #64
+  with existing cached PBFs and prove actual Valhalla validation.
+
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
 ## Latest verified merge — 2026-10-13: PR #64 Austria overlapping PBF fix
