@@ -15,10 +15,17 @@ from pyproj import CRS, Transformer
 from shapely.geometry import Point, Polygon, box, mapping
 from shapely.ops import transform, unary_union
 
-from source_cache import cached_geofabrik_pbf
-from prepared_region_cache import (
-    prepare_key, source_preparation_ready, record_source_preparation,
-)
+# Works both as a direct tools/*.py command and when imported by CI/tests.
+if __package__:
+    from .source_cache import cached_geofabrik_pbf
+    from .prepared_region_cache import (
+        prepare_key, source_preparation_ready, record_source_preparation,
+    )
+else:
+    from source_cache import cached_geofabrik_pbf
+    from prepared_region_cache import (
+        prepare_key, source_preparation_ready, record_source_preparation,
+    )
 
 
 USER_AGENT = "RoadPilot-Offline-Data/1"
