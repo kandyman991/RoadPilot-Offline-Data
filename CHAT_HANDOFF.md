@@ -1,18 +1,33 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
-## M3 AI Control implementation — branch in review (2026-10-13)
+## Latest verified merge — 2026-10-13: Graph Studio AI Control M3 PR #67
 
-- Branch `graph-studio-ai-control-m3-valhalla-verify`. On-demand `--ai-verify-route`
-  and Tauri `ai_verify_route` share one Rust verification engine and the existing
-  Valhalla route request and polyline decoding helpers.
-- Input allowlists, strict local graph checks, no shell, 20s timeout and 1-MiB
-  output cap; structured endpoint-checked results without raw stderr.
-- Graph work/tiles must exist; no source downloads, writes, builds or publishing.
-  Cross-region validity and retained package fingerprint are explicitly not proven.
-- NEXT: check PR Linux Rust tests and validation CI; merge only if green. Verify
-  installed commands later on Legion. Pending Austria full build remains untested.
-
-
+- PR https://github.com/kandyman991/RoadPilot-Offline-Data/pull/67 **merged**
+  as `4844bd2b2a566002318c652c57e06fcb989f54a0`.
+- Final PR head `31bdb63e2c15f01e88c39875ba3fad20e4a3562f` had **both**
+  required checks green: Linux Graph Studio build including Rust AI-verifier
+  contract tests, and offline-data repository validation.
+- On-demand headless `--ai-verify-route REGION START_LAT START_LNG END_LAT END_LNG
+  COSTING` and trusted Tauri `ai_verify_route` reuse one Rust verifier and
+  Graph Studio's existing Valhalla request, coordinate validation and polyline
+  geometry decoder. Checks actual decoded endpoints. Input/costing allowlists,
+  20-second timeout, bounded stdout, process-group cancellation and sanitized
+  structured outcomes. Handles pyvalhalla wrapper stdout.
+- Explicit operation only, no remote listener/ChatGPT bridge or new automated
+  jobs. Does not download, build, change/publish graph, or claim cross-region
+  proof, retained-pack hash equivalence or full region validation.
+- Post-merge Linux release workflow
+  https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38466657609
+  was in progress at handoff update. **Do not claim updated .deb is published**
+  until the rolling release body refers to M3 commit `4844bd2b`.
+- **NEXT EXACT ACTION:** Verify M3 post-merge rolling release assets correspond
+  to `4844bd2b`. Install updated `.deb` on Legion once. Run M1/M2/M3
+  commands on actual retained graphs, including positive and negative routes.
+  Resume pending full Austria region rebuild with PBF cache intact to confirm
+  PR #64 Osmium normalization and actual Valhalla border proof. This remains
+  unverified on the physical Legion.
+- An authorized ChatGPT-to-Legion bridge is still a **separate later milestone**;
+  do not imply ordinary ChatGPT can currently invoke the local commands.
 
 ## Latest verified merge — 2026-10-13: AI Control M2 PR #66
 
@@ -33,14 +48,12 @@
   if the log line is observed; this does not assert Austria is fixed on-device.
 - M1 PR #65 merged previously as `b3f5539a`, introducing
   `--ai-capabilities` and `--ai-inspect`; M2 is additive and read-only.
-- **NEXT EXACT ACTION:** verify the rolling Linux release assets include M2's
+- **Historical next action (superseded by M3 entry above):** verify the rolling Linux release assets include M2's
   merge, update Graph Studio on Legion, run `--ai-capabilities`,
   `--ai-inspect`, `--ai-diagnose`; compare inventories/reports to real files.
   Repeat Austria build using the existing PBF cache to verify PR #64 source
   normalization and actual Valhalla crossing proof. Desktop test is **not yet done**.
-- After real tests, consider M3 explicit permissioned and instrumented
-  Valhalla revalidation; do not silently rebuild/publish or infer GUI state
-  from a headless snapshot.
+- M3's explicit Valhalla verification is now merged in PR #67; see latest section above.
 
 
 ## Latest verified merge — 2026-10-13: PR #64 Austria overlapping PBF fix
