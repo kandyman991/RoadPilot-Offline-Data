@@ -4102,10 +4102,15 @@ fn plan_route(
         return Err(format!("Region {region_id}: Valhalla returned no successful route (status {code:?})."));
     }
     let geometry = route_geometry(&response)?;
+    // Preserve useful partial geometry, but expose whether it really arrives.
+    let arrival = ai_verify::route_arrival_evidence(
+        &geometry, start_lat, start_lng, end_lat, end_lng,
+    ).map_err(|category| format!("Region {region_id}: route {category}"))?;
 
     Ok(json!({
         "elapsedMs": elapsed_ms,
         "geometry": geometry,
+        "arrival": arrival,
         "response": response
     }))
 }
