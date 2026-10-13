@@ -230,6 +230,40 @@ fn haversine_meters(lat_a: f64, lng_a: f64, lat_b: f64, lng_b: f64) -> f64 {
     2.0 * r * a.sqrt().min(1.0).asin()
 }
 
+/// Shared M3/GUI assessment of the actual decoded route endpoints.
+pub(crate) fn route_arrival_evidence(
+    geometry: &Value,
+    start_lat: f64, start_lng: f64, end_lat: f64, end_lng: f64,
+) -> Result<Value, &'static str> {
+    let points = geometry.get("coordinates").and_then(Value::as_array)
+        .ok_or("invalid_route_shape")?;
+    if points.len() < 2 { return Err("invalid_route_shape"); }
+    let coord = |point: &Value| -> Option<(f64, f64)> {
+        let pair = point.as_array()?;
+        let lng = pair.first()?.as_f64()?;
+        let lat = pair.get(1)?.as_f64()?;
+        if !lng.is_finite() || !lat.is_finite()
+            || !(-90.0..=90.0).contains(&lat)
+            || !(-180.0..=180.0).contains(&lng)
+        { return None; }
+        Some((lat, lng))
+    };
+    let (a_lat, a_lng) = coord(&points[0]).ok_or("invalid_route_shape")?;
+    let (b_lat, b_lng) = coord(points.last().ok_or("invalid_route_shape")?)
+        .ok_or("invalid_route_shape")?;
+    let start_offset = haversine_meters(start_lat, start_lng, a_lat, a_lng);
+    let end_offset = haversine_meters(end_lat, end_lng, b_lat, b_lng);
+    Ok(json!({
+        "actualStart":{"lat":a_lat,"lng":a_lng},
+        "actualEnd":{"lat":b_lat,"lng":b_lng},
+        "startOffsetMeters":start_offset,
+        "endOffsetMeters":end_offset,
+        "startMatched":start_offset <= MAX_SNAP_METERS,
+        "destinationReached":end_offset <= MAX_SNAP_METERS,
+        "maxAcceptedEndpointOffsetMeters":MAX_SNAP_METERS
+    }))
+}
+
 fn sane_distance(v: &Value, pointer: &str) -> Option<f64> {
     v.pointer(pointer).and_then(Value::as_f64).filter(|n| n.is_finite() && *n >= 0.0)
 }
@@ -272,38 +306,29 @@ fn evaluate(probe: &RouteProbe, reply: Value, elapsed_ms: u128) -> Value {
         result["failureCategory"] = json!("invalid_route_shape");
         return result;
     };
-    let Some(points) = geometry.get("coordinates").and_then(Value::as_array) else {
-        result["passed"] = json!(false);
-        result["failureCategory"] = json!("invalid_route_shape");
-        return result;
+    let arrival = match route_arrival_evidence(
+        &geometry, probe.start_lat, probe.start_lng, probe.end_lat, probe.end_lng,
+    ) {
+        Ok(evidence) => evidence,
+        Err(_) => {
+            result["passed"] = json!(false);
+            result["failureCategory"] = json!("invalid_route_shape");
+            return result;
+        }
     };
-    let Some(first) = points.first().and_then(Value::as_array) else { unreachable!() };
-    let Some(last) = points.last().and_then(Value::as_array) else { unreachable!() };
-    let (Some(a_lng), Some(a_lat), Some(b_lng), Some(b_lat)) = (
-        first.first().and_then(Value::as_f64), first.get(1).and_then(Value::as_f64),
-        last.first().and_then(Value::as_f64), last.get(1).and_then(Value::as_f64)
-    ) else {
-        result["passed"] = json!(false);
-        result["failureCategory"] = json!("invalid_route_shape");
-        return result;
-    };
-    if ![a_lat,a_lng,b_lat,b_lng].into_iter().all(f64::is_finite) {
-        result["passed"] = json!(false);
-        result["failureCategory"] = json!("invalid_route_shape");
-        return result;
-    }
-    let start_offset = haversine_meters(probe.start_lat,probe.start_lng,a_lat,a_lng);
-    let end_offset = haversine_meters(probe.end_lat,probe.end_lng,b_lat,b_lng);
-    let passed = start_offset <= MAX_SNAP_METERS && end_offset <= MAX_SNAP_METERS;
+    let passed = arrival["startMatched"] == true && arrival["destinationReached"] == true;
     result["passed"] = json!(passed);
     result["failureCategory"] = if passed { Value::Null } else { json!("route_endpoints_mismatch") };
     result["route"] = json!({
         "distanceKm":length,
         "durationSeconds":sane_distance(&reply, "/trip/summary/time"),
-        "vertexCount":points.len(),
-        "startOffsetMeters":start_offset,
-        "endOffsetMeters":end_offset,
+        "vertexCount":geometry["coordinates"].as_array().map_or(0, |p| p.len()),
+        "startOffsetMeters":arrival["startOffsetMeters"],
+        "endOffsetMeters":arrival["endOffsetMeters"],
         "maxAcceptedEndpointOffsetMeters":MAX_SNAP_METERS,
+        "actualStart":arrival["actualStart"],
+        "actualEnd":arrival["actualEnd"],
+        "destinationReached":arrival["destinationReached"],
         "geometryDecoded":true
     });
     result
@@ -393,6 +418,29 @@ mod tests {
         let bad=evaluate(&p,far,3);
         assert_eq!(bad["passed"],false);
         assert_eq!(bad["failureCategory"],"route_endpoints_mismatch");
+        assert_eq!(bad["route"]["destinationReached"],false);
+        assert_eq!(bad["route"]["actualEnd"]["lat"],0.005);
+        assert_eq!(bad["route"]["actualEnd"]["lng"],0.005);
+        assert!(bad["route"]["endOffsetMeters"].as_f64().unwrap()>150.0);
+        assert_eq!(out["route"]["actualEnd"]["lat"],0.01);
+        assert_eq!(out["route"]["destinationReached"],true);
+    }
+
+    #[test]
+    fn detects_valid_partial_arrival_and_bad_route_point() {
+        let p=probe();
+        let g=json!({"type":"LineString","coordinates":[
+            [0.0,0.0],[0.007,0.007]
+        ]});
+        let evidence=route_arrival_evidence(
+            &g,p.start_lat,p.start_lng,p.end_lat,p.end_lng,
+        ).unwrap();
+        assert_eq!(evidence["startMatched"],true);
+        assert_eq!(evidence["destinationReached"],false);
+        assert_eq!(evidence["actualEnd"]["lat"],0.007);
+        assert!(evidence["endOffsetMeters"].as_f64().unwrap()>400.0);
+        let invalid=json!({"coordinates":[[0.0,0.0],[null,0.0]]});
+        assert!(route_arrival_evidence(&invalid,0.0,0.0,0.01,0.01).is_err());
     }
 
     #[test]

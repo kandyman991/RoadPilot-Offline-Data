@@ -202,3 +202,27 @@ of unrelated stderr warnings. A failed optional expansion no longer makes an
 otherwise successful normal route appear to fail. No graph, PBF, cache or
 package format changes are required. Desktop acceptance testing is still
 required to prove the fix against Austria on the Legion.
+
+## Partial routes: destination arrival evidence (issue #69)
+
+The Legion's `italy-nord-est` graph returned a 175.958 km route
+(Trento `46.064320,11.119191` to Innsbruck `47.250124,11.395549`)
+with 4,308 geometry vertices but an actual endpoint 1,566.47 metres
+from the requested destination. M3 correctly classified this as
+`route_endpoints_mismatch`, exit code 1, though the standard GUI had
+previously displayed it as an apparently successful route.
+
+The standard GUI and headless M3 now compute arrival from the same
+decoded geometry endpoint helper. Successful Valhalla status does not
+by itself imply the destination was reached. The GUI continues to
+render useful geometry but displays an **INCOMPLETE** warning, arrival
+deviation, actual route-end coordinates and an amber actual-stop marker
+apart from the red requested-destination marker. It fits both points
+on the map. M3's structured `route` evidence includes `actualStart`,
+`actualEnd`, `destinationReached`, and start/end offsets.
+
+The 150 m comparison is the M3 verification tolerance; it is only a
+route-arrival assessment, NOT a newly imposed filter on Valhalla, F8
+frontier discovery or border proof. Do not conclude that incomplete
+arrival was caused by the 25 km buffer without inspecting actual
+coverage and the precise routed endpoint.
