@@ -1,3 +1,18 @@
+## M2 AI Control diagnostics — PR in progress (2026-10-13)
+
+- M1 PR #65 **merged** as `b3f5539a`; both PR CI checks green.
+  Main later updated by automated documentation state snapshot `05d3eb2`.
+- M2 branch: `graph-studio-ai-control-m2-diagnostics` (PR/CI pending).
+- Adds one shared Rust `diagnose` command for Tauri and `--ai-diagnose` CLI:
+  retained manifest route counts/status (not replayed), existing border-report
+  summaries (not freshness-confirmed), and sanitized last completed build outcome.
+- Existing Graph Studio build process persists only stable enums/codes and identifiers
+  in `diagnostics/latest-build.json` after completion, **never raw subprocess errors**.
+  No listener, graph mutation, publication, validation run or remote bridge.
+- **NEXT EXACT ACTION:** verify M2 PR CI, fix and merge when green, then install on
+  Legion and compare M2 output against real manifests. Pending Austria cache rebuild
+  and actual Valhalla crossing proof remain **device-untested**.
+
 ## In-progress branch — AI Control M1 (2026-10-13)
 
 - Branch: `graph-studio-ai-control-m1-readonly`; initial PR pending CI.

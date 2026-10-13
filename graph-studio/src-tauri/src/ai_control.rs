@@ -17,12 +17,14 @@ pub fn execute(workspace: &Path, command: &str, runtime_status: Option<Value>) -
             "readOnly": true,
             "commands": [
                 {"name": "capabilities", "readOnly": true, "description": "Describe the versioned inspection contract"},
-                {"name": "inspect", "readOnly": true, "description": "Inspect configured routing regions, retained routing manifests and optional in-process build state"}
+                {"name": "inspect", "readOnly": true, "description": "Inspect configured routing regions, retained routing manifests and optional in-process build state"},
+                {"name": "diagnose", "readOnly": true, "description": "Inspect recorded Valhalla proof summaries, exported border reports and sanitized latest build outcome"}
             ],
             "externalListener": false
         })),
         "inspect" => inspect(workspace, runtime_status),
-        _ => Err("Unknown or disallowed AI control command. Only capabilities and inspect are permitted.".into()),
+        "diagnose" => crate::ai_diagnostics::diagnose(workspace, runtime_status),
+        _ => Err("Unknown or disallowed AI control command. Only capabilities, inspect and diagnose are permitted.".into()),
     }
 }
 
@@ -223,7 +225,7 @@ mod tests {
         let result = execute(Path::new("/nonexistent"), "capabilities", None).unwrap();
         assert_eq!(result["schema"], SCHEMA);
         assert_eq!(result["readOnly"], true);
-        assert_eq!(result["commands"].as_array().unwrap().len(), 2);
+        assert_eq!(result["commands"].as_array().unwrap().len(), 3);
         assert!(!Path::new("/nonexistent").exists());
         assert!(execute(Path::new("."), "start_build_queue", None).is_err());
         assert!(execute(Path::new("."), "delete_handoff_override", None).is_err());

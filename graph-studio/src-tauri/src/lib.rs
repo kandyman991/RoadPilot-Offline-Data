@@ -19,6 +19,7 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 pub mod ai_control;
+pub mod ai_diagnostics;
 
 #[derive(Debug, Clone, Serialize)]
 struct Coverage {
@@ -1362,6 +1363,7 @@ fn start_build_queue(
     emit_status(&app, &owned);
 
     tauri::async_runtime::spawn_blocking(move || {
+        let outcome_version = package_version.clone();
         let result = run_build_queue(
             app.clone(),
             owned.clone(),
@@ -1371,6 +1373,25 @@ fn start_build_queue(
         );
 
         let mut snapshot = owned.status.lock().expect("build status poisoned");
+        let observed_region = snapshot.current_region.clone();
+        let observed_stage = snapshot.stage.clone();
+        let outcome = if result.is_ok() {
+            "succeeded"
+        } else if owned.cancel.load(Ordering::SeqCst) {
+            "cancelled"
+        } else {
+            "failed"
+        };
+        let error_for_classification = result.as_ref().err().map(String::as_str);
+        // Persist only a stable failure category; never copy subprocess stderr.
+        if let Ok(root) = workspace_root(&app) {
+            if ai_diagnostics::record_build_outcome(
+                &root, observed_region.as_deref(), &outcome_version,
+                &observed_stage, outcome, error_for_classification,
+            ).is_err() {
+                emit_log(&app, "AI build diagnostic outcome could not be recorded.");
+            }
+        }
         snapshot.running = false;
         snapshot.current_region = None;
         snapshot.queue.clear();

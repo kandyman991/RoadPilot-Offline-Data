@@ -7,6 +7,7 @@ fn main() {
         let command = match first.as_str() {
             "--ai-capabilities" => Some("capabilities"),
             "--ai-inspect" => Some("inspect"),
+            "--ai-diagnose" => Some("diagnose"),
             _ => None,
         };
         if let Some(command) = command {
