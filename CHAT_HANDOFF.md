@@ -1,5 +1,30 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Legion M3 verified — 2026-10-13: successful real Austria route
+
+- User ran the *installed* headless M3 CLI:
+  `roadpilot-graph-studio --ai-verify-route austria
+  47.582889 12.162319 47.609970 12.200709 motorcycle`.
+- **On-device PASS; exit code 0**, `passed=true`,
+  `routeReplayed=true`, `failureCategory=null`, `elapsedMs=161`,
+  `graphSource=local_working_graph`.
+- Actual Valhalla result: 4.725 km, 887.728 s, 181 decoded vertices;
+  start offset 8.361177 m, end offset 4.315425 m (both within the M3
+  150 m tolerance). This is **real local routing evidence**, not a retained
+  manifest replay or cross-region proof.
+- This completes first real-device execution/verification of M1, M2 and M3
+  AI CLI commands. It does NOT establish graph fingerprints against retained
+  packages or prove every region or boundary.
+- Earlier GUI route failed with 367 tile count and traffic warnings. Austria
+  local graph has 338 retained tiles while Italy Nord-Est has 367. Since M3
+  works on the Austria region, leading hypothesis is wrong GUI active region;
+  confirm GUI region selection before classifying an engine bug.
+- **NEXT EXACT ACTION:** in Graph Studio select Austria explicitly, re-run
+  the same coordinates in the GUI and compare its result. If it still fails,
+  inspect full Valhalla route stdout/status and selected config, then improve
+  error surfacing. Avoid rebuilding or clearing cached OSM data. Next broader
+  milestone can implement a permissioned local bridge to normal ChatGPT.
+
 ## Legion route failure follow-up — 2026-10-13 (investigating)
 
 - User reported: `Route failed: 2026-10-13 21:50:23 [INFO] Tile extract
