@@ -13,6 +13,11 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+if __package__:
+    from .source_cache import cached_geofabrik_pbf
+else:
+    from source_cache import cached_geofabrik_pbf
+
 USER_AGENT = "RoadPilot-Offline-Data/visual-builder"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -85,6 +90,8 @@ def main() -> int:
     parser.add_argument("--dist-dir", default="dist/visual", type=Path)
     parser.add_argument("--tilemaker-bin")
     parser.add_argument("--refresh-sources", action="store_true")
+    parser.add_argument("--source-cache-dir", type=Path, default=None,
+                        help="Shared Geofabrik cache path (routing and visual use same PBF).")
     args = parser.parse_args()
 
     if not args.config.is_file():
@@ -111,16 +118,24 @@ def main() -> int:
     if not source_id or not pbf_url.startswith("https://") or not polygon_url.startswith("https://"):
         fail("visual source identity, PBF URL and polygon URL are required")
 
-    cache_root = args.work_dir / "cache" / "visual"
+    # Visual builds historically stored a second full PBF under
+    # work/visual/cache/visual. Prefer the shared routing work/cache path
+    # and hard-link existing visual bytes where available.
+    legacy_cache = args.work_dir / "cache" / "visual"
+    cache_root = args.source_cache_dir or legacy_cache
     cache_stem = source_id.replace("/", "__")
-    pbf_path = download(
+    pbf_path = cached_geofabrik_pbf(
         pbf_url,
         cache_root / f"{cache_stem}.osm.pbf",
         refresh=args.refresh_sources,
+        legacy_path=legacy_cache / f"{cache_stem}.osm.pbf"
+                    if args.source_cache_dir else None,
     )
+    # The small exact polygon remains a visual-stage input. PBF bytes are
+    # shared regardless of independent visual/package versions.
     polygon_path = download(
         polygon_url,
-        cache_root / f"{cache_stem}.poly",
+        legacy_cache / f"{cache_stem}.poly",
         refresh=args.refresh_sources,
     )
     print(f"visual source sha256: {sha256_file(pbf_path)}")
