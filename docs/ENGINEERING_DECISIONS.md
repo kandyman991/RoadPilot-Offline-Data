@@ -49,7 +49,7 @@ Geofabrik country/thematic aggregates may overlap smaller regional leaves. Selec
 
 PR #64 merged after synthetic actual-Osmium CI passed; full on-device Austria rebuild not yet verified. https://github.com/kandyman991/RoadPilot-Offline-Data/pull/64
 
-## D-007 — Shared, read-only AI inspection before AI operations (2026-10-13)
+## D-008 — Shared, read-only AI inspection before AI operations (2026-10-13)
 
 Graph Studio must be operable and verifiable by authorized AI tools without
 duplicating its core behavior. Start with a versioned **Rust command engine**
@@ -60,7 +60,7 @@ in the first milestone. Inspect only allowlisted routing config/manifest fields,
 never R2 credentials or raw logs. Future local bridges require user opt-in and
 narrow permissions; any mutation must be explicitly authorized and tested.
 
-## D-008 — Evidence-graduated AI diagnosis (2026-10-13)
+## D-009 — Evidence-graduated AI diagnosis (2026-10-13)
 
 Expose retained **manifest-recorded** Valhalla route outcomes and existing
 exported border reports through a bounded, read-only AI diagnostic command.

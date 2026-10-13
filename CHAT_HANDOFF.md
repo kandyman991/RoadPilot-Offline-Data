@@ -1,31 +1,33 @@
-## M2 AI Control diagnostics — PR in progress (2026-10-13)
-
-- M1 PR #65 **merged** as `b3f5539a`; both PR CI checks green.
-  Main later updated by automated documentation state snapshot `05d3eb2`.
-- M2 branch: `graph-studio-ai-control-m2-diagnostics` (PR/CI pending).
-- Adds one shared Rust `diagnose` command for Tauri and `--ai-diagnose` CLI:
-  retained manifest route counts/status (not replayed), existing border-report
-  summaries (not freshness-confirmed), and sanitized last completed build outcome.
-- Existing Graph Studio build process persists only stable enums/codes and identifiers
-  in `diagnostics/latest-build.json` after completion, **never raw subprocess errors**.
-  No listener, graph mutation, publication, validation run or remote bridge.
-- **NEXT EXACT ACTION:** verify M2 PR CI, fix and merge when green, then install on
-  Legion and compare M2 output against real manifests. Pending Austria cache rebuild
-  and actual Valhalla crossing proof remain **device-untested**.
-
-## In-progress branch — AI Control M1 (2026-10-13)
-
-- Branch: `graph-studio-ai-control-m1-readonly`; initial PR pending CI.
-- Goal: shared Rust read-only inspection engine, callable from Tauri and packaged
-  headless Graph Studio binary (`--ai-capabilities`, `--ai-inspect`).
-- Explicit constraints: no HTTP/MCP listener yet, no write/build/publish commands,
-  no raw credentials/logs; CLI inventory does not represent in-process job state.
-- NEXT ACTION for this branch: run Graph Studio CI on PR, fix failures if any,
-  review and merge when green; device-test headless output on Legion.
-- Previous pending device test is unchanged: repeat Austria build after PR #64
-  with existing cached PBFs and prove actual Valhalla validation.
-
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
+
+## Latest verified merge — 2026-10-13: AI Control M2 PR #66
+
+- PR: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/66 — **merged**
+  as `b3a4400e311bf1c2fe9c085cac0487888aa3ae38`.
+- Both required PR checks **green** on head `8426755b`: offline-data validation
+  and Graph Studio Linux build, including M1/M2 Rust tests and AppImage/DEB.
+  Post-merge rolling Linux release build was triggered; verify its published
+  tag/assets separately before claiming users can install M2.
+- Shared Rust `diagnose` operation works via Tauri `ai_control_command` and
+  packaged `--ai-diagnose` without a GUI or remote listener. It summarizes only
+  **recorded** Valhalla validation from manifests, previously exported border
+  reports (may be stale), and sanitized last build outcome. No raw stderr/credentials
+  are surfaced; no new route is run or graph altered.
+- For build completions **after installing M2**, existing Graph Studio build queue
+  writes one allowlisted `diagnostics/latest-build.json` entry. Its safe
+  failure category recognizes the historical `Node ID twice in input` signature
+  if the log line is observed; this does not assert Austria is fixed on-device.
+- M1 PR #65 merged previously as `b3f5539a`, introducing
+  `--ai-capabilities` and `--ai-inspect`; M2 is additive and read-only.
+- **NEXT EXACT ACTION:** verify the rolling Linux release assets include M2's
+  merge, update Graph Studio on Legion, run `--ai-capabilities`,
+  `--ai-inspect`, `--ai-diagnose`; compare inventories/reports to real files.
+  Repeat Austria build using the existing PBF cache to verify PR #64 source
+  normalization and actual Valhalla crossing proof. Desktop test is **not yet done**.
+- After real tests, consider M3 explicit permissioned and instrumented
+  Valhalla revalidation; do not silently rebuild/publish or infer GUI state
+  from a headless snapshot.
+
 
 ## Latest verified merge — 2026-10-13: PR #64 Austria overlapping PBF fix
 
