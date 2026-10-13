@@ -16,6 +16,9 @@ from shapely.geometry import Point, Polygon, box, mapping
 from shapely.ops import transform, unary_union
 
 from source_cache import cached_geofabrik_pbf
+from prepared_region_cache import (
+    prepare_key, source_preparation_ready, record_source_preparation,
+)
 
 
 USER_AGENT = "RoadPilot-Offline-Data/1"
@@ -469,22 +472,33 @@ def main() -> None:
 
     merged = build_root / "merged.osm.pbf"
     buffered = build_root / "buffered.osm.pbf"
-    run(["osmium", "merge", *source_paths, "-o", merged, "-O"])
-    run(
-        [
-            "osmium",
-            "extract",
-            "--polygon",
-            build_root / "buffer.geojson",
-            "--strategy",
-            "complete_ways",
-            merged,
-            "-o",
-            buffered,
-            "-O",
-        ]
+    preparation_key = prepare_key(
+        source_records, sha256(build_root / "buffer.geojson"), actual_valhalla_version,
     )
-    run(["osmium", "check-refs", buffered])
+    reused_preparation = source_preparation_ready(build_root, preparation_key)
+    if reused_preparation:
+        print("cache hit: source fingerprint, buffered OSM and untruncated "
+              "Valhalla admin/timezone DBs match; skipping full-source merge/extract",
+              flush=True)
+        merged.unlink(missing_ok=True)  # Clean up a large legacy temporary input.
+    else:
+        (build_root / "source-preparation.json").unlink(missing_ok=True)
+        run(["osmium", "merge", *source_paths, "-o", merged, "-O"])
+        run(
+            [
+                "osmium",
+                "extract",
+                "--polygon",
+                build_root / "buffer.geojson",
+                "--strategy",
+                "complete_ways",
+                merged,
+                "-o",
+                buffered,
+                "-O",
+            ]
+        )
+        run(["osmium", "check-refs", buffered])
 
     tile_dir = build_root / "tiles"
     tile_extract = build_root / "tiles.tar"
@@ -494,8 +508,9 @@ def main() -> None:
         shutil.rmtree(tile_dir)
     tile_dir.mkdir(parents=True, exist_ok=True)
     tile_extract.unlink(missing_ok=True)
-    admin_db.unlink(missing_ok=True)
-    timezone_db.unlink(missing_ok=True)
+    if not reused_preparation:
+        admin_db.unlink(missing_ok=True)
+        timezone_db.unlink(missing_ok=True)
 
     generated_config = run(
         [
@@ -518,11 +533,15 @@ def main() -> None:
     valhalla_config_path = build_root / "valhalla.json"
     valhalla_config_path.write_text(json.dumps(valhalla_config, indent=2), encoding="utf-8")
 
-    with timezone_db.open("wb") as output:
-        run(["valhalla_build_timezones"], stdout=output)
-    # Build admin polygons from the broader merged source. The graph itself stays clipped
-    # to the buffered regional geometry, but admin context must not be truncated at that edge.
-    run(["valhalla_build_admins", "-c", valhalla_config_path, merged])
+    if not reused_preparation:
+        with timezone_db.open("wb") as output:
+            run(["valhalla_build_timezones"], stdout=output)
+        # Keep complete administrative context. Clipping every neighboring
+        # extract *before* this step risks truncating boundary relations.
+        run(["valhalla_build_admins", "-c", valhalla_config_path, merged])
+        # Full regional merges are transient; only the verified, much smaller
+        # buffered input/admin DB are retained for subsequent builds.
+        merged.unlink(missing_ok=True)
     run(["valhalla_build_tiles", "-c", valhalla_config_path, buffered])
     run(["valhalla_build_extract", "-c", valhalla_config_path, "-O"])
 
@@ -534,6 +553,10 @@ def main() -> None:
     tile_count = sum(1 for name in names if name.endswith(".gph"))
     if "index.bin" not in names or tile_count <= 0:
         fail("Tile extract is missing index.bin or graph tiles")
+    if not reused_preparation:
+        record_source_preparation(build_root, preparation_key)
+        print("cached: source-fingerprinted buffered OSM + Valhalla context "
+              "for repeat regional builds", flush=True)
 
     validation_routes = routing.get("validationRoutes") or []
     if routing.get("validationMode") == "auto" and not validation_routes:
