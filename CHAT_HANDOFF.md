@@ -1,5 +1,25 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Important correction — F8 succeeded; Graph Studio operationalizes F8 (2026-10-14)
+
+- The user explicitly corrected the assistant's wrong phrase "failed F6/F8
+  experiments". **F8 is NOT a failed experiment.** Its generalized multi-hop,
+  Valhalla-proven frontier approach was the right routing breakthrough,
+  demonstrated with real cross-graph handoffs. Old F6 and discarded
+  pre-Valhalla filters were the failed/rejected strategies.
+- Graph Studio's original mission is to **precompute, prove, inspect and
+  package the connections learned from F8** for independent regional
+  graphs, moving expensive first-route frontier discovery to Legion
+  build-time without replacing the F8 algorithmic principles.
+- Keep F8 on the phone for stale/missing/uncovered connections; never
+  reinstate hard heading/distance filters or fixed portals. Validate
+  endpoint arrival and real Valhalla directed edges.
+- Prioritize **end-to-end Italy Nord-Est ↔ Austria ↔ Germany metadata
+  production and Android consumption** over endless GUI route planner
+  polishing. Report what is implemented separately from what is verified
+  on physical Legion/Android devices.
+
+
 ## Graph Studio incomplete-arrival instrumentation — PR #70 merged (2026-10-14)
 
 - **PR:** https://github.com/kandyman991/RoadPilot-Offline-Data/pull/70,
