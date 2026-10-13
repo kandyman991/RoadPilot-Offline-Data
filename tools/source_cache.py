@@ -11,7 +11,6 @@ bytes. A process lock protects concurrent Graph Studio builds on Linux.
 """
 from __future__ import annotations
 
-import contextlib
 import fcntl
 import hashlib
 import json
@@ -131,9 +130,12 @@ def cached_geofabrik_pbf(
         cached = destination.is_file() and destination.stat().st_size > 0
         metadata = _read_metadata(destination)
         trusted_local = _matches_metadata(destination, url, metadata)
+        try:
+            last_checked = float(metadata.get("lastCheckedEpoch", 0))
+        except (TypeError, ValueError):
+            last_checked = 0
         recent = (trusted_local and not refresh and
-                  time.time() - float(metadata.get("lastCheckedEpoch", 0)) <
-                  check_interval_seconds)
+                  time.time() - last_checked < check_interval_seconds)
         if recent:
             print(f"shared source cache hit (recent): {destination}", flush=True)
             return destination
@@ -141,7 +143,10 @@ def cached_geofabrik_pbf(
         try:
             checksum = _upstream_md5(url)
         except (OSError, ValueError, UnicodeError) as exc:
-            if cached and not refresh:
+            # Never silently reuse bytes from a different upstream URL just
+            # because the cache filename stayed the same after a config edit.
+            same_url = metadata.get("url") in (None, url)
+            if cached and not refresh and same_url:
                 print(f"shared source cache: offline/unverified upstream freshness for "
                       f"{destination.name}: {exc}; using existing bytes", flush=True)
                 return destination
