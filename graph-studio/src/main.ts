@@ -4640,27 +4640,77 @@ publishBuildBtn.addEventListener("click", async () => {
   }
 });
 
+
+function autoConfigFromPreview(item: GeofabrikCatalogItem, preview: RegionPreview): Record<string, unknown> {
+  const id = item.id.replaceAll("/", "-");
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) throw new Error(`Unsafe region id ${item.id}`);
+  if (!preview.sources.some(source => source.primary && source.id === preview.geofabrikId))
+    throw new Error(`Primary extract missing for ${item.id}`);
+  return {
+    schemaVersion: 1, id, name: item.name,
+    routing: {
+      enabled: true, validationMode: "auto", validationRoutes: [],
+      expectedValhallaVersion: "3.6.3",
+      borderBufferKm: preview.borderBufferKm, buildConcurrency: 12, coverage: preview.bounds,
+      source: {
+        primaryGeofabrikId: preview.geofabrikId, polygonUrl: preview.polygonUrl,
+        pbfs: preview.sources.map(source => ({ id: source.id, url: source.pbfUrl })),
+      },
+      package: {
+        fileNameTemplate: `${id}-routing-{version}.tar`,
+        manifestFileNameTemplate: `${id}-routing-{version}-manifest.json`,
+      },
+    },
+    visual: { enabled: false },
+  };
+}
+
+async function autoPrepareSelectedRegions(): Promise<void> {
+  const pending = [...pendingCatalogSelection];
+  for (let i = 0; i < pending.length; i++) {
+    const geofabrikId = pending[i];
+    const existing = regions.find(region => region.primary_geofabrik_id === geofabrikId);
+    if (existing) {
+      selected.add(existing.id);
+      pendingCatalogSelection.delete(geofabrikId);
+      continue;
+    }
+    const item = geofabrikCatalog.find(row => row.id === geofabrikId);
+    if (!item) throw new Error(`Catalog item not found: ${geofabrikId}`);
+    appendLog(`Auto-setup ${i + 1}/${pending.length}: ${item.name} · finding exact sources…`);
+    const preview = await invoke<RegionPreview>("preview_region", {
+      geofabrikId, bufferKm: 25, refresh: false,
+    });
+    const config = autoConfigFromPreview(item, preview);
+    await invoke("save_region_config", { config, refreshGeometry: false });
+    pendingCatalogSelection.delete(geofabrikId);
+    selected.add(String(config.id));
+    appendLog(`Auto-configured ${item.name}; build-time Valhalla road-crossing proof required.`);
+    await refreshRegions();
+  }
+  renderRegions();
+}
+
 buildBtn.addEventListener("click", async () => {
-  if (pendingCatalogSelection.size) {
-    appendLog(`${pendingCatalogSelection.size} selected catalog region(s) need configuration and a valid border route before building.`);
-    await configureNextQueuedRegion().catch(error => appendLog(`Could not open setup: ${String(error)}`));
-    return;
-  }
-  const queue = [...selected].filter(id => regions.some(region => region.id === id));
-  if (!queue.length) {
-    appendLog("Select at least one region.");
-    return;
-  }
   const version = packageVersionInput.value.trim();
-  if (!/^\d{4}\.\d{2}\.\d{2}-[A-Za-z0-9._-]+$/.test(version)) {
+  if (!/^\\d{4}\\.\\d{2}\\.\\d{2}-[A-Za-z0-9._-]+$/.test(version)) {
     appendLog("Package version must look like 2026.10.06-1.");
     return;
   }
+  if (!selected.size && !pendingCatalogSelection.size) {
+    appendLog("Select at least one region in the left tree.");
+    return;
+  }
+  buildBtn.disabled = true;
   try {
+    await autoPrepareSelectedRegions();
+    const queue = [...selected].filter(id => regions.some(region => region.id === id));
+    if (!queue.length) throw new Error("No configured regions remain in the build queue.");
     await invoke("start_build_queue", { regionIds: queue, packageVersion: version, refreshSources: false });
     await refreshBuildStatus();
   } catch (error) {
-    appendLog(`Could not start build: ${String(error)}`);
+    appendLog(`Could not start automatic build: ${String(error)}`);
+    buildBtn.disabled = !toolchainReady;
   }
 });
 
