@@ -15,6 +15,8 @@ from pyproj import CRS, Transformer
 from shapely.geometry import Point, Polygon, box, mapping
 from shapely.ops import transform, unary_union
 
+from source_cache import cached_geofabrik_pbf
+
 
 USER_AGENT = "RoadPilot-Offline-Data/1"
 VALHALLA_TILE_SIZE_DEGREES = {0: 4.0, 1: 1.0, 2: 0.25}
@@ -452,7 +454,9 @@ def main() -> None:
     for item in pbfs:
         source_id = str(item["id"])
         file_name = source_id.replace("/", "__") + ".osm.pbf"
-        path = download(item["url"], cache_root / file_name, refresh=args.refresh_sources)
+        path = cached_geofabrik_pbf(
+            item["url"], cache_root / file_name, refresh=args.refresh_sources
+        )
         source_paths.append(path)
         source_records.append(
             {
