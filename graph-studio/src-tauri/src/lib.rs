@@ -3601,7 +3601,7 @@ fn handoff_route_probe(
     let elapsed_ms = started.elapsed().as_millis();
     match response {
         Ok(response) => json!({
-            "passed": response.pointer("/trip/status").and_then(Value::as_i64).unwrap_or(0) == 0,
+            "passed": response.pointer("/trip/status").and_then(Value::as_i64) == Some(0),
             "elapsedMs": elapsed_ms,
             "summary": response.pointer("/trip/summary").cloned().unwrap_or(Value::Null),
             "statusMessage": response.pointer("/trip/status_message").cloned().unwrap_or(Value::Null)

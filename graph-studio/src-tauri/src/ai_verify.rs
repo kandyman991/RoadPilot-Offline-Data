@@ -419,7 +419,11 @@ mod tests {
         let fake=t.0.join("fake-valhalla-service");
         // The actual launcher prints an INFO line on stdout and warnings on
         // stderr. Both must be harmless when a valid route JSON is returned.
-        fs::write(&fake, "#!/bin/sh\nprintf '[INFO] Running valhalla_service with args: []\\n'\nprintf '{\\\"trip\\\":{\\\"status\\\":0,\\\"summary\\\":{\\\"length\\\":4.725}}}\\n'\necho '[WARN] missing optional traffic.tar' >&2\n").unwrap();
+        fs::write(&fake, r#"#!/bin/sh
+printf '%s\\n' '[INFO] Running valhalla_service with args: []'
+printf '%s\\n' '{"trip":{"status":0,"summary":{"length":4.725}}}'
+echo '[WARN] missing optional traffic.tar' >&2
+"#).unwrap();
         let mut mode=fs::metadata(&fake).unwrap().permissions();
         mode.set_mode(0o700);
         fs::set_permissions(&fake,mode).unwrap();
