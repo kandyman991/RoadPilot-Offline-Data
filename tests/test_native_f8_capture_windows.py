@@ -17,6 +17,15 @@ from types import SimpleNamespace
 
 
 class NativeF8CaptureWindowsTests(unittest.TestCase):
+    def test_cxx20_and_json_stdout_remain_native_scanner_requirements(self):
+        root = Path(__file__).resolve().parents[1]
+        cmake = (root / "tools/native-f8-edge-scan/CMakeLists.txt").read_text()
+        source = (root / "tools/native-f8-edge-scan/native_f8_edge_scan.cpp").read_text()
+        self.assertIn("cxx_std_20", cmake)
+        self.assertIn("#include <valhalla/midgard/logging.h>", source)
+        self.assertIn('logging::Configure({{"type", "std_err"}, {"color", "false"}})', source)
+        self.assertIn("ROADPILOT_VALHALLA_VERSION", cmake)
+
     def test_entire_intersection_is_windowed_including_second_carriageway(self):
         a, b = box(10, 45, 10.08, 45.08), box(10.02, 45.02, 10.10, 45.10)
         windows = list(overlap_windows(a, b, 0.02))
