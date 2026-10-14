@@ -1,5 +1,35 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## F8 correctness/completeness requirement — user's explicit correction (2026-10-14)
+
+- **F8 worked.** Android problems were prohibitively expensive first discovery
+  and incorrectly using one already-learned successful section/crossing as
+  sufficient knowledge, suppressing further discovery of potentially better
+  crossing points for different journeys. Do not confuse caching a successful
+  handoff with enumerating all available, mode-specific directed alternatives.
+- **Issue #73**: https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73
+  records the missing Graph Studio completeness requirement and acceptance tests.
+- Confirmed code gap: `build_frontier_road_inventory.py` finds OSM ways
+  physically intersecting both **nominal** polygons and their boundary;
+  that is not proven equivalent to F8's graph frontier scanning over
+  shared/overlapping graph coverage. `VALIDATED` means generated candidates
+  were proven, NOT that every usable F8 handoff was discovered.
+- `plan_multiregion_route.py` limits hierarchical chains to 20 each
+  source/destination pairing, 64 unique detailed Valhalla legs and
+  ~120-second budget; intermediate-only ranking before origin/destination
+  legs can omit better routes, and a first complete same-graph result currently
+  returns immediately. These diagnostic budgets do **not** prove exhaustive
+  fastest/shortest choice. Do not report globally optimal route unqualified.
+- Target: build-time exhaustive or explicitly incomplete graph-frontier
+  discovery with Valhalla-proven directed alternatives, fingerprint-bound
+  coverage report, no first-learned lock-in; route-time uses all relevant
+  alternatives and whole-journey comparison with sound pruning/fallback.
+  Preserve real-device Italy/Austria and 3-region verification gates.
+- **Next priority:** resolve issue #73's full-frontier equivalence and
+  no-premature-pruning correctness before treating PR #71/72 metadata as
+  complete for production Android issue #512. Preserve working F8.
+
+
 ## Multi-region route planner — PR #72 merged (2026-10-14)
 
 - **PR:** https://github.com/kandyman991/RoadPilot-Offline-Data/pull/72
