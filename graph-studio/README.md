@@ -275,3 +275,48 @@ new map build, or downloading new extracts. Region packs already validated
 remain intact; check the Build console to see which connectivity stage failed.
 A `VALIDATED` connectivity artifact with zero proven crossings is an honest
 negative result and requires RoadPilot's established F8 runtime fallback.
+
+## Multi-region Route Planner (F8-derived, read-only)
+
+The Route Planner now has **Single graph** and **Multi-region** modes.
+Multi-region automatically locates the requested origin and destination
+within the nominal/buffered coverage of each current installed local
+Valhalla graph. It verifies the selected graph's exact working tile extract
+matches the retained routing manifest SHA, and excludes unmatched graphs.
+
+With multiple graphs, the planner loads only `VALIDATED` runtime connectivity
+artifacts matching both current graph and boundary fingerprints, plus current
+regional connector inventories and fingerprint-matched matrices. It invokes
+the existing `compose_hierarchical_connectivity.py` for multiple directed,
+mode-specific candidate chains. No fixed portals, 30-degree heading filter
+or arbitrary handoff separation cutoff is introduced.
+
+For each candidate, local Valhalla computes a detailed route leg inside
+each graph, from the requested origin to the proven exit anchor, from each
+subsequent entry to exit, and from the final entry to destination. Actual
+route endpoints are verified within 150 m **after Valhalla**, and full
+journeys are ranked by their actual summed detailed time (FASTER) or
+distance (SHORTER), not by incomplete precomputed estimates.
+
+Rendered geometry is `MultiLineString` (one separate line per graph),
+**not** a line artificially bridging differing graph-correlated handoff
+coordinates. The UI displays graph sequence, independent handoff gaps,
+each leg's Valhalla cost and endpoint deviation, and final arrival proof.
+Routes that fail endpoint verification are reported as incomplete or
+unavailable, never as successful. If a complete same-graph route exists,
+the mode can use it directly; if that graph stops short, it tries validated
+cross-graph candidates.
+
+The query is local and read-only with a bounded candidate/probe budget
+(20 chains per source/destination pair, 64 distinct detailed legs, around
+120 seconds), no graph rebuilding and no publication. It supports
+Motorcycle and Car. Search expansion and turn-by-turn maneuver merging
+are not yet available in this mode. The existing Single graph mode is
+unchanged. Android F8 remains the operational fallback until sidecar
+installation and on-device integration are proven (SmartRide-Next #512).
+
+**Real-device acceptance:** install a release that contains this feature,
+produce and validate Italy Nord-Est/Austria connectivity on the Legion,
+then run Trento → Innsbruck in Multi-region mode. Verify *both* graph legs,
+the actual handoff gap and arrival, or capture a structured failure; do
+not claim success merely because this code passed synthetic CI tests.
