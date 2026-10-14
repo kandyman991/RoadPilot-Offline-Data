@@ -218,6 +218,8 @@ def main() -> int:
     if proofs.get("schema") != "roadpilot.crossing-proofs" or proofs.get("version") != 1:
         fail("Unsupported crossing proof artifact")
     require_identity_match(candidates, proofs)
+    if proofs.get("discovery") != candidates.get("discovery"):
+        fail("Proof discovery scope differs from candidate discovery scope")
 
     pair_id = str(candidates.get("pairId") or "")
     from_region = str(candidates.get("fromRegionId") or "")
@@ -318,6 +320,7 @@ def main() -> int:
 
     output = {
         "schema": SCHEMA,
+        "discovery": candidates.get("discovery"),
         "version": VERSION,
         "pairId": pair_id,
         "fromRegionId": from_region,

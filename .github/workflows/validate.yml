@@ -142,6 +142,9 @@ jobs:
       - name: Multi-region detailed Valhalla route composition tests
         run: python3 -m unittest discover -s tests -p 'test_graph_studio_multiregion_route.py'
 
+      - name: F8 overlap coverage and no-first-crossing-lock-in regression tests
+        run: python3 -m unittest discover -s tests -p 'test_f8_overlap_discovery.py'
+
       - name: Automatic cross-region connectivity orchestration regression tests
         run: python3 -m unittest discover -s tests -p 'test_connectivity_automation.py'
 

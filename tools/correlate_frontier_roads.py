@@ -523,6 +523,7 @@ def main() -> int:
 
     artifact = {
         "schema": SCHEMA,
+        "discovery": inventory.get("discovery"),
         "version": VERSION,
         "pairId": inventory["pairId"],
         "fromRegionId": from_region,

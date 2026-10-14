@@ -320,3 +320,44 @@ produce and validate Italy Nord-Est/Austria connectivity on the Legion,
 then run Trento → Innsbruck in Multi-region mode. Verify *both* graph legs,
 the actual handoff gap and arrival, or capture a structured failure; do
 not claim success merely because this code passed synthetic CI tests.
+
+## F8 discovery foundation: overlap candidate coverage (in development)
+
+RoadPilot Android's working generalized F8 scans **directed graph road edges**
+in windows over reachable-route corridors and available shared-boundary
+segments. Earlier Graph Studio candidate generation only included OSM roads
+that intersect both *nominal* region polygons. This can miss many usable
+handoffs in the independently buffered graph overlap.
+
+The overlap-discovery implementation runs on the Legion during the existing
+connectivity refresh: it scans both retained buffered OSM extracts, keeps
+nominal border intersections, and adds all distinct OSM way fragments inside
+the **intersection of the two actual build buffer polygons**. Long fragments
+are sampled at approximately 1500m spacing. It never groups candidates by
+road name/ref, selects a single known crossing, or rejects candidates using
+pre-Valhalla heading, proximity, road class or motorcycle access thresholds.
+Both graphs still correlate candidates independently; directed Valhalla
+route proofs decide which options are usable.
+
+Scope/provenance is explicitly embedded in the frontier inventory and
+propagated to compiled runtime connectivity metadata:
+
+- `discovery.scope = OSM_BUFFER_OVERLAP`: both retained OSM sources and both
+  graph coverage polygons were completely scanned, with no silent truncation
+- `discovery.sourceExhausted = true`: the required source scans finished;
+  failure/timeout/250000-anchor guard aborts publication instead
+- `discovery.f8GraphEdgeParity = NOT_VERIFIED`: **this is not yet proven to
+  be the full set of the Android F8 graph-edge scanner's candidates**
+
+Old nominal-only products are no longer accepted as current by
+`refresh_graph_connectivity.py`; a refresh regenerates them. A previous
+working runtime is not overwritten if re-enumeration or Valhalla proof fails.
+
+**Required next step before product-complete claims:** compare the
+overlap inventory with the actual Android `FrontierGpsRoadDirectionRecovery`
+graph-edge scanner on real Italy Nord-Est/Austria and Austria/Germany
+Valhalla graphs. Record every F8 graph edge absent from the precomputed
+coverage and resolve it, including motorway direction and long overlapping
+ways; run enough combinations to show that the *best* candidate is not
+discarded by planner candidate/probe budgets. Use issue #73 as the
+acceptance contract. Do not mark the F8 parity field VERIFIED until proven.

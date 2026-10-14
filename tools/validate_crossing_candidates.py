@@ -14,7 +14,7 @@ from typing import Any
 SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 CANDIDATE_ID = re.compile(r"^xpc1-[0-9a-f]{24}$")
 FRONTIER_ID = re.compile(r"^fri1-[0-9a-f]{24}$")
-KINDS = {"CROSSING", "FRONTIER_OVERLAP"}
+KINDS = {"CROSSING", "FRONTIER_OVERLAP", "OVERLAP_ROAD"}
 
 
 def fail(message: str) -> None:

@@ -265,6 +265,7 @@ def inventory_id(
 def export_highways(osm_source: Path, work: Path) -> Path:
     if shutil.which("osmium") is None:
         fail("osmium is required to build the frontier road inventory")
+    work.mkdir(parents=True, exist_ok=True)
     filtered = work / "highways.osm.pbf"
     exported = work / "highways.geojsonseq"
     run(
@@ -319,11 +320,115 @@ def selected_tags(properties: Any) -> dict[str, str]:
     return result
 
 
+
+def iter_lines(geometry):
+    """Preserve every separate line fragment inside shared buffered coverage."""
+    if isinstance(geometry, LineString):
+        if geometry.length > 1.0:
+            yield geometry
+    elif hasattr(geometry, "geoms"):
+        for part in geometry.geoms:
+            yield from iter_lines(part)
+
+
+def overlap_road_anchors(
+    pair: dict[str, Any],
+    from_buffer: Path,
+    to_buffer: Path,
+    source_paths: list[Path],
+    nominal_roads: list[dict[str, Any]],
+    forward,
+    backward,
+) -> tuple[list[dict[str, Any]], int]:
+    """F8-inspired non-nominal discovery: every OSM way in both graph buffers.
+
+    No heading, route-class, name/ref or first-success pruning. Distinct positions
+    along long roads are retained. Physical OSM coverage does not certify F8
+    graph-edge parity; the resulting discovery record makes this explicit.
+    """
+    shared = load_polygon(from_buffer).intersection(load_polygon(to_buffer))
+    if shared.is_empty:
+        fail("No shared buffered coverage for neighboring graphs")
+    shared_local = transform(forward, shared)
+    output: list[dict[str, Any]] = []
+    seen_geometry: set[tuple[int, bytes]] = set()
+    previous = {(r["wayId"], round(r["crossingCoordinate"]["lat"], 5),
+                 round(r["crossingCoordinate"]["lng"], 5)) for r in nominal_roads}
+    indices = {}
+    for road in nominal_roads:
+        way = road["wayId"]
+        indices[way] = max(indices.get(way, 0), road["crossingIndex"] + 1)
+    examined = 0
+    with tempfile.TemporaryDirectory(prefix="roadpilot-overlap-") as temp:
+        for source_index, source in enumerate(source_paths):
+            exported = export_highways(source, Path(temp) / str(source_index))
+            with exported.open("r", encoding="utf-8") as handle:
+                for raw in handle:
+                    raw = raw.strip()
+                    if not raw:
+                        continue
+                    feature = json.loads(raw)
+                    way = parse_way_id(feature)
+                    geometry = feature.get("geometry")
+                    tags = feature.get("properties")
+                    if (way is None or
+                            not isinstance(geometry, dict) or
+                            geometry.get("type") != "LineString" or
+                            not isinstance(tags, dict) or not tags.get("highway")):
+                        continue
+                    examined += 1
+                    line_wgs = shape(geometry)
+                    if not isinstance(line_wgs, LineString) or line_wgs.length <= 0:
+                        continue
+                    if not line_wgs.intersects(shared):
+                        continue
+                    # The same way may be clipped differently in graph A's
+                    # and graph B's retained PBF. Never discard a distinct
+                    # segment merely because a way ID was seen in A.
+                    identity = (way, hashlib.sha256(line_wgs.wkb).digest())
+                    if identity in seen_geometry:
+                        continue
+                    seen_geometry.add(identity)
+                    line = transform(forward, line_wgs)
+                    for piece in iter_lines(line.intersection(shared_local)):
+                        # Same spatial order as the F8 1500m corridor window;
+                        # no opaque top-N or one-representative-per-road-ref limit.
+                        count = max(1, math.ceil(piece.length / 1500.0))
+                        for index in range(count):
+                            point = piece.interpolate((index + .5) / count, normalized=True)
+                            pos = line.project(point)
+                            wgs = transform(backward, point)
+                            lat, lng = float(wgs.y), float(wgs.x)
+                            key = (way, round(lat, 5), round(lng, 5))
+                            if key in previous:
+                                continue
+                            previous.add(key)
+                            record = {
+                                "id": inventory_id(str(pair["pairId"]), way, "OVERLAP_ROAD", lng, lat),
+                                "wayId": way,
+                                "crossingIndex": indices.get(way, 0),
+                                "crossingKind": "OVERLAP_ROAD",
+                                "crossingCoordinate": {"lat": lat, "lng": lng},
+                                "headingDegrees": heading_degrees(line, pos),
+                                "routingTags": selected_tags(tags),
+                                "snippet": snippet_geometry(line, pos, backward),
+                            }
+                            indices[way] = record["crossingIndex"] + 1
+                            output.append(record)
+                            if len(output) + len(nominal_roads) > 250_000:
+                                fail("More than 250000 candidate anchors: refusing incomplete inventory")
+    return output, examined
+
+
+
 def build_inventory(
     pair: dict[str, Any],
     from_polygon: Path,
     to_polygon: Path,
     osm_source: Path,
+    from_buffer: Path | None = None,
+    to_buffer: Path | None = None,
+    to_osm_source: Path | None = None,
 ) -> dict[str, Any]:
     from_wgs = load_polygon(from_polygon)
     to_wgs = load_polygon(to_polygon)
@@ -408,6 +513,19 @@ def build_inventory(
                         record["overlapLengthMeters"] = float(overlap_length)
                     roads.append(record)
 
+    overlap_count = 0
+    overlap_examined = 0
+    buffered = (from_buffer, to_buffer, to_osm_source)
+    if any(x is not None for x in buffered) and not all(x is not None for x in buffered):
+        fail("Buffered overlap discovery requires both buffer polygons and both PBF sources")
+    if all(x is not None for x in buffered):
+        more, overlap_examined = overlap_road_anchors(
+            pair, from_buffer, to_buffer, [osm_source, to_osm_source],
+            roads, forward, backward,
+        )
+        overlap_count = len(more)
+        roads.extend(more)
+
     roads.sort(
         key=lambda item: (
             item["wayId"],
@@ -432,6 +550,19 @@ def build_inventory(
             "osmSha256": "sha256:" + sha256_file(osm_source),
             "fromPolygonSha256": "sha256:" + sha256_file(from_polygon),
             "toPolygonSha256": "sha256:" + sha256_file(to_polygon),
+            **({
+                "toOsmSha256": "sha256:" + sha256_file(to_osm_source),
+                "fromBufferSha256": "sha256:" + sha256_file(from_buffer),
+                "toBufferSha256": "sha256:" + sha256_file(to_buffer),
+            } if overlap_count or all(x is not None for x in buffered) else {}),
+        },
+        "discovery": {
+            "scope": "OSM_BUFFER_OVERLAP" if all(x is not None for x in buffered) else "NOMINAL_ONLY",
+            "sourceExhausted": True,
+            "f8GraphEdgeParity": "NOT_VERIFIED",
+            "nominalRoadAnchors": len(roads) - overlap_count,
+            "overlapRoadAnchors": overlap_count,
+            "overlapSourceRoadWaysExamined": overlap_examined,
         },
         "generator": {
             "name": GENERATOR_NAME,
@@ -447,6 +578,9 @@ def main() -> int:
     parser.add_argument("--from-polygon", required=True, type=Path)
     parser.add_argument("--to-polygon", required=True, type=Path)
     parser.add_argument("--osm-source", required=True, type=Path)
+    parser.add_argument("--to-osm-source", type=Path)
+    parser.add_argument("--from-buffer-polygon", type=Path)
+    parser.add_argument("--to-buffer-polygon", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
 
@@ -455,6 +589,8 @@ def main() -> int:
         args.from_polygon,
         args.to_polygon,
         args.osm_source,
+        *[x for x in (args.to_osm_source, args.from_buffer_polygon, args.to_buffer_polygon)
+          if x is not None],
     ):
         if not path.is_file():
             fail(f"Input does not exist: {path}")
@@ -465,6 +601,9 @@ def main() -> int:
         args.from_polygon,
         args.to_polygon,
         args.osm_source,
+        args.from_buffer_polygon,
+        args.to_buffer_polygon,
+        args.to_osm_source,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
