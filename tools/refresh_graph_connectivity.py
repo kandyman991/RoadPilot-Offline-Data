@@ -119,6 +119,9 @@ def is_current_runtime(path: Path, a: Graph, b: Graph) -> bool:
         and (data.get("toGraph") or {}).get("graphFingerprint") == b.fingerprint
         and data.get("fromBoundaryFingerprint") == a.boundaries.get(b.primary)
         and data.get("toBoundaryFingerprint") == b.boundaries.get(a.primary)
+        and (data.get("discovery") or {}).get("scope") == "OSM_BUFFER_OVERLAP"
+        and (data.get("discovery") or {}).get("sourceExhausted") is True
+        and (data.get("discovery") or {}).get("f8GraphEdgeParity") == "NOT_VERIFIED"
     )
 
 
@@ -176,14 +179,20 @@ def build_pair(tools: Path, work: Path, output_root: Path,
     # The first graph's complete-ways, buffered OSM snapshot has actual
     # geometry on both sides of the shared nominal frontier.
     osm = work / a.region / "build" / "buffered.osm.pbf"
-    for path in (polygon_a, polygon_b, osm):
+    osm_b = work / b.region / "build" / "buffered.osm.pbf"
+    buffer_a = work / a.region / "build" / "buffer.geojson"
+    buffer_b = work / b.region / "build" / "buffer.geojson"
+    for path in (polygon_a, polygon_b, osm, osm_b, buffer_a, buffer_b):
         if not path.is_file():
             fail(f"{pair_id}: missing retained local input {path}; no download or rebuild attempted")
 
     steps: dict[str, list[object]] = {
         "pair": ["--from-manifest", a.manifest_path, "--to-manifest", b.manifest_path],
         "frontier": ["--pair-manifest", paths["pair"], "--from-polygon", polygon_a,
-                     "--to-polygon", polygon_b, "--osm-source", osm],
+                     "--to-polygon", polygon_b, "--osm-source", osm,
+                     "--to-osm-source", osm_b,
+                     "--from-buffer-polygon", buffer_a,
+                     "--to-buffer-polygon", buffer_b],
         "correlations": ["--inventory", paths["frontier"],
                          "--from-manifest", a.manifest_path, "--to-manifest", b.manifest_path],
         "candidates": ["--correlations", paths["correlations"]],
