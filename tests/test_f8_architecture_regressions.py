@@ -145,9 +145,21 @@ class F8ArchitectureBehaviorTests(unittest.TestCase):
             "toGraph": {"graphFingerprint": b.fingerprint},
             "fromBoundaryFingerprint": a.boundaries["source-b"],
             "toBoundaryFingerprint": b.boundaries["source-a"],
+            "discovery": {
+                "scope": "OSM_BUFFER_OVERLAP",
+                "sourceExhausted": True,
+                "f8GraphEdgeParity": "NOT_VERIFIED",
+            },
         }
         dest.write_text(json.dumps(data))
         self.assertTrue(refresh.is_current_runtime(dest, a, b))
+        # Never treat a previously proven NOMINAL_ONLY scan as a
+        # complete overlap inventory after the discovery upgrade.
+        outdated = dict(data)
+        outdated.pop("discovery")
+        dest.write_text(json.dumps(outdated))
+        self.assertFalse(refresh.is_current_runtime(dest, a, b))
+        dest.write_text(json.dumps(data))
         newer_graph = SimpleNamespace(**{**vars(b), "fingerprint": "sha256:changed"})
         self.assertFalse(refresh.is_current_runtime(dest, a, newer_graph))
         newer_frontier = SimpleNamespace(**{**vars(a), "boundaries": {"source-b": "sha256:changed"}})
