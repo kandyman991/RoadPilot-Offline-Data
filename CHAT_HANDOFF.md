@@ -1,5 +1,16 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Architecture drift prevention safeguards — implementation pending (2026-10-14)
+
+- User authorized implementing the binding F8 contract, PR template, and enforceable CI regression gates **before any further discovery merge**.
+- Separate branch: governance-f8-architecture-contract. Files: docs/ARCHITECTURE_CONTRACT.md, docs/ARCHITECTURE_GAPS.md, .github/pull_request_template.md, .github/CODEOWNERS, tools/check_architecture_contract.py, tests/test_f8_architecture_regressions.py, and .github/workflows/architecture-contract.yml.
+- Contract emphasizes exact F8 graph-edge comparison, no first-success/cached-crossing lock-in, truthful incomplete markers, immutable fingerprinted graphs, directed Valhalla proof, and explicit approval before architecture changes.
+- CI architecture-contract job checks ALL PRs affecting protected routes/governance, requires filled invariants/reference evidence, tests all directed correlation combinations and faster later candidate selection, and blocks unapproved architecture-change declarations.
+- **Hard-gate limitation:** CODEOWNERS and a workflow alone are not enforced by GitHub merges until repository Rulesets require the architecture-contract check and code-owner approval. If ruleset cannot be set through current connected GitHub tools, report user-facing GitHub UI steps; do not misstate as fully enforced.
+- **Open discovery PR #75** remains unmerged: source scan is broader, but parity to actual F8 graph-edge scanner still NOT_VERIFIED. Never mark #73 complete because the governance PR or CI is green.
+- **Next:** open/verify safeguards PR and its CI, merge safeguards only if checks green, request/configure GitHub required-check ruleset, then rebase/update PR #75 against guardrails and run real Legion parity comparisons before any claim of production correctness.
+
+
 ## F8 correctness/completeness requirement — user's explicit correction (2026-10-14)
 
 - **F8 worked.** Android problems were prohibitively expensive first discovery

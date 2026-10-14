@@ -9,3 +9,7 @@
 **Resources:** Do not launch expensive work for docs-only changes; `[skip ci]` avoids workflows but may leave generated Git snapshots out of date. Never rely on GitHub Actions artifact storage. Keep secrets out of markdown.
 
 **Limit:** ChatGPT does not automatically copy every chat into Git. Important decisions must be written explicitly in the repo during a development session.
+
+## Architecture drift prevention
+
+Before implementing routing/discovery work, re-read docs/ARCHITECTURE_CONTRACT.md, review the current open gaps in docs/ARCHITECTURE_GAPS.md, identify the F8 source of truth, and include contract clause IDs in the PR. When implementation direction differs, stop and request user approval, do not replace the proven algorithm for ease of delivery. Run tests/test_f8_architecture_regressions.py locally or in CI. Set/check the required branch-ruleset status architecture-contract; CODEOWNERS alone does not require approval without a repository ruleset.
