@@ -126,7 +126,7 @@ def derive_probes(
         from_point = farthest_region_probe(line, from_region, frontier)
         to_point = farthest_region_probe(line, to_region, frontier)
         strategy = "REGION_INTERIOR"
-    elif kind == "FRONTIER_OVERLAP":
+    elif kind in ("FRONTIER_OVERLAP", "OVERLAP_ROAD"):
         coords = list(line.coords)
         if len(coords) < 2:
             fail(f"{road.get('id', '?')}: frontier-overlap snippet is degenerate")
