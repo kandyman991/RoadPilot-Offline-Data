@@ -1,0 +1,10 @@
+# Architecture governance files are owned by the project owner.
+# GitHub Rulesets must enable "Require review from Code Owners" to enforce.
+docs/ARCHITECTURE_CONTRACT.md @kandyman991
+docs/ARCHITECTURE_GAPS.md @kandyman991
+docs/ENGINEERING_DECISIONS.md @kandyman991
+.github/pull_request_template.md @kandyman991
+.github/workflows/architecture-contract.yml @kandyman991
+tools/check_architecture_contract.py @kandyman991
+tests/test_f8_architecture_regressions.py @kandyman991
+.github/CODEOWNERS @kandyman991
