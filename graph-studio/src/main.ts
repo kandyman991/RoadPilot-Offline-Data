@@ -508,6 +508,7 @@ app.innerHTML = `
         </div>
         <div class="actions">
           <button id="buildBtn" class="btn primary" type="button">Build selected</button>
+          <button id="refreshConnectivityBtn" class="btn" type="button">Refresh connections</button>
           <button id="cancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
         <div id="buildSelectionSummary" class="status-line">No regions selected.</div>
@@ -515,6 +516,7 @@ app.innerHTML = `
           Force source re-download (ignore unchanged source cache)
         </label>
         <p class="status-line">Normal builds reuse locally cached Geofabrik PBFs and check their upstream checksums daily.</p>
+        <p>Building a region automatically validates its cross-graph handoffs and regional connector matrices when a neighboring graph exists. Use Refresh connections to process already-built graphs <strong>without rebuilding maps</strong>. Validated connections are local artifacts until packaged for Android.</p>
         <p>Select any Geofabrik region and click Build selected. Unconfigured regions are prepared automatically; completed routing packages still require Valhalla border proof.</p>
       </section>
 
@@ -907,6 +909,7 @@ const clearEditorPinsBtn = document.querySelector<HTMLButtonElement>("#clearEdit
 const saveRegionBtn = document.querySelector<HTMLButtonElement>("#saveRegionBtn")!;
 const closeRegionEditorBtn = document.querySelector<HTMLButtonElement>("#closeRegionEditorBtn")!;
 const buildBtn = document.querySelector<HTMLButtonElement>("#buildBtn")!;
+const refreshConnectivityBtn = document.querySelector<HTMLButtonElement>("#refreshConnectivityBtn")!;
 const cancelBtn = document.querySelector<HTMLButtonElement>("#cancelBtn")!;
 const r2CredentialSummary = document.querySelector<HTMLDivElement>("#r2CredentialSummary")!;
 const r2AccountId = document.querySelector<HTMLInputElement>("#r2AccountId")!;
@@ -4103,6 +4106,7 @@ async function refreshToolchain(): Promise<void> {
   }
   toolchainReady = status.ready;
   buildBtn.disabled = !toolchainReady;
+  refreshConnectivityBtn.disabled = !toolchainReady;
 }
 
 async function refreshStats(): Promise<void> {
@@ -4124,6 +4128,7 @@ function renderBuildStatus(status: BuildStatus): void {
   document.querySelector("#progress")!.classList.toggle("idle", !status.running);
   cancelBtn.disabled = !status.running;
   buildBtn.disabled = status.running || !toolchainReady;
+  refreshConnectivityBtn.disabled = status.running || !toolchainReady;
 }
 
 async function refreshBuildStatus(): Promise<void> {
@@ -4771,6 +4776,24 @@ buildBtn.addEventListener("click", async () => {
   } catch (error) {
     appendLog(`Could not start automatic build: ${String(error)}`);
     buildBtn.disabled = !toolchainReady;
+  }
+});
+
+refreshConnectivityBtn.addEventListener("click", async () => {
+  refreshConnectivityBtn.disabled = true;
+  try {
+    // Scan all existing locally built region pairs; do not rebuild .gph files.
+    await invoke("start_build_queue", {
+      regionIds: [],
+      packageVersion: packageVersionInput.value.trim() || defaultVersion(),
+      refreshSources: false,
+      connectivityOnly: true,
+    });
+    appendLog("Connectivity refresh started for existing local graphs.");
+    await refreshBuildStatus();
+  } catch (error) {
+    appendLog(`Could not start connectivity refresh: ${String(error)}`);
+    refreshConnectivityBtn.disabled = !toolchainReady;
   }
 });
 

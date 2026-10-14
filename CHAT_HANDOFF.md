@@ -1,5 +1,38 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Automatic F8-derived connectivity production — implementation PR (2026-10-14)
+
+- **Branch** `graph-studio-automatic-connectivity-pipeline` integrates the
+  existing independent cross-graph frontier inventory, correlation, candidate
+  generation, Valhalla proof and runtime connectivity compiler, plus regional
+  connector inventory and exact-edge matrix, into Graph Studio's **Build selected**
+  queue. An explicit **Refresh connections** action processes existing local
+  graphs without rebuilding or redownloading maps.
+- New `tools/refresh_graph_connectivity.py` discovers mutually compatible
+  adjacent retained graphs by exact boundary fingerprints; runs only pairs
+  affected by a freshly built graph, or all current pairs on manual refresh;
+  skips already current fingerprints; stages validated output outside public
+  artifact directories; never overwrites validated runtime with unproven data;
+  preserves existing packs on errors; skips matrices if any relevant pair is
+  stale/missing and reuses exact current inventory/matrix hashes.
+- Uses local `work/<region>/build/buffered.osm.pbf`, local
+  `work/cache/<region>.poly`, and immutable retained
+  `builds/<region>/*-manifest.json`. No full PBF fetching/rebuilds in the
+  connectivity refresh. All products visible under `connectivity/<pair>/`
+  and `connector-matrices/<region>/`; nothing uploaded to R2 or transferred
+  to Android automatically.
+- New regression tests under `tests/test_connectivity_automation.py`
+  are wired into both validate and Graph Studio Linux CI.
+- **NEXT EXACT ACTION:** wait for PR CI, fix any failing test/compile,
+  merge only when checks green; verify rolling .deb release includes merge;
+  run **Refresh connections** on existing Italy Nord-Est / Austria
+  Legion graphs, inspect validated pairing, and then confirm Android data
+  consumption. Avoid claiming Android connectivity or Germany graph installed.
+- **F8 was a successful routing breakthrough**. This automation moves its
+  discovery/proof work to Legion build-time; F8 remains the on-device
+  fallback for missing/stale/uncovered connections.
+
+
 ## Important correction — F8 succeeded; Graph Studio operationalizes F8 (2026-10-14)
 
 - The user explicitly corrected the assistant's wrong phrase "failed F6/F8
