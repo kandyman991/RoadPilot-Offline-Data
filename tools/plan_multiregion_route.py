@@ -185,8 +185,36 @@ def parse_service_json(stdout: str) -> dict:
     fail("Valhalla did not return structured route JSON")
 
 
+def traced_endpoint_ids(service:Path,config:Path,polyline:str,costing:str,timeout:float) -> tuple[int,int]:
+    request={"encoded_polyline":polyline,"costing":costing,"shape_match":"edge_walk",
+             "filters":{"attributes":["edge.id","edge.way_id"],"action":"include"}}
+    try:
+        cmd=subprocess.run([str(service),str(config),"trace_attributes",
+                            json.dumps(request,separators=(",",":"))],
+                           text=True,capture_output=True,timeout=timeout,check=False)
+        if cmd.returncode:fail("Valhalla could not trace detailed route edges")
+        payload=parse_service_json(cmd.stdout)
+        edges=payload.get("edges")
+        if not isinstance(edges,list) or not edges:fail("Valhalla trace returned no edges")
+        ids=[]
+        for edge in edges:
+            if not isinstance(edge,dict):continue
+            raw=edge.get("id")
+            if isinstance(raw,(str,int)) and not isinstance(raw,bool):
+                try:
+                    graph_id=int(raw)
+                except ValueError:
+                    continue
+                if graph_id>0:ids.append(graph_id)
+        if not ids:fail("Valhalla trace did not contain directed graph IDs")
+        return ids[0],ids[-1]
+    except (subprocess.TimeoutExpired,OSError,ValueError,TypeError) as exc:
+        raise ValueError(f"Exact directed-edge tracing failed: {exc}") from exc
+
+
 def leg_route(service:Path, config:Path, src:dict, dst:dict, costing:str,
-              options:dict, timeout:float=18.0) -> dict:
+              options:dict, timeout:float=18.0,
+              start_graph_id:int|None=None,end_graph_id:int|None=None) -> dict:
     request={"locations":[{"lat":src["lat"],"lon":src["lng"]},{"lat":dst["lat"],"lon":dst["lng"]}],
              "costing":costing,"directions_options":{"units":"kilometers"}}
     if options:request["costing_options"]={costing:options}
@@ -207,6 +235,16 @@ def leg_route(service:Path, config:Path, src:dict, dst:dict, costing:str,
         from_offset=distance(src,first);to_offset=distance(dst,last)
         if from_offset>ENDPOINT_LIMIT_M or to_offset>ENDPOINT_LIMIT_M:
             fail(f"Leg did not reach exact endpoint: start={from_offset:.1f}m end={to_offset:.1f}m")
+        # A GPS-near handoff is not a proven handoff. Require the actual
+        # detailed Valhalla route to retain the exact prevalidated
+        # graph-local DirectedEdge at every crossing anchor.
+        if start_graph_id is not None or end_graph_id is not None:
+            traced_start,traced_end=traced_endpoint_ids(
+                service,config,trip["legs"][0]["shape"],costing,timeout)
+            if start_graph_id is not None and traced_start!=start_graph_id:
+                fail(f"Detailed route START edge {traced_start} differs from validated anchor {start_graph_id}")
+            if end_graph_id is not None and traced_end!=end_graph_id:
+                fail(f"Detailed route END edge {traced_end} differs from validated anchor {end_graph_id}")
         summary=trip.get("summary") or {}
         length=float(summary["length"]);secs=float(summary["time"])
         if not all(map(math.isfinite,(length,secs))) or length<0 or secs<0:fail("Invalid route metrics")
@@ -222,6 +260,13 @@ def anchor_point(lookup:dict,region:str,anchor_id:str) -> dict:
     return valid_position(anchor)
 
 
+def anchor_graph_id(lookup:dict,region:str,anchor_id:str) -> int:
+    graph_id=lookup[region][anchor_id]["graphAnchor"]["graphId"]
+    if isinstance(graph_id,bool) or not isinstance(graph_id,int) or graph_id<=0:
+        fail("Invalid fingerprint-bound DirectedEdge anchor")
+    return graph_id
+
+
 def chain_legs(chain:dict, lookup:dict, start:dict, end:dict) -> list[dict]:
     regions=chain["regions"]
     crossings=chain["crossings"]
@@ -230,7 +275,12 @@ def chain_legs(chain:dict, lookup:dict, start:dict, end:dict) -> list[dict]:
     for i,region in enumerate(regions):
         src=start if i==0 else anchor_point(lookup,region,crossings[i-1]["toEntryAnchorId"])
         dst=end if i==len(regions)-1 else anchor_point(lookup,region,crossings[i]["fromExitAnchorId"])
-        legs.append({"regionId":region,"start":src,"end":dst})
+        start_id=None if i==0 else anchor_graph_id(
+            lookup,region,crossings[i-1]["toEntryAnchorId"])
+        end_id=None if i==len(regions)-1 else anchor_graph_id(
+            lookup,region,crossings[i]["fromExitAnchorId"])
+        legs.append({"regionId":region,"start":src,"end":dst,
+                     "startGraphId":start_id,"endGraphId":end_id})
     return legs
 
 
@@ -243,12 +293,15 @@ def evaluate_chain(chain:dict, lookup:dict, start:dict,end:dict,graphs:dict,
         if time.monotonic()>=deadline:fail("Multi-region routing time budget exhausted")
         region=leg["regionId"]
         key=(region,leg["start"]["lat"],leg["start"]["lng"],
-             leg["end"]["lat"],leg["end"]["lng"],costing,json.dumps(options,sort_keys=True))
+             leg["end"]["lat"],leg["end"]["lng"],costing,json.dumps(options,sort_keys=True),
+             leg["startGraphId"],leg["endGraphId"])
         if key not in cache:
             if len(cache)>=MAX_LEGS:fail("Maximum detailed Valhalla leg probes exhausted")
             config=work/region/"build"/"valhalla.json"
             cache[key]=leg_route(service,config,leg["start"],leg["end"],costing,options,
-                                 timeout=min(18.0,max(1,deadline-time.monotonic())))
+                                 timeout=min(18.0,max(1,deadline-time.monotonic())),
+                                 start_graph_id=leg["startGraphId"],
+                                 end_graph_id=leg["endGraphId"])
         results.append({**leg,**cache[key]})
     gaps=[]
     for i in range(len(results)-1):
