@@ -197,9 +197,24 @@ def main() -> int:
                               graph_identity_b=identity_b, from_scan=from_scan,
                               to_scan=to_scan, window_degrees=args.window_degrees)
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        staged = root / "capture.json"
-        staged.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
-        os.replace(staged, args.output)
+        # Stage on the destination filesystem. /tmp may be tmpfs while retained
+        # user maps/evidence live on an external drive: cross-device os.replace
+        # fails after expensive full scans if staging uses /tmp.
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=args.output.parent,
+            prefix=".f8-capture-", suffix=".json", delete=False,
+        ) as handle:
+            staged = Path(handle.name)
+            try:
+                json.dump(output, handle, indent=2)
+                handle.write("\n")
+            except BaseException:
+                staged.unlink(missing_ok=True)
+                raise
+        try:
+            os.replace(staged, args.output)
+        finally:
+            staged.unlink(missing_ok=True)
     print(f"Uncapped graph evidence: {args.output}; Android F8 parity NOT_VERIFIED")
     return 0
 
