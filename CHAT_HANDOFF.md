@@ -1,7 +1,8 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
-## F8 discovery-foundation correction — incremental PR #75, pending architecture validation (2026-10-14)
+## F8 discovery-foundation correction — PR #75 merged, parity pending (2026-10-14)
 
+- **Merged:** PR #75 https://github.com/kandyman991/RoadPilot-Offline-Data/pull/75 at squash commit `b0d60d07c89b62291be75f893026c90b552efe23`; final head `4f6b5927ada4ac1a3aea9d74844c58678b7aa083` passed all 3 checks (`architecture-contract`, `validate`, `linux`). This confirms CI and architectural disclosure, NOT native F8 graph-edge parity.
 - Branch `graph-studio-f8-overlap-discovery`; exact user requirement and
   acceptance are in https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73.
   Do not treat F8 as failed: it gave usable routes but first scan was too
@@ -26,9 +27,7 @@
   proof before changing parity to VERIFIED or treating metadata as exhaustive.
   Also route planner currently caps chain attempts at 20 per origin/dest
   region pair; issue #73 covers that separate optimality requirement.
-- **NEXT:** CI on PR, correct any errors; compare real buffer inventory and
-  F8 scanner missing candidates, record result; do not merge without green CI,
-  do not claim on-device route quality proof without device tests.
+- **NEXT EXACT ACTION:** validate the newly merged Graph Studio overlap discovery on retained real Italy Nord-Est ↔ Austria graphs, compare every actual RoadPilot F8 directed graph-edge crossing against the precomputed list, retain other valid alternatives, and record any missing edges or unresolved cases. Graph Studio issue #73 remains OPEN; Android #512 remains OPEN. Do not call `sourceExhausted=true` proof of full native F8 parity, or claim the best route without whole-journey comparison.
 
 
 
