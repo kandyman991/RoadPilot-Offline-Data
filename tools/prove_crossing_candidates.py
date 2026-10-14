@@ -699,6 +699,7 @@ def main() -> int:
     inconclusive = sum(1 for item in proof_records if item["proofState"] == "INCONCLUSIVE")
     output = {
         "schema": SCHEMA,
+        "discovery": candidates.get("discovery"),
         "version": VERSION,
         "pairId": candidates["pairId"],
         "fromRegionId": from_region,
