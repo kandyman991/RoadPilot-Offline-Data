@@ -4146,6 +4146,91 @@ fn plan_route(
     }))
 }
 
+/// The multi-region planner reads ONLY local, fingerprint-bound, validated
+/// connectivity artifacts. No graph building, publishing or mutable handoff
+/// discovery is performed by a route request.
+#[tauri::command]
+async fn plan_multi_region_route(
+    app: AppHandle,
+    state: State<'_, BuildState>,
+    start_lat: f64,
+    start_lng: f64,
+    end_lat: f64,
+    end_lng: f64,
+    costing: String,
+    route_style: String,
+    costing_options: Option<Value>,
+) -> Result<Value, String> {
+    validate_route_request(start_lat, start_lng, end_lat, end_lng, &costing)?;
+    if !matches!(costing.as_str(), "motorcycle" | "auto") {
+        return Err("Multi-region routing currently supports Motorcycle and Car.".into());
+    }
+    if !matches!(route_style.as_str(), "FASTER" | "SHORTER") {
+        return Err("Unsupported multi-region route style.".into());
+    }
+    if state.status.lock().map_err(|_| "Build state unavailable.")?.running {
+        return Err("Finish or cancel the graph/connectivity build before routing.".into());
+    }
+    let options = costing_options
+        .as_ref()
+        .and_then(|value| value.get(&costing))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let option_map = options.as_object().ok_or("Costing options must be an object.")?;
+    for (name, val) in option_map {
+        if !matches!(name.as_str(), "use_highways" | "use_tolls" | "use_ferry")
+            || !val.as_f64().map(|v| v.is_finite() && (0.0..=1.0).contains(&v)).unwrap_or(false)
+        {
+            return Err(format!("Invalid multi-region costing option: {name}"));
+        }
+    }
+
+    let pipeline = pipeline_root(&app)?;
+    let python = ensure_python_env(&app)?;
+    let work = work_dir(&app)?;
+    let dist = dist_dir(&app)?;
+    let root = workspace_root(&app)?;
+    let service = route_service_executable();
+    let serialized_options = serde_json::to_string(&options)
+        .map_err(|_| "Could not serialize route options.")?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let started = Instant::now();
+        let output = Command::new(python)
+            .arg(pipeline.join("tools/plan_multiregion_route.py"))
+            .arg("--dist-dir").arg(dist)
+            .arg("--work-dir").arg(work)
+            .arg("--connectivity-dir").arg(root.join("connectivity"))
+            .arg("--connector-matrix-dir").arg(root.join("connector-matrices"))
+            .arg("--valhalla-service").arg(service)
+            .arg("--start-lat").arg(start_lat.to_string())
+            .arg("--start-lng").arg(start_lng.to_string())
+            .arg("--end-lat").arg(end_lat.to_string())
+            .arg("--end-lng").arg(end_lng.to_string())
+            .arg("--costing").arg(costing)
+            .arg("--route-style").arg(route_style)
+            .arg("--costing-options").arg(serialized_options)
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|e| format!("Could not launch multi-region planner: {e}"))?;
+        // The planner writes only a compact structured JSON result on stdout.
+        if output.stdout.len() > 16 * 1024 * 1024 {
+            return Err("Multi-region route response exceeded the output limit.".into());
+        }
+        let result: Value = serde_json::from_slice(&output.stdout)
+            .map_err(|_| "Multi-region planner returned invalid JSON.".to_string())?;
+        if !output.status.success() {
+            let reason = result.get("reason").and_then(Value::as_str).unwrap_or("Routing failed.");
+            return Err(format!("Multi-region planner: {reason}"));
+        }
+        let mut result = result;
+        result["elapsedMs"] = json!(started.elapsed().as_millis());
+        Ok(result)
+    })
+    .await
+    .map_err(|_| "Multi-region route worker terminated unexpectedly.".to_string())?
+}
+
 #[tauri::command]
 fn route_expansion(
     app: AppHandle,
@@ -4323,6 +4408,7 @@ pub fn run() {
             inspect_region_connector_matrix,
             export_border_diagnostics,
             plan_route,
+            plan_multi_region_route,
             route_expansion,
             inspect_locate,
             graph_tile,
