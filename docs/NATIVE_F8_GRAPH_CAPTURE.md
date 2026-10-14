@@ -23,11 +23,18 @@ validated on the Legion. Synthetic CI tests are not real graph evidence.
 Prerequisites: the **same compatible Valhalla C++ headers and library** as
 the graph generator, CMake, compiler with C++17, `pkg-config` with
 `libvalhalla.pc`, and the existing Python Graph Studio dependencies. Check
-`pkg-config --modversion libvalhalla` before proceeding.
+`pkg-config --modversion libvalhalla` before proceeding. The C++ executable
+now exposes the **compile-time linked libvalhalla version** via
+`native_f8_edge_scan --version`. Capture refuses to scan unless this equals
+**both** `valhallaVersion` fields in the retained graph manifests; no silent
+3.9-to-3.6 graph mismatches. The binary hash and declared version are written
+to the evidence JSON. This is a **version/provenance check**, not definitive
+proof of a compatible C++ ABI or F8 route correctness.
 
 ```bash
 cmake -S tools/native-f8-edge-scan -B /tmp/roadpilot-f8-native
 cmake --build /tmp/roadpilot-f8-native -j 2
+/tmp/roadpilot-f8-native/native_f8_edge_scan --version  # must equal both retained graph valhallaVersion fields
 ```
 
 If Valhalla development headers/pkg-config are absent, do not replace the

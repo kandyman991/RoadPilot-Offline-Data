@@ -18,6 +18,10 @@
 #include <string>
 #include <vector>
 
+#ifndef ROADPILOT_VALHALLA_VERSION
+#error Build this scanner via its CMakeLists.txt to bind the exact libvalhalla version
+#endif
+
 namespace {
 double metres(double lat1, double lon1, double lat2, double lon2) {
   constexpr double scale = 111320.0;
@@ -69,6 +73,10 @@ double parse_bound(const char* raw) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  if (argc == 2 && std::string(argv[1]) == "--version") {
+    std::cout << ROADPILOT_VALHALLA_VERSION << '\n';
+    return 0;
+  }
   if (argc != 6) {
     std::cerr << "usage: native_f8_edge_scan <valhalla.json> <minLat> <maxLat> <minLon> <maxLon>\n";
     return 64;
@@ -94,7 +102,8 @@ int main(int argc, char** argv) {
     std::cout << std::setprecision(11);
     std::cout << "{\"schema\":\"roadpilot.graph-studio-native-edge-window\","
                  "\"version\":1,\"scanner\":\"GraphStudio.nativeUncappedRoadEdges\","
-                 "\"edges\":[";
+                 "\"valhallaVersion\":\"" << ROADPILOT_VALHALLA_VERSION
+              << "\",\"edges\":[";
     for (const auto& level : valhalla::baldr::TileHierarchy::levels()) {
       for (const auto id : level.tiles.TileList(bbox)) {
         const valhalla::baldr::GraphId tile_id(

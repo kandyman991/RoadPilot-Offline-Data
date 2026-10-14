@@ -8,9 +8,11 @@ first-success stopping, route inference, or "F8 parity verified" assertion.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -34,6 +36,44 @@ def obj(value: Any, label: str) -> dict:
 
 def read(path: Path) -> dict:
     return obj(json.loads(path.read_text(encoding="utf-8")), str(path))
+
+
+def scanner_version(binary: Path) -> str:
+    """Read the Valhalla version baked into the C++ exporter at compile time."""
+    if not binary.is_file():
+        raise ValueError(f"Native scanner binary does not exist: {binary}")
+    try:
+        result = subprocess.run([str(binary), "--version"], text=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                timeout=15, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ValueError(f"Cannot inspect native scanner version: {exc}") from exc
+    version = result.stdout.strip()
+    if result.returncode != 0 or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        raise ValueError("Native scanner version missing or invalid; rebuild with matching libvalhalla")
+    return version
+
+
+def require_compatible_versions(from_manifest: dict, to_manifest: dict,
+                                native_version: str) -> None:
+    """No attempt to read real graph tiles using an incompatible ABI/version."""
+    if not re.fullmatch(r"\d+\.\d+\.\d+", native_version):
+        raise ValueError("Native scanner did not report a valid Valhalla version")
+    for label, manifest in (("from", from_manifest), ("to", to_manifest)):
+        version = manifest.get("valhallaVersion")
+        if not isinstance(version, str) or version != native_version:
+            raise ValueError(
+                f"{label} retained graph Valhalla version {version!r} does not match "
+                f"native scanner build {native_version!r}"
+            )
+
+
+def sha256_binary(binary: Path) -> str:
+    digest = hashlib.sha256()
+    with binary.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return "sha256:" + digest.hexdigest()
 
 
 def positive_window_degrees(value: float) -> float:
@@ -65,7 +105,8 @@ def overlap_windows(from_shape: Any, to_shape: Any, degrees: float) -> Iterator[
                        "minLon": west, "maxLon": east}
 
 
-def scan_window(executable: Path, config: Path, bbox: dict[str, float]) -> dict:
+def scan_window(executable: Path, config: Path, bbox: dict[str, float],
+                expected_version: str | None = None) -> dict:
     cmd = [str(executable), str(config),
            repr(bbox["minLat"]), repr(bbox["maxLat"]),
            repr(bbox["minLon"]), repr(bbox["maxLon"])]
@@ -79,6 +120,11 @@ def scan_window(executable: Path, config: Path, bbox: dict[str, float]) -> dict:
         raise ValueError("Unsupported native Graph Studio window schema")
     if payload.get("scanner") != PORT:
         raise ValueError("Native Graph Studio scanner identity mismatch")
+    window_version = payload.get("valhallaVersion")
+    if not isinstance(window_version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", window_version):
+        raise ValueError("Native graph scan did not attest its compiled Valhalla version")
+    if expected_version is not None and window_version != expected_version:
+        raise ValueError("Native window binary version changed after preflight")
     edges = payload.get("edges")
     if not isinstance(edges, list) or payload.get("returned") != len(edges):
         raise ValueError("Native Graph Studio window count mismatch")
@@ -102,12 +148,13 @@ def scan_window(executable: Path, config: Path, bbox: dict[str, float]) -> dict:
 
 
 def capture_side(executable: Path, config: Path,
-                 windows: list[dict[str, float]], label: str) -> dict:
+                 windows: list[dict[str, float]], label: str,
+                 expected_version: str | None = None) -> dict:
     by_graph_id: dict[int, dict] = {}
     manifest = []
     complete = True
     for i, bbox in enumerate(windows):
-        result = scan_window(executable, config, bbox)
+        result = scan_window(executable, config, bbox, expected_version)
         for edge in result["edges"]:
             by_graph_id[edge["graphId"]] = edge
         window_complete = result["visitedTiles"] > 0
@@ -126,7 +173,7 @@ def capture_side(executable: Path, config: Path,
 
 def make_capture(*, correlations: dict, graph_identity_a: dict,
                  graph_identity_b: dict, from_scan: dict, to_scan: dict,
-                 window_degrees: float) -> dict:
+                 window_degrees: float, scanner_build: dict | None = None) -> dict:
     for side, expected in (("fromGraph", graph_identity_a),
                            ("toGraph", graph_identity_b)):
         declared = obj(correlations.get(side), side)
@@ -148,6 +195,7 @@ def make_capture(*, correlations: dict, graph_identity_a: dict,
         "toBoundaryFingerprint": correlations["toBoundaryFingerprint"],
         "scans": {"from": from_scan, "to": to_scan},
         "windowDegrees": window_degrees,
+        "scannerBuild": scanner_build or {"validation": "NOT_RUN"},
         "provenHandoffs": [],
         "knownGaps": [
             "This is an independent, uncapped Graph Studio port, not Android's F8 JNI output.",
@@ -173,6 +221,9 @@ def main() -> int:
     if correlations.get("schema") != "roadpilot.frontier-road-correlations":
         parser.error("Must provide Graph Studio's existing correlations.json")
     from_manifest, to_manifest = read(args.from_manifest), read(args.to_manifest)
+    native_version = scanner_version(args.scanner_binary)
+    require_compatible_versions(from_manifest, to_manifest, native_version)
+    native_binary_sha = sha256_binary(args.scanner_binary)
     from_primary = obj(from_manifest.get("source"), "from source").get("primaryGeofabrikId")
     to_primary = obj(to_manifest.get("source"), "to source").get("primaryGeofabrikId")
     if not isinstance(from_primary, str) or not isinstance(to_primary, str):
@@ -191,11 +242,16 @@ def main() -> int:
         identity_b, config_b = graph_manifest_info(
             args.to_manifest, correlations["toRegionId"], from_primary,
             correlations["toBoundaryFingerprint"], root, "to")
-        from_scan = capture_side(args.scanner_binary, config_a, windows, "from")
-        to_scan = capture_side(args.scanner_binary, config_b, windows, "to")
+        from_scan = capture_side(args.scanner_binary, config_a, windows, "from", native_version)
+        to_scan = capture_side(args.scanner_binary, config_b, windows, "to", native_version)
+        if sha256_binary(args.scanner_binary) != native_binary_sha:
+            raise ValueError("Native scanner binary changed during graph capture")
         output = make_capture(correlations=correlations, graph_identity_a=identity_a,
                               graph_identity_b=identity_b, from_scan=from_scan,
-                              to_scan=to_scan, window_degrees=args.window_degrees)
+                              to_scan=to_scan, window_degrees=args.window_degrees,
+                              scanner_build={"compiledValhallaVersion": native_version,
+                                             "binarySha256": native_binary_sha,
+                                             "validation": "VERSION_MATCHED_NOT_F8_PARITY"})
         args.output.parent.mkdir(parents=True, exist_ok=True)
         # Stage on the destination filesystem. /tmp may be tmpfs while retained
         # user maps/evidence live on an external drive: cross-device os.replace
