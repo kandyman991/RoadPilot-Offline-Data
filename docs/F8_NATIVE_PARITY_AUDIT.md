@@ -21,6 +21,12 @@ mismatched fingerprints, incomplete scan windows, empty proof samples and
 silent truncation. It does not mutate the graph, cache, sidecars or downloaded
 source PBFs.
 
+If the retained Graph Studio `proofs.json` is available, provide it to audit
+**mode-specific, directional exact-edge Valhalla proof**, rather than merely
+detecting that a physical candidate pair exists. Without the optional proof
+artifact the report explicitly states `graphStudioProofComparison: NOT_RUN`;
+a candidate present in `candidates.json` is **not** assumed validated.
+
 The report always says `f8GraphEdgeParity: NOT_VERIFIED`. Even a clean
 comparison only matches the supplied observed scan scope; it does **not**
 establish that every relevant window was scanned or that the most economical
@@ -89,6 +95,7 @@ python3 tools/audit_f8_graph_edge_parity.py \
   --native-scan /path/to/real-native-f8-scan.json \
   --correlations /path/to/connectivity/italy-nord-est__geofabrik-austria/correlations.json \
   --candidates /path/to/connectivity/italy-nord-est__geofabrik-austria/candidates.json \
+  --proofs /path/to/connectivity/italy-nord-est__geofabrik-austria/proofs.json \
   --output /path/to/local-evidence/f8-parity-audit.json
 ```
 

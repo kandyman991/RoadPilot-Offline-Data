@@ -68,6 +68,45 @@ def fixtures():
 
 
 class F8GraphEdgeAuditTests(unittest.TestCase):
+
+    def test_validated_proof_alternatives_must_include_second_success(self):
+        reference, correlations, candidates = fixtures()
+        for i, candidate in enumerate(candidates["candidates"]):
+            candidate["id"] = f"xpc1-{i}"
+        proofs = {
+            **identity(), "schema": "roadpilot.crossing-proofs", "version": 1,
+            "sourceCandidateCount": 2, "proofs": []
+        }
+        def one_proof(candidate_id, state):
+            passed = state == "PROVEN"
+            leg = {"status": "PASSED", "edgeMatched": True}
+            return {"candidateId": candidate_id, "proofState": state,
+                    "supportedDirections": ["MOTORCYCLE_FROM_TO"] if passed else [],
+                    "modes": {
+                        "MOTORCYCLE": {
+                            "fromTo": {"passed": passed, "graphA": leg, "graphB": leg},
+                            "toFrom": {"passed": False}
+                        },
+                        "CAR": {"fromTo": {"passed": False}, "toFrom": {"passed": False}}
+                    }}
+        proofs["proofs"] = [one_proof("xpc1-0", "PROVEN"),
+                            one_proof("xpc1-1", "REJECTED")]
+        report = audit(reference, correlations, candidates, proofs)
+        self.assertEqual(report["graphStudioProofComparison"], "MISSING_VALIDATED_DIRECTIONS")
+        self.assertEqual(report["nativeProvenHandoffsMissingValidatedProofs"][0]["toGraphId"], "202")
+        self.assertEqual(report["scanStatus"], "INCOMPLETE")
+        proofs["proofs"][1] = one_proof("xpc1-1", "PROVEN")
+        report = audit(reference, correlations, candidates, proofs)
+        self.assertEqual(report["graphStudioProofComparison"], "OBSERVED_NATIVE_PROOFS_MATCHED")
+        self.assertEqual(report["scanStatus"], "OBSERVED_WINDOWS_COMPARED")
+        proofs["proofs"][1]["modes"]["MOTORCYCLE"]["fromTo"]["graphB"]["edgeMatched"] = False
+        with self.assertRaisesRegex(ValueError, "bypasses exact"):
+            audit(reference, correlations, candidates, proofs)
+        proofs["proofs"][1] = one_proof("xpc1-1", "PROVEN")
+        proofs["toBoundaryFingerprint"] = "sha256:outdated"
+        with self.assertRaisesRegex(ValueError, "fingerprints or pair identity"):
+            audit(reference, correlations, candidates, proofs)
+
     def test_two_distinct_directed_edges_on_same_named_way_are_preserved(self):
         report = audit(*fixtures())
         self.assertEqual(report["scanStatus"], "OBSERVED_WINDOWS_COMPARED")

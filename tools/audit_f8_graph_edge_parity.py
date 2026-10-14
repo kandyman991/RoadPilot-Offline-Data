@@ -57,7 +57,7 @@ def identities(data: dict) -> tuple[str, str, str, str, str]:
     )
 
 
-def audit(reference: dict, correlations: dict, candidates: dict) -> dict:
+def audit(reference: dict, correlations: dict, candidates: dict, proofs: dict | None = None) -> dict:
     if reference.get("schema") != REFERENCE_SCHEMA or reference.get("version") != 1:
         raise ValueError("Native F8 capture schema/version unsupported")
     if reference.get("scanner") != "GraphEndpointNative.scanBoundaryRoadEdges":
@@ -85,9 +85,15 @@ def audit(reference: dict, correlations: dict, candidates: dict) -> dict:
 
     candidate_ids = {side: set() for side in SIDES}
     known_pairs = set()
+    candidate_by_id = {}
     unknown_candidate_graph_ids = 0
     for index, row in enumerate(items(candidates.get("candidates"), "candidates")):
         row = obj(row, f"candidate[{index}]")
+        candidate_id = row.get("id")
+        if candidate_id is not None:
+            if not isinstance(candidate_id, str) or not candidate_id or candidate_id in candidate_by_id:
+                raise ValueError("Invalid or duplicate Graph Studio candidate id")
+            candidate_by_id[candidate_id] = row
         raw_a = obj(row.get("fromEdge"), "candidate.fromEdge").get("graphId")
         raw_b = obj(row.get("toEdge"), "candidate.toEdge").get("graphId")
         if raw_a is None or raw_b is None:
@@ -166,6 +172,71 @@ def audit(reference: dict, correlations: dict, candidates: dict) -> dict:
                 "direction": row.get("direction"),
             })
     missing_count += len(absent_pairs)
+
+    proof_status = "NOT_RUN"
+    missing_proof_directions = []
+    proven_directions = set()
+    if proofs is not None:
+        if proofs.get("schema") != "roadpilot.crossing-proofs" or proofs.get("version") != 1:
+            raise ValueError("Graph Studio crossing proof schema/version unsupported")
+        if identities(proofs) != ids:
+            raise ValueError("Graph Studio proofs graph/boundary fingerprints or pair identity disagree")
+        rows = items(proofs.get("proofs"), "proofs")
+        if proofs.get("sourceCandidateCount") != len(items(candidates.get("candidates"), "candidates")):
+            raise ValueError("Graph Studio proof sourceCandidateCount mismatch")
+        if len(rows) != len(candidate_by_id):
+            raise ValueError("Graph Studio proofs must have one record per candidate id")
+        seen_proof_ids = set()
+        for i, row in enumerate(rows):
+            proof = obj(row, f"proof[{i}]")
+            candidate_id = proof.get("candidateId")
+            if candidate_id not in candidate_by_id or candidate_id in seen_proof_ids:
+                raise ValueError(f"Graph Studio proof {i} missing, duplicate or unknown candidate ID")
+            seen_proof_ids.add(candidate_id)
+            if proof.get("proofState") != "PROVEN":
+                continue
+            source_candidate = candidate_by_id[candidate_id]
+            from_id = source_candidate["fromEdge"].get("graphId")
+            to_id = source_candidate["toEdge"].get("graphId")
+            if from_id is None or to_id is None:
+                incomplete_reasons.append(f"proven candidate {candidate_id} has no directed graph IDs")
+                continue
+            modes = obj(proof.get("modes"), f"proof[{i}].modes")
+            claimed = items(proof.get("supportedDirections"), f"proof[{i}].supportedDirections")
+            for mode, field, suffix in (("MOTORCYCLE", "fromTo", "FROM_TO"),
+                                        ("MOTORCYCLE", "toFrom", "TO_FROM"),
+                                        ("CAR", "fromTo", "FROM_TO"),
+                                        ("CAR", "toFrom", "TO_FROM")):
+                block = obj(obj(modes.get(mode), f"proof[{i}].{mode}").get(field),
+                            f"proof[{i}].{mode}.{field}")
+                name = f"{mode}_{suffix}"
+                passed = block.get("passed") is True
+                if passed != (name in claimed):
+                    raise ValueError(f"Graph Studio proof {i} inconsistent supportedDirections: {name}")
+                if not passed:
+                    continue
+                # A claimed passing route is evidence only if BOTH exact
+                # regional Valhalla route legs actually matched the bound edges.
+                for graph in ("graphA", "graphB"):
+                    leg = obj(block.get(graph), f"proof[{i}].{graph}")
+                    if leg.get("status") != "PASSED" or leg.get("edgeMatched") is not True:
+                        raise ValueError(f"Graph Studio proof {i} bypasses exact {graph} leg evidence")
+                proven_directions.add((
+                    edge_id(from_id, "proved from edge"),
+                    edge_id(to_id, "proved to edge"), mode, suffix))
+        for handoff in proven:
+            pair = (edge_id(handoff["fromGraphId"], "handoff from"),
+                    edge_id(handoff["toGraphId"], "handoff to"),
+                    "MOTORCYCLE" if handoff.get("mode") == "motorcycle" else "CAR",
+                    "FROM_TO" if handoff.get("direction") == "from-to" else "TO_FROM")
+            if pair not in proven_directions:
+                missing_proof_directions.append({
+                    "fromGraphId": pair[0], "toGraphId": pair[1],
+                    "mode": handoff.get("mode"), "direction": handoff.get("direction")})
+        proof_status = ("MISSING_VALIDATED_DIRECTIONS" if missing_proof_directions
+                        else "OBSERVED_NATIVE_PROOFS_MATCHED")
+        if missing_proof_directions:
+            incomplete_reasons.append("F8-proven mode/direction absent from Graph Studio Valhalla proofs")
     if not proven:
         incomplete_reasons.append("no F8-proven handoff pairs supplied")
     if missing_count:
@@ -186,6 +257,8 @@ def audit(reference: dict, correlations: dict, candidates: dict) -> dict:
         "nativeScannerHardCapPerWindow": NATIVE_F8_MAX_RESULTS_PER_WINDOW,
         "graphStudioCandidatePairsWithoutExactIds": unknown_candidate_graph_ids,
         "nativeProvenHandoffsMissingFromCandidates": absent_pairs,
+        "graphStudioProofComparison": proof_status,
+        "nativeProvenHandoffsMissingValidatedProofs": missing_proof_directions,
         "scanStatus": "INCOMPLETE" if incomplete_reasons else "OBSERVED_WINDOWS_COMPARED",
         "incompleteReasons": sorted(set(incomplete_reasons)),
         "f8GraphEdgeParity": "NOT_VERIFIED",
@@ -198,10 +271,13 @@ def main() -> int:
     parser.add_argument("--native-scan", required=True, type=Path)
     parser.add_argument("--correlations", required=True, type=Path)
     parser.add_argument("--candidates", required=True, type=Path)
+    parser.add_argument("--proofs", type=Path, help="Optional Graph Studio Valhalla proofs.json")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     try:
-        result = audit(read(args.native_scan), read(args.correlations), read(args.candidates))
+        result = audit(
+            read(args.native_scan), read(args.correlations), read(args.candidates),
+            read(args.proofs) if args.proofs is not None else None)
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.error(str(error))
     args.output.parent.mkdir(parents=True, exist_ok=True)
