@@ -1,5 +1,28 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Multi-region route planner implementation in PR (2026-10-14)
+
+- New `tools/plan_multiregion_route.py` reads current local graph coverages,
+  matches retained artifact fingerprint to installed working tile extract,
+  selects `VALIDATED` pair runtime metadata, current connector inventories
+  and exact-bound matrices; invokes existing hierarchical chain composer.
+- Executes detailed per-graph Valhalla route legs for multiple F8-derived
+  candidate chains; validates both leg endpoints and the final destination
+  within 150m after Valhalla. Ranks by actual summed full journey time/distance,
+  not intermediate matrix score. GeoJSON MultiLineString preserves separate
+  geometry across graph handoff gaps rather than drawing fake joins.
+- Tauri new `plan_multi_region_route` command; Route Planner Single graph /
+  Multi-region toggle; graph sequence, independent route legs/handoffs and
+  arrival shown in GUI. Supports Motorcycle/Auto only, while single graph
+  remains unchanged. No graph mutations, fixed portals or Android changes.
+- New synthetic regression tests under `tests/test_graph_studio_multiregion_route.py`
+  wired into repo validation; Linux CI builds frontend and backend.
+- **NEXT:** verify PR checks, fix build/tests, merge when green; check
+  rolling Linux .deb release SHA; test existing Italy Nord-Est/Austria
+  installed graphs and connectivity on Legion using Trento→Innsbruck.
+  Record whether detailed Valhalla legs reach end and any handoff gap.
+  Do not claim runtime Android feature before issue #512 is proven.
+
 ## Automatic F8-derived connectivity production — PR #71 merged (2026-10-14)
 
 - **Merged:** [PR #71](https://github.com/kandyman991/RoadPilot-Offline-Data/pull/71), squash merge `debab59f2ee9e4f03f5613a2e1b4362ad921e1ba`. Latest PR head `21a73da2b1193a0ee85971aaf51dd2dc0f9f9370`; **both required checks passed** (`linux`, `validate`). Post-merge Linux release job [38517542690](https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38517542690) was **running** at this check; rolling release still referred to older PR #70 merge `9e590318`. Do not install the existing .deb as PR #71 until release body names `debab59`.
