@@ -33,6 +33,9 @@ jobs:
       - name: Native F8 directed-edge parity-audit contract regressions
         run: python -m unittest discover -s tests -p 'test_f8_graph_edge_audit.py' -v
 
+      - name: Uncapped native graph capture window regression checks
+        run: python -m unittest discover -s tests -p 'test_native_f8_capture_windows.py' -v
+
       - name: Enforce architecture review and evidence for protected PR changes
         if: github.event_name == 'pull_request'
         env:

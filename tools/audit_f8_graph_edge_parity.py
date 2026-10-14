@@ -15,6 +15,8 @@ from typing import Any
 
 SCHEMA = "roadpilot.f8-graph-edge-audit"
 REFERENCE_SCHEMA = "roadpilot.native-f8-edge-scan"
+ANDROID_SCANNER = "GraphEndpointNative.scanBoundaryRoadEdges"
+UNCAPPED_PORT = "GraphStudio.nativeUncappedRoadEdges"
 SIDES = ("from", "to")
 # RoadPilot native/on-device-valhalla/builder_jni.cpp::scan_boundary_road_edges
 # clamps the caller's maxResults to 512, even when Android asks for 4096.
@@ -60,8 +62,13 @@ def identities(data: dict) -> tuple[str, str, str, str, str]:
 def audit(reference: dict, correlations: dict, candidates: dict, proofs: dict | None = None) -> dict:
     if reference.get("schema") != REFERENCE_SCHEMA or reference.get("version") != 1:
         raise ValueError("Native F8 capture schema/version unsupported")
-    if reference.get("scanner") != "GraphEndpointNative.scanBoundaryRoadEdges":
-        raise ValueError("Capture is not identified as the native F8 graph-edge scanner")
+    scanner = reference.get("scanner")
+    if scanner not in (ANDROID_SCANNER, UNCAPPED_PORT):
+        raise ValueError("Unknown scanner; a synthetic or OSM-only seed is not an F8 graph scan")
+    if scanner == UNCAPPED_PORT and (
+            reference.get("nativeF8ReferenceCaptured") is not False
+            or reference.get("f8GraphEdgeParity") != "NOT_VERIFIED"):
+        raise ValueError("Graph Studio uncapped port must never impersonate native Android F8")
     if correlations.get("schema") != "roadpilot.frontier-road-correlations":
         raise ValueError("Invalid Graph Studio correlations input")
     if candidates.get("schema") != "roadpilot.crossing-candidates":
@@ -109,6 +116,10 @@ def audit(reference: dict, correlations: dict, candidates: dict, proofs: dict | 
 
     report_sides = {}
     incomplete_reasons = []
+    if scanner == UNCAPPED_PORT:
+        incomplete_reasons.append(
+            "Graph Studio unbounded native Valhalla port is not the actual Android F8 reference scanner"
+        )
     if unknown_candidate_graph_ids:
         incomplete_reasons.append("Graph Studio candidates lacking exact directed graph IDs")
     missing_count = 0
@@ -126,12 +137,23 @@ def audit(reference: dict, correlations: dict, candidates: dict, proofs: dict | 
             window = obj(window, f"{side}.windows[{i}]")
             requested = window.get("maxResults")
             returned = window.get("returned")
+            if scanner == UNCAPPED_PORT:
+                # Independent Graph Studio graph enumeration is unbounded.
+                # Refuse a purported port window with any hidden hard cap.
+                if (requested is not None or isinstance(returned, bool)
+                        or not isinstance(returned, int) or returned < 0
+                        or window.get("complete") is not True
+                        or window.get("truncated") is not False):
+                    incomplete_reasons.append(
+                        f"{side}: Graph Studio native port window {i} is capped/incomplete"
+                    )
+                continue
             if isinstance(requested, bool) or not isinstance(requested, int) or requested <= 0:
                 incomplete_reasons.append(f"{side}: scan window {i} missing valid requested limit")
                 continue
             actual_limit = min(requested, NATIVE_F8_MAX_RESULTS_PER_WINDOW)
-            # The JNI scanner silently clamps to 512; a request for 4096
-            # returning exactly 512 cannot be declared complete.
+            # The Android JNI scanner silently clamps to 512; a request for
+            # 4096 returning exactly 512 cannot be declared complete.
             if (isinstance(returned, bool) or not isinstance(returned, int)
                     or returned < 0 or returned > actual_limit):
                 incomplete_reasons.append(f"{side}: scan window {i} invalid returned count")
@@ -254,7 +276,11 @@ def audit(reference: dict, correlations: dict, candidates: dict, proofs: dict | 
         "toBoundaryFingerprint": ids[4],
         "sides": report_sides,
         "nativeProvenHandoffCount": len(proven),
-        "nativeScannerHardCapPerWindow": NATIVE_F8_MAX_RESULTS_PER_WINDOW,
+        "sourceScanner": scanner,
+        "captureEvidenceTier": ("ANDROID_JNI_REFERENCE" if scanner == ANDROID_SCANNER
+                                else "GRAPH_STUDIO_UNCAPPED_PORT_ONLY"),
+        "nativeScannerHardCapPerWindow": (
+            NATIVE_F8_MAX_RESULTS_PER_WINDOW if scanner == ANDROID_SCANNER else None),
         "graphStudioCandidatePairsWithoutExactIds": unknown_candidate_graph_ids,
         "nativeProvenHandoffsMissingFromCandidates": absent_pairs,
         "graphStudioProofComparison": proof_status,

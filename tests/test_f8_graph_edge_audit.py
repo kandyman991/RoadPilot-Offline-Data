@@ -188,6 +188,31 @@ class F8GraphEdgeAuditTests(unittest.TestCase):
         self.assertTrue(any("invalid returned count" in item
                             for item in report["incompleteReasons"]))
 
+    def test_uncapped_graph_studio_port_never_claims_android_f8_parity(self):
+        reference, correlations, candidates = fixtures()
+        reference["scanner"] = "GraphStudio.nativeUncappedRoadEdges"
+        reference["nativeF8ReferenceCaptured"] = False
+        reference["f8GraphEdgeParity"] = "NOT_VERIFIED"
+        for side in ("from", "to"):
+            reference["scans"][side]["windows"][0]["maxResults"] = None
+            reference["scans"][side]["windows"][0]["returned"] = 2
+        report = audit(reference, correlations, candidates)
+        self.assertEqual(report["scanStatus"], "INCOMPLETE")
+        self.assertEqual(report["captureEvidenceTier"], "GRAPH_STUDIO_UNCAPPED_PORT_ONLY")
+        self.assertEqual(report["sourceScanner"], "GraphStudio.nativeUncappedRoadEdges")
+        self.assertIsNone(report["nativeScannerHardCapPerWindow"])
+        self.assertEqual(report["f8GraphEdgeParity"], "NOT_VERIFIED")
+        self.assertTrue(any("not the actual Android F8" in reason
+                            for reason in report["incompleteReasons"]))
+        reference["nativeF8ReferenceCaptured"] = True
+        with self.assertRaisesRegex(ValueError, "impersonate"):
+            audit(reference, correlations, candidates)
+        reference["nativeF8ReferenceCaptured"] = False
+        reference["scans"]["to"]["windows"][0]["maxResults"] = 512
+        report = audit(reference, correlations, candidates)
+        self.assertTrue(any("is capped/incomplete" in reason
+                            for reason in report["incompleteReasons"]))
+
     def test_empty_native_scan_cannot_prove_parity(self):
         reference, correlations, candidates = fixtures()
         reference["scans"]["from"]["windows"] = []
