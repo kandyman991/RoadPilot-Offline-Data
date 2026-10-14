@@ -12,7 +12,7 @@ from typing import Any
 
 SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 ROAD_ID = re.compile(r"^fri1-[0-9a-f]{24}$")
-KINDS = {"CROSSING", "FRONTIER_OVERLAP"}
+KINDS = {"CROSSING", "FRONTIER_OVERLAP", "OVERLAP_ROAD"}
 
 
 def fail(message: str) -> None:
@@ -90,14 +90,35 @@ def main() -> int:
     source = data.get("source")
     require(isinstance(source, dict), "source must be an object")
     require(
-        set(source) == {"osmSha256", "fromPolygonSha256", "toPolygonSha256"},
-        "source must contain only OSM/from/to hashes",
+        set(source) in (
+            {"osmSha256", "fromPolygonSha256", "toPolygonSha256"},
+            {"osmSha256", "fromPolygonSha256", "toPolygonSha256",
+             "toOsmSha256", "fromBufferSha256", "toBufferSha256"},
+        ),
+        "source must contain only the declared graph/OSM coverage hashes",
     )
     for key, value in source.items():
         require(
             isinstance(value, str) and bool(SHA256.fullmatch(value)),
             f"source.{key} must be sha256:<64 lowercase hex>",
         )
+
+    discovery = data.get("discovery")
+    if discovery is not None:
+        require(isinstance(discovery, dict), "discovery must be an object")
+        require(discovery.get("scope") in ("NOMINAL_ONLY", "OSM_BUFFER_OVERLAP"),
+                "discovery scope is invalid")
+        require(discovery.get("sourceExhausted") is True,
+                "incomplete inventory must not be published")
+        require(discovery.get("f8GraphEdgeParity") == "NOT_VERIFIED",
+                "F8 graph-edge equivalence cannot be assumed")
+        for key in ("nominalRoadAnchors", "overlapRoadAnchors", "overlapSourceRoadWaysExamined"):
+            if key in discovery:
+                require(type(discovery[key]) is int and discovery[key] >= 0,
+                        f"discovery.{key} invalid")
+        if discovery["scope"] == "OSM_BUFFER_OVERLAP":
+            require("toOsmSha256" in source and "fromBufferSha256" in source
+                    and "toBufferSha256" in source, "overlap discovery sources incomplete")
 
     generator = data.get("generator")
     require(isinstance(generator, dict), "generator must be an object")
