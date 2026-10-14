@@ -1,6 +1,29 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
-## Multi-region route planner implementation in PR (2026-10-14)
+## Multi-region route planner — PR #72 merged (2026-10-14)
+
+- **PR:** https://github.com/kandyman991/RoadPilot-Offline-Data/pull/72
+  squash merged at `fd17237fce61aba560470af82514c5776142701d`.
+  Final head `e3a35d90c112730b64e09925d69bbe783b51c217`
+  passed both required checks: Linux build/tests and repository validation.
+- New post-merge rolling Linux release:
+  https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38532669497
+  was still in progress at this check. The downloadable rolling Linux
+  .deb/AppImage still identified PR #71 merge `debab59`, NOT PR #72.
+  Do **not** claim installed Graph Studio contains multi-region mode until
+  the published release notes identify `fd17237`.
+- **NEXT EXACT ACTION:** check rolling release notes/asset timestamp,
+  install new .deb on Legion only when release identifies `fd17237`;
+  Build -> Refresh connections on the existing Italy Nord-Est and Austria
+  graphs; inspect real validated runtime handoffs and regional connector
+  inventories/matrices. Test Trento `46.064320,11.119191` ->
+  Innsbruck `47.250124,11.395549` in Multi-region, Motorcycle/FASTER.
+  Require actual directed edge matches, geometry for each distinct graph
+  leg, verified destination arrival and no invented seam geometry. Preserve
+  F8 as on-device fallback. Android integration still tracked at
+  https://github.com/kandyman991/SmartRide-Next/issues/512.
+
+## Multi-region route planner implementation details (2026-10-14)
 
 - New `tools/plan_multiregion_route.py` reads current local graph coverages,
   matches retained artifact fingerprint to installed working tile extract,
@@ -17,11 +40,10 @@
   remains unchanged. No graph mutations, fixed portals or Android changes.
 - New synthetic regression tests under `tests/test_graph_studio_multiregion_route.py`
   wired into repo validation; Linux CI builds frontend and backend.
-- **NEXT:** verify PR checks, fix build/tests, merge when green; check
-  rolling Linux .deb release SHA; test existing Italy Nord-Est/Austria
-  installed graphs and connectivity on Legion using Trento→Innsbruck.
-  Record whether detailed Valhalla legs reach end and any handoff gap.
-  Do not claim runtime Android feature before issue #512 is proven.
+- **Next:** Check PR #72 Linux rolling .deb release identity, install it,
+  validate real Italy Nord-Est/Austria connectivity and Trento→Innsbruck
+  Multi-region handoff + destination arrival on Legion. Do not claim
+  Android integration complete until issue #512 is validated.
 
 ## Automatic F8-derived connectivity production — PR #71 merged (2026-10-14)
 
