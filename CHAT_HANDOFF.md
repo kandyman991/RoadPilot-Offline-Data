@@ -1,6 +1,6 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
-## F8 discovery-foundation correction — active branch/PR (2026-10-14)
+## F8 discovery-foundation correction — incremental PR #75, pending architecture validation (2026-10-14)
 
 - Branch `graph-studio-f8-overlap-discovery`; exact user requirement and
   acceptance are in https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73.
@@ -29,6 +29,18 @@
 - **NEXT:** CI on PR, correct any errors; compare real buffer inventory and
   F8 scanner missing candidates, record result; do not merge without green CI,
   do not claim on-device route quality proof without device tests.
+
+
+
+## Architecture drift prevention safeguards — PR #76 merged (2026-10-14)
+
+- User authorized the binding architecture contract, PR checklist and CI regression gates **before any further F8 discovery merge**.
+- **PR #76 merged** https://github.com/kandyman991/RoadPilot-Offline-Data/pull/76 — squash `50aa8cc62af40c2ae10b627eeb43c46b4c7b45f3`. All three PR checks PASSED: `architecture-contract`, `validate`, `linux`. This is NOT real-world F8 graph-edge parity evidence.
+- Canonical files: docs/ARCHITECTURE_CONTRACT.md and docs/ARCHITECTURE_GAPS.md; .github/pull_request_template.md; .github/CODEOWNERS; tools/check_architecture_contract.py; tests/test_f8_architecture_regressions.py; .github/workflows/architecture-contract.yml.
+- Gate tests all directed correlation alternatives (no first crossing lock-in), faster/shorter choice, cached graph/boundary fingerprints, PR disclosure of the F8 reference, all six contract invariants, known gaps, and blocks unapproved change declarations. F8 graph-edge parity remains NOT_VERIFIED.
+- **Hard merge enforcement still PENDING.** GitHub `GET /rulesets?includes_parents=true` returned `[]` (checked 2026-10-14); connected GitHub tools cannot manage branch protection (403). User/admin must set Settings → Rules → Rulesets → target `main` → require `architecture-contract` check and review from CODEOWNERS. Track https://github.com/kandyman991/RoadPilot-Offline-Data/issues/77. CODEOWNERS and CI alone cannot prevent a manual merge without this setting.
+- Discovery PR #75 remains OPEN and unmerged. Its broader OSM buffer overlap candidate scan is not yet proven equivalent to the actual native F8 graph-edge scanner; Graph Studio issue #73 stays OPEN. Android sidecar consumption remains tracked in RoadPilot #512.
+- **NEXT EXACT ACTION:** configure and verify the GitHub ruleset. Then synchronize PR #75 with `main` and its architecture PR checklist, compare real F8 graph-edge scanner coverage with Graph Studio results on exact Legion Italy/Austria graphs, and preserve any missing alternatives as incomplete, not as fully validated. Do not merge unproven F8 parity as a completed milestone.
 
 
 ## F8 correctness/completeness requirement — user's explicit correction (2026-10-14)
