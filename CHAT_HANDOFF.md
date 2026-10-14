@@ -1,5 +1,36 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## F8 discovery-foundation correction — active branch/PR (2026-10-14)
+
+- Branch `graph-studio-f8-overlap-discovery`; exact user requirement and
+  acceptance are in https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73.
+  Do not treat F8 as failed: it gave usable routes but first scan was too
+  expensive and one cached crossing could hide better alternatives.
+- Previous frontier discovery only accepted OSM ways crossing both nominal
+  source polygons. Added a separate buffer-overlap source scan across **both
+  graph builders' retained PBFs and buffer.geojson polygons** while retaining
+  original crossings; no name/ref dedupe, no first-success shortcut. Every
+  physical anchor still goes through independent graph-local correlation,
+  full candidate combinations and mode/direction Valhalla proof.
+- `discovery.scope`, `sourceExhausted` and `f8GraphEdgeParity=NOT_VERIFIED`
+  are propagated to published runtime; old nominal-only products must be
+  regenerated before reuse; an incomplete scan cannot publish.
+- Tests: `tests/test_f8_overlap_discovery.py` covers same-name alternative
+  roads, extra road only in Graph B, same-way clipped differently in A/B,
+  long way samples and explicit no-parity assertion; existing automation
+  tests updated for both buffered inputs and discovery identity.
+- **IMPORTANT:** This is an OSM-seeded F8-inspired candidate-enumeration
+  correction, NOT yet proven identical to the phone's native
+  `GraphEndpointNative.scanBoundaryRoadEdges` (F8's exact source). Need
+  Legion comparison of actual graph-edge candidate sets and a completion
+  proof before changing parity to VERIFIED or treating metadata as exhaustive.
+  Also route planner currently caps chain attempts at 20 per origin/dest
+  region pair; issue #73 covers that separate optimality requirement.
+- **NEXT:** CI on PR, correct any errors; compare real buffer inventory and
+  F8 scanner missing candidates, record result; do not merge without green CI,
+  do not claim on-device route quality proof without device tests.
+
+
 ## F8 correctness/completeness requirement — user's explicit correction (2026-10-14)
 
 - **F8 worked.** Android problems were prohibitively expensive first discovery
