@@ -7,6 +7,15 @@
 4. Distinguish planned, merged, CI-tested and device/desktop-tested features. Read code and tests when documents disagree.
 5. Resume the curated **next exact action** only after checking current live evidence.
 
+## Binding architecture contract and stop rule
+- Before touching discovery, routing, connector matrices, caching, publication or Android ingestion, **read docs/ARCHITECTURE_CONTRACT.md and docs/ARCHITECTURE_GAPS.md**. The working F8 scanner is the behavioral reference, not just a source of inspiration.
+- Preserve **all useful crossing alternatives**. Successful/learned first handoff is never permission to stop discovery. Never claim fully discovered or optimal results from capped scans without proof; mark real F8 graph-edge parity NOT_VERIFIED until the required Legion comparison passes.
+- A narrower OSM-only/frontier-only substitute is NOT automatically equivalent to F8 graph-edge discovery, however many generated candidates pass Valhalla.
+- Every protected PR must satisfy the checklist in .github/pull_request_template.md and the architecture-contract CI job with functional regressions and explicit known-gap evidence.
+- **STOP before implementing any deviation** from an accepted clause. Explain the conflict to the user and obtain explicit approval recorded as a superseding decision; do not silently change this contract. No CI success can replace real graph-edge parity or device evidence.
+- Contract changes need a project-owner review under .github/CODEOWNERS, plus GitHub branch rulesets with architecture-contract as a required check.
+- Guardrail implementation branch is separate from active discovery PR #75. Do not merge #75 or claim issue #73 complete on green synthetic CI alone.
+
 ## Project-specific guardrails
 - Version and validate each region's Valhalla routing, visual-map and SQLite search packs separately; never force unrelated rebuilds.
 - Never mutate raw .gph to repair seams; RoadPilot-owned transitions require directional, mode and exact fingerprint compatibility backed by Valhalla leg proof.
