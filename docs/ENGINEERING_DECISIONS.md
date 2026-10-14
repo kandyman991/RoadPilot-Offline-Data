@@ -116,3 +116,12 @@ first-route discovery on the phone. Precomputed artifacts optimize and
 operationalize F8; they are not a replacement architecture that repudiates
 it. F8 remains the essential on-device correctness/discovery fallback for
 missing, stale, ambiguous or uncovered connections.
+
+## D-013 — F8 architecture is a binding contract with PR and CI gates (2026-10-14)
+
+**Approved development process:** Read docs/ARCHITECTURE_CONTRACT.md before a routing/discovery change. Preserve working F8 graph-edge discovery semantics, complete directional alternatives and honest completeness/proof states; do not assume that an OSM frontier scan is equivalent merely because Valhalla verifies its own generated candidates. Preserve known gaps in docs/ARCHITECTURE_GAPS.md.
+
+Required for protected changes: a filled architecture PR checklist with actual reference source and evidence; a CI check that exercises multiple same-name crossing candidates, all directed correlations, a first-success-but-slower alternative, proper FASTER/SHORTER selection and fingerprint invalidation; and an owner-approved superseding decision before changing accepted behavior. The architecture-contract workflow and CODEOWNERS are new safeguards, **not automatic proof of Graph Studio completeness**. Configure GitHub rulesets to require the architecture-contract status check and code-owner reviews; without those settings this gate can still be bypassed by merging.
+
+Reference: docs/ARCHITECTURE_CONTRACT.md; Graph Studio issue #73; open discovery PR #75 must satisfy the new gate and real graph-parity work before being called architecturally complete.
+
