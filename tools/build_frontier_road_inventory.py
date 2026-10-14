@@ -351,7 +351,7 @@ def overlap_road_anchors(
         fail("No shared buffered coverage for neighboring graphs")
     shared_local = transform(forward, shared)
     output: list[dict[str, Any]] = []
-    seen_way_ids: set[int] = set()
+    seen_geometry: set[tuple[int, bytes]] = set()
     previous = {(r["wayId"], round(r["crossingCoordinate"]["lat"], 5),
                  round(r["crossingCoordinate"]["lng"], 5)) for r in nominal_roads}
     indices = {}
@@ -371,18 +371,24 @@ def overlap_road_anchors(
                     way = parse_way_id(feature)
                     geometry = feature.get("geometry")
                     tags = feature.get("properties")
-                    if (way is None or way in seen_way_ids or
+                    if (way is None or
                             not isinstance(geometry, dict) or
                             geometry.get("type") != "LineString" or
                             not isinstance(tags, dict) or not tags.get("highway")):
                         continue
-                    seen_way_ids.add(way)
                     examined += 1
                     line_wgs = shape(geometry)
                     if not isinstance(line_wgs, LineString) or line_wgs.length <= 0:
                         continue
                     if not line_wgs.intersects(shared):
                         continue
+                    # The same way may be clipped differently in graph A's
+                    # and graph B's retained PBF. Never discard a distinct
+                    # segment merely because a way ID was seen in A.
+                    identity = (way, hashlib.sha256(line_wgs.wkb).digest())
+                    if identity in seen_geometry:
+                        continue
+                    seen_geometry.add(identity)
                     line = transform(forward, line_wgs)
                     for piece in iter_lines(line.intersection(shared_local)):
                         # Same spatial order as the F8 1500m corridor window;
