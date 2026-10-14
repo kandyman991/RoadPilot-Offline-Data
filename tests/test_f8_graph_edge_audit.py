@@ -241,7 +241,7 @@ class F8GraphEdgeAuditTests(unittest.TestCase):
     def test_scanner_identity_required_not_simulated_candidates(self):
         reference, correlations, candidates = fixtures()
         reference["scanner"] = "SyntheticRoadSampler"
-        with self.assertRaisesRegex(ValueError, "not identified as the native"):
+        with self.assertRaisesRegex(ValueError, "Unknown scanner"):
             audit(reference, correlations, candidates)
 
 
