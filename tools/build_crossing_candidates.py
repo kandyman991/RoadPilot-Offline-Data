@@ -272,6 +272,7 @@ def main() -> int:
 
     artifact = {
         "schema": SCHEMA,
+        "discovery": data.get("discovery"),
         "version": VERSION,
         "pairId": pair_id,
         "fromRegionId": from_region,
