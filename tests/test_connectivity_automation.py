@@ -59,9 +59,11 @@ class ConnectivityAutomationTests(unittest.TestCase):
         cache.mkdir(parents=True)
         for region in (a.region, b.region):
             (cache / (region + ".poly")).write_text("synthetic polygon")
-        folder = self.work / a.region / "build"
-        folder.mkdir(parents=True)
-        (folder / "buffered.osm.pbf").write_bytes(b"synthetic, not real OSM")
+        for region in (a.region, b.region):
+            folder = self.work / region / "build"
+            folder.mkdir(parents=True)
+            (folder / "buffered.osm.pbf").write_bytes(b"synthetic, not real OSM")
+            (folder / "buffer.geojson").write_text("{}")
 
     def test_only_mutually_covered_pairs_with_changed_region(self):
         a, b = self.pair()
@@ -92,9 +94,16 @@ class ConnectivityAutomationTests(unittest.TestCase):
             "toGraph": {"graphFingerprint": b.fingerprint},
             "fromBoundaryFingerprint": a.boundaries[b.primary],
             "toBoundaryFingerprint": b.boundaries[a.primary],
+            "discovery": {"scope": "OSM_BUFFER_OVERLAP",
+                          "sourceExhausted": True, "f8GraphEdgeParity": "NOT_VERIFIED"},
         }
         path.write_text(json.dumps(data))
         self.assertTrue(MODULE.is_current_runtime(path, a, b))
+        seam_only = dict(data)
+        seam_only.pop("discovery")
+        path.write_text(json.dumps(seam_only))
+        self.assertFalse(MODULE.is_current_runtime(path, a, b))
+        path.write_text(json.dumps(data))
         for change in ("toBoundaryFingerprint", "validationState", "pairId"):
             bad = dict(data)
             bad[change] = "obsolete"
@@ -135,6 +144,8 @@ class ConnectivityAutomationTests(unittest.TestCase):
                     "toGraph": {"graphFingerprint": b.fingerprint},
                     "fromBoundaryFingerprint": a.boundaries[b.primary],
                     "toBoundaryFingerprint": b.boundaries[a.primary],
+                    "discovery": {"scope": "OSM_BUFFER_OVERLAP",
+                                  "sourceExhausted": True, "f8GraphEdgeParity": "NOT_VERIFIED"},
                 })
             output.write_text(json.dumps(result))
         with mock.patch.object(MODULE, "run_tool", side_effect=fake_run):
