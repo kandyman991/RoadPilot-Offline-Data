@@ -77,7 +77,7 @@ class NativeF8CaptureWindowsTests(unittest.TestCase):
             exe = Path(tmp) / "scanner"
             exe.write_bytes(b"scanner bytes")
             with patch("capture_native_f8_graph_windows.subprocess.run",
-                       return_value=SimpleNamespace(returncode=0, stdout="3.6.3\\n", stderr="")):
+                       return_value=SimpleNamespace(returncode=0, stdout="3.6.3\n", stderr="")):
                 self.assertEqual(scanner_version(exe), "3.6.3")
             self.assertTrue(sha256_binary(exe).startswith("sha256:"))
             for version in ("3.9.0 preview", "latest", ""):
