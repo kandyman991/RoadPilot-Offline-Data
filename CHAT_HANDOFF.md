@@ -1,7 +1,8 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
-## Automatic F8-derived connectivity production — implementation PR (2026-10-14)
+## Automatic F8-derived connectivity production — PR #71 merged (2026-10-14)
 
+- **Merged:** [PR #71](https://github.com/kandyman991/RoadPilot-Offline-Data/pull/71), squash merge `debab59f2ee9e4f03f5613a2e1b4362ad921e1ba`. Latest PR head `21a73da2b1193a0ee85971aaf51dd2dc0f9f9370`; **both required checks passed** (`linux`, `validate`). Post-merge Linux release job [38517542690](https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38517542690) was **running** at this check; rolling release still referred to older PR #70 merge `9e590318`. Do not install the existing .deb as PR #71 until release body names `debab59`.
 - **Branch** `graph-studio-automatic-connectivity-pipeline` integrates the
   existing independent cross-graph frontier inventory, correlation, candidate
   generation, Valhalla proof and runtime connectivity compiler, plus regional
@@ -23,11 +24,7 @@
   to Android automatically.
 - New regression tests under `tests/test_connectivity_automation.py`
   are wired into both validate and Graph Studio Linux CI.
-- **NEXT EXACT ACTION:** wait for PR CI, fix any failing test/compile,
-  merge only when checks green; verify rolling .deb release includes merge;
-  run **Refresh connections** on existing Italy Nord-Est / Austria
-  Legion graphs, inspect validated pairing, and then confirm Android data
-  consumption. Avoid claiming Android connectivity or Germany graph installed.
+- **NEXT EXACT ACTION:** verify post-merge rolling Linux release body and assets match `debab59`, then install on Legion; run **Build → Refresh connections** against existing Italy Nord-Est/Austria retained graphs without rebuilding. Inspect exact proven pair runtime and connector inventories/matrices, repeat for CURRENT reuse; diagnose any real-device failures. Then implement/test RoadPilot Android consumption tracked at https://github.com/kandyman991/SmartRide-Next/issues/512. Do not claim Android connectivity or Germany graph installed.
 - **F8 was a successful routing breakthrough**. This automation moves its
   discovery/proof work to Legion build-time; F8 remains the on-device
   fallback for missing/stale/uncovered connections.
