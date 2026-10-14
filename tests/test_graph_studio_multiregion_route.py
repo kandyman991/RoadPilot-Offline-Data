@@ -31,11 +31,11 @@ class MultiRegionRouteTests(unittest.TestCase):
         self.chain={"id":"xhc1-case","regions":["a","b"],"crossings":[
             {"candidateId":"xpc1-one","fromExitAnchorId":"exit-a","toEntryAnchorId":"entry-b"}]}
         self.anchors={
-            "a":{"exit-a":{"graphAnchor":{"coordinate":self.aexit}}},
-            "b":{"entry-b":{"graphAnchor":{"coordinate":self.bentry}}},
+            "a":{"exit-a":{"graphAnchor":{"coordinate":self.aexit,"graphId":11}}},
+            "b":{"entry-b":{"graphAnchor":{"coordinate":self.bentry,"graphId":22}}},
         }
 
-    def fake_leg(self,service,config,src,dst,costing,options,timeout=18):
+    def fake_leg(self,service,config,src,dst,costing,options,timeout=18,**kwargs):
         return {"geometry":[[src["lng"],src["lat"]],[dst["lng"],dst["lat"]]],
                 "distanceKm":20.0,"durationSeconds":900.0,
                 "actualStart":src,"actualEnd":dst,
@@ -125,6 +125,32 @@ class MultiRegionRouteTests(unittest.TestCase):
         short={"durationSeconds":150.0,"distanceKm":30.0,"legs":[1],"chainId":"short"}
         self.assertEqual(route.select_best([short,fast],"FASTER")["chainId"],"fast")
         self.assertEqual(route.select_best([short,fast],"SHORTER")["chainId"],"short")
+
+    def test_actual_valhalla_leg_wrong_directed_edge_is_rejected(self):
+        # Geometrically valid route, but Valhalla selects graph edge #24
+        # where the fingerprint-bound connector requires edge #22.
+        import subprocess
+        response={"trip":{"status":0,"summary":{"length":0.01,"time":3},
+                          "legs":[{"shape":"??AA"}]}}
+        traced={"edges":[{"id":11},{"id":24}]}
+        calls=[subprocess.CompletedProcess([],0,stdout=json.dumps(response),stderr=""),
+               subprocess.CompletedProcess([],0,stdout=json.dumps(traced),stderr="")]
+        with mock.patch.object(route.subprocess,"run",side_effect=calls):
+            with self.assertRaisesRegex(ValueError,"END edge 24 differs"):
+                route.leg_route(Path("/bin/valhalla"),Path("/graph.json"),
+                    {"lat":0.0,"lng":0.0},{"lat":0.000001,"lng":0.000001},
+                    "motorcycle",{},start_graph_id=11,end_graph_id=22)
+
+    def test_real_valhalla_leg_rejects_geometry_ending_short(self):
+        import subprocess
+        response={"trip":{"status":0,"summary":{"length":0.01,"time":3},
+                          "legs":[{"shape":"??AA"}]}}
+        fake=subprocess.CompletedProcess([],0,stdout=json.dumps(response),stderr="")
+        with mock.patch.object(route.subprocess,"run",return_value=fake):
+            with self.assertRaisesRegex(ValueError,"Leg did not reach exact endpoint"):
+                route.leg_route(Path("/bin/valhalla"),Path("/graph.json"),
+                    {"lat":0.0,"lng":0.0},{"lat":0.02,"lng":0.02},
+                    "motorcycle",{})
 
     def test_parse_pyvalhalla_launcher_information(self):
         val=route.parse_service_json('[INFO] launch native valhalla\n{"trip":{"status":0}}\n')
