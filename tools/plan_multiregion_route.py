@@ -284,9 +284,7 @@ def select_best(results:list[dict],style:str)->dict:
 
 
 def plan(dist:Path,work:Path,connectivity:Path,matrices:Path,tools:Path,service:Path,
-         start:dict,end:dict,costing:str,style:str,options:dict,
-         route_leg=leg_route) -> dict:
-    del route_leg  # Valhalla detailed legs go through leg_route; patch that for smoke tests.
+         start:dict,end:dict,costing:str,style:str,options:dict) -> dict:
     start=valid_position(start);end=valid_position(end)
     if costing not in MODES or style not in STYLES:fail("Unsupported mode/style")
     graphs=trusted_graphs(dist,work)
@@ -295,12 +293,36 @@ def plan(dist:Path,work:Path,connectivity:Path,matrices:Path,tools:Path,service:
     if not sources or not destinations:
         return {"status":"NO_GRAPH_COVERAGE","reason":"Origin or destination is outside installed graph coverage",
                 "startRegions":sources,"endRegions":destinations}
+    # If both points are inside an identical installed graph, let Valhalla
+    # prove a normal complete route first. For an incomplete buffered route
+    # (e.g. Trento -> Innsbruck), continue to verified cross-graph chains.
+    direct_rejections=[]
+    for common in (r for r in sources if r in destinations):
+        try:
+            route=leg_route(service,work/common/"build"/"valhalla.json",
+                            start,end,costing,options)
+            return {
+                "status":"ROUTE_SELECTED","regions":[common],
+                "chainId":"direct-"+common,
+                "crossings":[],"handoffs":[],
+                "geometry":{"type":"MultiLineString","coordinates":[route["geometry"]]},
+                "legs":[{"regionId":common,"start":start,"end":end,**route}],
+                "distanceKm":route["distanceKm"],
+                "durationSeconds":route["durationSeconds"],
+                "destinationReached":True,"endOffsetMeters":route["endOffsetMeters"],
+                "graphFingerprints":{common:graphs[common].fingerprint},
+                "startRegions":sources,"endRegions":destinations,
+                "chainsAttempted":0,"legsProbed":1,"successfulChains":1,
+                "routeStyle":style,"costing":costing
+            }
+        except (ValueError,KeyError,TypeError) as e:
+            direct_rejections.append(str(e)[:180])
     runtime,inventory,matrix,anchors=local_assets(graphs,connectivity,matrices)
     if not runtime:
         return {"status":"NO_CURRENT_CONNECTIVITY","reason":"No current Valhalla-validated intergraph handoffs",
                 "startRegions":sources,"endRegions":destinations}
     deadline=time.monotonic()+TIME_BUDGET
-    candidates=[]; cache={};attempted=0;rejections=[]
+    candidates=[]; cache={};attempted=0;rejections=direct_rejections[:]
     for origin in sources:
         for dest in destinations:
             if origin==dest:continue
