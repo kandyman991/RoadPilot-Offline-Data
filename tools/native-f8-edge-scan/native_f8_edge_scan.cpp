@@ -7,6 +7,7 @@
 #include <valhalla/baldr/graphreader.h>
 #include <valhalla/baldr/tilehierarchy.h>
 #include <valhalla/midgard/aabb2.h>
+#include <valhalla/midgard/logging.h>
 
 #include <algorithm>
 #include <cmath>
@@ -82,6 +83,8 @@ int main(int argc, char** argv) {
     return 64;
   }
   try {
+    // Valhalla defaults to stdout logging, which corrupts machine-readable JSON.
+    valhalla::midgard::logging::Configure({{"type", "std_err"}, {"color", "false"}});
     const double min_lat = parse_bound(argv[2]);
     const double max_lat = parse_bound(argv[3]);
     const double min_lon = parse_bound(argv[4]);

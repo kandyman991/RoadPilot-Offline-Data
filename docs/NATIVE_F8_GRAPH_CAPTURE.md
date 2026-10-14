@@ -107,3 +107,49 @@ actual Android/native evidence exists.
 5. Keep **F8 parity NOT_VERIFIED**, Android ingestion NOT_RUN, and no
    production completeness/optimality claim until the architecture contract
    evidence tiers are satisfied. See issue #73.
+
+## Real retained-graph compile and sample checks (2026-10-14)
+
+The following **window-level** tests were completed on the Legion's Ubuntu 26.04
+with the exact tagged Valhalla **3.6.3** source, GCC 15 and the existing
+unmodified Italy Nord-Est and Austria routing archives. This is new evidence
+beyond synthetic CI, **not** Android F8 parity or complete discovery.
+
+- Development lib: pinned Valhalla tag `3.6.3` (Git
+  `e2f017b16080f49203de245a211b09efab09cf72`); compiled against
+  the installed protobuf/lz4 dependencies with data tools, HTTP services and
+  Python bindings disabled. GCC 15 requires disabling obsolete
+  `ENABLE_SINGLE_FILES_WERROR` for the 3.6.3 compatibility build.
+- The standalone scanner compiled and ran with **C++20**, required by the
+  Valhalla 3.6.3 headers; its stdout remained clean JSON after directing
+  Valhalla logging to stderr.
+- Both graph archives' actual SHA-256 hashes matched their manifest values:
+  Italy `e6a10d36f8622ac0e47dc3d17a8295f60b144f9a2ad478e1b5f6ef2dbea75953`
+  and Austria `ee7baac93b639d0c2fefab8f90540d26d03fd28a283c73bff516a1d8bdc2bc7b`.
+- **Tarvisio/Coccau**, lat 46.48–46.52, lon 13.56–13.65:
+  **1,788** distinct directed eligible graph edges per regional graph,
+  **224** motorcycle one-way directional edges per graph,
+  all edges motorcycle/auto eligible.
+- **Brenner**, lat 46.98–47.02, lon 11.48–11.55:
+  **472** distinct directed eligible edges per regional graph,
+  **240** motorcycle one-way directional edges per graph,
+  all edges motorcycle/auto eligible.
+- In both areas, 3.6.3 compile-version compatibility, uncapped
+  `complete=true` / `truncated=false`, unique directed GraphIds **within
+  each separate region**, JSON parsing, and `scan_window` Python checks
+  passed. GraphIds across **different regions were not compared**.
+- Shared buffered polygon intersection yields **3,623 window cells per graph**
+  at the default 0.025° grid: **7,246 native scans** for full coverage. Only
+  **four window executions** were performed in this validation run.
+- Local full evidence: Graph Studio data directory
+  `diagnostics/f8-native-validation-20261014.json`; four raw window captures
+  next to it. Scanner binary SHA-256:
+  `dc7b625c1341df9a950614d33cf1280e7fd1b9a96af726323de64f376ea24cc2`.
+
+**Still NOT VERIFIED:** exhaustive 7,246-window discovery, native Android
+F8 reference scan/identity matching, correlation/crossing sidecars
+(`connectivity/` had no candidate/proof products), cross-graph directed
+Valhalla leg proofs, fastest/shortest whole-journey comparison, Android
+ingestion. Neither a successful window nor matching raw counts from two
+regions makes their graph-local GraphIds equivalent or proves a crossing.
+See issue #73.
