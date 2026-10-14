@@ -16,6 +16,9 @@ from typing import Any
 SCHEMA = "roadpilot.f8-graph-edge-audit"
 REFERENCE_SCHEMA = "roadpilot.native-f8-edge-scan"
 SIDES = ("from", "to")
+# RoadPilot native/on-device-valhalla/builder_jni.cpp::scan_boundary_road_edges
+# clamps the caller's maxResults to 512, even when Android asks for 4096.
+NATIVE_F8_MAX_RESULTS_PER_WINDOW = 512
 
 
 def obj(value: Any, where: str) -> dict:
@@ -115,14 +118,24 @@ def audit(reference: dict, correlations: dict, candidates: dict) -> dict:
             incomplete_reasons.append(f"{side}: no demonstrated complete scan")
         for i, window in enumerate(windows):
             window = obj(window, f"{side}.windows[{i}]")
+            requested = window.get("maxResults")
+            returned = window.get("returned")
+            if isinstance(requested, bool) or not isinstance(requested, int) or requested <= 0:
+                incomplete_reasons.append(f"{side}: scan window {i} missing valid requested limit")
+                continue
+            actual_limit = min(requested, NATIVE_F8_MAX_RESULTS_PER_WINDOW)
+            # The JNI scanner silently clamps to 512; a request for 4096
+            # returning exactly 512 cannot be declared complete.
+            if (isinstance(returned, bool) or not isinstance(returned, int)
+                    or returned < 0 or returned > actual_limit):
+                incomplete_reasons.append(f"{side}: scan window {i} invalid returned count")
+                continue
             if (window.get("complete") is not True or
-                    window.get("truncated") is not False or
-                    not isinstance(window.get("maxResults"), int) or
-                    window["maxResults"] <= 0 or
-                    not isinstance(window.get("returned"), int) or
-                    window["returned"] < 0 or
-                    window["returned"] >= window["maxResults"]):
-                incomplete_reasons.append(f"{side}: scan window {i} not proven complete")
+                    window.get("truncated") is not False or returned >= actual_limit):
+                incomplete_reasons.append(
+                    f"{side}: scan window {i} not proven complete "
+                    f"(requested={requested}, actualNativeCap={actual_limit}, returned={returned})"
+                )
         native_ids[side] = observed
         missing_correlation = sorted(observed - correlated[side])
         missing_candidates = sorted(observed - candidate_ids[side])
@@ -170,6 +183,7 @@ def audit(reference: dict, correlations: dict, candidates: dict) -> dict:
         "toBoundaryFingerprint": ids[4],
         "sides": report_sides,
         "nativeProvenHandoffCount": len(proven),
+        "nativeScannerHardCapPerWindow": NATIVE_F8_MAX_RESULTS_PER_WINDOW,
         "graphStudioCandidatePairsWithoutExactIds": unknown_candidate_graph_ids,
         "nativeProvenHandoffsMissingFromCandidates": absent_pairs,
         "scanStatus": "INCOMPLETE" if incomplete_reasons else "OBSERVED_WINDOWS_COMPARED",

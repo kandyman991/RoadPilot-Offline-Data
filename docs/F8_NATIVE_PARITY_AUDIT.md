@@ -26,6 +26,16 @@ comparison only matches the supplied observed scan scope; it does **not**
 establish that every relevant window was scanned or that the most economical
 whole-journey route is chosen.
 
+**Native scanner result cap — verified against RoadPilot code:** Android's
+`FrontierGpsRoadDirectionRecovery` requests `MAX_SCAN_RESULTS_PER_WINDOW=4096`,
+but `native/on-device-valhalla/builder_jni.cpp::scan_boundary_road_edges`
+actually clamps the argument to **512**. Any sample with 512 returned records
+must be marked **INCOMPLETE**, even if its capture labels it complete and
+untruncated. A smaller requested cap also becomes inconclusive when saturated.
+The capture producer cannot infer completeness from its requested 4096 limit.
+Offline exhaustive scanning will require actual uncapped graph-edge enumeration,
+not blindly accepting the bounded runtime JNI result.
+
 ## Inputs and use on Legion
 
 First refresh the exact retained Italy Nord-Est ↔ Austria sidecars with

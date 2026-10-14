@@ -118,6 +118,37 @@ class F8GraphEdgeAuditTests(unittest.TestCase):
             self.assertEqual(report["scanStatus"], "INCOMPLETE")
             self.assertEqual(report["f8GraphEdgeParity"], "NOT_VERIFIED")
 
+
+    def test_native_jni_512_hard_cap_even_when_4096_requested(self):
+        reference, correlations, candidates = fixtures()
+        window = reference["scans"]["from"]["windows"][0]
+        window["maxResults"] = 4096
+        window["returned"] = 512
+        window["complete"] = True
+        window["truncated"] = False
+        report = audit(reference, correlations, candidates)
+        self.assertEqual(report["scanStatus"], "INCOMPLETE")
+        self.assertEqual(report["nativeScannerHardCapPerWindow"], 512)
+        self.assertTrue(any("actualNativeCap=512" in item
+                            for item in report["incompleteReasons"]))
+
+    def test_native_requested_cap_less_than_512_must_also_detect_saturation(self):
+        reference, correlations, candidates = fixtures()
+        window = reference["scans"]["to"]["windows"][0]
+        window["maxResults"] = 2
+        window["returned"] = 2
+        report = audit(reference, correlations, candidates)
+        self.assertEqual(report["scanStatus"], "INCOMPLETE")
+
+    def test_reject_unsupported_claim_of_more_than_512_native_results(self):
+        reference, correlations, candidates = fixtures()
+        window = reference["scans"]["from"]["windows"][0]
+        window["returned"] = 513
+        report = audit(reference, correlations, candidates)
+        self.assertEqual(report["scanStatus"], "INCOMPLETE")
+        self.assertTrue(any("invalid returned count" in item
+                            for item in report["incompleteReasons"]))
+
     def test_empty_native_scan_cannot_prove_parity(self):
         reference, correlations, candidates = fixtures()
         reference["scans"]["from"]["windows"] = []
