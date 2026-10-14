@@ -100,7 +100,7 @@ class F8GraphEdgeAuditTests(unittest.TestCase):
 
     def test_graph_identity_mismatch_hard_fails(self):
         reference, correlations, candidates = fixtures()
-        reference["toGraph"]["graphFingerprint"] = "sha256:other"
+        reference["toGraph"] = {"graphFingerprint": "sha256:other"}
         with self.assertRaisesRegex(ValueError, "fingerprints or pair identity"):
             audit(reference, correlations, candidates)
 
@@ -124,6 +124,24 @@ class F8GraphEdgeAuditTests(unittest.TestCase):
         reference["provenHandoffs"] = []
         report = audit(reference, correlations, candidates)
         self.assertEqual(report["scanStatus"], "INCOMPLETE")
+
+    def test_unknown_graph_id_is_recorded_instead_of_crashing(self):
+        reference, correlations, candidates = fixtures()
+        candidates["candidates"].append(
+            {"fromEdge": {"graphId": None}, "toEdge": {"graphId": 202}}
+        )
+        result = audit(reference, correlations, candidates)
+        self.assertEqual(result["graphStudioCandidatePairsWithoutExactIds"], 1)
+        self.assertEqual(result["scanStatus"], "INCOMPLETE")
+
+    def test_proven_pairs_must_be_native_observations_with_valid_mode(self):
+        reference, correlations, candidates = fixtures()
+        reference["provenHandoffs"][0]["mode"] = "unknown"
+        reference["scans"]["to"]["edges"].pop()
+        result = audit(reference, correlations, candidates)
+        self.assertEqual(result["scanStatus"], "INCOMPLETE")
+        self.assertTrue(any("mode/direction" in s for s in result["incompleteReasons"]))
+        self.assertTrue(any("not present in native" in s for s in result["incompleteReasons"]))
 
     def test_scanner_identity_required_not_simulated_candidates(self):
         reference, correlations, candidates = fixtures()

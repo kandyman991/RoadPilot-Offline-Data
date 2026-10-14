@@ -82,17 +82,28 @@ def audit(reference: dict, correlations: dict, candidates: dict) -> dict:
 
     candidate_ids = {side: set() for side in SIDES}
     known_pairs = set()
+    unknown_candidate_graph_ids = 0
     for index, row in enumerate(items(candidates.get("candidates"), "candidates")):
         row = obj(row, f"candidate[{index}]")
-        a = edge_id(obj(row.get("fromEdge"), "candidate.fromEdge").get("graphId"), "candidate.fromEdge")
-        b = edge_id(obj(row.get("toEdge"), "candidate.toEdge").get("graphId"), "candidate.toEdge")
+        raw_a = obj(row.get("fromEdge"), "candidate.fromEdge").get("graphId")
+        raw_b = obj(row.get("toEdge"), "candidate.toEdge").get("graphId")
+        if raw_a is None or raw_b is None:
+            # Valhalla locate may return candidates without exact directed IDs.
+            # They cannot prove native F8 equivalence; retain an explicit gap.
+            unknown_candidate_graph_ids += 1
+            continue
+        a = edge_id(raw_a, "candidate.fromEdge")
+        b = edge_id(raw_b, "candidate.toEdge")
         candidate_ids["from"].add(a)
         candidate_ids["to"].add(b)
         known_pairs.add((a, b))
 
     report_sides = {}
     incomplete_reasons = []
+    if unknown_candidate_graph_ids:
+        incomplete_reasons.append("Graph Studio candidates lacking exact directed graph IDs")
     missing_count = 0
+    native_ids = {}
     for side in SIDES:
         scan = obj(scans.get(side), f"scans.{side}")
         edges = items(scan.get("edges"), f"scans.{side}.edges")
@@ -112,6 +123,7 @@ def audit(reference: dict, correlations: dict, candidates: dict) -> dict:
                     window["returned"] < 0 or
                     window["returned"] >= window["maxResults"]):
                 incomplete_reasons.append(f"{side}: scan window {i} not proven complete")
+        native_ids[side] = observed
         missing_correlation = sorted(observed - correlated[side])
         missing_candidates = sorted(observed - candidate_ids[side])
         missing_count += len(missing_correlation) + len(missing_candidates)
@@ -129,6 +141,10 @@ def audit(reference: dict, correlations: dict, candidates: dict) -> dict:
         row = obj(row, f"provenHandoffs[{i}]")
         pair = (edge_id(row.get("fromGraphId"), "handoff.fromGraphId"),
                 edge_id(row.get("toGraphId"), "handoff.toGraphId"))
+        if pair[0] not in native_ids["from"] or pair[1] not in native_ids["to"]:
+            incomplete_reasons.append(f"proven handoff {i} not present in native edge scan")
+        if row.get("mode") not in ("motorcycle", "auto") or row.get("direction") not in ("from-to", "to-from"):
+            incomplete_reasons.append(f"proven handoff {i} missing valid mode/direction")
         if pair not in known_pairs:
             absent_pairs.append({
                 "fromGraphId": pair[0],
@@ -154,6 +170,7 @@ def audit(reference: dict, correlations: dict, candidates: dict) -> dict:
         "toBoundaryFingerprint": ids[4],
         "sides": report_sides,
         "nativeProvenHandoffCount": len(proven),
+        "graphStudioCandidatePairsWithoutExactIds": unknown_candidate_graph_ids,
         "nativeProvenHandoffsMissingFromCandidates": absent_pairs,
         "scanStatus": "INCOMPLETE" if incomplete_reasons else "OBSERVED_WINDOWS_COMPARED",
         "incompleteReasons": sorted(set(incomplete_reasons)),
