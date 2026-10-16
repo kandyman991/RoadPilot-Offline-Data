@@ -30,6 +30,9 @@ jobs:
       - name: Enforce behavioral F8 architecture regressions
         run: python -m unittest discover -s tests -p 'test_f8_architecture_regressions.py' -v
 
+      - name: Native F8 graph-backed physical peer and incomplete-evidence regressions
+        run: python -m unittest discover -s tests -p 'test_native_f8_pair_evidence.py' -v
+
       - name: Native F8 directed-edge parity-audit contract regressions
         run: python -m unittest discover -s tests -p 'test_f8_graph_edge_audit.py' -v
 

@@ -1,5 +1,48 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #85 technical review hardening (2026-10-16)
+
+- Review on branch `feat/native-f8-directed-pair-evidence`: discovered false
+  pair-scan completeness risk (window catalogs not compared) and incomplete
+  access/native field validation. Fixed both; added strict geographic window
+  indexing/uniqueness/bounds, matching catalogs, typed access and edge
+  attributes, unambiguous region IDs and explicitly *unverified* shared-buffer
+  coverage. Prevent invalid NaN diagnostic JSON.
+- The complete local Python test suite now passes **72 tests**, including nine
+  native directed-peer regressions. Real unchanged Italy Nord-Est/Austria scans
+  rerun into `native-directed-physical-peers-v2-review`: 316,563 physical
+  peers and 6,809/18,410 unmatched remain; source windows align; all three
+  generated file hashes independently verified. These remain UNPROVEN,
+  Android F8 parity NOT_VERIFIED and publication BLOCKED.
+- Draft PR #85 needs updated CI status and independent GitHub reviewer approval
+  if repository branch rules require it. Technical ChatGPT review is not an
+  independent GitHub approval; no merge authorized by this request.
+
+## PR #84 merged; native physical F8 peer foundation initiated (2026-10-16)
+
+- PR #84 (`refactor/retire-pre-f8-connectivity`) merged, squash commit
+  `2b16d2b51acdf19940b4c91c7286f335e2478078`; all three checks passed.
+  Subsequent auto handoff commit on main `e968fd5` was verified before work.
+- New branch `feat/native-f8-directed-pair-evidence` introduces
+  `build_native_f8_pair_evidence.py` and repeatable tests: stage raw directed
+  physical peer ledger and explicit unpaired-edge evidence from immutable
+  previously scanned native graphs. No new OSM sampling, no GraphId equivalence,
+  no hard road/heading/mode filter, no restored old pipeline.
+- Real Legion 3.6.3 Italy Nord-Est/Austria retained inventory processed without
+  graph rebuilding: **316,563** exact physical directed peers, **6,809 / 18,410**
+  unmatched edges, faithfully reproducing October 14 independent comparison.
+  Files under `~/RoadPilotGraphStudio/diagnostics/f8-italy-austria-validation/native-directed-physical-peers-v1`.
+- All peers remain **UNPROVEN**. This is not a true cross-frontier route-proof
+  candidate set. Historical scan sources have summary-declared identity only.
+  Android F8 parity, Valhalla directions/modes, full-route optimality, Android
+  ingestion and distribution remain NOT_VERIFIED / NOT_RUN / BLOCKED.
+- **NEXT EXACT ACTION:** close this foundation PR after CI; construct graph-native
+  F8 handoff candidate/frontier relevance using full scan evidence with no
+  unproven eliminations, add route probes for both directions and vehicle modes,
+  compare to true Android F8 scanner output on identical graph packages, and
+  then tackle Germany/multi-hop with explicit completeness evidence.
+
+
 ## Latest working branch — strip old discovery before native F8 (2026-10-16)
 
 - **User decision:** remove the obsolete Graph Studio OSM buffered-overlap
