@@ -1,5 +1,13 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Graph Studio native F8 split into Discovery / Journey Validation tabs (2026-10-16)
+
+- Branch `feat/graph-studio-f8-discovery-validation-tabs` from current `main` (`017f239`) refactors ONLY the F8 inspector frontend; backend engine, valhalla proof, graph data and Android unchanged. User explicitly requested splitting the lengthy F8 panel.
+- Pair selection (graph A/B), job status and cancel button shared above two ARIA tabs; Discovery contains inspect/scan/proposal inventory; Journey Validation contains readiness, direction/mode/endpoints, bounded Valhalla proof and sampled handoffs. F8 tab preference persisted in localStorage; keyboard arrows/Home/End implemented. Input state preserved across switches; stale sampled reports cleared immediately when graph pair changes.
+- Local frontend `npm run build` passed; headless Chromium tested 1920×1080 and 1200×740 for tab switching, keyboard, persistence, no horizontal overflow, readiness guidance and visible shared status; separate static GUI safety regressions added. No graph rescan, no Android ingestion, production publication still BLOCKED / F8 parity NOT_VERIFIED.
+- Next action: full Python suite, architecture CI, Linux packaging, technical review. Merge/update Legion AppImage only once head checks green and update is explicitly authorized. Existing installed Graph Studio still at main `703ef229` until new build installed.
+
+
 ## PR #87 native F8 Graph Studio GUI integration — MERGED + Legion installed (2026-10-16)
 
 - User approved immediate integration of native F8 into Graph Studio's **Tool → Native F8 connectivity** pane. PR **#87** merged to `main` at squash **`703ef2297e263bf2545be148edd51502f8a582ce`**. Latest PR head `95e3d1d45b137fbd9438b936bcf99ab1c4ba8794`: `architecture-contract`, `linux` (Tauri/deb/AppImage) and `validate` CI all **PASS**. Rolling main release run **38947826585** completed successfully. Source checkout main was refreshed.
