@@ -3849,7 +3849,7 @@ function updateRouteButtonState(): void {
   const reason = !activeRegion ? "Select a region in the left tree." :
     !selectedGraph ? `Build ${activeRegion.id} first to enable routing.` :
     !coordinatesValid ? `Enter valid start and destination coordinates for ${activeRegion.id}.` :
-    `Ready: ${activeRegion.id} · ${artifacts.filter(item => item.region_id === activeRegion?.id).at(-1)?.version ?? "retained build"}.`;
+    `Ready: ${activeRegion.id} · ${artifacts.find(item => item.region_id === activeRegion?.id)?.version ?? "retained build"}.`;
   runRouteBtn.disabled = routeSubmitting || !selectedGraph || !coordinatesValid;
   routePrerequisite.textContent = reason;
 }

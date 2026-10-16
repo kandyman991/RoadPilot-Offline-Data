@@ -51,6 +51,9 @@ class GraphStudioUiFoundationContractTests(unittest.TestCase):
                      'coordinatesValid', 'routeSubmitting', 'packageVersionInput.addEventListener'):
             self.assertIn(text, UI)
         self.assertIn('activeRegion && artifacts.some(', UI)
+        # Tauri sorts routing manifests latest-first; the active route must not be labelled using the oldest .at(-1).
+        self.assertIn('artifacts.find(item => item.region_id === activeRegion?.id)?.version', UI)
+
         self.assertIn('class="check-row route-expansion-row"', UI)
 
     def test_no_critical_tools_or_engine_guards_deleted(self):
