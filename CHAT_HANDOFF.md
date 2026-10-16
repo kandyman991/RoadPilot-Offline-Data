@@ -1,5 +1,14 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Native F8 directed GPS discovery and journey-scoped proof — in PR (2026-10-16)
+
+- Verified GitHub `main` `d754e838ea45f269fb6da5ecf9e213324d9a9d54` contains merged PR #85 (squash `b7fdf3c`); no open PR existed before this milestone. New working branch: `feat/native-f8-crossing-discovery`.
+- Graph-native directed receiver-edge proposal enumeration in `tools/discover_native_f8_crossings.py`. Every scanned edge in both region directions becomes a retained GPS seed; physical peer matching is strictly diagnostic, never a gate. Deterministic gzip ledgers, hash/graph-bound manifest, no first crossing lock-in, no old OSM anchor pipeline.
+- Bounded route proof in `tools/probe_native_f8_journey.py`: RoadPilot F8 A→GPS normalization via real Valhalla leg, B→destination with normal Valhalla, verify endpoint and receiver directed GraphId trace. Probe multiple candidates for FASTER and SHORTER using sum of both full-journey legs, retaining INCOMPLETE/UNPROBEN evidence.
+- Same retained real Italy-Nord-Est/Austria Valhalla 3.6.3/2026.10.13-1 native captures: **334,973 A→B + 323,372 B→A proposals**, including 18,410/6,809 without exact physical peer. Real Tarvisio motorcycle + auto both directions each had **3 journey-valid proofs among 6 sampled seeds**; other >300k each direction UNPROBED. Local evidence only, no Android publication or graph rebuild. Native JNI parity/global frontier exhaustiveness still NOT_VERIFIED.
+- Next: run CI/review on this PR; precompute all useful frontiers with scalable graph-native reachability/candidate scheduling and actual Android JNI scanner parity on identical graph versions; prove all modes/directions and complete journey ranking/multi-hop before enabling build integration. Never treat this bounded sample as production-ready.
+
+
 ## PR #85 technical review hardening (2026-10-16)
 
 - Review on branch `feat/native-f8-directed-pair-evidence`: discovered false
