@@ -1,6 +1,9 @@
 """F8 arrival/graph-local directed proof is required; bounded results never optimal."""
 from __future__ import annotations
 import tempfile
+import gzip
+import json
+import hashlib
 from pathlib import Path
 import sys
 import unittest
@@ -115,6 +118,26 @@ class NativeF8JourneyProofTests(unittest.TestCase):
         self.assertEqual(report['bestOfProbedOnly']['SHORTER'],ordered[0]['id'])
         self.assertEqual(report['probesAttempted'],3)
         self.assertEqual(report['completeness'],'INCOMPLETE_BOUNDED_JOURNEY_PROBES')
+
+    def test_truncated_catalog_fails_even_if_manifest_hash_is_updated(self):
+        filepath=self.proposals/'from-to.jsonl.gz'
+        with gzip.open(filepath,'rt') as f:rows=f.readlines()
+        with gzip.open(filepath,'wt') as f:f.writelines(rows[:-1])
+        with filepath.open('rb') as f: self.meta['files'][filepath.name]['sha256']=            'sha256:'+hashlib.file_digest(f,'sha256').hexdigest()
+        with self.assertRaisesRegex(ValueError,'proposal count mismatch'):
+            inspect(self.pair,self.meta,self.proposals,Path('a'),Path('b'),
+                    START,END,'auto','from-to',1,lambda *args:{'status':'FAILED'},lambda *args:None)
+
+    def test_wrong_direction_catalog_is_rejected_even_if_file_hash_is_current(self):
+        filepath=self.proposals/'from-to.jsonl.gz'
+        with gzip.open(filepath,'rt') as f:rows=[json.loads(x) for x in f]
+        rows[0]['direction']='to-from'
+        with gzip.open(filepath,'wt') as f:
+            for row in rows:f.write(json.dumps(row)+'\n')
+        with filepath.open('rb') as f:self.meta['files'][filepath.name]['sha256']=            'sha256:'+hashlib.file_digest(f,'sha256').hexdigest()
+        with self.assertRaisesRegex(ValueError,'direction is inconsistent'):
+            inspect(self.pair,self.meta,self.proposals,Path('a'),Path('b'),
+                    START,END,'auto','from-to',1,lambda *args:{'status':'FAILED'},lambda *args:None)
 
     def test_full_bounded_report_declares_unprobed_and_cannot_publish(self):
         def fake(config,start,end,mode):return {'status':'FAILED','reason':'unreachable'}

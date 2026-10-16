@@ -76,7 +76,8 @@ def eligible_manifest(pair:dict, manifest:dict, direction:str,base:Path)->Path:
     return file
 
 
-def proposal_order(file:Path,start:dict,end:dict,max_probes:int)->tuple[list[dict],int]:
+def proposal_order(file:Path,start:dict,end:dict,max_probes:int,
+                   expected_direction:str|None=None)->tuple[list[dict],int]:
     """Only bound the *probe*, never the retained source enumeration."""
     if not 1<=max_probes<=PROBE_LIMIT:raise ValueError('Probe budget out of range')
     total=0
@@ -86,6 +87,8 @@ def proposal_order(file:Path,start:dict,end:dict,max_probes:int)->tuple[list[dic
     with gzip.open(file,'rt',encoding='utf-8') as input:
         for line in input:
             item=json.loads(line)
+            if expected_direction is not None and item.get('direction')!=expected_direction:
+                raise ValueError('Native GPS proposal direction is inconsistent')
             gps=item['coordinate']
             val=distance(start,gps)+distance(gps,end)
             if not math.isfinite(val):raise ValueError('Nonfinite GPS proposal lower-bound')
@@ -201,7 +204,9 @@ def inspect(pair:dict,manifest:dict,base:Path,config_a:Path,config_b:Path,
             route_fn=route,trace_fn=actual_edge)->dict:
     if mode not in MODES or direction not in DIRECTIONS:raise ValueError('Unsupported mode/direction')
     file=eligible_manifest(pair,manifest,direction,base)
-    chosen,total=proposal_order(file,start,end,max_probes)
+    chosen,total=proposal_order(file,start,end,max_probes,direction)
+    if total!=manifest['files'][direction+'.jsonl.gz']['records']:
+        raise ValueError('Native proposal count mismatch; incomplete source stream')
     results=[check_one(c,config_a,config_b,start,end,mode,route_fn,trace_fn)
              for c in chosen]
     successes=[r for r in results if r['status']=='VALIDATED_FOR_THIS_JOURNEY']
