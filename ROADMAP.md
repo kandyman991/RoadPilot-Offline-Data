@@ -1,5 +1,8 @@
 # RoadPilot Offline Data & Graph Studio Roadmap
 
+> **Architecture update — 2026-10-16:** The earlier OSM-based crossing discovery, connector-matrix composer, and old multi-region planner are retired from executable Graph Studio source (pending cleanup PR). Existing older roadmap sections describe history, **not** a request to restore those algorithms. Next gate: native directed graph frontier candidates from exact immutable Valhalla edge scans, two-direction/two-vehicle Valhalla proofs, real Android F8 parity, then new ranked multi-hop output. See `docs/ARCHITECTURE_CONTRACT.md`, issues #73/#82.
+
+
 _Last updated: 2026-10-06_
 
 This is the canonical working roadmap for the RoadPilot offline-data pipeline and Graph Studio. It records the target architecture, what is already implemented, what is active, and what should be built next.

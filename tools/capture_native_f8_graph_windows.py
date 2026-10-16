@@ -20,8 +20,7 @@ from typing import Any, Iterator
 
 from shapely.geometry import box
 
-from build_frontier_road_inventory import load_polygon
-from correlate_frontier_roads import graph_manifest_info
+from native_f8_inputs import load_polygon, graph_manifest_info
 
 SCHEMA = "roadpilot.native-f8-edge-scan"
 PORT = "GraphStudio.nativeUncappedRoadEdges"
@@ -171,28 +170,40 @@ def capture_side(executable: Path, config: Path,
             "edges": [by_graph_id[key] for key in sorted(by_graph_id)]}
 
 
-def make_capture(*, correlations: dict, graph_identity_a: dict,
+def make_capture(*, pair_manifest: dict, graph_identity_a: dict,
                  graph_identity_b: dict, from_scan: dict, to_scan: dict,
                  window_degrees: float, scanner_build: dict | None = None) -> dict:
-    for side, expected in (("fromGraph", graph_identity_a),
-                           ("toGraph", graph_identity_b)):
-        declared = obj(correlations.get(side), side)
-        for name in ("regionId", "packageVersion", "graphFingerprint", "primaryGeofabrikId"):
-            if declared.get(name) != expected.get(name):
-                raise ValueError(f"Stale {side}.{name} before capture")
-    if correlations.get("schema") != "roadpilot.frontier-road-correlations":
-        raise ValueError("Expected current frontier-road-correlations artifact")
+    """Bind native scan to a source-only, UNPROVEN pair identity."""
+    if pair_manifest.get("schema") != "roadpilot.cross-region-connectivity":
+        raise ValueError("Expected fingerprint-bound cross-region pair manifest")
+    if pair_manifest.get("validationState") != "UNPROVEN":
+        raise ValueError("Native capture requires an unproven identity-only pair")
+    for prefix, identity in (("from", graph_identity_a), ("to", graph_identity_b)):
+        for field, own in (("RegionId", "regionId"),
+                           ("PackageVersion", "packageVersion"),
+                           ("GraphFingerprint", "graphFingerprint")):
+            if pair_manifest.get(prefix + field) != identity.get(own):
+                raise ValueError(f"Stale {prefix}{field} before capture")
+    if pair_manifest.get("pairId") != (
+            f"{graph_identity_a['regionId']}__{graph_identity_b['regionId']}"):
+        raise ValueError("Native pairId disagrees with regional graph identities")
+    if (pair_manifest.get("fromBoundarySourceId") != graph_identity_b["primaryGeofabrikId"]
+            or pair_manifest.get("toBoundarySourceId") != graph_identity_a["primaryGeofabrikId"]):
+        raise ValueError("Native pair source identities mismatch")
+    for field in ("fromBoundaryFingerprint", "toBoundaryFingerprint"):
+        if not isinstance(pair_manifest.get(field), str) or not pair_manifest[field].startswith("sha256:"):
+            raise ValueError(f"Native pair is missing {field}")
     return {
         "schema": SCHEMA, "version": 1,
         "scanner": PORT,
         "derivedFrom": "RoadPilot GraphEndpointNative.scanBoundaryRoadEdges filter predicates",
         "nativeF8ReferenceCaptured": False,
         "f8GraphEdgeParity": "NOT_VERIFIED",
-        "pairId": correlations["pairId"],
+        "pairId": pair_manifest["pairId"],
         "fromGraph": graph_identity_a,
         "toGraph": graph_identity_b,
-        "fromBoundaryFingerprint": correlations["fromBoundaryFingerprint"],
-        "toBoundaryFingerprint": correlations["toBoundaryFingerprint"],
+        "fromBoundaryFingerprint": pair_manifest["fromBoundaryFingerprint"],
+        "toBoundaryFingerprint": pair_manifest["toBoundaryFingerprint"],
         "scans": {"from": from_scan, "to": to_scan},
         "windowDegrees": window_degrees,
         "scannerBuild": scanner_build or {"validation": "NOT_RUN"},
@@ -208,7 +219,7 @@ def make_capture(*, correlations: dict, graph_identity_a: dict,
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--correlations", required=True, type=Path)
+    parser.add_argument("--pair-manifest", required=True, type=Path)
     parser.add_argument("--from-manifest", required=True, type=Path)
     parser.add_argument("--to-manifest", required=True, type=Path)
     parser.add_argument("--from-buffer", required=True, type=Path)
@@ -217,9 +228,9 @@ def main() -> int:
     parser.add_argument("--window-degrees", type=float, default=0.025)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    correlations = read(args.correlations)
-    if correlations.get("schema") != "roadpilot.frontier-road-correlations":
-        parser.error("Must provide Graph Studio's existing correlations.json")
+    pair_manifest = read(args.pair_manifest)
+    if pair_manifest.get("schema") != "roadpilot.cross-region-connectivity":
+        parser.error("Provide an identity-only cross-region pair manifest")
     from_manifest, to_manifest = read(args.from_manifest), read(args.to_manifest)
     native_version = scanner_version(args.scanner_binary)
     require_compatible_versions(from_manifest, to_manifest, native_version)
@@ -233,20 +244,20 @@ def main() -> int:
                                    args.window_degrees))
     if not windows:
         parser.error("No windows intersect the buffered graph overlap")
-    print(f"{correlations['pairId']}: {len(windows)} windows per independent graph")
+    print(f"{pair_manifest['pairId']}: {len(windows)} windows per independent graph")
     with tempfile.TemporaryDirectory(prefix="graph-studio-native-f8-") as tmp:
         root = Path(tmp)
         identity_a, config_a = graph_manifest_info(
-            args.from_manifest, correlations["fromRegionId"], to_primary,
-            correlations["fromBoundaryFingerprint"], root, "from")
+            args.from_manifest, pair_manifest["fromRegionId"], to_primary,
+            pair_manifest["fromBoundaryFingerprint"], root, "from")
         identity_b, config_b = graph_manifest_info(
-            args.to_manifest, correlations["toRegionId"], from_primary,
-            correlations["toBoundaryFingerprint"], root, "to")
+            args.to_manifest, pair_manifest["toRegionId"], from_primary,
+            pair_manifest["toBoundaryFingerprint"], root, "to")
         from_scan = capture_side(args.scanner_binary, config_a, windows, "from", native_version)
         to_scan = capture_side(args.scanner_binary, config_b, windows, "to", native_version)
         if sha256_binary(args.scanner_binary) != native_binary_sha:
             raise ValueError("Native scanner binary changed during graph capture")
-        output = make_capture(correlations=correlations, graph_identity_a=identity_a,
+        output = make_capture(pair_manifest=pair_manifest, graph_identity_a=identity_a,
                               graph_identity_b=identity_b, from_scan=from_scan,
                               to_scan=to_scan, window_degrees=args.window_degrees,
                               scanner_build={"compiledValhallaVersion": native_version,

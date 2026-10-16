@@ -238,39 +238,6 @@ type RoutePlanResult = {
     };
   };
 };
-type MultiRoutePlanResult = {
-  status: "ROUTE_SELECTED" | "NO_GRAPH_COVERAGE" | "NO_CURRENT_CONNECTIVITY" | "NO_COMPLETE_ROUTE";
-  reason?: string;
-  elapsedMs?: number;
-  geometry?: { type: "MultiLineString"; coordinates: number[][][] };
-  legs?: Array<{
-    regionId: string;
-    geometry: number[][];
-    distanceKm: number;
-    durationSeconds: number;
-    endOffsetMeters: number;
-  }>;
-  handoffs?: Array<{
-    candidateId: string;
-    fromRegionId: string;
-    toRegionId: string;
-    gapMeters: number;
-    fromEnd: {lat:number;lng:number};
-    toStart: {lat:number;lng:number};
-  }>;
-  chainId?: string;
-  regions?: string[];
-  distanceKm?: number;
-  durationSeconds?: number;
-  endOffsetMeters?: number;
-  destinationReached?: boolean;
-  chainsAttempted?: number;
-  successfulChains?: number;
-  legsProbed?: number;
-  startRegions?: string[];
-  endRegions?: string[];
-  rejections?: string[];
-};
 type ExpansionResult = {
   elapsedMs: number;
   featureCount: number;
@@ -541,7 +508,6 @@ app.innerHTML = `
         </div>
         <div class="actions">
           <button id="buildBtn" class="btn primary" type="button">Build selected</button>
-          <button id="refreshConnectivityBtn" class="btn" type="button">Refresh connections</button>
           <button id="cancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
         <div id="buildSelectionSummary" class="status-line">No regions selected.</div>
@@ -549,7 +515,7 @@ app.innerHTML = `
           Force source re-download (ignore unchanged source cache)
         </label>
         <p class="status-line">Normal builds reuse locally cached Geofabrik PBFs and check their upstream checksums daily.</p>
-        <p>Building a region automatically validates its cross-graph handoffs and regional connector matrices when a neighboring graph exists. Use Refresh connections to process already-built graphs <strong>without rebuilding maps</strong>. Validated connections are local artifacts until packaged for Android.</p>
+        <p>Regional builds are independent and include normal Valhalla border checks. Cross-region connectivity production is paused until the native F8 pipeline is verified. Existing historical connection artifacts remain read-only and are not F8 parity evidence.</p>
         <p>Select any Geofabrik region and click Build selected. Unconfigured regions are prepared automatically; completed routing packages still require Valhalla border proof.</p>
       </section>
 
@@ -824,21 +790,7 @@ app.innerHTML = `
       </section>
       <section class="section tool-panel" data-tool="route" hidden>
         <h2>Valhalla route planner</h2>
-        <div class="field">
-          <label for="routeRegionMode">Routing mode</label>
-          <select id="routeRegionMode">
-            <option value="single">Single graph (Valhalla)</option>
-            <option value="multi">Multi-region (validated F8 connectivity)</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="multiRouteStyle">Multi-region route style</label>
-          <select id="multiRouteStyle">
-            <option value="FASTER">Faster</option>
-            <option value="SHORTER">Shorter</option>
-          </select>
-        </div>
-        <p class="status-line">Multi-region mode selects matching installed graphs, loads current proven crossings and connector matrices, and calculates detailed Valhalla legs. It never assumes that crossing a national border means a graph handoff succeeded.</p>
+        <p class="status-line">Single-region Valhalla routing only. Native F8 multi-region routing will return after graph-backed crossing discovery and parity verification.</p>
         <div class="field">
           <label for="routeCosting">Costing</label>
           <select id="routeCosting">
@@ -957,7 +909,6 @@ const clearEditorPinsBtn = document.querySelector<HTMLButtonElement>("#clearEdit
 const saveRegionBtn = document.querySelector<HTMLButtonElement>("#saveRegionBtn")!;
 const closeRegionEditorBtn = document.querySelector<HTMLButtonElement>("#closeRegionEditorBtn")!;
 const buildBtn = document.querySelector<HTMLButtonElement>("#buildBtn")!;
-const refreshConnectivityBtn = document.querySelector<HTMLButtonElement>("#refreshConnectivityBtn")!;
 const cancelBtn = document.querySelector<HTMLButtonElement>("#cancelBtn")!;
 const r2CredentialSummary = document.querySelector<HTMLDivElement>("#r2CredentialSummary")!;
 const r2AccountId = document.querySelector<HTMLInputElement>("#r2AccountId")!;
@@ -1031,8 +982,6 @@ const connectorMatrixList = document.querySelector<HTMLDivElement>("#connectorMa
 const exportBorderDiagnosticsBtn = document.querySelector<HTMLButtonElement>("#exportBorderDiagnosticsBtn")!;
 const borderReportSummary = document.querySelector<HTMLDivElement>("#borderReportSummary")!;
 const routeCosting = document.querySelector<HTMLSelectElement>("#routeCosting")!;
-const routeRegionMode = document.querySelector<HTMLSelectElement>("#routeRegionMode")!;
-const multiRouteStyle = document.querySelector<HTMLSelectElement>("#multiRouteStyle")!;
 const routeStartLat = document.querySelector<HTMLInputElement>("#routeStartLat")!;
 const routeStartLng = document.querySelector<HTMLInputElement>("#routeStartLng")!;
 const routeEndLat = document.querySelector<HTMLInputElement>("#routeEndLat")!;
@@ -2755,7 +2704,7 @@ function renderHandoffArtifactOverlay(result: HandoffArtifactInspection): void {
   if (!result.items.length) {
     handoffArtifactList.innerHTML = `
       <div class="empty">
-        No generated/validated/learned/manual connectivity artifacts found for this pair.
+        No historical connectivity or manual handoff records found for this pair. Native F8 connectivity is not yet available.
         Artifact imports are scanned under:<br>
         ${result.searchDirectories.map(path => `<code>${path}</code>`).join("<br>")}
       </div>
@@ -3307,93 +3256,6 @@ function renderRouteResult(result: RoutePlanResult, expansion?: ExpansionResult)
     ].filter(Boolean).join(" • ");
     return `<div class="maneuver-row"><b>${index + 1}. ${instruction}</b><span>${meta}</span></div>`;
   }).join("");
-}
-
-function showMultiRouteGeometry(result: MultiRoutePlanResult, destination: {lat:number;lng:number}): void {
-  const geometry = result.geometry;
-  if (!geometry || geometry.type !== "MultiLineString" || !geometry.coordinates.length) {
-    throw new Error("Multi-region route has no valid graph-leg geometry.");
-  }
-  if (map.getLayer(routeLayerId)) map.removeLayer(routeLayerId);
-  if (map.getSource(routeSourceId)) map.removeSource(routeSourceId);
-  // MultiLineString keeps every independently validated Valhalla leg separate.
-  // In particular, it never draws an invented straight line between handoffs.
-  map.addSource(routeSourceId, {
-    type: "geojson",
-    data: {type:"Feature",properties:{},geometry} as Feature,
-  });
-  map.addLayer({
-    id:routeLayerId,type:"line",source:routeSourceId,
-    paint:{"line-color":"#276fbf","line-width":["interpolate",["linear"],["zoom"],6,4,14,7],"line-opacity":0.95},
-  });
-  let minLng=destination.lng,maxLng=destination.lng,minLat=destination.lat,maxLat=destination.lat;
-  for(const line of geometry.coordinates) {
-    for(const [lng,lat] of line) {
-      minLng=Math.min(minLng,lng);maxLng=Math.max(maxLng,lng);
-      minLat=Math.min(minLat,lat);maxLat=Math.max(maxLat,lat);
-    }
-  }
-  map.fitBounds([[minLng,minLat],[maxLng,maxLat]],{padding:70,duration:400});
-  applyMapLayerToggles();
-}
-
-async function runMultiRegionRoute(): Promise<void> {
-  runRouteBtn.disabled=true;
-  routeSummary.className="empty";
-  routeSummary.textContent="Calculating multi-region journey from validated graph connections…";
-  routeManeuvers.innerHTML="";
-  try {
-    if (!["motorcycle","auto"].includes(routeCosting.value)) {
-      throw new Error("Multi-region routing supports Motorcycle and Car only.");
-    }
-    const payload={
-      startLat:routeCoordinate(routeStartLat,"Start latitude",-90,90),
-      startLng:routeCoordinate(routeStartLng,"Start longitude",-180,180),
-      endLat:routeCoordinate(routeEndLat,"End latitude",-90,90),
-      endLng:routeCoordinate(routeEndLng,"End longitude",-180,180),
-      costing:routeCosting.value,routeStyle:multiRouteStyle.value,
-      costingOptions:routeCostingOptions(),
-    };
-    removeRouteLayers();
-    const result=await invoke<MultiRoutePlanResult>("plan_multi_region_route",payload);
-    if(result.status!=="ROUTE_SELECTED" || !result.destinationReached) {
-      routeSummary.className="bad";
-      routeSummary.textContent=`Multi-region: ${result.reason ?? result.status}. Start graphs: ${(result.startRegions??[]).join(", ")||"none"}; destination graphs: ${(result.endRegions??[]).join(", ")||"none"}. Chains tested: ${result.chainsAttempted??0}.`;
-      if(result.rejections?.length)appendLog(`Multi-region rejected candidates: ${result.rejections.join("; ")}`);
-      return;
-    }
-    showMultiRouteGeometry(result,{lat:payload.endLat,lng:payload.endLng});
-    setRoutePoint("start",payload.startLat,payload.startLng);
-    setRoutePoint("end",payload.endLat,payload.endLng);
-    routeSummary.className="kv";
-    routeSummary.innerHTML=`
-      <dt>Result</dt><dd class="ok">Destination reached</dd>
-      <dt>Route style</dt><dd>${multiRouteStyle.value}</dd>
-      <dt>Graph sequence</dt><dd>${(result.regions??[]).map(escapeHtml).join(" → ")}</dd>
-      <dt>Distance</dt><dd>${(result.distanceKm??0).toFixed(2)} km</dd>
-      <dt>Duration</dt><dd>${formatDuration(result.durationSeconds)}</dd>
-      <dt>Calculation time</dt><dd>${result.elapsedMs??0} ms</dd>
-      <dt>Final endpoint deviation</dt><dd>${(result.endOffsetMeters??0).toFixed(1)} m</dd>
-      <dt>Detailed Valhalla legs</dt><dd>${result.legs?.length??0}</dd>
-      <dt>Handoffs</dt><dd>${result.handoffs?.length??0}</dd>
-      <dt>Candidate chains tested / successful</dt><dd>${result.chainsAttempted??0} / ${result.successfulChains??0}</dd>
-      <dt>Valhalla leg probes</dt><dd>${result.legsProbed??0}</dd>
-    `;
-    routeManeuvers.innerHTML=(result.legs??[]).map((leg,i)=>`
-      <div class="maneuver-row"><b>${i+1}. ${escapeHtml(leg.regionId)}</b>
-      <span>${leg.distanceKm.toFixed(2)} km • ${formatDuration(leg.durationSeconds)} • endpoint ${leg.endOffsetMeters.toFixed(1)} m</span></div>
-    `).join("")+(result.handoffs??[]).map((h,i)=>`
-      <div class="maneuver-row"><b>Handoff ${i+1}: ${escapeHtml(h.fromRegionId)} → ${escapeHtml(h.toRegionId)}</b>
-      <span>Separate graph anchors • ${h.gapMeters.toFixed(1)} m apart • ${escapeHtml(h.candidateId)}</span></div>
-    `).join("");
-    appendLog(`Multi-region arrival VERIFIED: ${result.regions?.join(" → ")}; ${result.distanceKm?.toFixed(2)} km; ${result.legs?.length} legs; ${result.handoffs?.length} proven handoffs`);
-  } catch(error) {
-    routeSummary.className="bad";
-    routeSummary.textContent=`Multi-region route failed: ${String(error)}`;
-    appendLog(`Multi-region planner: ${String(error)}`);
-  } finally {
-    runRouteBtn.disabled=false;
-  }
 }
 
 async function runStandardRoute(): Promise<void> {
@@ -4243,7 +4105,6 @@ async function refreshToolchain(): Promise<void> {
   }
   toolchainReady = status.ready;
   buildBtn.disabled = !toolchainReady;
-  refreshConnectivityBtn.disabled = !toolchainReady;
 }
 
 async function refreshStats(): Promise<void> {
@@ -4265,7 +4126,6 @@ function renderBuildStatus(status: BuildStatus): void {
   document.querySelector("#progress")!.classList.toggle("idle", !status.running);
   cancelBtn.disabled = !status.running;
   buildBtn.disabled = status.running || !toolchainReady;
-  refreshConnectivityBtn.disabled = status.running || !toolchainReady;
 }
 
 async function refreshBuildStatus(): Promise<void> {
@@ -4916,24 +4776,6 @@ buildBtn.addEventListener("click", async () => {
   }
 });
 
-refreshConnectivityBtn.addEventListener("click", async () => {
-  refreshConnectivityBtn.disabled = true;
-  try {
-    // Scan all existing locally built region pairs; do not rebuild .gph files.
-    await invoke("start_build_queue", {
-      regionIds: [],
-      packageVersion: packageVersionInput.value.trim() || defaultVersion(),
-      refreshSources: false,
-      connectivityOnly: true,
-    });
-    appendLog("Connectivity refresh started for existing local graphs.");
-    await refreshBuildStatus();
-  } catch (error) {
-    appendLog(`Could not start connectivity refresh: ${String(error)}`);
-    refreshConnectivityBtn.disabled = !toolchainReady;
-  }
-});
-
 cancelBtn.addEventListener("click", async () => {
   await invoke("cancel_build");
   appendLog("Cancellation requested.");
@@ -5077,16 +4919,7 @@ pickRouteEndBtn.addEventListener("click", () => {
   pickRouteEndBtn.textContent = "Click map…";
   pickRouteStartBtn.textContent = "Pick start";
 });
-runRouteBtn.addEventListener("click", () => {
-  if(routeRegionMode.value==="multi") void runMultiRegionRoute();
-  else void runStandardRoute();
-});
-routeRegionMode.addEventListener("change",()=>{
-  routeExpansionToggle.disabled=routeRegionMode.value==="multi";
-  multiRouteStyle.disabled=routeRegionMode.value!=="multi";
-  if(routeRegionMode.value==="multi")routeExpansionToggle.checked=false;
-});
-routeRegionMode.dispatchEvent(new Event("change"));
+runRouteBtn.addEventListener("click", () => { void runStandardRoute(); });
 syncRouteSlider(routeUseHighways, routeUseHighwaysValue);
 syncRouteSlider(routeUseTolls, routeUseTollsValue);
 syncRouteSlider(routeUseFerry, routeUseFerryValue);

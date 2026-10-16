@@ -54,8 +54,8 @@ jobs:
       - name: Catalog startup regression tests
         run: python3 -m unittest discover -s tests -p 'test_graph_studio_catalog.py'
 
-      - name: Automatic cross-region connectivity orchestration regression tests
-        run: python3 -m unittest discover -s tests -p 'test_connectivity_automation.py'
+      - name: Native-F8 retirement regression checks
+        run: python3 -m unittest discover -s tests -p 'test_f8_architecture_regressions.py'
 
       - name: Shared Geofabrik PBF cache regression tests
         run: python3 -m unittest discover -s tests -p 'test_source_cache.py'

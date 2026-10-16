@@ -1,5 +1,37 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Latest working branch — strip old discovery before native F8 (2026-10-16)
+
+- **User decision:** remove the obsolete Graph Studio OSM buffered-overlap
+  frontier/correlation/proof/matrix/composer architecture before implementing
+  native F8; preserve existing independent regional graphs, native scanner,
+  single-region Valhalla routing, old diagnostics and Android F8 fallback.
+- **Branch:** `refactor/retire-pre-f8-connectivity` from GitHub `main`
+  `9c95ca37ef763f3e3d123fb3c77f2c9b25ab0be3` (PR/CI pending at this
+  writing). Separate draft PR #83 addresses a bug in a now-retired OSM module;
+  do not merge that module back or treat it as a prerequisite.
+- Desktop Rust `run_build_queue` no longer invokes the obsolete connectivity
+  producer, and the manual refresh and legacy multi-region route endpoints/UI
+  are removed. Retired Python generation and route-planner modules are deleted,
+  along with their obsolete CI smoke sections. Historical artifacts remain
+  read-only, not F8 parity evidence.
+- Native `capture_native_f8_graph_windows.py` is decoupled from the removed
+  OSM correlation stage: `--pair-manifest` accepts an identity-only UNPROVEN
+  graph-pair manifest; `tools/native_f8_inputs.py` holds shared retained graph
+  hash/boundary checks and polygon geometry readers. Real retained graphs and
+  local October 14 scanner evidence were not touched.
+- **Local verification on Legion:** frontend `npm run build` passed; nine
+  native capture tests, nine architecture/retirement tests, and sixteen F8
+  parity-audit synthetic regressions passed. Rust/Tauri compile, complete CI,
+  new CLI real-graph rescan, Android parity/device: NOT_RUN.
+- **NEXT EXACT ACTION:** get this removal PR green and review source/tree for
+  remaining active legacy production calls; then implement native directed
+  frontier handoff candidate discovery + both direction/mode Valhalla proof
+  on the same immutable Italy Nord-Est/Austria graph hashes. Compare actual
+  Android F8 reference and then Austria/Germany/multi-hop; keep parity
+  NOT_VERIFIED and do not publish production crossings until verified.
+
+
 ## F8 discovery-foundation correction — PR #75 merged, parity pending (2026-10-14)
 
 - **Merged:** PR #75 https://github.com/kandyman991/RoadPilot-Offline-Data/pull/75 at squash commit `b0d60d07c89b62291be75f893026c90b552efe23`; final head `4f6b5927ada4ac1a3aea9d74844c58678b7aa083` passed all 3 checks (`architecture-contract`, `validate`, `linux`). This confirms CI and architectural disclosure, NOT native F8 graph-edge parity.

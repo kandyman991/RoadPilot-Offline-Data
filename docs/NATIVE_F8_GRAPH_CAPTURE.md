@@ -21,7 +21,7 @@ validated on the Legion. Synthetic CI tests are not real graph evidence.
 ## Build on Legion (no graph rebuild)
 
 Prerequisites: the **same compatible Valhalla C++ headers and library** as
-the graph generator, CMake, compiler with C++17, `pkg-config` with
+the graph generator, CMake, compiler with C++20, `pkg-config` with
 `libvalhalla.pc`, and the existing Python Graph Studio dependencies. Check
 `pkg-config --modversion libvalhalla` before proceeding. The C++ executable
 now exposes the **compile-time linked libvalhalla version** via
@@ -42,12 +42,18 @@ scanner with an OSM-only approximation. Install a matching development package
 or build against the same Valhalla release; do not modify the retained graphs.
 
 Inputs are the **existing retained** two regional manifests, buffered polygon
-GeoJSONs and pair `correlations.json`. For a pair such as
-`italy-nord-est__geofabrik-austria`:
+GeoJSONs and an identity-only, UNPROVEN graph-pair manifest. No OSM-derived
+frontier inventory or legacy correlations are required. First create the pair
+identity from the exact retained graph manifests:
 
 ```bash
+python3 tools/build_connectivity_pair_manifest.py \
+  --from-manifest /path/to/italy-nord-est/routing/manifest.json \
+  --to-manifest /path/to/geofabrik-austria/routing/manifest.json \
+  --output /path/to/local-evidence/pair.json
+
 python3 tools/capture_native_f8_graph_windows.py \
-  --correlations /path/to/connectivity/italy-nord-est__geofabrik-austria/correlations.json \
+  --pair-manifest /path/to/local-evidence/pair.json \
   --from-manifest /path/to/italy-nord-est/routing/manifest.json \
   --to-manifest /path/to/geofabrik-austria/routing/manifest.json \
   --from-buffer /path/to/italy-nord-est/build/buffer.geojson \
@@ -57,8 +63,8 @@ python3 tools/capture_native_f8_graph_windows.py \
 ```
 
 The manifest paths in this example are **illustrative**. Use the actual
-retained routing manifest paths that Graph Studio's existing
-`refresh_graph_connectivity.py` uses; do not assume a layout or redownload.
+retained routing manifest paths from the unchanged regional packages;
+do not assume a layout or redownload. The old OSM frontier producer was retired.
 
 `capture_native_f8_graph_windows.py` verifies the manifests' graph package
 SHA-256s and neighbor-boundary fingerprints **before** scanning. It computes
@@ -75,7 +81,12 @@ repeat startup. Windows intersecting the overlap **by area** are exhaustive
 over that polygon, but rectangular scans intentionally retain nearby extra
 edges and cannot by themselves prove a valid intergraph crossing.
 
-## Optional first-pass comparison (NOT reference parity)
+## Historical audit input compatibility (NOT reference parity)
+
+The following standalone auditor can still inspect **previously retained**
+legacy candidate/proof JSON if provided. The OSM candidate producer has been
+removed; these files are not new native-F8 output and cannot certify parity.
+A future reference-vs-native parity auditor will use graph-backed evidence.
 
 ```bash
 python3 tools/audit_f8_graph_edge_parity.py \
@@ -98,13 +109,17 @@ actual Android/native evidence exists.
 
 ## Remaining acceptance gaps
 
-1. Build and run this CLI on the Legion's real, matching Valhalla versions.
+1. Re-run this CLI on the Legion's real, matching Valhalla versions with the new
+   identity-only pair-manifest interface and compare its directed edges to the
+   prior exhaustive scan. The October 14 native run predates this CLI cleanup.
 2. Export true reference Android F8 directed scanner results (both modes and
    travel directions) for the same graph versions.
 3. Explain or recover missing F8 alternatives, including distinct crossings
    of the same named road and multi-region chains.
 4. Optimize window scan startup only after parity evidence is captured.
-5. Keep **F8 parity NOT_VERIFIED**, Android ingestion NOT_RUN, and no
+5. Implement native graph-backed crossing creation and directional Valhalla
+   proof, not a revival of old OSM sampling.
+6. Keep **F8 parity NOT_VERIFIED**, Android ingestion NOT_RUN, and no
    production completeness/optimality claim until the architecture contract
    evidence tiers are satisfied. See issue #73.
 

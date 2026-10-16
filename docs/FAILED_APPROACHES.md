@@ -34,3 +34,14 @@ Observed: Austria configured with 18 intersecting extracts, including Austria, D
 Fix in PR #64: select geographically necessary sources using exact polygon coverage; normalize merged versions with streaming `osmium time-filter` before extracting a normal current snapshot; keep reference validation and graph-backed border proof. CI validated the former failure and corrected behavior with actual Osmium on synthetic mixed-version fixtures. User's full Austria build still needs repeat testing.
 
 Source: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/64
+
+## Confirmed failure — OSM buffered-overlap sampling is not F8 (2026-10-14)
+
+Real retained Italy Nord-Est/Austria graphs completed exhaustive read-only
+native graph scans (7,246 window executions) but the separately invoked
+OSM-way anchor stage produced over 250,000 redundant candidates and aborted,
+leaving zero published native F8 crossings. Nominal-only polygon boundary
+intersection yielded a zero-length MultiPoint and incorrectly accepted an
+exhausted empty inventory. Raising the limit or resampling the border would
+not establish graph-directed F8 parity. Source: issue #82. Retire this system;
+do not re-enable it or classify old VALIDATED sidecars as source-exhaustive F8.

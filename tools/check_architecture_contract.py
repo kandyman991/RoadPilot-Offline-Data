@@ -35,7 +35,7 @@ POLICY_FILES = {
 }
 ROUTING_FILES = re.compile(
     r"^(?:"
-    r"tools/[^/]*(?:routing|route|frontier|crossing|connectivity|connector|multiregion|valhalla)[^/]*[.]py"
+    r"tools/[^/]*(?:routing|route|frontier|crossing|connectivity|connector|multiregion|valhalla|native_f8|f8_)[^/]*[.]py"
     r"|graph-studio/src-tauri/src/lib[.]rs"
     r"|graph-studio/src/main[.]ts"
     r"|tests/test_(?:connectivity|graph_studio_multiregion|f8)[^/]*[.]py"
