@@ -791,36 +791,50 @@ app.innerHTML = `
       </section>
       <section class="section tool-panel" data-tool="f8" hidden>
         <h2>Native F8 connectivity</h2>
-        <p class="status-line">Graph-native discovery and journey checks on <strong>existing immutable regional graphs</strong>. Diagnostic evidence only; on-device F8 parity is NOT VERIFIED and production connectivity stays BLOCKED.</p>
+        <p class="status-line">Graph-native F8 diagnostics on existing immutable regional graphs. Android parity <strong>NOT VERIFIED</strong>; production connectivity <strong>BLOCKED</strong>.</p>
         <div class="coord-grid">
           <div class="field"><label for="f8RegionA">Graph A (retained build)</label><select id="f8RegionA"></select></div>
           <div class="field"><label for="f8RegionB">Graph B (retained build)</label><select id="f8RegionB"></select></div>
         </div>
-        <div class="actions">
-          <button id="f8RefreshBtn" class="btn" type="button">Inspect pair</button>
-          <button id="f8DiscoverBtn" class="btn primary" type="button" disabled>Discover native GPS proposals</button>
-          <button id="f8CancelBtn" class="btn danger" type="button" disabled>Cancel F8 operation</button>
+        <div class="f8-tabs" role="tablist" aria-label="Native F8 workflow">
+          <button id="f8DiscoveryTab" class="f8-tab active" type="button" role="tab" aria-selected="true" aria-controls="f8DiscoveryPanel">Discovery</button>
+          <button id="f8ValidationTab" class="f8-tab" type="button" role="tab" aria-selected="false" aria-controls="f8ValidationPanel" tabindex="-1">Journey Validation</button>
         </div>
-        <div id="f8PairSummary" class="empty">Choose two different retained graph builds, then inspect their native F8 evidence.</div>
-        <h2 style="margin-top:16px">Journey proof (bounded)</h2>
-        <div class="coord-grid">
-          <div class="field"><label for="f8Direction">Direction</label>
-            <select id="f8Direction"><option value="from-to">Graph A → B</option><option value="to-from">Graph B → A</option></select></div>
-          <div class="field"><label for="f8Mode">Vehicle</label>
-            <select id="f8Mode"><option value="motorcycle">Motorcycle</option><option value="auto">Car</option></select></div>
-          <div class="field"><label for="f8StartLat">Start latitude</label><input id="f8StartLat" type="number" step="0.000001" /></div>
-          <div class="field"><label for="f8StartLng">Start longitude</label><input id="f8StartLng" type="number" step="0.000001" /></div>
-          <div class="field"><label for="f8EndLat">Destination latitude</label><input id="f8EndLat" type="number" step="0.000001" /></div>
-          <div class="field"><label for="f8EndLng">Destination longitude</label><input id="f8EndLng" type="number" step="0.000001" /></div>
-          <div class="field"><label for="f8ProbeCount">Maximum proposals to test (1–16)</label><input id="f8ProbeCount" type="number" min="1" max="16" step="1" value="6" /></div>
+        <div class="f8-job-bar">
+          <div id="f8JobSummary" class="status-line" aria-live="polite">No F8 operation running.</div>
+          <button id="f8CancelBtn" class="btn danger" type="button" disabled>Cancel operation</button>
         </div>
-        <div class="actions">
-          <button id="f8CopyRouteBtn" class="btn" type="button">Copy route planner points</button>
-          <button id="f8ProbeBtn" class="btn primary" type="button" disabled>Run Valhalla journey proof</button>
+        <div id="f8DiscoveryPanel" class="f8-subpanel" role="tabpanel" aria-labelledby="f8DiscoveryTab">
+          <h3>Native graph discovery</h3>
+          <p class="status-line">Inspect an existing graph pair, then explicitly generate directed GPS proposals from native GraphReader evidence. Previously verified-on-input scans are reused without rebuilding.</p>
+          <div class="actions">
+            <button id="f8RefreshBtn" class="btn" type="button">Inspect pair</button>
+            <button id="f8DiscoverBtn" class="btn primary" type="button" disabled>Discover native GPS proposals</button>
+          </div>
+          <div id="f8PairSummary" class="empty">Choose two different retained graph builds, then inspect their native F8 evidence.</div>
         </div>
-        <p class="status-line">This tests only the explicitly selected samples and reports all untested proposals. A successful first route does not end discovery; FASTER/SHORTER figures are <strong>best of probed only</strong>.</p>
-        <div id="f8JobSummary" class="empty">No F8 operation running.</div>
-        <div id="f8RecentProofs" class="artifact-list"></div>
+        <div id="f8ValidationPanel" class="f8-subpanel" role="tabpanel" aria-labelledby="f8ValidationTab" hidden>
+          <h3>Journey validation (bounded)</h3>
+          <div id="f8ValidationReadiness" class="empty" aria-live="polite">Choose a graph pair and generate its native GPS proposals in Discovery before validating a journey.</div>
+          <div class="coord-grid">
+            <div class="field"><label for="f8Direction">Direction</label>
+              <select id="f8Direction"><option value="from-to">Graph A → B</option><option value="to-from">Graph B → A</option></select></div>
+            <div class="field"><label for="f8Mode">Vehicle</label>
+              <select id="f8Mode"><option value="motorcycle">Motorcycle</option><option value="auto">Car</option></select></div>
+            <div class="field"><label for="f8StartLat">Start latitude</label><input id="f8StartLat" type="number" step="0.000001" /></div>
+            <div class="field"><label for="f8StartLng">Start longitude</label><input id="f8StartLng" type="number" step="0.000001" /></div>
+            <div class="field"><label for="f8EndLat">Destination latitude</label><input id="f8EndLat" type="number" step="0.000001" /></div>
+            <div class="field"><label for="f8EndLng">Destination longitude</label><input id="f8EndLng" type="number" step="0.000001" /></div>
+            <div class="field"><label for="f8ProbeCount">Maximum proposals to test (1–16)</label><input id="f8ProbeCount" type="number" min="1" max="16" step="1" value="6" /></div>
+          </div>
+          <div class="actions">
+            <button id="f8CopyRouteBtn" class="btn" type="button">Copy route planner points</button>
+            <button id="f8ProbeBtn" class="btn primary" type="button" disabled>Run Valhalla journey proof</button>
+          </div>
+          <p class="status-line">Validation is limited to explicitly sampled proposals; other crossings remain <strong>UNPROBED</strong>. FASTER / SHORTER indicate best of probed only, never global optimality.</p>
+          <h3>Recent journey proofs</h3>
+          <div id="f8RecentProofs" class="artifact-list"></div>
+        </div>
       </section>
       <section class="section tool-panel" data-tool="route" hidden>
         <h2>Valhalla route planner</h2>
@@ -1134,6 +1148,41 @@ type F8PairOverview = {
 };
 type F8JobStatus = {running:boolean;stage:string;lastError:string|null;lastResult:F8PairOverview|null};
 
+type F8SubTab = "discovery" | "validation";
+const F8_TAB_STORAGE_KEY = "roadpilot.graph-studio.f8.active-tab";
+const f8DiscoveryTab = document.querySelector<HTMLButtonElement>("#f8DiscoveryTab")!;
+const f8ValidationTab = document.querySelector<HTMLButtonElement>("#f8ValidationTab")!;
+const f8DiscoveryPanel = document.querySelector<HTMLDivElement>("#f8DiscoveryPanel")!;
+const f8ValidationPanel = document.querySelector<HTMLDivElement>("#f8ValidationPanel")!;
+const f8ValidationReadiness = document.querySelector<HTMLDivElement>("#f8ValidationReadiness")!;
+
+function activateF8Tab(tab: F8SubTab, remember = true): void {
+  const discovery = tab === "discovery";
+  f8DiscoveryPanel.hidden = !discovery;
+  f8ValidationPanel.hidden = discovery;
+  f8DiscoveryTab.classList.toggle("active", discovery);
+  f8ValidationTab.classList.toggle("active", !discovery);
+  f8DiscoveryTab.setAttribute("aria-selected", String(discovery));
+  f8ValidationTab.setAttribute("aria-selected", String(!discovery));
+  f8DiscoveryTab.tabIndex = discovery ? 0 : -1;
+  f8ValidationTab.tabIndex = discovery ? -1 : 0;
+  if (remember) localStorage.setItem(F8_TAB_STORAGE_KEY, tab);
+}
+const initialF8Tab = localStorage.getItem(F8_TAB_STORAGE_KEY);
+activateF8Tab(initialF8Tab === "validation" ? "validation" : "discovery", false);
+f8DiscoveryTab.addEventListener("click", () => activateF8Tab("discovery"));
+f8ValidationTab.addEventListener("click", () => activateF8Tab("validation"));
+for (const button of [f8DiscoveryTab, f8ValidationTab]) {
+  button.addEventListener("keydown", event => {
+    const tab = event.key === "ArrowRight" || event.key === "End" ? "validation" :
+      event.key === "ArrowLeft" || event.key === "Home" ? "discovery" : null;
+    if (!tab) return;
+    event.preventDefault();
+    activateF8Tab(tab);
+    (tab === "discovery" ? f8DiscoveryTab : f8ValidationTab).focus();
+  });
+}
+
 const f8RegionA = document.querySelector<HTMLSelectElement>("#f8RegionA")!;
 const f8RegionB = document.querySelector<HTMLSelectElement>("#f8RegionB")!;
 const f8RefreshBtn = document.querySelector<HTMLButtonElement>("#f8RefreshBtn")!;
@@ -1167,8 +1216,22 @@ function renderF8BuildSelectors(): void {
   f8RegionA.innerHTML=`<option value="">Select Graph A…</option>${options}`;
   f8RegionB.innerHTML=`<option value="">Select Graph B…</option>${options}`;
   f8RegionA.value=existingA;f8RegionB.value=existingB;
-  if (!f8SelectedBuilds()) {currentF8Pair=null;f8PairSummary.textContent="Select two different retained regional routing graph builds.";}
+  if (!f8SelectedBuilds()) {
+    currentF8Pair=null;
+    f8PairSummary.textContent="Select two different retained regional routing graph builds.";
+    f8RecentProofs.replaceChildren();
+  }
   updateF8Buttons();
+}
+function updateF8ValidationReadiness(): void {
+  const valid = f8SelectedBuilds() != null;
+  const ready = valid && currentF8Pair?.proposalsReady === true;
+  f8ValidationReadiness.className = ready ? "status-line" : "empty";
+  f8ValidationReadiness.textContent = !valid
+    ? "Choose two different retained graph builds above, then generate their native proposals in Discovery."
+    : ready
+      ? "Native GPS proposals available for this exact graph pair. Journey proofs are sampled only; remaining candidates are UNPROBED."
+      : "No verified-on-input GPS inventory for this pair yet. Use Discovery → Inspect pair / Discover native GPS proposals first.";
 }
 function updateF8Buttons(): void {
   const valid = f8SelectedBuilds() != null;
@@ -1178,6 +1241,7 @@ function updateF8Buttons(): void {
   f8DiscoverBtn.disabled = !valid || running || currentF8Pair?.proposalsReady === true;
   f8ProbeBtn.disabled = !valid || running || currentF8Pair?.proposalsReady !== true;
   f8CancelBtn.disabled = !running;
+  updateF8ValidationReadiness();
 }
 function renderF8Overview(report:F8PairOverview): void {
   currentF8Pair=report;
@@ -1207,8 +1271,14 @@ function renderF8Overview(report:F8PairOverview): void {
 }
 async function refreshF8Pair(): Promise<void> {
   const selected=f8SelectedBuilds();const generation=++f8PairGeneration;
-  currentF8Pair=null;updateF8Buttons();
-  if (!selected) return;
+  currentF8Pair=null;
+  f8RecentProofs.replaceChildren();
+  updateF8Buttons();
+  if (!selected) {
+    f8PairSummary.className="empty";
+    f8PairSummary.textContent="Select two different retained regional routing graph builds.";
+    return;
+  }
   f8PairSummary.className="empty";f8PairSummary.textContent="Checking graph fingerprints and retained native F8 evidence…";
   try {
     const [a,b]=selected;
