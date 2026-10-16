@@ -6,3 +6,6 @@ build/
 *.geojsonseq
 __pycache__/
 *.pyc
+
+# Generated Graph Studio frontend development dependencies
+graph-studio/node_modules/

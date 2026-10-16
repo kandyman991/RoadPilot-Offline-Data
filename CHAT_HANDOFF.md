@@ -1,5 +1,15 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Graph Studio native F8 tool panel integration (2026-10-16, in review)
+
+- New working branch `feat/graph-studio-native-f8-ui` from merged main `3cae2a2` (`#86` merge commit `9c8c6ab`). User specifically requested a **usable installed GUI tool** for the native F8 workflow, not more standalone scripts.
+- New **Native F8 connectivity** tool inside the existing resizable Graph Studio right-side panel. Select two immutable retained graph builds; inspect exact graph/boundary identities; explicitly start complete retained-source native GPS proposal generation (or fresh GraphReader scan if the compatible native C++ exporter and buffered polygons are present); see real progress and cancel; select direction/mode/route and perform bounded Valhalla A→X→B validations. View sample-valid handoffs on the map and review best FASTER/SHORTER *of probed only*.
+- Rust Tauri command/event bridge shares a single testable Python CLI engine `tools/graph_studio_f8_workspace.py`, isolates native subprocess process groups for cancellation, prevents concurrent region builds/F8 jobs, validates selected builds from managed workspace, never publishes Android runtime sidecars. Each pair catalog is bound to exact graph/boundary fingerprints; reuse only matches; incomplete/stale evidence fails closed.
+- Real Legion test used already retained native scans for exact Italy Nord-Est/Austria `2026.10.13-1` pair and generated 334,973 / 323,372 directed receiver GPS seeds including unmatched alternatives with no graph rebuild or native rescan. Bounded Motorcycle A→B journey proof **3/6 validated**, **334,967 unprobed**. Original `.gph` packages untouched. Tests and TypeScript build passed locally; CI/review/merge/desktop-installed test NOT VERIFIED until done.
+- New docs: `docs/GRAPH_STUDIO_F8_TOOL_PANEL.md`. All outputs under local `~/RoadPilotGraphStudio/f8-native` and diagnostic ONLY. Actual Android F8 JNI parity, exhaustive Valhalla proofs, multiple region chain optimality, verified Android ingestion still NOT_VERIFIED/NOT_RUN; production publication remains BLOCKED. Never describe this GUI as completed full F8 precomputation.
+- **Next exact:** run Rust/Tauri + Python architecture CI on PR, technical review and correct findings, merge only after green; update Legion official `.deb` from rolling main release when authorized; inspect actual installed UI with user. Continue F8 parity and scalable offline proof scheduling after this integration.
+
+
 ## PR #86 technical review findings (2026-10-16)
 
 - **Reviewed native F8 crossing producer and bounded journey proof** at branch

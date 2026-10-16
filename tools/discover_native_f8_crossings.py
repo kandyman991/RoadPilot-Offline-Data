@@ -16,6 +16,7 @@ import io
 import json
 import os
 from pathlib import Path
+from typing import Callable
 import tempfile
 
 from build_native_f8_pair_evidence import (
@@ -73,7 +74,8 @@ def sha_file(path:Path) -> str:
 
 
 def generate(pair:dict, a:dict, b:dict, output:Path, provenance:dict,
-             prior_evidence:dict|None=None) -> dict:
+             prior_evidence:dict|None=None,
+             on_progress:Callable[[str,int,int],None]|None=None) -> dict:
     pair_identity(pair)
     validated_scan(a,'from')
     validated_scan(b,'to')
@@ -107,6 +109,8 @@ def generate(pair:dict, a:dict, b:dict, output:Path, provenance:dict,
                         raise ValueError('Repeated receiver GraphId would suppress an alternative')
                     all_receiver.add(record['receiverGraphId'])
                     count+=1
+                    if on_progress is not None and count % 50000 == 0:
+                        on_progress(direction,count,len(source[receiver_side]['edges']))
                     if same:with_peer+=1
                     f.write(json.dumps(record,separators=(',',':'),allow_nan=False)+'\n')
             files[target.name]={'sha256':sha_file(target),'records':count}
