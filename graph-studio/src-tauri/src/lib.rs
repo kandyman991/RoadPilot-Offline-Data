@@ -17,6 +17,8 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use tauri::{AppHandle, Emitter, Manager, State};
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 
 pub mod ai_control;
 pub mod ai_diagnostics;
@@ -147,6 +149,226 @@ impl Default for BuildState {
             failure_hint: Arc::new(Mutex::new(None)),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct F8WorkflowStatus {
+    running: bool,
+    stage: String,
+    last_error: Option<String>,
+    last_result: Option<Value>,
+}
+
+impl Default for F8WorkflowStatus {
+    fn default() -> Self {
+        Self { running: false, stage: "Native F8 idle".into(),
+               last_error: None, last_result: None }
+    }
+}
+
+#[derive(Clone, Default)]
+struct F8WorkflowState {
+    status: Arc<Mutex<F8WorkflowStatus>>,
+    cancel: Arc<AtomicBool>,
+    pid: Arc<Mutex<Option<u32>>>,
+}
+
+fn f8_emit(app: &AppHandle, state: &F8WorkflowState) {
+    if let Ok(status) = state.status.lock() {
+        let _ = app.emit("graph-studio://f8-status", status.clone());
+    }
+}
+
+fn f8_log(app: &AppHandle, message: &str) {
+    let _ = app.emit("graph-studio://f8-log", message.to_string());
+}
+
+fn f8_manifests(app: &AppHandle, from_region: &str, from_version: &str,
+                to_region: &str, to_version: &str) -> Result<(String,String),String> {
+    if from_region == to_region || ![from_region, from_version, to_region, to_version]
+        .iter().all(|id| safe_token(id) && *id != "." && *id != "..") {
+        return Err("Select two different valid retained routing graph builds.".into());
+    }
+    let available = list_builds(app.clone())?;
+    let from = available.iter().find(|b| b.region_id == from_region && b.version == from_version)
+        .ok_or("Graph A retained routing manifest not found.")?;
+    let to = available.iter().find(|b| b.region_id == to_region && b.version == to_version)
+        .ok_or("Graph B retained routing manifest not found.")?;
+    Ok((from.manifest_path.clone(), to.manifest_path.clone()))
+}
+
+fn f8_command(app: &AppHandle, operation: &str, from_region: &str,
+              from_version: &str, to_region: &str, to_version: &str,
+              direction: Option<&str>, mode: Option<&str>,
+              coordinates: Option<[f64;4]>, max_probes: Option<u32>) -> Result<Command,String> {
+    if !["status", "discover", "probe"].contains(&operation) {
+        return Err("Unsupported F8 operation.".into());
+    }
+    let (from, to) = f8_manifests(app,from_region,from_version,to_region,to_version)?;
+    let python = ensure_python_env(app)?;
+    let script = pipeline_root(app)?.join("tools/graph_studio_f8_workspace.py");
+    if !script.is_file() { return Err("Bundled native F8 workspace engine is missing.".into()); }
+    let root = workspace_root(app)?;
+    let mut command = Command::new(python);
+    command.arg("-u").arg(script).arg(operation)
+        .arg("--workspace").arg(root)
+        .arg("--from-manifest").arg(from)
+        .arg("--to-manifest").arg(to);
+    if operation == "probe" {
+        let direction = direction.ok_or("Choose one native F8 direction.")?;
+        let mode = mode.ok_or("Choose a vehicle mode.")?;
+        if !["from-to", "to-from"].contains(&direction)
+            || !["motorcycle", "auto"].contains(&mode) {
+            return Err("Unsupported F8 direction or vehicle mode.".into());
+        }
+        let coords = coordinates.ok_or("Start and destination coordinates are required.")?;
+        if coords.iter().any(|c| !c.is_finite())
+            || coords[0].abs()>90. || coords[2].abs()>90.
+            || coords[1].abs()>180. || coords[3].abs()>180. {
+            return Err("Invalid F8 journey coordinates.".into());
+        }
+        let count = max_probes.unwrap_or(6);
+        if !(1..=16).contains(&count) {
+            return Err("F8 trial proof budget must be between 1 and 16.".into());
+        }
+        command.arg("--direction").arg(direction).arg("--mode").arg(mode)
+            .arg("--max-probes").arg(count.to_string());
+        for (key, value) in ["start-lat", "start-lng", "end-lat", "end-lng"]
+            .iter().zip(coords.iter()) {
+            command.arg(format!("--{key}")).arg(value.to_string());
+        }
+    }
+    Ok(command)
+}
+
+#[tauri::command]
+fn f8_workflow_status(state: State<'_, F8WorkflowState>) -> F8WorkflowStatus {
+    state.status.lock().expect("Native F8 workflow lock poisoned").clone()
+}
+
+#[tauri::command]
+async fn f8_pair_overview(app: AppHandle, from_region: String, from_version: String,
+                          to_region: String, to_version: String) -> Result<Value,String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let output = f8_command(&app,"status",&from_region,&from_version,
+                                &to_region,&to_version,None,None,None,None)?
+            .output().map_err(|e|format!("Native F8 status failed to start: {e}"))?;
+        let out = String::from_utf8_lossy(&output.stdout);
+        if !output.status.success() {
+            return Err(out.lines().find_map(|line| line.strip_prefix("F8_ERROR "))
+                .unwrap_or("Native F8 status failed").to_string());
+        }
+        let item = out.lines().find_map(|line| line.strip_prefix("F8_RESULT "))
+            .ok_or("Native F8 status did not return structured evidence.")?;
+        serde_json::from_str::<Value>(item).map_err(|e|format!("Invalid native F8 status: {e}"))
+    }).await.map_err(|_|"Native F8 status worker failed".to_string())?
+}
+
+#[tauri::command]
+fn f8_start_workflow(app: AppHandle, state: State<'_, F8WorkflowState>,
+                     build_state: State<'_, BuildState>, operation: String,
+                     from_region: String, from_version: String,
+                     to_region: String, to_version: String,
+                     direction: Option<String>, mode: Option<String>,
+                     coordinates: Option<[f64;4]>, max_probes: Option<u32>) -> Result<(),String> {
+    if !["discover", "probe"].contains(&operation.as_str()) {
+        return Err("Only explicit native discovery and bounded proof can run.".into());
+    }
+    if build_state.status.lock().map_err(|_|"Build lock poisoned")?.running {
+        return Err("Finish or cancel regional graph builds before starting native F8.".into());
+    }
+    let mut cmd = f8_command(&app,&operation,&from_region,&from_version,
+                             &to_region,&to_version,direction.as_deref(),mode.as_deref(),
+                             coordinates,max_probes)?;
+    let owned = state.inner().clone();
+    {
+        let mut status = owned.status.lock().map_err(|_|"F8 lock poisoned")?;
+        if status.running { return Err("An F8 discovery/verification job is already running.".into()); }
+        *status = F8WorkflowStatus {running:true,stage:format!("Starting native F8 {operation}"),
+                                    last_error:None,last_result:None};
+    }
+    owned.cancel.store(false,Ordering::SeqCst);
+    f8_emit(&app,&owned);
+    tauri::async_runtime::spawn_blocking(move || {
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        #[cfg(unix)]
+        cmd.process_group(0);  // isolate child and descendants for reliable cancellation
+        let outcome: Result<(),String> = (|| {
+            let mut child = cmd.spawn().map_err(|e|format!("Cannot run native F8: {e}"))?;
+            *owned.pid.lock().map_err(|_|"F8 PID lock poisoned")? = Some(child.id());
+            let stdout=child.stdout.take().ok_or("F8 stdout not captured")?;
+            let stderr=child.stderr.take().ok_or("F8 stderr not captured")?;
+            let (tx,rx)=std::sync::mpsc::channel::<String>();
+            let output_tx=tx.clone();
+            let a=thread::spawn(move || {
+                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                    let _=output_tx.send(line);
+                }
+            });
+            let b=thread::spawn(move || {
+                for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                    let _=tx.send(line);
+                }
+            });
+            let mut error = None::<String>;
+            let mut result_seen = false;
+            loop {
+                match rx.recv_timeout(std::time::Duration::from_millis(200)) {
+                    Ok(line) => {
+                        if let Some(json) = line.strip_prefix("F8_RESULT ") {
+                            if let Ok(value) = serde_json::from_str::<Value>(json) {
+                                if let Ok(mut status)=owned.status.lock() {status.last_result=Some(value);}
+                                result_seen=true;
+                            }
+                        } else if let Some(message)=line.strip_prefix("F8_ERROR ") {
+                            error=Some(message.to_string());
+                            f8_log(&app,message);
+                        } else {
+                            f8_log(&app,&line);
+                            if let Ok(mut status)=owned.status.lock() {status.stage=line.chars().take(180).collect();}
+                            f8_emit(&app,&owned);
+                        }
+                    }
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {},
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                }
+                if owned.cancel.load(Ordering::SeqCst) {
+                    let _ = Command::new("kill").args(["-TERM", "--", &format!("-{}",child.id())]).status();
+                    let _=child.kill();
+                }
+            }
+            let exit = child.wait().map_err(|e|format!("Waiting for F8 job: {e}"))?;
+            let _=a.join();let _=b.join();
+            *owned.pid.lock().map_err(|_|"F8 PID lock poisoned")?=None;
+            if owned.cancel.load(Ordering::SeqCst) { return Err("Native F8 job cancelled.".into()); }
+            if !exit.success() {return Err(error.unwrap_or_else(||format!("Native F8 exited with {exit}")));}
+            if !result_seen {return Err("Native F8 completed without structured result.".into());}
+            Ok(())
+        })();
+        let mut status=owned.status.lock().expect("F8 lock poisoned");
+        status.running=false;
+        match outcome {
+            Ok(())=>{ status.stage="Native F8 diagnostic operation complete".into();status.last_error=None; },
+            Err(ref error)=>{status.stage="Native F8 diagnostic operation failed".into();status.last_error=Some(error.clone());},
+        }
+        owned.cancel.store(false,Ordering::SeqCst);
+        drop(status);
+        f8_emit(&app,&owned);
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn f8_cancel_workflow(state: State<'_, F8WorkflowState>) -> Result<(),String> {
+    if !state.status.lock().map_err(|_|"F8 lock poisoned")?.running {
+        return Err("No F8 operation is running.".into());
+    }
+    state.cancel.store(true,Ordering::SeqCst);
+    if let Some(pid)=*state.pid.lock().map_err(|_|"F8 PID lock poisoned")? {
+        let _=Command::new("kill").args(["-TERM", "--", &format!("-{pid}")]).status();
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1370,7 +1592,11 @@ fn start_build_queue(
     region_ids: Vec<String>,
     package_version: String,
     refresh_sources: bool,
+    f8_state: State<'_, F8WorkflowState>,
 ) -> Result<(), String> {
+    if f8_state.status.lock().map_err(|_| "F8 status lock poisoned")?.running {
+        return Err("Native F8 discovery is running; cancel/finish it before regional graph builds.".into());
+    }
     if region_ids.is_empty() {
         return Err("Select at least one region.".into());
     }
@@ -4259,10 +4485,15 @@ pub fn run() {
     normalize_process_path();
     tauri::Builder::default()
         .manage(BuildState::default())
+        .manage(F8WorkflowState::default())
         .manage(PublicationState::default())
         .invoke_handler(tauri::generate_handler![
             ai_control_command,
             ai_verify_route,
+            f8_workflow_status,
+            f8_pair_overview,
+            f8_start_workflow,
+            f8_cancel_workflow,
             list_regions,
             geofabrik_catalog,
             preview_region,

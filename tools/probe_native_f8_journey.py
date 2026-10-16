@@ -15,6 +15,7 @@ import os
 import json
 import math
 from pathlib import Path
+from typing import Callable
 import subprocess
 import tempfile
 
@@ -220,14 +221,19 @@ def check_one(candidate:dict,config_a:Path,config_b:Path,
 
 def inspect(pair:dict,manifest:dict,base:Path,config_a:Path,config_b:Path,
             start:dict,end:dict,mode:str,direction:str,max_probes:int,
-            route_fn=route,trace_fn=actual_edge)->dict:
+            route_fn=route,trace_fn=actual_edge,
+            on_progress:Callable[[int,int,dict],None]|None=None)->dict:
     if mode not in MODES or direction not in DIRECTIONS:raise ValueError('Unsupported mode/direction')
     file=eligible_manifest(pair,manifest,direction,base)
     chosen,total=proposal_order(file,start,end,max_probes,direction)
     if total!=manifest['files'][direction+'.jsonl.gz']['records']:
         raise ValueError('Native proposal count mismatch; incomplete source stream')
-    results=[check_one(c,config_a,config_b,start,end,mode,route_fn,trace_fn)
-             for c in chosen]
+    results=[]
+    for index, item in enumerate(chosen):
+        outcome=check_one(item,config_a,config_b,start,end,mode,route_fn,trace_fn)
+        results.append(outcome)
+        if on_progress is not None:
+            on_progress(index+1,len(chosen),outcome)
     successes=[r for r in results if r['status']=='VALIDATED_FOR_THIS_JOURNEY']
     return {'schema':'roadpilot.native-f8-journey-probe','version':1,
             'pairId':pair['pairId'],'direction':direction,'mode':mode,

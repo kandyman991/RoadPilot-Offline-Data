@@ -491,6 +491,7 @@ app.innerHTML = `
           <option value="region">Region editor</option>
           <option value="graph">Graph inspector</option>
           <option value="border">Border inspector</option>
+          <option value="f8">Native F8 connectivity</option>
           <option value="route">Route planner</option>
           <option value="visual">Visual map</option>
           <option value="search">Search / POI</option>
@@ -788,6 +789,39 @@ app.innerHTML = `
         <h2 style="margin-top:16px">Saved manual overrides</h2>
         <div id="handoffOverrideList" class="empty">No manual overrides.</div>
       </section>
+      <section class="section tool-panel" data-tool="f8" hidden>
+        <h2>Native F8 connectivity</h2>
+        <p class="status-line">Graph-native discovery and journey checks on <strong>existing immutable regional graphs</strong>. Diagnostic evidence only; on-device F8 parity is NOT VERIFIED and production connectivity stays BLOCKED.</p>
+        <div class="coord-grid">
+          <div class="field"><label for="f8RegionA">Graph A (retained build)</label><select id="f8RegionA"></select></div>
+          <div class="field"><label for="f8RegionB">Graph B (retained build)</label><select id="f8RegionB"></select></div>
+        </div>
+        <div class="actions">
+          <button id="f8RefreshBtn" class="btn" type="button">Inspect pair</button>
+          <button id="f8DiscoverBtn" class="btn primary" type="button" disabled>Discover native GPS proposals</button>
+          <button id="f8CancelBtn" class="btn danger" type="button" disabled>Cancel F8 operation</button>
+        </div>
+        <div id="f8PairSummary" class="empty">Choose two different retained graph builds, then inspect their native F8 evidence.</div>
+        <h2 style="margin-top:16px">Journey proof (bounded)</h2>
+        <div class="coord-grid">
+          <div class="field"><label for="f8Direction">Direction</label>
+            <select id="f8Direction"><option value="from-to">Graph A → B</option><option value="to-from">Graph B → A</option></select></div>
+          <div class="field"><label for="f8Mode">Vehicle</label>
+            <select id="f8Mode"><option value="motorcycle">Motorcycle</option><option value="auto">Car</option></select></div>
+          <div class="field"><label for="f8StartLat">Start latitude</label><input id="f8StartLat" type="number" step="0.000001" /></div>
+          <div class="field"><label for="f8StartLng">Start longitude</label><input id="f8StartLng" type="number" step="0.000001" /></div>
+          <div class="field"><label for="f8EndLat">Destination latitude</label><input id="f8EndLat" type="number" step="0.000001" /></div>
+          <div class="field"><label for="f8EndLng">Destination longitude</label><input id="f8EndLng" type="number" step="0.000001" /></div>
+          <div class="field"><label for="f8ProbeCount">Maximum proposals to test (1–16)</label><input id="f8ProbeCount" type="number" min="1" max="16" step="1" value="6" /></div>
+        </div>
+        <div class="actions">
+          <button id="f8CopyRouteBtn" class="btn" type="button">Copy route planner points</button>
+          <button id="f8ProbeBtn" class="btn primary" type="button" disabled>Run Valhalla journey proof</button>
+        </div>
+        <p class="status-line">This tests only the explicitly selected samples and reports all untested proposals. A successful first route does not end discovery; FASTER/SHORTER figures are <strong>best of probed only</strong>.</p>
+        <div id="f8JobSummary" class="empty">No F8 operation running.</div>
+        <div id="f8RecentProofs" class="artifact-list"></div>
+      </section>
       <section class="section tool-panel" data-tool="route" hidden>
         <h2>Valhalla route planner</h2>
         <p class="status-line">Single-region Valhalla routing only. Native F8 multi-region routing will return after graph-backed crossing discovery and parity verification.</p>
@@ -1051,13 +1085,13 @@ let locateCandidateIndex = 0;
 const selected = new Set<string>(); // Validated, configured region IDs for building.
 const pendingCatalogSelection = new Set<string>(); // Geofabrik IDs awaiting configuration.
 
-type ToolId = "build" | "region" | "graph" | "border" | "route" | "visual" | "search" | "compare" | "publish" | "toolchain";
+type ToolId = "build" | "region" | "graph" | "border" | "f8" | "route" | "visual" | "search" | "compare" | "publish" | "toolchain";
 const TOOL_STORAGE_KEY = "roadpilot.graph-studio.active-tool";
 let activeTool: ToolId = "build";
 let lastNonRegionTool: ToolId = "build";
 
 function isToolId(value: string | null): value is ToolId {
-  return ["build", "region", "graph", "border", "route", "visual", "search", "compare", "publish", "toolchain"].includes(value ?? "");
+  return ["build", "region", "graph", "border", "f8", "route", "visual", "search", "compare", "publish", "toolchain"].includes(value ?? "");
 }
 
 function activateTool(tool: ToolId, remember = true): void {
@@ -1086,6 +1120,169 @@ function bytes(value: number | null): string {
   while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
   return `${v.toFixed(i >= 3 ? 1 : 0)} ${units[i]}`;
 }
+
+type F8PairOverview = {
+  pairId: string; fromVersion: string; toVersion: string;
+  fromGraphFingerprint: string; toGraphFingerprint: string;
+  source: string; nativeScannerAvailable: boolean; proposalsReady: boolean;
+  proposalError: string | null; diagnosticDirectory: string;
+  counts: Record<string, { receiverDirectedEdges: number; exactPhysicalPeerEvidence: number; noExactPhysicalPeer: number }> | null;
+  recentProbes: Array<{mode:string;direction:string;attempted:number;validated:number;unprobed:number;file:string;
+    sampledHandoffs:Array<{coordinate:{lat:number;lng:number};graphId:number;durationSeconds:number;distanceKm:number}>;
+    bestOfProbedOnly: Record<string,string|null>}>;
+  androidParity:string; productionPublication:string;
+};
+type F8JobStatus = {running:boolean;stage:string;lastError:string|null;lastResult:F8PairOverview|null};
+
+const f8RegionA = document.querySelector<HTMLSelectElement>("#f8RegionA")!;
+const f8RegionB = document.querySelector<HTMLSelectElement>("#f8RegionB")!;
+const f8RefreshBtn = document.querySelector<HTMLButtonElement>("#f8RefreshBtn")!;
+const f8DiscoverBtn = document.querySelector<HTMLButtonElement>("#f8DiscoverBtn")!;
+const f8CancelBtn = document.querySelector<HTMLButtonElement>("#f8CancelBtn")!;
+const f8PairSummary = document.querySelector<HTMLDivElement>("#f8PairSummary")!;
+const f8Direction = document.querySelector<HTMLSelectElement>("#f8Direction")!;
+const f8Mode = document.querySelector<HTMLSelectElement>("#f8Mode")!;
+const f8StartLat = document.querySelector<HTMLInputElement>("#f8StartLat")!;
+const f8StartLng = document.querySelector<HTMLInputElement>("#f8StartLng")!;
+const f8EndLat = document.querySelector<HTMLInputElement>("#f8EndLat")!;
+const f8EndLng = document.querySelector<HTMLInputElement>("#f8EndLng")!;
+const f8ProbeCount = document.querySelector<HTMLInputElement>("#f8ProbeCount")!;
+const f8CopyRouteBtn = document.querySelector<HTMLButtonElement>("#f8CopyRouteBtn")!;
+const f8ProbeBtn = document.querySelector<HTMLButtonElement>("#f8ProbeBtn")!;
+const f8JobSummary = document.querySelector<HTMLDivElement>("#f8JobSummary")!;
+const f8RecentProofs = document.querySelector<HTMLDivElement>("#f8RecentProofs")!;
+let currentF8Pair: F8PairOverview | null = null;
+let currentF8Job: F8JobStatus | null = null;
+let f8PairGeneration = 0;
+let f8SampleMarker: Marker | null = null;
+
+function f8SelectedBuilds(): [BuildArtifact,BuildArtifact] | null {
+  const a = artifacts.find(item => item.manifest_path === f8RegionA.value);
+  const b = artifacts.find(item => item.manifest_path === f8RegionB.value);
+  return a && b && a.region_id !== b.region_id ? [a,b] : null;
+}
+function renderF8BuildSelectors(): void {
+  const existingA=f8RegionA.value, existingB=f8RegionB.value;
+  const options=artifacts.map(item => `<option value="${escapeHtml(item.manifest_path)}">${escapeHtml(item.region_id)} · ${escapeHtml(item.version)}</option>`).join("");
+  f8RegionA.innerHTML=`<option value="">Select Graph A…</option>${options}`;
+  f8RegionB.innerHTML=`<option value="">Select Graph B…</option>${options}`;
+  f8RegionA.value=existingA;f8RegionB.value=existingB;
+  if (!f8SelectedBuilds()) {currentF8Pair=null;f8PairSummary.textContent="Select two different retained regional routing graph builds.";}
+  updateF8Buttons();
+}
+function updateF8Buttons(): void {
+  const valid = f8SelectedBuilds() != null;
+  const running = currentF8Job?.running === true;
+  f8RegionA.disabled=running;f8RegionB.disabled=running;
+  f8RefreshBtn.disabled = !valid || running;
+  f8DiscoverBtn.disabled = !valid || running || currentF8Pair?.proposalsReady === true;
+  f8ProbeBtn.disabled = !valid || running || currentF8Pair?.proposalsReady !== true;
+  f8CancelBtn.disabled = !running;
+}
+function renderF8Overview(report:F8PairOverview): void {
+  currentF8Pair=report;
+  const counts=report.counts;
+  f8PairSummary.className="kv";
+  f8PairSummary.innerHTML=`<dt>Pair</dt><dd>${escapeHtml(report.pairId)}</dd>
+    <dt>Graph versions</dt><dd>${escapeHtml(report.fromVersion)} → ${escapeHtml(report.toVersion)}</dd>
+    <dt>Source</dt><dd>${escapeHtml(report.source.replaceAll("_"," "))}</dd>
+    <dt>GPS proposals</dt><dd>${counts ? `${counts["from-to"].receiverDirectedEdges.toLocaleString()} A→B / ${counts["to-from"].receiverDirectedEdges.toLocaleString()} B→A` : "Not generated yet"}</dd>
+    <dt>Native scanner</dt><dd>${report.nativeScannerAvailable ? "Available" : "Not installed; existing scans only"}</dd>
+    <dt>Android F8 parity</dt><dd class="bad">${escapeHtml(report.androidParity)}</dd>
+    <dt>Runtime publication</dt><dd class="bad">${escapeHtml(report.productionPublication)}</dd>
+    <dt>Local evidence</dt><dd>${escapeHtml(report.diagnosticDirectory)}</dd>`;
+  if (report.proposalError) {
+    f8PairSummary.innerHTML += `<p class="bad">Stale/corrupt GPS inventory: ${escapeHtml(report.proposalError)}. Will not overwrite.</p>`;
+  }
+  f8RecentProofs.innerHTML = report.recentProbes.length
+    ? report.recentProbes.map(item=>`<div class="handoff-card"><strong>${escapeHtml(item.direction)} · ${escapeHtml(item.mode)}</strong>
+      <p>${item.validated} validated / ${item.attempted} sampled · ${item.unprobed.toLocaleString()} UNPROBED</p>
+      <small>Best of sampled: FASTER ${escapeHtml(item.bestOfProbedOnly?.FASTER ?? "none")} · SHORTER ${escapeHtml(item.bestOfProbedOnly?.SHORTER ?? "none")}</small>
+      <div class="actions">${(item.sampledHandoffs??[]).map((point,index)=>
+        `<button type="button" class="btn" data-f8-report="${report.recentProbes.indexOf(item)}" data-f8-point="${index}">
+          View handoff ${index+1} (${Number(point.coordinate.lat).toFixed(5)}, ${Number(point.coordinate.lng).toFixed(5)})</button>`).join("")}</div>
+      </div>`).join("")
+    : `<p class="empty">No journey probes for this exact pair yet. All alternatives remain unverified.</p>`;
+  updateF8Buttons();
+}
+async function refreshF8Pair(): Promise<void> {
+  const selected=f8SelectedBuilds();const generation=++f8PairGeneration;
+  currentF8Pair=null;updateF8Buttons();
+  if (!selected) return;
+  f8PairSummary.className="empty";f8PairSummary.textContent="Checking graph fingerprints and retained native F8 evidence…";
+  try {
+    const [a,b]=selected;
+    const report=await invoke<F8PairOverview>("f8_pair_overview",{
+      fromRegion:a.region_id, fromVersion:a.version,toRegion:b.region_id,toVersion:b.version,
+    });
+    if (generation===f8PairGeneration) renderF8Overview(report);
+  } catch (error) {
+    if (generation===f8PairGeneration) {
+      f8PairSummary.className="bad";
+      f8PairSummary.textContent=`Cannot prepare F8 pair: ${String(error)}`;
+    }
+  } finally {if(generation===f8PairGeneration)updateF8Buttons();}
+}
+function renderF8Job(status:F8JobStatus):void {
+  const wasRunning=currentF8Job?.running === true;
+  currentF8Job=status;
+  f8JobSummary.className=status.lastError ? "bad" : "status-line";
+  f8JobSummary.textContent=status.lastError ? `F8 failed: ${status.lastError}` : status.stage;
+  updateF8Buttons();
+  if (wasRunning && !status.running && f8SelectedBuilds()) void refreshF8Pair();
+}
+async function runF8(operation:"discover"|"probe"): Promise<void> {
+  const builds=f8SelectedBuilds();if(!builds)return;
+  const [a,b]=builds;
+  const args:Record<string,unknown>={operation,fromRegion:a.region_id,fromVersion:a.version,
+    toRegion:b.region_id,toVersion:b.version};
+  if(operation==="probe") {
+    const values=[f8StartLat,f8StartLng,f8EndLat,f8EndLng].map(input=>input.value.trim()===""?NaN:Number(input.value));
+    if(values.some(value=>!Number.isFinite(value)) || Math.abs(values[0])>90 || Math.abs(values[2])>90 ||
+       Math.abs(values[1])>180 || Math.abs(values[3])>180) {
+      f8JobSummary.className="bad";f8JobSummary.textContent="Enter all four valid journey coordinates.";return;
+    }
+    const count=Number(f8ProbeCount.value);
+    if(!Number.isInteger(count)||count<1||count>16) {
+      f8JobSummary.className="bad";f8JobSummary.textContent="Choose 1–16 bounded proof samples.";return;
+    }
+    args.direction=f8Direction.value;args.mode=f8Mode.value;
+    args.coordinates=values;args.maxProbes=count;
+  }
+  try {
+    await invoke("f8_start_workflow",args);
+    renderF8Job(await invoke<F8JobStatus>("f8_workflow_status"));
+    appendLog(`Started native F8 ${operation} on ${a.region_id} / ${b.region_id} (diagnostic only).`);
+  } catch(error) {
+    f8JobSummary.className="bad";f8JobSummary.textContent=`Cannot start F8 ${operation}: ${String(error)}`;
+    appendLog(String(error));
+  }
+}
+f8RegionA.addEventListener("change",()=>void refreshF8Pair());
+f8RegionB.addEventListener("change",()=>void refreshF8Pair());
+f8RefreshBtn.addEventListener("click",()=>void refreshF8Pair());
+f8DiscoverBtn.addEventListener("click",()=>void runF8("discover"));
+f8ProbeBtn.addEventListener("click",()=>void runF8("probe"));
+f8CancelBtn.addEventListener("click",async()=>{
+  try {await invoke("f8_cancel_workflow");appendLog("Native F8 cancellation requested.");}
+  catch(error){appendLog(`F8 cancellation failed: ${String(error)}`);}
+});
+f8RecentProofs.addEventListener("click", event => {
+  const target=(event.target as HTMLElement).closest<HTMLButtonElement>("[data-f8-report][data-f8-point]");
+  if (!target || !currentF8Pair) return;
+  const report=currentF8Pair.recentProbes[Number(target.dataset.f8Report)];
+  const point=report?.sampledHandoffs?.[Number(target.dataset.f8Point)];
+  if (!point || !Number.isFinite(point.coordinate.lat) || !Number.isFinite(point.coordinate.lng)) return;
+  f8SampleMarker?.remove();
+  f8SampleMarker=new Marker().setLngLat([point.coordinate.lng,point.coordinate.lat]).addTo(map);
+  map.flyTo({center:[point.coordinate.lng,point.coordinate.lat],zoom:15});
+  appendLog(`Native F8 sampled handoff: ${point.coordinate.lat.toFixed(6)}, ${point.coordinate.lng.toFixed(6)} · directed GraphId ${point.graphId} · tested journey only.`);
+});
+f8CopyRouteBtn.addEventListener("click",()=>{
+  for (const [target,source] of [[f8StartLat,routeStartLat],[f8StartLng,routeStartLng],
+    [f8EndLat,routeEndLat],[f8EndLng,routeEndLng]] as Array<[HTMLInputElement,HTMLInputElement]>)
+    target.value=source.value;
+});
 
 function defaultVersion(): string {
   const d = new Date();
@@ -4479,6 +4676,7 @@ async function refreshBuilds(): Promise<void> {
   }
   renderCompareSelectors();
   renderBorderRegionSelectors();
+  renderF8BuildSelectors();
   renderPublicationBuildSelector();
   renderRegions();
 }
@@ -5004,6 +5202,10 @@ async function bootstrap(): Promise<void> {
       refreshSearchBuilds().catch(() => {});
     }
   });
+  await listen<F8JobStatus>("graph-studio://f8-status", event => {
+    renderF8Job(event.payload);
+  });
+  await listen<string>("graph-studio://f8-log", event => appendLog(event.payload));
   await listen<PublicationStatus>("graph-studio://publication-status", event => {
     renderPublicationStatus(event.payload);
   });
@@ -5019,6 +5221,7 @@ async function bootstrap(): Promise<void> {
     loadGeofabrikCatalog(false),
     refreshToolchain(),
     refreshBuildStatus(),
+    invoke<F8JobStatus>("f8_workflow_status").then(renderF8Job),
     refreshBuilds(),
     refreshVisualBuilds(),
     refreshSearchBuilds(),
