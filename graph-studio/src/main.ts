@@ -455,7 +455,7 @@ app.innerHTML = `
       <button id="showMapPane" class="workspace-pane-btn" type="button" aria-pressed="true">Map</button>
       <button id="showToolsPane" class="workspace-pane-btn" type="button" aria-pressed="false">Tools</button>
     </nav>
-    <div id="toolchainBadge" class="metric">Toolchain <b>checking…</b></div>
+    <button id="toolchainBadge" class="metric toolchain-trigger" type="button" aria-label="Show toolchain details" aria-controls="toolchainDetailsPanel" aria-expanded="false">Toolchain <b>checking…</b></button>
   </header>
 
   <main class="workspace">
@@ -491,19 +491,19 @@ app.innerHTML = `
     <aside class="inspector">
       <div class="tool-menu-shell">
         <label for="toolMenu">Tool</label>
-        <select id="toolMenu">
-          <option value="build">Build</option>
-          <option value="region">Region editor</option>
-          <option value="graph">Graph inspector</option>
-          <option value="border">Border inspector</option>
-          <option value="f8">Native F8 connectivity</option>
-          <option value="route">Route planner</option>
-          <option value="visual">Visual map</option>
-          <option value="search">Search / POI</option>
-          <option value="compare">Build comparison</option>
-          <option value="publish">R2 publication</option>
-          <option value="toolchain">Toolchain</option>
+        <select id="toolMenu" aria-label="Graph Studio workflow">
+          <optgroup label="Build"><option value="build">Build regional graphs</option></optgroup>
+          <optgroup label="Inspect"><option value="graph">Graph inspector</option></optgroup>
+          <optgroup label="Test"><option value="f8">Native F8 connectivity</option><option value="route">Route planner</option><option value="compare">Compare builds</option></optgroup>
+          <optgroup label="Data"><option value="visual">Visual map</option><option value="search">Search / POI</option></optgroup>
+          <optgroup label="Publish"><option value="publish">R2 publication</option></optgroup>
+          <optgroup label="Advanced"><option value="border">Border inspector</option></optgroup>
         </select>
+        <button id="openToolchainBtn" class="tool-menu-diagnostics" type="button" aria-controls="toolchainDetailsPanel" aria-expanded="false" aria-label="Open toolchain diagnostics" title="Toolchain diagnostics">Tools status</button>
+      </div>
+      <div id="contextToolNotice" class="context-tool-notice" hidden>
+        <span id="contextToolTitle">Context tool</span>
+        <button id="contextBackBtn" class="btn" type="button">Back to workflow</button>
       </div>
 
       <section class="section tool-panel" data-tool="build">
@@ -581,7 +581,7 @@ app.innerHTML = `
         <div id="publicationHistory" class="empty">No region selected.</div>
       </section>
 
-      <section class="section tool-panel" data-tool="toolchain" hidden>
+      <section id="toolchainDetailsPanel" class="section tool-panel" data-tool="toolchain" hidden>
         <h2>Toolchain</h2>
         <div id="tools" class="empty">Checking local tools…</div>
       </section>
@@ -640,12 +640,7 @@ app.innerHTML = `
         <div class="actions"><button id="runSearchBtn" class="btn primary" type="button">Search exact DB</button><button id="clearSearchBtn" class="btn" type="button">Clear</button></div>
         <div id="searchResultsSummary" class="empty" style="margin-top:8px">Choose a retained search build.</div>
         <div id="searchResults" class="search-results"></div>
-        <details class="route-options" style="margin-top:10px"><summary>Compare retained search builds</summary>
-          <div class="field"><label for="searchCompareA">Build A</label><select id="searchCompareA"></select></div>
-          <div class="field"><label for="searchCompareB">Build B</label><select id="searchCompareB"></select></div>
-          <div class="actions"><button id="compareSearchBtn" class="btn" type="button">Compare</button></div>
-          <pre id="searchCompareSummary" class="feature-json">Choose two builds of the same region.</pre>
-        </details>
+
       </section>
       <section class="section tool-panel" data-tool="visual" hidden>
         <h2>Visual map inspector</h2>
@@ -677,21 +672,6 @@ app.innerHTML = `
           </div>
         </details>
 
-        <h2 style="margin-top:16px">Visual build comparison</h2>
-        <div class="coord-grid">
-          <div class="field"><label for="visualCompareA">Visual A</label><select id="visualCompareA"></select></div>
-          <div class="field"><label for="visualCompareB">Visual B</label><select id="visualCompareB"></select></div>
-        </div>
-        <div class="actions">
-          <button id="compareVisualBuildsBtn" class="btn" type="button" disabled>Compare visible roads</button>
-        </div>
-        <div id="visualComparisonSummary" class="empty">Choose two visual builds of the same region.</div>
-        <div class="border-diff-legend" style="margin-top:8px">
-          <span><i class="legend-common"></i>Unchanged</span>
-          <span><i class="legend-a"></i>Removed / A only</span>
-          <span><i class="legend-b"></i>Added / B only</span>
-          <span><i class="artifact-candidate"></i>Changed</span>
-        </div>
       </section>
       <section class="section tool-panel" data-tool="graph" hidden>
         <h2>Graph inspector</h2>
@@ -891,7 +871,16 @@ app.innerHTML = `
         <div id="routeManeuvers" class="maneuver-list"></div>
       </section>
       <section class="section tool-panel" data-tool="compare" hidden>
-        <h2>Build comparison</h2>
+        <h2>Compare retained builds</h2>
+        <p class="status-line">Compare immutable regional artifacts by type. Switching comparison tabs preserves the selected builds and their results.</p>
+        <div class="comparison-tabs" role="tablist" aria-label="Comparison artifact type">
+          <button id="compareRoutingTab" class="comparison-tab active" role="tab" type="button" aria-selected="true" aria-controls="compareRoutingPanel">Routing</button>
+          <button id="compareVisualTab" class="comparison-tab" role="tab" type="button" aria-selected="false" aria-controls="compareVisualPanel" tabindex="-1">Visual</button>
+          <button id="compareSearchTab" class="comparison-tab" role="tab" type="button" aria-selected="false" aria-controls="compareSearchPanel" tabindex="-1">Search</button>
+        </div>
+        <div id="compareRoutingPanel" class="comparison-subpanel" role="tabpanel" aria-labelledby="compareRoutingTab">
+          <h3>Routing graph and boundary changes</h3>
+
         <div class="field">
           <label for="compareA">Build A</label>
           <select id="compareA"></select>
@@ -901,6 +890,33 @@ app.innerHTML = `
           <select id="compareB"></select>
         </div>
         <div id="comparison" class="empty">Choose two builds of the same region.</div>
+        </div>
+        <div id="compareVisualPanel" class="comparison-subpanel" role="tabpanel" aria-labelledby="compareVisualTab" hidden>
+        <h3>Visual build comparison</h3>
+        <div class="coord-grid">
+          <div class="field"><label for="visualCompareA">Visual A</label><select id="visualCompareA"></select></div>
+          <div class="field"><label for="visualCompareB">Visual B</label><select id="visualCompareB"></select></div>
+        </div>
+        <div class="actions">
+          <button id="compareVisualBuildsBtn" class="btn" type="button" disabled>Compare visible roads</button>
+        </div>
+        <div id="visualComparisonSummary" class="empty">Choose two visual builds of the same region.</div>
+        <div class="border-diff-legend" style="margin-top:8px">
+          <span><i class="legend-common"></i>Unchanged</span>
+          <span><i class="legend-a"></i>Removed / A only</span>
+          <span><i class="legend-b"></i>Added / B only</span>
+          <span><i class="artifact-candidate"></i>Changed</span>
+        </div>
+        </div>
+        <div id="compareSearchPanel" class="comparison-subpanel" role="tabpanel" aria-labelledby="compareSearchTab" hidden>
+          <h3>Search and POI database changes</h3>
+        <div class="search-comparison-content">
+          <div class="field"><label for="searchCompareA">Build A</label><select id="searchCompareA"></select></div>
+          <div class="field"><label for="searchCompareB">Build B</label><select id="searchCompareB"></select></div>
+          <div class="actions"><button id="compareSearchBtn" class="btn" type="button">Compare</button></div>
+          <pre id="searchCompareSummary" class="feature-json">Choose two builds of the same region.</pre>
+        </div>
+        </div>
       </section>
     </aside>
   </main>
@@ -926,6 +942,48 @@ app.innerHTML = `
 const appRoot = document.querySelector<HTMLDivElement>(".app")!;
 const regionHost = document.querySelector<HTMLDivElement>("#regions")!;
 const toolMenu = document.querySelector<HTMLSelectElement>("#toolMenu")!;
+const contextToolNotice = document.querySelector<HTMLDivElement>("#contextToolNotice")!;
+const contextToolTitle = document.querySelector<HTMLSpanElement>("#contextToolTitle")!;
+const contextBackBtn = document.querySelector<HTMLButtonElement>("#contextBackBtn")!;
+const toolchainBadge = document.querySelector<HTMLButtonElement>("#toolchainBadge")!;
+const openToolchainBtn = document.querySelector<HTMLButtonElement>("#openToolchainBtn")!;
+const comparisonTabs = {
+  routing: document.querySelector<HTMLButtonElement>("#compareRoutingTab")!,
+  visual: document.querySelector<HTMLButtonElement>("#compareVisualTab")!,
+  search: document.querySelector<HTMLButtonElement>("#compareSearchTab")!,
+};
+const comparisonPanels = {
+  routing: document.querySelector<HTMLDivElement>("#compareRoutingPanel")!,
+  visual: document.querySelector<HTMLDivElement>("#compareVisualPanel")!,
+  search: document.querySelector<HTMLDivElement>("#compareSearchPanel")!,
+};
+type ComparisonTab = "routing" | "visual" | "search";
+const COMPARISON_TAB_KEY = "roadpilot.graph-studio.comparison-tab";
+function activateComparisonTab(tab: ComparisonTab, remember = true): void {
+  for (const key of ["routing", "visual", "search"] as const) {
+    const active = key === tab;
+    comparisonPanels[key].hidden = !active;
+    comparisonTabs[key].classList.toggle("active", active);
+    comparisonTabs[key].setAttribute("aria-selected", String(active));
+    comparisonTabs[key].tabIndex = active ? 0 : -1;
+  }
+  if (remember) localStorage.setItem(COMPARISON_TAB_KEY, tab);
+}
+const previousComparisonTab = localStorage.getItem(COMPARISON_TAB_KEY);
+activateComparisonTab(previousComparisonTab === "visual" || previousComparisonTab === "search" ? previousComparisonTab : "routing", false);
+for (const key of ["routing", "visual", "search"] as const) {
+  comparisonTabs[key].addEventListener("click", () => activateComparisonTab(key));
+  comparisonTabs[key].addEventListener("keydown", event => {
+    const order: ComparisonTab[] = ["routing", "visual", "search"];
+    const direction = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    const destination = event.key === "Home" ? "routing" : event.key === "End" ? "search" :
+      direction ? order[(order.indexOf(key) + direction + order.length) % order.length] : null;
+    if (!destination) return;
+    event.preventDefault();
+    activateComparisonTab(destination);
+    comparisonTabs[destination].focus();
+  });
+}
 const toolPanels = [...document.querySelectorAll<HTMLElement>(".tool-panel")];
 const leftSplitter = document.querySelector<HTMLDivElement>("#leftSplitter")!;
 const rightSplitter = document.querySelector<HTMLDivElement>("#rightSplitter")!;
@@ -1118,32 +1176,47 @@ const selected = new Set<string>(); // Validated, configured region IDs for buil
 const pendingCatalogSelection = new Set<string>(); // Geofabrik IDs awaiting configuration.
 
 type ToolId = "build" | "region" | "graph" | "border" | "f8" | "route" | "visual" | "search" | "compare" | "publish" | "toolchain";
+type PrimaryToolId = Exclude<ToolId, "region" | "toolchain">;
 const TOOL_STORAGE_KEY = "roadpilot.graph-studio.active-tool";
 let activeTool: ToolId = "build";
-let lastNonRegionTool: ToolId = "build";
-
+let lastNonRegionTool: PrimaryToolId = "build";
 function isToolId(value: string | null): value is ToolId {
   return ["build", "region", "graph", "border", "f8", "route", "visual", "search", "compare", "publish", "toolchain"].includes(value ?? "");
 }
-
+function isPrimaryTool(value: string | null): value is PrimaryToolId {
+  return isToolId(value) && value !== "region" && value !== "toolchain";
+}
 function activateTool(tool: ToolId, remember = true): void {
-  if (tool !== "region") lastNonRegionTool = tool;
+  const contextual = tool === "region" || tool === "toolchain";
+  if (!contextual) lastNonRegionTool = tool;
   activeTool = tool;
-  toolMenu.value = tool;
+  toolMenu.value = contextual ? lastNonRegionTool : tool;
+  contextToolNotice.hidden = !contextual;
+  contextToolTitle.textContent = tool === "region" ? "Region editor · opened from region tree" :
+    tool === "toolchain" ? "Toolchain diagnostics · opened from header" : "";
+  toolchainBadge.setAttribute("aria-expanded", String(tool === "toolchain"));
+  openToolchainBtn.setAttribute("aria-expanded", String(tool === "toolchain"));
+  toolchainBadge.classList.toggle("active", tool === "toolchain");
   for (const panel of toolPanels) panel.hidden = panel.dataset.tool !== tool;
-  if (remember) localStorage.setItem(TOOL_STORAGE_KEY, tool);
+  if (remember && !contextual) localStorage.setItem(TOOL_STORAGE_KEY, tool);
   if (remember && window.matchMedia("(max-width: 1100px)").matches) setCompactPane("tools");
 }
-
 const storedTool = localStorage.getItem(TOOL_STORAGE_KEY);
-if (isToolId(storedTool)) {
-  activeTool = storedTool;
-  if (activeTool !== "region") lastNonRegionTool = activeTool;
-}
+if (isPrimaryTool(storedTool)) activeTool = lastNonRegionTool = storedTool;
 activateTool(activeTool, false);
 toolMenu.addEventListener("change", () => {
-  if (isToolId(toolMenu.value)) activateTool(toolMenu.value);
+  if (isPrimaryTool(toolMenu.value)) activateTool(toolMenu.value);
 });
+contextBackBtn.addEventListener("click", () => {
+  if (activeTool === "region") closeRegionEditor();
+  else activateTool(lastNonRegionTool);
+});
+function toggleToolchainDetails(): void {
+  if (activeTool === "toolchain") activateTool(lastNonRegionTool);
+  else activateTool("toolchain");
+}
+toolchainBadge.addEventListener("click", toggleToolchainDetails);
+openToolchainBtn.addEventListener("click", toggleToolchainDetails);
 
 function bytes(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return "—";
@@ -4263,7 +4336,7 @@ function openRegionEditor(): void {
 function closeRegionEditor(): void {
   clearEditorPinMarkers();
   removeEditorOverlays();
-  activateTool(lastNonRegionTool === "region" ? "build" : lastNonRegionTool);
+  activateTool(lastNonRegionTool);
 }
 
 async function previewEditorRegion(refresh = false): Promise<void> {
@@ -4481,8 +4554,7 @@ saveRegionBtn.addEventListener("click", async () => {
 
 async function refreshToolchain(): Promise<void> {
   const status = await invoke<ToolchainStatus>("toolchain_status");
-  const badge = document.querySelector<HTMLDivElement>("#toolchainBadge")!;
-  badge.innerHTML = `Toolchain <b class="${status.ready ? "ok" : "bad"}">${status.ready ? "ready" : "incomplete"}</b>`;
+  toolchainBadge.innerHTML = `Toolchain <b class="${status.ready ? "ok" : "bad"}">${status.ready ? "ready" : "incomplete"}</b>`;
   toolHost.innerHTML = "";
   for (const tool of status.tools) {
     const row = document.createElement("div");

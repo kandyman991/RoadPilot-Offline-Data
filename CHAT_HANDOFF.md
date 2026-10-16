@@ -1,5 +1,14 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Graph Studio Phase 2 — grouped workflows and unified comparisons (2026-10-16)
+
+- User requested Phase 2 directly. From current main `98d5701`, branch `feat/graph-studio-phase2-workflow-navigation`: grouped primary tool dropdown into Build / Inspect / Test / Data / Publish / Advanced (9 destination options); Region Editor and Toolchain unchanged internally but removed from top-level menu, opened contextually from left New/Edit region tree and header toolchain readiness badge / visible compact Tools status action. Back button returns to last active normal workflow; persisted tool IDs `region`/`toolchain` now migrate safely to Build on startup.
+- Existing routing graph boundary/size/tiles comparison, visual PMTiles road comparison, and search SQLite comparison controls are **moved without changing IDs or backend handlers** to one `Compare builds` workflow with `Routing / Visual / Search` accessible, keyboard-switchable, persisted tabs. All original comparison evidence and map overlays remain available; no source data deleted, F8 and route planners unchanged.
+- Desktop compiled TypeScript/Vite build passed. Headless Chromium at 1920/1200/960/650 verified all nine tool entries, six grouped categories, comparison tabs/keyboard and persistence, preserved comparison controls, Toolchain contextual return, and zero document overflow. Python suite and CI/review pending.
+- Canonical list `docs/GRAPH_STUDIO_UI_AUDIT.md` and GitHub issue **#89** tracked. UI-06,09,10,11 locally implemented / CI pending. Phase 3 UI-02,03,07,13 and subsequent Phase 4 cleanup still OPEN. No graph, Rust, routing, F8 or Android changes; F8 JNI parity NOT_VERIFIED, runtime publication BLOCKED.
+- Next exact: Python/UI suite, architecture PR gate, CI + review, merge after green; install official checksum-verified Legion AppImage after merge, only if user authorization from ongoing workflow. Never claim installed before checking.
+
+
 ## Graph Studio Phase 1 — merged PR #90 and issue register continuity (2026-10-16)
 
 - Merged **PR #90** from `feat/graph-studio-responsive-foundation` at squash commit `95a95c5dd342edcbe3b10848cec3e6f185b9897d`, confirmed architecture-contract, Linux, validate all GREEN on reviewed HEAD `c771d8b64f8dfc4e1571f11b7a46933130f9c168`. Main checkout pulled.
