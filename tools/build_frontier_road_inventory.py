@@ -440,10 +440,12 @@ def build_inventory(
     # Projecting polygon edges before intersection can turn an exactly shared
     # curved/geodesic boundary into two slightly different straight chords.
     frontier_wgs = from_wgs.boundary.intersection(to_wgs.boundary)
-    if frontier_wgs.is_empty:
+    if frontier_wgs.is_empty or frontier_wgs.length <= 0:
         fail(
-            "Nominal region polygons do not share a frontier; "
-            "refusing to invent a seam corridor"
+            "Nominal boundaries have no shared line frontier (possibly "
+            "overlapping polygons with point-only intersections). "
+            "OSM nominal anchors cannot establish exhaustive graph-native "
+            "F8 crossings; refusing a false sourceExhausted result"
         )
 
     roads: list[dict[str, Any]] = []

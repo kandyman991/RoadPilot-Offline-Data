@@ -101,6 +101,18 @@ class F8OverlapDiscoveryTests(unittest.TestCase):
         self.assertGreaterEqual(len(anchors), 2)
         self.assertEqual(len({item["crossingIndex"] for item in anchors}), len(anchors))
 
+    def test_overlapping_nominal_polygons_with_point_only_boundary_are_not_exhausted(self):
+        # Real Italy/Austria .poly boundaries overlap in area; their common
+        # boundary is a zero-length MultiPoint. The old code published an
+        # exhausted empty inventory, falsely implying the seam was checked.
+        polygon(self.polygon_a, 0, 2)
+        self.polygon_b.write_text(json.dumps({
+            "type": "Polygon", "coordinates": [[[1, 1], [3, 1], [3, 3],
+                                                  [1, 3], [1, 1]]]
+        }))
+        with self.assertRaisesRegex(SystemExit, "no shared line frontier"):
+            self.inventory({self.a: [], self.b: []})
+
     def test_exhaustive_source_marker_never_claims_f8_graph_edge_parity(self):
         result = self.inventory({self.a: [], self.b: []})
         self.assertEqual(result["discovery"]["scope"], "OSM_BUFFER_OVERLAP")
