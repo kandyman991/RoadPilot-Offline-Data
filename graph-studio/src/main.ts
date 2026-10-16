@@ -455,7 +455,7 @@ app.innerHTML = `
       <button id="showMapPane" class="workspace-pane-btn" type="button" aria-pressed="true">Map</button>
       <button id="showToolsPane" class="workspace-pane-btn" type="button" aria-pressed="false">Tools</button>
     </nav>
-    <button id="toolchainBadge" class="metric toolchain-trigger" type="button" aria-label="Show toolchain details" aria-controls="contextToolNotice" aria-expanded="false">Toolchain <b>checking…</b></button>
+    <button id="toolchainBadge" class="metric toolchain-trigger" type="button" aria-label="Show toolchain details" aria-controls="toolchainDetailsPanel" aria-expanded="false">Toolchain <b>checking…</b></button>
   </header>
 
   <main class="workspace">
@@ -499,7 +499,7 @@ app.innerHTML = `
           <optgroup label="Publish"><option value="publish">R2 publication</option></optgroup>
           <optgroup label="Advanced"><option value="border">Border inspector</option></optgroup>
         </select>
-        <button id="openToolchainBtn" class="tool-menu-diagnostics" type="button" aria-label="Open toolchain diagnostics" title="Toolchain diagnostics">Tools status</button>
+        <button id="openToolchainBtn" class="tool-menu-diagnostics" type="button" aria-controls="toolchainDetailsPanel" aria-expanded="false" aria-label="Open toolchain diagnostics" title="Toolchain diagnostics">Tools status</button>
       </div>
       <div id="contextToolNotice" class="context-tool-notice" hidden>
         <span id="contextToolTitle">Context tool</span>
@@ -581,7 +581,7 @@ app.innerHTML = `
         <div id="publicationHistory" class="empty">No region selected.</div>
       </section>
 
-      <section class="section tool-panel" data-tool="toolchain" hidden>
+      <section id="toolchainDetailsPanel" class="section tool-panel" data-tool="toolchain" hidden>
         <h2>Toolchain</h2>
         <div id="tools" class="empty">Checking local tools…</div>
       </section>
@@ -1195,6 +1195,7 @@ function activateTool(tool: ToolId, remember = true): void {
   contextToolTitle.textContent = tool === "region" ? "Region editor · opened from region tree" :
     tool === "toolchain" ? "Toolchain diagnostics · opened from header" : "";
   toolchainBadge.setAttribute("aria-expanded", String(tool === "toolchain"));
+  openToolchainBtn.setAttribute("aria-expanded", String(tool === "toolchain"));
   toolchainBadge.classList.toggle("active", tool === "toolchain");
   for (const panel of toolPanels) panel.hidden = panel.dataset.tool !== tool;
   if (remember && !contextual) localStorage.setItem(TOOL_STORAGE_KEY, tool);

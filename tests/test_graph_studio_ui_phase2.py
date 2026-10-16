@@ -42,9 +42,11 @@ class Phase2UiContract(unittest.TestCase):
 
     def test_contextual_editing_and_toolchain_not_deleted(self):
         for fid in ('contextToolNotice','contextBackBtn','contextToolTitle','toolchainBadge','openToolchainBtn',
-                    'newRegionBtn','editRegionBtn','closeRegionEditorBtn','regionEditorSection','tools'):
+                    'newRegionBtn','editRegionBtn','closeRegionEditorBtn','regionEditorSection','toolchainDetailsPanel','tools'):
             self.assertIn(f'id="{fid}"',UI)
         self.assertIn('contextToolNotice.hidden = !contextual',UI)
+        self.assertIn('aria-controls="toolchainDetailsPanel"',UI)
+        self.assertIn('openToolchainBtn.setAttribute("aria-expanded"',UI)
         self.assertIn('toolchainBadge.addEventListener("click", toggleToolchainDetails)',UI)
         self.assertIn('openToolchainBtn.addEventListener("click", toggleToolchainDetails)',UI)
         self.assertIn('if (isPrimaryTool(storedTool))',UI)
