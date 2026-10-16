@@ -14,9 +14,21 @@ from capture_native_f8_graph_windows import (
 )
 from unittest.mock import patch
 from types import SimpleNamespace
+from native_f8_inputs import load_polygon
 
 
 class NativeF8CaptureWindowsTests(unittest.TestCase):
+    def test_native_buffer_polygon_loader_survives_legacy_osm_removal(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "buffer.geojson"
+            path.write_text(json.dumps({"type": "Polygon", "coordinates": [
+                [[10, 45], [11, 45], [11, 46], [10, 46], [10, 45]]
+            ]}))
+            polygon = load_polygon(path)
+            self.assertAlmostEqual(polygon.area, 1.0)
+            self.assertTrue(polygon.covers(__import__("shapely.geometry", fromlist=["Point"]).Point(10.5, 45.5)))
+
     def test_cxx20_and_json_stdout_remain_native_scanner_requirements(self):
         root = Path(__file__).resolve().parents[1]
         cmake = (root / "tools/native-f8-edge-scan/CMakeLists.txt").read_text()
@@ -48,11 +60,18 @@ class NativeF8CaptureWindowsTests(unittest.TestCase):
                    "primaryGeofabrikId": "a"}
         graph_b = {"regionId": "b", "packageVersion": "1", "graphFingerprint": "g2",
                    "primaryGeofabrikId": "b"}
-        correlations = {"schema": "roadpilot.frontier-road-correlations",
-                        "pairId": "a__b", "fromGraph": graph_a, "toGraph": graph_b,
-                        "fromBoundaryFingerprint": "x", "toBoundaryFingerprint": "y"}
+        pair_manifest = {
+            "schema": "roadpilot.cross-region-connectivity", "version": 1,
+            "validationState": "UNPROVEN", "pairId": "a__b",
+            "fromRegionId": "a", "toRegionId": "b",
+            "fromPackageVersion": "1", "toPackageVersion": "1",
+            "fromGraphFingerprint": "g1", "toGraphFingerprint": "g2",
+            "fromBoundarySourceId": "b", "toBoundarySourceId": "a",
+            "fromBoundaryFingerprint": "sha256:" + "a" * 64,
+            "toBoundaryFingerprint": "sha256:" + "b" * 64,
+        }
         capture = make_capture(
-            correlations=correlations, graph_identity_a=graph_a,
+            pair_manifest=pair_manifest, graph_identity_a=graph_a,
             graph_identity_b=graph_b, from_scan={"windows": [], "edges": []},
             to_scan={"windows": [], "edges": []}, window_degrees=0.02)
         self.assertEqual(capture["scanner"], PORT)
@@ -60,10 +79,24 @@ class NativeF8CaptureWindowsTests(unittest.TestCase):
         self.assertEqual(capture["f8GraphEdgeParity"], "NOT_VERIFIED")
         self.assertEqual(capture["provenHandoffs"], [])
         graph_a = {**graph_a, "graphFingerprint": "stale"}
-        with self.assertRaisesRegex(ValueError, "Stale fromGraph.graphFingerprint"):
-            make_capture(correlations=correlations, graph_identity_a=graph_a,
+        with self.assertRaisesRegex(ValueError, "Stale fromGraphFingerprint"):
+            make_capture(pair_manifest=pair_manifest, graph_identity_a=graph_a,
                          graph_identity_b=graph_b, from_scan={},
                          to_scan={}, window_degrees=0.02)
+
+    def test_pair_identity_only_cannot_claim_validation_or_cross_graph_parity(self):
+        left = {"regionId": "a", "packageVersion": "1", "graphFingerprint": "g1", "primaryGeofabrikId": "a"}
+        right = {"regionId": "b", "packageVersion": "1", "graphFingerprint": "g2", "primaryGeofabrikId": "b"}
+        pair = {"schema": "roadpilot.cross-region-connectivity", "pairId": "a__b",
+                "fromRegionId": "a", "toRegionId": "b", "fromPackageVersion": "1",
+                "toPackageVersion": "1", "fromGraphFingerprint": "g1",
+                "toGraphFingerprint": "g2", "fromBoundarySourceId": "b",
+                "toBoundarySourceId": "a", "fromBoundaryFingerprint": "sha256:" + "a" * 64,
+                "toBoundaryFingerprint": "sha256:" + "b" * 64,
+                "validationState": "VALIDATED"}
+        with self.assertRaisesRegex(ValueError, "unproven identity-only"):
+            make_capture(pair_manifest=pair, graph_identity_a=left,
+                         graph_identity_b=right, from_scan={}, to_scan={}, window_degrees=.025)
 
     def test_binary_version_must_match_both_retained_graphs(self):
         graph_a = {"valhallaVersion": "3.6.3"}

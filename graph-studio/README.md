@@ -226,138 +226,25 @@ request/geometry functions. Only an explicitly requested local, bounded route
 probe is run: it neither builds nor publishes graphs. See
 [AI Control](docs/AI_CONTROL.md) for evidence semantics and safety limits.
 
-## Automatic F8-derived graph connectivity production
+## Cross-region routing — legacy architecture retired (2026-10-16)
 
-After **Build selected** completes a region's routing and optional visual packs,
-Graph Studio runs `tools/refresh_graph_connectivity.py` against the locally
-retained routing manifests, buffered OSM and cached nominal Geofabrik polygons.
-It discovers locally available, mutually adjacent independent graphs by their
-per-neighbor boundary fingerprints. For each pair affected by a newly rebuilt
-graph, it runs the existing production sequence:
+Graph Studio builds independent Valhalla routing and visual packages. The old
+OSM buffered-overlap crossing sampler, its correlation/proof producer, old
+regional connector matrices, and their bounded multi-region route-composer
+were removed from executable Graph Studio paths. **Building a region does not
+silently start cross-region discovery**. The route planner currently supports
+normal single-graph Valhalla routes. The Border Inspector may display *historical*
+read-only connectivity assets; those are not evidence of Android F8 parity.
 
-1. fingerprint-bound pair manifest;
-2. frontier road inventory from the existing buffered OSM;
-3. independent Valhalla correlation of each side;
-4. exhaustive unproven candidate construction (no heading/separation cuts);
-5. directional car/motorcycle Valhalla proof for each candidate;
-6. validated runtime connectivity, followed by regional connector inventory
-   and exact-entry/exit route matrix.
+The preserved starting point for production discovery is the **uncapped, read-only,
+Valhalla GraphReader directed-edge scanner**, bound to unmodified routing archives,
+exact graph fingerprints, and neighboring boundary identities. It accepts the
+source-only `roadpilot.cross-region-connectivity` pair manifest produced by
+`build_connectivity_pair_manifest.py` instead of any legacy OSM correlations.
 
-All stages use their existing schema validators. Products are first generated
-in a temporary workspace. Previously validated runtime metadata is never
-replaced with unproven candidates; a failed refresh leaves earlier artifacts
-on disk, but stale graph/boundary fingerprints prevent using them as current.
-Only pairs whose exact graph/boundary fingerprints changed are regenerated.
-Regional connector matrices reuse matching source-inventory SHA and graph
-fingerprint, preventing redundant many-to-many routing.
-
-The **Refresh connections** button in the Build tool scans all currently
-retained neighboring graphs and performs connectivity production without
-rebuilding or redownloading routing graphs. For direct CLI use:
-
-```bash
-python tools/refresh_graph_connectivity.py \
-  --dist-dir ~/RoadPilotGraphStudio/builds \
-  --work-dir ~/RoadPilotGraphStudio/work \
-  --connectivity-dir ~/RoadPilotGraphStudio/connectivity \
-  --connector-matrix-dir ~/RoadPilotGraphStudio/connector-matrices
-```
-
-Local artifacts are stored under `connectivity/<regionA>__<regionB>/`
-and `connector-matrices/<region>/`, visible in the Border Inspector.
-They are not automatically uploaded to R2 or installed on Android.
-Real Italy–Austria–Germany graph and Android integration validation
-remain a separate, required on-device gate.
-
-If either region's source polygon or buffered OSM has not been retained,
-the stage **fails explicitly** rather than using fabricated data, invoking a
-new map build, or downloading new extracts. Region packs already validated
-remain intact; check the Build console to see which connectivity stage failed.
-A `VALIDATED` connectivity artifact with zero proven crossings is an honest
-negative result and requires RoadPilot's established F8 runtime fallback.
-
-## Multi-region Route Planner (F8-derived, read-only)
-
-The Route Planner now has **Single graph** and **Multi-region** modes.
-Multi-region automatically locates the requested origin and destination
-within the nominal/buffered coverage of each current installed local
-Valhalla graph. It verifies the selected graph's exact working tile extract
-matches the retained routing manifest SHA, and excludes unmatched graphs.
-
-With multiple graphs, the planner loads only `VALIDATED` runtime connectivity
-artifacts matching both current graph and boundary fingerprints, plus current
-regional connector inventories and fingerprint-matched matrices. It invokes
-the existing `compose_hierarchical_connectivity.py` for multiple directed,
-mode-specific candidate chains. No fixed portals, 30-degree heading filter
-or arbitrary handoff separation cutoff is introduced.
-
-For each candidate, local Valhalla computes a detailed route leg inside
-each graph, from the requested origin to the proven exit anchor, from each
-subsequent entry to exit, and from the final entry to destination. Actual
-route endpoints are verified within 150 m **after Valhalla**, and full
-journeys are ranked by their actual summed detailed time (FASTER) or
-distance (SHORTER), not by incomplete precomputed estimates.
-
-Rendered geometry is `MultiLineString` (one separate line per graph),
-**not** a line artificially bridging differing graph-correlated handoff
-coordinates. The UI displays graph sequence, independent handoff gaps,
-each leg's Valhalla cost and endpoint deviation, and final arrival proof.
-Routes that fail endpoint verification are reported as incomplete or
-unavailable, never as successful. If a complete same-graph route exists,
-the mode can use it directly; if that graph stops short, it tries validated
-cross-graph candidates.
-
-The query is local and read-only with a bounded candidate/probe budget
-(20 chains per source/destination pair, 64 distinct detailed legs, around
-120 seconds), no graph rebuilding and no publication. It supports
-Motorcycle and Car. Search expansion and turn-by-turn maneuver merging
-are not yet available in this mode. The existing Single graph mode is
-unchanged. Android F8 remains the operational fallback until sidecar
-installation and on-device integration are proven (SmartRide-Next #512).
-
-**Real-device acceptance:** install a release that contains this feature,
-produce and validate Italy Nord-Est/Austria connectivity on the Legion,
-then run Trento → Innsbruck in Multi-region mode. Verify *both* graph legs,
-the actual handoff gap and arrival, or capture a structured failure; do
-not claim success merely because this code passed synthetic CI tests.
-
-## F8 discovery foundation: overlap candidate coverage (in development)
-
-RoadPilot Android's working generalized F8 scans **directed graph road edges**
-in windows over reachable-route corridors and available shared-boundary
-segments. Earlier Graph Studio candidate generation only included OSM roads
-that intersect both *nominal* region polygons. This can miss many usable
-handoffs in the independently buffered graph overlap.
-
-The overlap-discovery implementation runs on the Legion during the existing
-connectivity refresh: it scans both retained buffered OSM extracts, keeps
-nominal border intersections, and adds all distinct OSM way fragments inside
-the **intersection of the two actual build buffer polygons**. Long fragments
-are sampled at approximately 1500m spacing. It never groups candidates by
-road name/ref, selects a single known crossing, or rejects candidates using
-pre-Valhalla heading, proximity, road class or motorcycle access thresholds.
-Both graphs still correlate candidates independently; directed Valhalla
-route proofs decide which options are usable.
-
-Scope/provenance is explicitly embedded in the frontier inventory and
-propagated to compiled runtime connectivity metadata:
-
-- `discovery.scope = OSM_BUFFER_OVERLAP`: both retained OSM sources and both
-  graph coverage polygons were completely scanned, with no silent truncation
-- `discovery.sourceExhausted = true`: the required source scans finished;
-  failure/timeout/250000-anchor guard aborts publication instead
-- `discovery.f8GraphEdgeParity = NOT_VERIFIED`: **this is not yet proven to
-  be the full set of the Android F8 graph-edge scanner's candidates**
-
-Old nominal-only products are no longer accepted as current by
-`refresh_graph_connectivity.py`; a refresh regenerates them. A previous
-working runtime is not overwritten if re-enumeration or Valhalla proof fails.
-
-**Required next step before product-complete claims:** compare the
-overlap inventory with the actual Android `FrontierGpsRoadDirectionRecovery`
-graph-edge scanner on real Italy Nord-Est/Austria and Austria/Germany
-Valhalla graphs. Record every F8 graph edge absent from the precomputed
-coverage and resolve it, including motorway direction and long overlapping
-ways; run enough combinations to show that the *best* candidate is not
-discarded by planner candidate/probe budgets. Use issue #73 as the
-acceptance contract. Do not mark the F8 parity field VERIFIED until proven.
+Cross-region connectivity production/Android packaging will be reintroduced only
+through the approved F8 architecture contract and tiered proofs. Real Android F8
+reference parity, all valid directed alternatives, mode/direction-specific
+Valhalla routes, multi-hop ranking and actual device consumption are **NOT_VERIFIED**.
+See issues #73, #82 and RoadPilot Android #512. No existing regional graph data
+or local native scan evidence is removed by this code cleanup.

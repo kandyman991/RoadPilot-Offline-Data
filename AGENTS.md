@@ -14,7 +14,12 @@
 - Every protected PR must satisfy the checklist in .github/pull_request_template.md and the architecture-contract CI job with functional regressions and explicit known-gap evidence.
 - **STOP before implementing any deviation** from an accepted clause. Explain the conflict to the user and obtain explicit approval recorded as a superseding decision; do not silently change this contract. No CI success can replace real graph-edge parity or device evidence.
 - Contract changes need a project-owner review under .github/CODEOWNERS, plus GitHub branch rulesets with architecture-contract as a required check.
-- Guardrail implementation branch is separate from active discovery PR #75. Do not merge #75 or claim issue #73 complete on green synthetic CI alone.
+- Historical PR #75 merged but was superseded by the native-F8 retirement cleanup; do not restore its OSM-only generator or claim issue #73 complete on synthetic CI alone.
+
+## Native F8 cleanup checkpoint (2026-10-16)
+- The OSM buffered-overlap frontier producer, legacy correlated crossing / proof / matrix pipeline and old multi-region planner are retired from executable Graph Studio paths. Do not call, recreate, or restore them to "fix" missing F8 handoffs. Git history preserves the code if forensic review is needed.
+- The independent read-only native GraphReader scanner remains the entry foundation; use the identity-only `--pair-manifest` path, not legacy `correlations.json`. Actual native Android F8 scan parity remains NOT_VERIFIED, and production sidecar publication stays disabled until all proof tiers pass.
+- The Border Inspector may still read historical artifacts. Those are NOT current F8-complete connections. Do not invalidate/delete installed graph packages or old local scan evidence as part of source-code cleanup.
 
 ## Project-specific guardrails
 - Version and validate each region's Valhalla routing, visual-map and SQLite search packs separately; never force unrelated rebuilds.

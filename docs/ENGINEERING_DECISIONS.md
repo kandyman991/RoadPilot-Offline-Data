@@ -125,3 +125,26 @@ Required for protected changes: a filled architecture PR checklist with actual r
 
 Reference: docs/ARCHITECTURE_CONTRACT.md; Graph Studio issue #73; open discovery PR #75 must satisfy the new gate and real graph-parity work before being called architecturally complete.
 
+
+## D-014 — Retire the OSM-first crossing architecture before native F8 (2026-10-16)
+
+**User-approved cleanup direction:** Remove the OSM buffered-overlap crossing
+sampler, legacy independent locate-correlation/candidate/proof generator,
+regional connector matrices, and old bounded multi-region route planner from
+Graph Studio before building the replacement F8-native producer. Do not
+reintroduce any of these producers as a new native F8 discovery shortcut.
+The historical artifacts may remain read-only for inspection; they are not
+proof of F8 discovery completeness. Regional graph builds, search/visual packs,
+normal single-region routing, manual diagnostics, retained graphs, and the
+uncapped read-only directed native scan are preserved. Do not mutate old graphs
+or erase previous scan diagnostics. Retained graph/boundary fingerprints remain
+mandatory. Route-time F8 on Android stays a fallback; no Android code changes
+are authorized by this Graph Studio cleanup.
+
+Native F8 capture now accepts an UNPROVEN identity-only cross-region pair
+manifest rather than the eliminated `correlations.json` producer. New crossing
+publication requires Android reference parity, both vehicle modes/directions,
+all relevant alternatives, Valhalla route leg proof and multi-hop journey cost.
+Until then production connectivity is disabled and parity remains NOT_VERIFIED.
+
+Tracking: Graph Studio #82 and #73; Android #512. Cleanup PR pending.
