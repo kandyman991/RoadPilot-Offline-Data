@@ -1,5 +1,13 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Graph Studio Phase 1 — merged PR #90 and issue register continuity (2026-10-16)
+
+- Merged **PR #90** from `feat/graph-studio-responsive-foundation` at squash commit `95a95c5dd342edcbe3b10848cec3e6f185b9897d`, confirmed architecture-contract, Linux, validate all GREEN on reviewed HEAD `c771d8b64f8dfc4e1571f11b7a46933130f9c168`. Main checkout pulled.
+- All **13 UI audit findings permanently preserved** in `docs/GRAPH_STUDIO_UI_AUDIT.md` and GitHub **issue #89**. UI-01, 04, 05, 08, 12 **DONE** (adaptive compact panes, saved sizes, log collapse, Build/Route eligibility and route label). UI-02, 03, 06, 07, 09, 10, 11, 13 **OPEN**, issue #89 stays open. Do not delete legacy tools/data until dependencies proven safe.
+- Real front-end smoke: nine viewport sizes 650..1920px, compact picker Tools → Map → Tools, selected-pane persistence, no viewport clipping; local 102 Python tests plus TypeScript/Vite pass. F8 native Android parity still NOT_VERIFIED and runtime publication BLOCKED.
+- Official main Linux release run **38961974120** for exact commit `95a95c5` started. Verify release SHA-256 before replacing `~/Applications/RoadPilot-Graph-Studio-Linux.AppImage`, keep rollback copy; installed status must not be claimed before actual installation and launch. Phase 2 after verifying GUI: grouped tool navigation and comparison/toolchain consolidation.
+
+
 ## Graph Studio UI audit and Phase 1 responsive foundation (2026-10-16)
 
 - User approved **keeping the three-pane desktop UI** but repairing narrow-window clipping and hiding, then reorganizing tools later. Full audited list permanently saved in **`docs/GRAPH_STUDIO_UI_AUDIT.md`** (UI-01 through UI-13), mirrored in **GitHub issue #89**. Never discard/deprioritize unsolved items silently; update this document and issue after every PR.
