@@ -42,6 +42,7 @@ class GraphStudioUiFoundationContractTests(unittest.TestCase):
         self.assertIn('"Show log" : "Hide log"', UI)
 
     def test_build_and_route_buttons_require_valid_inputs(self):
+        self.assertIn('id="buildBtn" class="btn primary" type="button" disabled', UI)
         self.assertIn('id="buildPrerequisite"', UI)
         self.assertIn('id="routePrerequisite"', UI)
         for text in ('updateBuildButtonState()', 'updateRouteButtonState()',

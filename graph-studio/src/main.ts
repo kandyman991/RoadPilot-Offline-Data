@@ -513,7 +513,7 @@ app.innerHTML = `
           <input id="packageVersion" autocomplete="off" />
         </div>
         <div class="actions">
-          <button id="buildBtn" class="btn primary" type="button">Build selected</button>
+          <button id="buildBtn" class="btn primary" type="button" disabled>Build selected</button>
           <button id="cancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
         <div id="buildSelectionSummary" class="status-line">No regions selected.</div>
