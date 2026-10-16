@@ -33,6 +33,12 @@ jobs:
       - name: Native F8 graph-backed physical peer and incomplete-evidence regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_pair_evidence.py' -v
 
+      - name: Exhaustive native directed GPS crossing proposal regressions
+        run: python -m unittest discover -s tests -p 'test_native_f8_crossing_discovery.py' -v
+
+      - name: Bounded native F8 journey Valhalla proof regressions
+        run: python -m unittest discover -s tests -p 'test_native_f8_journey_probe.py' -v
+
       - name: Native F8 directed-edge parity-audit contract regressions
         run: python -m unittest discover -s tests -p 'test_f8_graph_edge_audit.py' -v
 
