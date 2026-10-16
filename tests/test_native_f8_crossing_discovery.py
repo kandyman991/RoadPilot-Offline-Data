@@ -73,6 +73,16 @@ class NativeF8CrossingDiscoveryTests(unittest.TestCase):
                                       'fromBoundaryFingerprint','toBoundaryFingerprint','scanner',
                                       'publicationState']},'androidF8ReferenceMatched':'NOT_VERIFIED'})
 
+    def test_direct_generate_rejects_truncated_scan_and_mismatched_windows(self):
+        self.a['complete']=False
+        with self.assertRaisesRegex(ValueError,'incomplete'):
+            generate(self.pair,self.a,self.b,self.folder,{'source':'test'})
+        self.a['complete']=True
+        self.b['windows'][0]['minLat']=46.02
+        with self.assertRaisesRegex(ValueError,'different window catalogs'):
+            generate(self.pair,self.a,self.b,self.folder,{'source':'test'})
+        self.assertFalse(self.folder.exists())
+
     def test_invalid_historical_peer_evidence_cannot_be_accepted(self):
         for state in ('VALIDATED','PUBLISHED'):
             with self.assertRaisesRegex(ValueError,'purported verified'):

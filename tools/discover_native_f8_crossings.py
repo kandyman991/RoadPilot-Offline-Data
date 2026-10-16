@@ -20,6 +20,7 @@ import tempfile
 
 from build_native_f8_pair_evidence import (
     EVIDENCE_SCHEMA, PORT, pair_identity, physical_key, source_scans,
+    validated_scan, check_window_catalog,
 )
 from capture_native_f8_graph_windows import read
 
@@ -74,6 +75,9 @@ def sha_file(path:Path) -> str:
 def generate(pair:dict, a:dict, b:dict, output:Path, provenance:dict,
              prior_evidence:dict|None=None) -> dict:
     pair_identity(pair)
+    validated_scan(a,'from')
+    validated_scan(b,'to')
+    check_window_catalog(a,b)
     if output.exists():
         raise ValueError('Native crossing proposal output already exists; do not overwrite evidence')
     if prior_evidence is not None:validate_evidence(pair, prior_evidence)

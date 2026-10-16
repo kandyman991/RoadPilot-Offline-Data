@@ -1,5 +1,26 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #86 technical review findings (2026-10-16)
+
+- **Reviewed native F8 crossing producer and bounded journey proof** at branch
+  `feat/native-f8-crossing-discovery`, pre-review `b8fef6e`. Two substantive
+  fail-closed fixes applied: `probe_native_f8_journey.py` now checks the
+  *actual retained* graph archive identity (region, version, graph SHA and
+  counterpart primary Geofabrik IDs) against the pair manifest; direct
+  `discover_native_f8_crossings.generate` calls also validate full source
+  scans and aligned window catalogs, not only the CLI path. Proof output now
+  uses exclusive atomic file creation, never silently replaces another report.
+- Added regression tests including stale archive hash/version, unmatched
+  source identities and direct-call invalid/incomplete scans. **88** local
+  Python tests PASSED. Corrected real Italy→Austria Motorcycle route proof
+  reproduced **3/6** validations with **334,967** unprobed native seeds,
+  all publication/parity gates remain BLOCKED / NOT_VERIFIED.
+- Next step is CI and review on amended PR #86. Merge only if latest checks
+  green and no unaddressed architectural blockers; do not call full F8
+  native discovery complete. Subsequent work: complete offline crossing
+  scheduling, native Android parity, multi-hop and ingestion.
+
+
 ## Native F8 directed GPS discovery and journey-scoped proof — in PR (2026-10-16)
 
 - Verified GitHub `main` `d754e838ea45f269fb6da5ecf9e213324d9a9d54` contains merged PR #85 (squash `b7fdf3c`); no open PR existed before this milestone. New working branch: `feat/native-f8-crossing-discovery`.

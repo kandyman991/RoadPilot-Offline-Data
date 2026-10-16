@@ -52,3 +52,23 @@ python tools/probe_native_f8_journey.py \
 ```
 
 **Acceptance gates remain closed:** `F8_PARITY_VERIFIED=NO`, `DEVICE_VERIFIED=NO`, `PRODUCTION_READY=NO`. Do not wire these diagnostics into Android or auto-refresh as if they were complete connections. Track [Graph Studio #73](https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73), [#82](https://github.com/kandyman991/RoadPilot-Offline-Data/issues/82), [Android #512](https://github.com/kandyman991/SmartRide-Next/issues/512).
+
+## PR #86 technical review hardening (2026-10-16)
+
+The review found that the original CLI independently validated both retained graph
+archive fingerprints but did **not** compare their actual region/version/hash
+identities to the fingerprints/versions recorded in the crossing pair manifest.
+The proof harness now binds both actual archive identities to the exact pair,
+including their neighboring Geofabrik source IDs, before making any route call.
+Direct `generate()` callers must now pass fully validated scan windows and a
+matching shared catalog, not only the CLI. Proof-report output is created with
+exclusive atomic file linking rather than overwriting another run's evidence.
+Additional synthetic tests reject mismatched packages, graph hashes, region and
+neighbor source identifiers, truncated scans and different window catalogs.
+
+The corrected CLI was rerun against the exact same two *retained* graph archives
+for Italy→Austria motorcycle; **3 of 6** sampled directed GPS seeds passed and
+**334,967 remained unprobed**. This independently checks that the stricter
+pair-to-graph binding is compatible with the real deployed graph fingerprint
+identities. This does **not** verify Android F8 JNI parity or production
+cross-region connection completeness.

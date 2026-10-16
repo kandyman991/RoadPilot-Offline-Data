@@ -8,11 +8,12 @@ from pathlib import Path
 import sys
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-from test_native_f8_pair_evidence import identity,edge,scan,capture
+from test_native_f8_pair_evidence import identity,edge,scan,capture,A,B,C
 from build_native_f8_pair_evidence import source_scans
 from discover_native_f8_crossings import generate
 from probe_native_f8_journey import (inspect,check_one, distance,
-    proposal_order,decode_polyline6,service_payload,ARRIVAL_TOLERANCE_METERS)
+    proposal_order,decode_polyline6,service_payload,ARRIVAL_TOLERANCE_METERS,
+    verify_retained_graph_identity)
 
 START={'lat':46.50,'lng':13.59}
 END={'lat':46.59,'lng':13.85}
@@ -43,6 +44,24 @@ class NativeF8JourneyProofTests(unittest.TestCase):
         self.assertEqual(service_payload('{"trip":{}}\n[INFO] Running /path/to/valhalla with args: []...')['trip'],{})
         with self.assertRaisesRegex(ValueError,'Unexpected trailing text'):
             service_payload('{"trip":{}}\n{"trip":{}}')
+
+    def test_retained_graph_manifest_identity_must_match_pair_for_both_sides(self):
+        left={'regionId':'italy','packageVersion':'v1','graphFingerprint':A,
+              'primaryGeofabrikId':'italy/nord-est'}
+        right={'regionId':'austria','packageVersion':'v2','graphFingerprint':B,
+               'primaryGeofabrikId':'austria'}
+        self.pair['toBoundarySourceId']='italy/nord-est'
+        self.pair['fromBoundarySourceId']='austria'
+        verify_retained_graph_identity(self.pair,left,right)
+        for attribute,value in (('graphFingerprint',C),('packageVersion','stale'),
+                                ('regionId','wrong')):
+            invalid={**right,attribute:value}
+            with self.assertRaisesRegex(ValueError,'stale graph identity'):
+                verify_retained_graph_identity(self.pair,left,invalid)
+        with self.assertRaisesRegex(ValueError,'source IDs mismatch'):
+            verify_retained_graph_identity(self.pair,{**left,'primaryGeofabrikId':'unknown'},right)
+        with self.assertRaisesRegex(ValueError,'no retained graph identity'):
+            verify_retained_graph_identity(self.pair,left,None)
 
     def test_exact_success_requires_graph_b_trace_but_preserves_other_candidates(self):
         item={'id':'test1','receiverGraphId':200,'coordinate':{'lat':46.55,'lng':13.7}}

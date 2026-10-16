@@ -10,14 +10,13 @@ from __future__ import annotations
 
 import argparse
 import gzip
-import hashlib
 import heapq
+import os
 import json
 import math
 from pathlib import Path
 import subprocess
 import tempfile
-import time
 
 from capture_native_f8_graph_windows import read
 from native_f8_inputs import graph_manifest_info
@@ -57,6 +56,26 @@ def distance(first:dict,second:dict)->float:
     lat1,lon1,lat2,lon2=map(math.radians,(first['lat'],first['lng'],second['lat'],second['lng']))
     a=math.sin((lat2-lat1)/2)**2+math.cos(lat1)*math.cos(lat2)*math.sin((lon2-lon1)/2)**2
     return 12742017.6*math.asin(min(1,math.sqrt(max(0,a))))
+
+
+
+
+def verify_retained_graph_identity(pair:dict,from_graph:dict,to_graph:dict)->None:
+    """Never prove a route on archives unrelated to the proposal/pair fingerprints."""
+    pair_identity(pair)
+    for side,graph in (('from',from_graph),('to',to_graph)):
+        if not isinstance(graph,dict):
+            raise ValueError(f'{side}: no retained graph identity')
+        for member,own in (('RegionId','regionId'),
+                           ('PackageVersion','packageVersion'),
+                           ('GraphFingerprint','graphFingerprint')):
+            if graph.get(own)!=pair[side+member]:
+                raise ValueError(f'{side}: stale graph identity {member}')
+        if not isinstance(graph.get('primaryGeofabrikId'),str) or not graph['primaryGeofabrikId']:
+            raise ValueError(f'{side}: missing primary Geofabrik source identity')
+    if (from_graph['primaryGeofabrikId']!=pair.get('toBoundarySourceId')
+            or to_graph['primaryGeofabrikId']!=pair.get('fromBoundarySourceId')):
+        raise ValueError('Retained graph source IDs mismatch pair neighbor identities')
 
 
 def eligible_manifest(pair:dict, manifest:dict, direction:str,base:Path)->Path:
@@ -253,10 +272,11 @@ def main()->int:
         root=Path(temp)
         to_primary=read(args.to_manifest)['source']['primaryGeofabrikId']
         from_primary=read(args.from_manifest)['source']['primaryGeofabrikId']
-        _,config_a=graph_manifest_info(args.from_manifest,pair['fromRegionId'],
-                                      to_primary,pair['fromBoundaryFingerprint'],root,'from')
-        _,config_b=graph_manifest_info(args.to_manifest,pair['toRegionId'],
-                                      from_primary,pair['toBoundaryFingerprint'],root,'to')
+        identity_a,config_a=graph_manifest_info(args.from_manifest,pair['fromRegionId'],
+                                               to_primary,pair['fromBoundaryFingerprint'],root,'from')
+        identity_b,config_b=graph_manifest_info(args.to_manifest,pair['toRegionId'],
+                                               from_primary,pair['toBoundaryFingerprint'],root,'to')
+        verify_retained_graph_identity(pair,identity_a,identity_b)
         if args.direction=='to-from':config_a,config_b=config_b,config_a
         result=inspect(pair,manifest,args.proposal_dir,config_a,config_b,
                        start,end,args.mode,args.direction,args.max_probes)
@@ -267,8 +287,12 @@ def main()->int:
         temp_file=Path(f.name)
         json.dump(result,f,indent=2,allow_nan=False)
         f.write('\n')
-    try:temp_file.replace(args.output)
-    finally:temp_file.unlink(missing_ok=True)
+    try:
+        # Exclusive hard-link creation fails if another producer created the
+        # output between the earlier exists check and this point.
+        os.link(temp_file,args.output)
+    finally:
+        temp_file.unlink(missing_ok=True)
     print('F8 journey probe:',result['successfulJourneyProbes'],'validated among',
           result['probesAttempted'],'sampled of',result['totalNativeReceiverProposals'],
           'source proposals; other alternatives UNPROBED, parity NOT_VERIFIED.')
