@@ -168,3 +168,52 @@ Valhalla leg proofs, fastest/shortest whole-journey comparison, Android
 ingestion. Neither a successful window nor matching raw counts from two
 regions makes their graph-local GraphIds equivalent or proves a crossing.
 See issue #73.
+
+## Native directed physical peers — first new F8 stage (2026-10-16)
+
+`tools/build_native_f8_pair_evidence.py` is the **first replacement pipeline
+stage**, NOT a route-proof engine. It accepts the new fingerprint-bound native
+pair capture (`--capture`) plus the matching `--pair-manifest`, or historical
+read-only Legion standalone native scans with `--from-scan`, `--to-scan` and
+`--scan-summary`. Its output is a new, atomically created diagnostics directory:
+
+- `physical-peers.jsonl`: every graph A/B directed physical edge matched by
+  OSM way identity **and** rounded starting/inner coordinates (six decimals);
+  separate GraphIds remain independent; one-to-many matches retain all pairings.
+- `unpaired-from.jsonl` / `unpaired-to.jsonl`: all edges without that **exact**
+  physical peer, not rejected routes. Changed or segmented OSM ways, adjacent
+  geometry and other F8-viable handoffs may be here.
+- `manifest.json`: exact pair/boundary fingerprints and native source provenance,
+  scanner/window counts, peer/unpaired counts, file hashes, and explicitly
+  `publicationState=BLOCKED`, `valhallaLegsProven=NOT_RUN`,
+  `androidF8ReferenceMatched=NOT_VERIFIED`.
+
+Retained side-scan filenames alone have no trusted graph identity: the previous
+`native-full-summary.json` attests graph fingerprints and counts, but **does not
+cryptographically bind the side-scan bytes to the graph archives**. This lower
+source binding tier is recorded honestly as `SUMMARY_DECLARED_ONLY_COUNTS_CHECKED`.
+Direct capture retains source fingerprint checks from the native producer.
+
+Example using *existing* Legion diagnostics (does not rescan or rebuild maps):
+
+```bash
+python3 tools/build_native_f8_pair_evidence.py \
+  --pair-manifest /path/to/f8-italy-austria-validation/pair.json \
+  --from-scan /path/to/f8-italy-austria-validation/italy-nord-est-native-full.json \
+  --to-scan /path/to/f8-italy-austria-validation/austria-native-full.json \
+  --scan-summary /path/to/f8-italy-austria-validation/native-full-summary.json \
+  --output-dir /path/to/new-native-physical-evidence
+```
+
+**Real Legion result**: 316,563 exact directed physical peer pairs across the
+retained Italy Nord-Est/Austria native inventories, matching the original
+independent October 14 physical audit; 6,809 A-side and 18,410 B-side edges
+remain unpaired and are preserved for further work. This is a *physical peer
+ledger*, not a finite, route-verified F8 frontier inventory. Shared buffered
+roads far from actual useful region handoffs are included deliberately, to avoid
+an unproven frontier filter; such edges must not trigger combinatorial Valhalla
+proof probing. A later stage must correlate physical frontier candidates across
+possibly different way geometries, rank frontier relevance without discarding
+viable alternatives, prove two directions and both modes with normal Valhalla,
+compare the Android F8 reference, and verify full FASTER/SHORTER journey costs.
+No app or Android runtime reads or publishes this diagnostics stage.
