@@ -1,5 +1,23 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #85 technical review hardening (2026-10-16)
+
+- Review on branch `feat/native-f8-directed-pair-evidence`: discovered false
+  pair-scan completeness risk (window catalogs not compared) and incomplete
+  access/native field validation. Fixed both; added strict geographic window
+  indexing/uniqueness/bounds, matching catalogs, typed access and edge
+  attributes, unambiguous region IDs and explicitly *unverified* shared-buffer
+  coverage. Prevent invalid NaN diagnostic JSON.
+- The complete local Python test suite now passes **72 tests**, including nine
+  native directed-peer regressions. Real unchanged Italy Nord-Est/Austria scans
+  rerun into `native-directed-physical-peers-v2-review`: 316,563 physical
+  peers and 6,809/18,410 unmatched remain; source windows align; all three
+  generated file hashes independently verified. These remain UNPROVEN,
+  Android F8 parity NOT_VERIFIED and publication BLOCKED.
+- Draft PR #85 needs updated CI status and independent GitHub reviewer approval
+  if repository branch rules require it. Technical ChatGPT review is not an
+  independent GitHub approval; no merge authorized by this request.
+
 ## PR #84 merged; native physical F8 peer foundation initiated (2026-10-16)
 
 - PR #84 (`refactor/retire-pre-f8-connectivity`) merged, squash commit

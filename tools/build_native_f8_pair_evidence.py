@@ -13,6 +13,7 @@ import argparse
 from collections import defaultdict
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -24,6 +25,8 @@ from capture_native_f8_graph_windows import PORT, SCHEMA as CAPTURE_SCHEMA, read
 EVIDENCE_SCHEMA = 'roadpilot.native-f8-physical-pair-evidence'
 SUMMARY_SCHEMA = 'roadpilot.native-valhalla-overlap-diagnostics'
 SHA256 = re.compile(r'^sha256:[0-9a-f]{64}$')
+SAFE_REGION = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*$')
+WINDOW_FIELDS = ('minLat', 'maxLat', 'minLon', 'maxLon')
 
 
 def pair_identity(pair: dict) -> None:
@@ -31,6 +34,14 @@ def pair_identity(pair: dict) -> None:
         raise ValueError('Source pair must use cross-region-connectivity v1')
     if pair.get('validationState') != 'UNPROVEN':
         raise ValueError('Physical-only pairing requires UNPROVEN source identity')
+    for side in ('from', 'to'):
+        region = pair.get(side + 'RegionId')
+        if not isinstance(region, str) or not SAFE_REGION.fullmatch(region):
+            raise ValueError(f'Invalid {side} region ID')
+        if not isinstance(pair.get(side + 'PackageVersion'), str) or not pair[side + 'PackageVersion']:
+            raise ValueError(f'Missing {side} package version')
+    if pair['fromRegionId'] == pair['toRegionId']:
+        raise ValueError('Region pair must contain two different regions')
     if pair.get('pairId') != f"{pair.get('fromRegionId')}__{pair.get('toRegionId')}":
         raise ValueError('Invalid region pair identity')
     for field in ('fromGraphFingerprint', 'toGraphFingerprint',
@@ -49,7 +60,8 @@ def source_scans(pair: dict, *, capture: dict | None = None,
     if capture is not None:
         if any(x is not None for x in (from_scan, to_scan, scan_summary)):
             raise ValueError('Use either a native capture or retained scan+summary, not both')
-        if capture.get('schema') != CAPTURE_SCHEMA or capture.get('scanner') != PORT:
+        if (capture.get('schema') != CAPTURE_SCHEMA or capture.get('version') != 1
+                or capture.get('scanner') != PORT):
             raise ValueError('Only uncapped native GraphReader capture is accepted')
         if capture.get('nativeF8ReferenceCaptured') is not False or capture.get('f8GraphEdgeParity') != 'NOT_VERIFIED':
             raise ValueError('Native port may not impersonate Android F8 parity')
@@ -65,7 +77,9 @@ def source_scans(pair: dict, *, capture: dict | None = None,
                 raise ValueError(f'Stale {side} native boundary')
         scans = capture.get('scans') or {}
         a, b = scans.get('from'), scans.get('to')
-        return validated_scan(a, 'from'), validated_scan(b, 'to'), {
+        a, b = validated_scan(a, 'from'), validated_scan(b, 'to')
+        check_window_catalog(a, b)
+        return a, b, {
             'source': 'FINGERPRINT_BOUND_NATIVE_CAPTURE',
             'sourceBindingLevel': 'CAPTURE_DECLARED_EXACT_GRAPH',
             'scannerBuild': capture.get('scannerBuild'),
@@ -88,12 +102,47 @@ def source_scans(pair: dict, *, capture: dict | None = None,
             raise ValueError(f'{side} native edge count inconsistent with summary')
         if stats.get('windowsTotal') != len(scan.get('windows', [])):
             raise ValueError(f'{side} native window count inconsistent with summary')
-    return validated_scan(from_scan, 'from'), validated_scan(to_scan, 'to'), {
+    a, b = validated_scan(from_scan, 'from'), validated_scan(to_scan, 'to')
+    check_window_catalog(a, b)
+    return a, b, {
         'source': 'RETAINED_UNCAPPED_NATIVE_PORT_EVIDENCE',
         'sourceBindingLevel': 'SUMMARY_DECLARED_ONLY_COUNTS_CHECKED',
         'scannerBuild': {'binarySha256': scan_summary.get('binarySha256'),
                          'compiledValhallaVersion': scan_summary.get('version')},
     }
+
+
+def exact_window_bounds(window: dict, side: str, index: int) -> tuple[float, ...]:
+    if (not isinstance(window.get('index'), int) or isinstance(window['index'], bool)
+            or window['index'] != index):
+        raise ValueError(f'{side}: missing, repeated or out-of-order window index {index}')
+    coordinates = []
+    for field, limit in (('minLat', 90), ('maxLat', 90), ('minLon', 180), ('maxLon', 180)):
+        number = window.get(field)
+        if (isinstance(number, bool) or not isinstance(number, (int, float))
+                or not math.isfinite(number) or not -limit <= number <= limit):
+            raise ValueError(f'{side}: invalid window coordinate {field}')
+        coordinates.append(float(number))
+    min_lat, max_lat, min_lon, max_lon = coordinates
+    if min_lat >= max_lat or min_lon >= max_lon:
+        raise ValueError(f'{side}: invalid window bounds')
+    return tuple(coordinates)
+
+
+def window_catalog(scan: dict) -> tuple[tuple[float, ...], ...]:
+    return tuple(exact_window_bounds(window, 'scan', i)
+                 for i, window in enumerate(scan['windows']))
+
+
+def check_window_catalog(a: dict, b: dict) -> None:
+    # The native producer uses one overlap window catalog to scan both graphs.
+    # A missing/shifted/substituted window on either side must not look complete.
+    first = window_catalog(a)
+    if len(first) != len(set(first)):
+        raise ValueError('Native scan has repeated spatial windows')
+    if first != window_catalog(b):
+        raise ValueError('Native scans have different window catalogs')
+    # Alignment does NOT prove the windows cover the entire geometric overlap.
 
 
 def validated_scan(scan: Any, side: str) -> dict:
@@ -103,11 +152,21 @@ def validated_scan(scan: Any, side: str) -> dict:
     edges = scan.get('edges')
     if not isinstance(windows, list) or not windows or not isinstance(edges, list):
         raise ValueError(f'{side}: missing native windows or edges')
-    for window in windows:
+    seen_windows = set()
+    for index, window in enumerate(windows):
         if (not isinstance(window, dict) or window.get('complete') is not True
-                or window.get('truncated') is not False or window.get('maxResults') is not None
-                or not isinstance(window.get('visitedTiles'), int) or window.get('visitedTiles') < 1):
+                or window.get('truncated') is not False or window.get('maxResults') is not None):
             raise ValueError(f'{side}: source window missing, truncated or unscanned')
+        for name in ('visitedTiles', 'visitedNodes', 'returned'):
+            value = window.get(name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f'{side}: invalid {name} window evidence')
+        if window['visitedTiles'] < 1:
+            raise ValueError(f'{side}: unscanned window')
+        bounds = exact_window_bounds(window, side, index)
+        if bounds in seen_windows:
+            raise ValueError(f'{side}: repeated spatial windows')
+        seen_windows.add(bounds)
     ids: set[int] = set()
     for edge in edges:
         if not isinstance(edge, dict) or not isinstance(edge.get('graphId'), int) or isinstance(edge['graphId'], bool) or edge['graphId'] <= 0:
@@ -115,6 +174,18 @@ def validated_scan(scan: Any, side: str) -> dict:
         if edge['graphId'] in ids:
             raise ValueError(f'{side}: duplicate directed GraphId')
         ids.add(edge['graphId'])
+        for access in ('forwardAccess', 'reverseAccess'):
+            value = edge.get(access)
+            if (not isinstance(value, int) or isinstance(value, bool)
+                    or not 0 <= value < 2**32):
+                raise ValueError(f'{side}: invalid {access} directed access mask')
+        for name in ('roadClass', 'use'):
+            value = edge.get(name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f'{side}: invalid {name} native field')
+        for name in ('toll', 'tunnel', 'unpaved'):
+            if not isinstance(edge.get(name), bool):
+                raise ValueError(f'{side}: invalid {name} native field')
         physical_key(edge)  # Validate physical geometry before any output.
     return scan
 
@@ -146,6 +217,10 @@ def make_record(pair: dict, from_edge: dict, to_edge: dict) -> dict:
 
 def produce(pair: dict, a: dict, b: dict, output: Path, provenance: dict) -> dict:
     """Write complete per-edge ledger to an atomic new directory, never publish runtime."""
+    pair_identity(pair)
+    validated_scan(a, 'from')
+    validated_scan(b, 'to')
+    check_window_catalog(a, b)
     if output.exists():
         raise ValueError(f'Output already exists; cannot replace evidence: {output}')
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -164,7 +239,7 @@ def produce(pair: dict, a: dict, b: dict, output: Path, provenance: dict) -> dic
         with peers.open('w', encoding='utf-8') as handle:
             for edge in sorted(a['edges'], key=lambda e: e['graphId']):
                 for receiver in sorted(by_identity.get(physical_key(edge), []), key=lambda e: e['graphId']):
-                    handle.write(json.dumps(make_record(pair, edge, receiver), separators=(',', ':'))+'\n')
+                    handle.write(json.dumps(make_record(pair, edge, receiver), separators=(',', ':'), allow_nan=False)+'\n')
                     pairs += 1
                     paired_a.add(edge['graphId'])
                     paired_b.add(receiver['graphId'])
@@ -172,7 +247,7 @@ def produce(pair: dict, a: dict, b: dict, output: Path, provenance: dict) -> dic
             with filename.open('w', encoding='utf-8') as handle:
                 for edge in sorted(source, key=lambda e: e['graphId']):
                     if edge['graphId'] not in paired:
-                        handle.write(json.dumps(edge, separators=(',', ':'))+'\n')
+                        handle.write(json.dumps(edge, separators=(',', ':'), allow_nan=False)+'\n')
         def digest_file(file: Path) -> str:
             digest = hashlib.sha256()
             with file.open('rb') as source:
@@ -187,7 +262,10 @@ def produce(pair: dict, a: dict, b: dict, output: Path, provenance: dict) -> dic
             'fromBoundaryFingerprint': pair['fromBoundaryFingerprint'],
             'toBoundaryFingerprint': pair['toBoundaryFingerprint'],
             'scanner': PORT, 'provenance': provenance,
-            'sourceWindowCoverage': 'NATIVE_GRAPH_SCAN_COMPLETE',
+            'sourceWindowCoverage': 'SOURCE_REPORTED_COMPLETE_MATCHING_WINDOW_CATALOG',
+            'sharedBufferOverlapCoverage': 'NOT_VERIFIED',
+            'windowCatalogSha256': 'sha256:' + hashlib.sha256(
+                json.dumps(window_catalog(a), separators=(',', ':')).encode()).hexdigest(),
             'physicalMatchScope': 'EXACT_SAME_WAY_DIRECTED_COORDINATES_ONLY',
             'frontierCorrelations': 'NOT_VERIFIED',
             'valhallaLegsProven': 'NOT_RUN',
@@ -209,6 +287,7 @@ def produce(pair: dict, a: dict, b: dict, output: Path, provenance: dict) -> dic
                 'Differently encoded/resegmented roads remain in unpaired ledgers, not rejected.',
                 'Nominal/buffer seam relevance and all other plausible nonmatching crossings are unverified.',
                 'Neither mode/direction proof nor real Android JNI scanner parity has been run.',
+                'Identical complete source window catalogs have NOT been checked against the buffered-overlap geometry.',
                 'Retained standalone side files have summary-declared graph hashes, not cryptographic scan-to-graph attestation.',
             ],
         }

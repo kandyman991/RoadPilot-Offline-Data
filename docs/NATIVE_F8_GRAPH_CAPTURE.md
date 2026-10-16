@@ -205,6 +205,24 @@ python3 tools/build_native_f8_pair_evidence.py \
   --output-dir /path/to/new-native-physical-evidence
 ```
 
+**PR #85 review hardening (2026-10-16):** an individual native source's
+`complete=true` is not enough to establish synchronized pair scans. The
+producer now requires consecutive indexed, unique, finite geographic windows,
+nontruncated evidence and identical full window catalogs across the two graphs.
+It validates directed-access masks and native edge field types, rejects invalid
+region identities and prevents NaN-valued evidence JSON. The result records
+`sourceWindowCoverage=SOURCE_REPORTED_COMPLETE_MATCHING_WINDOW_CATALOG`, a
+window-catalog hash, and `sharedBufferOverlapCoverage=NOT_VERIFIED`: without
+recomputing the actual buffer intersection, these checks do **not** prove that
+all possible F8 boundary/route windows were included. The native scan and
+retained source ledger remain separate evidence tiers.
+
+The amended source was rerun read-only on the same Oct 14 Italy–Austria
+inventories into `native-directed-physical-peers-v2-review`; all 316,563 peers
+and 6,809/18,410 unmatched edges remained unchanged, and SHA-256 hashes of all
+three ledger files were independently checked against the new manifest. This
+is still diagnostic-only; **no** Valhalla handoff proof or Android parity.
+
 **Real Legion result**: 316,563 exact directed physical peer pairs across the
 retained Italy Nord-Est/Austria native inventories, matching the original
 independent October 14 physical audit; 6,809 A-side and 18,410 B-side edges

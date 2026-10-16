@@ -27,12 +27,14 @@ def edge(graph_id, way, lat, lon, inner_lat=None, inner_lon=None, forward=2031, 
             'innerLat':lat+.001 if inner_lat is None else inner_lat,
             'innerLon':lon if inner_lon is None else inner_lon,
             'forwardAccess':forward,'reverseAccess':reverse,
-            'roadClass':0,'toll':False,'unpaved':False,'tunnel':False}
+            'roadClass':0,'use':0,'toll':False,'unpaved':False,'tunnel':False}
 
 
 def scan(edges):
-    return {'complete':True,'windows':[{'complete':True,'truncated':False,'maxResults':None,
-                    'visitedTiles':1,'returned':len(edges)}],'edges':edges}
+    return {'complete':True,'windows':[{'index':0,'minLat':46.0,'maxLat':46.1,
+                    'minLon':12.0,'maxLon':12.1,'complete':True,'truncated':False,
+                    'maxResults':None,'visitedTiles':1,'visitedNodes':1,
+                    'returned':len(edges)}],'edges':edges}
 
 
 def capture(pair,a,b):
@@ -118,6 +120,69 @@ class NativePhysicalPeerTests(unittest.TestCase):
         summary['graphs']['austria']['fingerprint']=A
         with self.assertRaisesRegex(ValueError,'Stale'):
             evidence.source_scans(pair,from_scan=first,to_scan=second,scan_summary=summary)
+
+    def test_rejects_missing_or_misaligned_native_spatial_windows(self):
+        pair=identity()
+        first,second=scan([edge(11,5,47,12)]),scan([edge(22,5,47,12)])
+        second['windows'][0]['minLon']=12.02
+        with self.assertRaisesRegex(ValueError, 'different window catalogs'):
+            evidence.source_scans(pair,capture=capture(pair,first,second))
+        second['windows'][0]['minLon']=12.0
+        second['windows'][0]['index']=1
+        with self.assertRaisesRegex(ValueError, 'window index'):
+            evidence.source_scans(pair,capture=capture(pair,first,second))
+        second['windows'][0]['index']=0
+        second['windows'][0]['visitedTiles']=True
+        with self.assertRaisesRegex(ValueError, 'visitedTiles'):
+            evidence.source_scans(pair,capture=capture(pair,first,second))
+        second['windows'][0]['visitedTiles']=1
+        first['windows'].append(dict(first['windows'][0],index=1))
+        second['windows'].append(dict(second['windows'][0],index=1))
+        with self.assertRaisesRegex(ValueError, 'repeated spatial windows'):
+            evidence.source_scans(pair,capture=capture(pair,first,second))
+
+    def test_rejects_invalid_access_and_ambiguous_input_identity(self):
+        pair=identity()
+        first,second=scan([edge(11,5,47,12)]),scan([edge(22,5,47,12)])
+        first['edges'][0].pop('reverseAccess')
+        with self.assertRaisesRegex(ValueError,'reverseAccess'):
+            evidence.source_scans(pair,capture=capture(pair,first,second))
+        first['edges'][0]['reverseAccess']=0
+        first['edges'][0]['forwardAccess']=True
+        with self.assertRaisesRegex(ValueError,'forwardAccess'):
+            evidence.source_scans(pair,capture=capture(pair,first,second))
+        first['edges'][0]['forwardAccess']=2031
+        pair['fromRegionId']='austria'
+        pair['pairId']='austria__austria'
+        with self.assertRaisesRegex(ValueError,'two different regions'):
+            evidence.source_scans(pair,capture=capture(pair,first,second))
+
+    def test_bad_scan_schema_and_nan_fields_cannot_be_published(self):
+        pair=identity()
+        first,second=scan([edge(11,5,47,12)]),scan([edge(22,5,47,12)])
+        doc=capture(pair,first,second)
+        doc['version']=2
+        with self.assertRaisesRegex(ValueError,'uncapped native'):
+            evidence.source_scans(pair,capture=doc)
+        doc['version']=1
+        first['edges'][0]['roadClass']=float('nan')
+        with self.assertRaisesRegex(ValueError,'roadClass'):
+            evidence.source_scans(pair,capture=doc)
+        first['edges'][0]['roadClass']=0
+        first['edges'][0]['toll']=0
+        with self.assertRaisesRegex(ValueError,'toll'):
+            evidence.source_scans(pair,capture=doc)
+
+    def test_scan_window_completeness_is_not_overlap_completeness(self):
+        pair=identity()
+        a,b,_=evidence.source_scans(pair,capture=capture(pair,scan([edge(11,5,47,12)]),
+                                              scan([edge(22,5,47,12)])))
+        with tempfile.TemporaryDirectory() as temp:
+            out=evidence.produce(pair,a,b,Path(temp)/'out',{'source':'test'})
+            self.assertEqual(out['sharedBufferOverlapCoverage'],'NOT_VERIFIED')
+            self.assertEqual(out['sourceWindowCoverage'],
+                'SOURCE_REPORTED_COMPLETE_MATCHING_WINDOW_CATALOG')
+            self.assertTrue(out['windowCatalogSha256'].startswith('sha256:'))
 
     def test_no_false_parity_from_matching_all_edges(self):
         pair=identity()
