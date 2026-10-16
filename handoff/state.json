@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-16T18:30:16.053Z",
+  "generatedAt": "2026-10-16T19:10:32.801Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,16 +11,16 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "703ef2297e263bf2545be148edd51502f8a582ce",
-    "message": "feat: integrate native F8 crossing diagnostics into Graph Studio UI (#87)",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/703ef2297e263bf2545be148edd51502f8a582ce"
+    "sha": "3e43167af4f06955fa0188d483adab91f3c57882",
+    "message": "ui: separate native F8 discovery and journey validation tabs (#88)",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/3e43167af4f06955fa0188d483adab91f3c57882"
   },
   "openPullRequests": [],
   "openIssues": [
     {
       "number": 82,
       "title": "Fix F8 production discovery: OSM buffered-overlap anchor explosion (>250k) despite complete native scan",
-      "updatedAt": "2026-10-16T17:31:01Z",
+      "updatedAt": "2026-10-16T18:43:46Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/issues/82"
     },
     {
@@ -74,36 +74,91 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 38947826653,
-      "name": "Validate offline-data repository",
+      "id": 38952939834,
+      "name": "F8 Architecture Contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "3e43167af4f06955fa0188d483adab91f3c57882",
+      "event": "push",
+      "updatedAt": "2026-10-16T19:10:29Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38952939834"
+    },
+    {
+      "id": 38952939795,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "3e43167af4f06955fa0188d483adab91f3c57882",
+      "event": "push",
+      "updatedAt": "2026-10-16T19:10:30Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38952939795"
+    },
+    {
+      "id": 38952226274,
+      "name": "F8 Architecture Contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feat/graph-studio-f8-discovery-validation-tabs",
+      "headSha": "dc0e47cba871e91de6527a13ede4c211384f434c",
+      "event": "pull_request",
+      "updatedAt": "2026-10-16T19:05:04Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38952226274"
+    },
+    {
+      "id": 38952226246,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feat/graph-studio-f8-discovery-validation-tabs",
+      "headSha": "dc0e47cba871e91de6527a13ede4c211384f434c",
+      "event": "pull_request",
+      "updatedAt": "2026-10-16T19:07:39Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38952226246"
+    },
+    {
+      "id": 38952226245,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feat/graph-studio-f8-discovery-validation-tabs",
+      "headSha": "dc0e47cba871e91de6527a13ede4c211384f434c",
+      "event": "pull_request",
+      "updatedAt": "2026-10-16T19:09:53Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38952226245"
+    },
+    {
+      "id": 38947826653,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "703ef2297e263bf2545be148edd51502f8a582ce",
       "event": "push",
-      "updatedAt": "2026-10-16T18:30:13Z",
+      "updatedAt": "2026-10-16T18:33:18Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38947826653"
     },
     {
       "id": 38947826607,
       "name": "F8 Architecture Contract",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "703ef2297e263bf2545be148edd51502f8a582ce",
       "event": "push",
-      "updatedAt": "2026-10-16T18:30:13Z",
+      "updatedAt": "2026-10-16T18:30:26Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38947826607"
     },
     {
       "id": 38947826585,
       "name": "Build RoadPilot Graph Studio",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "703ef2297e263bf2545be148edd51502f8a582ce",
       "event": "push",
-      "updatedAt": "2026-10-16T18:30:13Z",
+      "updatedAt": "2026-10-16T18:38:27Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38947826585"
     },
     {
@@ -127,61 +182,6 @@
       "event": "pull_request",
       "updatedAt": "2026-10-16T18:25:34Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38946789758"
-    },
-    {
-      "id": 38946789755,
-      "name": "F8 Architecture Contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feat/graph-studio-native-f8-ui",
-      "headSha": "95e3d1d45b137fbd9438b936bcf99ab1c4ba8794",
-      "event": "pull_request",
-      "updatedAt": "2026-10-16T18:22:21Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38946789755"
-    },
-    {
-      "id": 38940235088,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "9c8c6ab598e3bc14022963276beb23eeedd6cee5",
-      "event": "push",
-      "updatedAt": "2026-10-16T17:37:20Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38940235088"
-    },
-    {
-      "id": 38940234902,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "9c8c6ab598e3bc14022963276beb23eeedd6cee5",
-      "event": "push",
-      "updatedAt": "2026-10-16T17:33:02Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38940234902"
-    },
-    {
-      "id": 38940234837,
-      "name": "F8 Architecture Contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "main",
-      "headSha": "9c8c6ab598e3bc14022963276beb23eeedd6cee5",
-      "event": "push",
-      "updatedAt": "2026-10-16T17:30:53Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38940234837"
-    },
-    {
-      "id": 38939085690,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feat/native-f8-crossing-discovery",
-      "headSha": "6a459213c6b23148aeba65cb22520cefef40067e",
-      "event": "pull_request",
-      "updatedAt": "2026-10-16T17:30:14Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38939085690"
     }
   ]
 }
