@@ -24,6 +24,14 @@ class GraphStudioUiFoundationContractTests(unittest.TestCase):
         self.assertNotIn('@media (max-width: 1000px)', CSS)
         self.assertIn('workspace.clientWidth - 420 - 10', UI)
 
+    def test_compact_map_picks_return_to_tool_form(self):
+        # Picking GPS in a hidden Map pane is not usable; switch to Map to pick,
+        # then return to the form with preserved input after the click.
+        for marker in ('pickRouteStartBtn.addEventListener', 'pickRouteEndBtn.addEventListener',
+                       'pickHandoffABtn.addEventListener', 'pickHandoffBBtn.addEventListener',
+                       'setEditorPinMode(kind:', 'setCompactPane("map")', 'setCompactPane("tools")'):
+            self.assertIn(marker, UI)
+
     def test_console_toggle_keeps_running_status_and_log_accessible(self):
         for piece in ('id="consoleToggle"', 'aria-expanded="false"', 'CONSOLE_COLLAPSED_KEY',
                       'setConsoleCollapsed(', 'consoleCollapsed', 'consoleToggle.addEventListener'):

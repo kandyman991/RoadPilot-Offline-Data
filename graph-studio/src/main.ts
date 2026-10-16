@@ -4187,6 +4187,7 @@ function setEditorPinMode(kind: "start" | "end" | null): void {
   pickEditorStartBtn.classList.toggle("active-pin", kind === "start");
   pickEditorEndBtn.classList.toggle("active-pin", kind === "end");
   map.getCanvas().style.cursor = kind ? "crosshair" : "";
+  if (kind && window.matchMedia("(max-width: 1100px)").matches) setCompactPane("map");
 }
 function clearEditorPinMarkers(): void {
   setEditorPinMode(null);
@@ -5247,6 +5248,7 @@ pickHandoffABtn.addEventListener("click", () => {
     return;
   }
   handoffPickMode = "A";
+  if (window.matchMedia("(max-width: 1100px)").matches) setCompactPane("map");
   pickHandoffABtn.textContent = "Click map…";
   pickHandoffBBtn.textContent = "Pick B edge";
 });
@@ -5257,6 +5259,7 @@ pickHandoffBBtn.addEventListener("click", () => {
     return;
   }
   handoffPickMode = "B";
+  if (window.matchMedia("(max-width: 1100px)").matches) setCompactPane("map");
   pickHandoffBBtn.textContent = "Click map…";
   pickHandoffABtn.textContent = "Pick A edge";
 });
@@ -5314,11 +5317,13 @@ borderRegionB.addEventListener("change", () => clearHandoffSelection(true));
 
 pickRouteStartBtn.addEventListener("click", () => {
   routePickMode = "start";
+  if (window.matchMedia("(max-width: 1100px)").matches) setCompactPane("map");
   pickRouteStartBtn.textContent = "Click map…";
   pickRouteEndBtn.textContent = "Pick end";
 });
 pickRouteEndBtn.addEventListener("click", () => {
   routePickMode = "end";
+  if (window.matchMedia("(max-width: 1100px)").matches) setCompactPane("map");
   pickRouteEndBtn.textContent = "Click map…";
   pickRouteStartBtn.textContent = "Pick start";
 });
@@ -5344,6 +5349,7 @@ map.on("click", (event) => {
     const kind = editorPickMode;
     setEditorPinMode(null);
     setEditorPin(kind, event.lngLat.lat, event.lngLat.lng);
+    if (window.matchMedia("(max-width: 1100px)").matches) setCompactPane("tools");
     return;
   }
   lastMapClick = { lat: event.lngLat.lat, lng: event.lngLat.lng };
@@ -5354,6 +5360,7 @@ map.on("click", (event) => {
     pickHandoffABtn.textContent = "Pick A edge";
     pickHandoffBBtn.textContent = "Pick B edge";
     snapHandoff(mode, event.lngLat.lat, event.lngLat.lng).catch(error => appendLog(String(error)));
+    if (window.matchMedia("(max-width: 1100px)").matches) setCompactPane("tools");
     return;
   }
   if (routePickMode) {
@@ -5361,6 +5368,7 @@ map.on("click", (event) => {
     routePickMode = null;
     pickRouteStartBtn.textContent = "Pick start";
     pickRouteEndBtn.textContent = "Pick end";
+    if (window.matchMedia("(max-width: 1100px)").matches) setCompactPane("tools");
     return;
   }
   if (!graphVisible) return;
