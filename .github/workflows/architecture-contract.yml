@@ -44,6 +44,9 @@ jobs:
           python -m unittest discover -s tests -p 'test_graph_studio_f8_workspace.py' -v
           python -m unittest discover -s tests -p 'test_graph_studio_f8_ui_contract.py' -v
 
+      - name: Graph Studio responsive UI foundation and durable audit regression gate
+        run: python -m unittest discover -s tests -p 'test_graph_studio_ui_foundation.py' -v
+
       - name: Native F8 directed-edge parity-audit contract regressions
         run: python -m unittest discover -s tests -p 'test_f8_graph_edge_audit.py' -v
 

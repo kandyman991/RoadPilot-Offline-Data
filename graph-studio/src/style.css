@@ -24,6 +24,7 @@ button { cursor: pointer; }
 }
 
 .topbar {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -56,6 +57,7 @@ button { cursor: pointer; }
 .metric b { color: #e8edf3; font-weight: 600; }
 
 .workspace {
+  min-width: 0;
   min-height: 0;
   display: grid;
   grid-template-columns: var(--left-pane) 5px minmax(420px, 1fr) 5px var(--right-pane);
@@ -572,12 +574,77 @@ button { cursor: pointer; }
   line-height: 1.5;
 }
 
-@media (max-width: 1000px) {
-  .workspace { grid-template-columns: 240px minmax(320px, 1fr); }
-  .inspector { display: none; }
-  .console { grid-template-columns: 240px minmax(0, 1fr); }
+/* Desktop retains the original three independently resizable panes. */
+.workspace-switcher[hidden] { display: none !important; }
+.workspace-switcher {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: #0c141d;
+  border: 1px solid #344455;
+  border-radius: 8px;
+  flex: 0 0 auto;
+}
+.workspace-pane-btn {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #b7c6d6;
+  font-size: 12px;
+}
+.workspace-pane-btn.active { background: #254b6c; color: #fff; }
+.workspace-pane-btn:focus-visible, .console-toggle:focus-visible { outline: 2px solid #77b9fa; outline-offset: 2px; }
+.console-summary { position: relative; padding-right: 80px; }
+.console-toggle {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  padding: 4px 7px;
+  border: 1px solid #44566a;
+  border-radius: 5px;
+  background: #1a2d3c;
+  color: #e1edf8;
+  font-size: 10px;
+}
+.app.console-collapsed { grid-template-rows: 52px minmax(0, 1fr) 0 44px; }
+.console-collapsed .console { grid-template-columns: minmax(0, 1fr); }
+.console-collapsed .console-summary {
+  min-width: 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 85px 4px 13px;
+  overflow: hidden;
+  border-right: 0;
+}
+.console-collapsed #statusTitle { flex: 0 0 auto; margin: 0; font-size: 11px; }
+.console-collapsed #statusStage { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.console-collapsed #progress { flex: 0 0 65px; margin: 0; }
+.console-collapsed #statusQueue, .console-collapsed .console-log, .console-collapsed .console-side,
+.console-collapsed #consoleSplitter { display: none; }
+.console-collapsed .console-toggle { top: 9px; }
+
+/* Switchable single-pane work area when three panes cannot fit; no tools vanish. */
+@media (max-width: 1100px) {
+  .topbar { gap: 7px; padding: 0 9px; }
+  .topbar .brand { min-width: 0; }
+  .topbar .brand span, .topbar .metric:not(#toolchainBadge) { display: none; }
+  .workspace { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .workspace > .pane-splitter { display: none; }
+  .workspace > .sidebar, .workspace > .map-wrap, .workspace > .inspector { display: none; }
+  .compact-workspace[data-workspace-pane="regions"] .workspace > .sidebar { display: block; }
+  .compact-workspace[data-workspace-pane="map"] .workspace > .map-wrap { display: block; }
+  .compact-workspace[data-workspace-pane="tools"] .workspace > .inspector { display: flex; }
+  .console { grid-template-columns: minmax(180px, 32%) minmax(0, 1fr); }
   .console-side { display: none; }
 }
+@media (max-width: 650px) {
+  .brand strong { font-size: 12px; }
+  #toolchainBadge { display: none; }
+  .workspace-pane-btn { padding: 6px 7px; font-size: 11px; }
+}
+
 
 
 .coord-grid {
