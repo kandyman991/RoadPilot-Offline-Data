@@ -1,5 +1,13 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Graph Studio Phase 2 merged (2026-10-16)
+
+- **PR #91 MERGED** to `main` at `6606d0f33fb4d885039fe9b5ba74e92e618e1013`; reviewed head `bfb6da8962a3b287464a54d2c8ec92323b401a65` passed GitHub `architecture-contract`, `validate` and `linux` checks (all GREEN), plus local 106 Python tests, TypeScript/Vite and four-width Chromium UI tests. Remote Legion repo synchronized to main.
+- Phase 2 UI-06, UI-09, UI-10, UI-11 now **DONE** in `docs/GRAPH_STUDIO_UI_AUDIT.md` and tracked by GitHub issue #89, which remains open. Tool grouping six categories, one persisted Routing/Visual/Search comparison interface (retained backends/handlers), contextual Toolchain from status and Region Editor via region tree; safe migration for persisted old contextual menu selections.
+- Main rolling AppImage release workflow **#38966295556** triggered from exact merge commit; until the release passes and SHA-256 verified, installed Legion AppImage still remains Phase 1. Once available, checksum verify, retain previous AppImage rollback and launch; do not call new version installed before actual upgrade.
+- NEXT milestone Phase 3: simplify Border inspector, clearly move legacy crossing surfaces to Advanced/historical views (not delete), add sensible map-layer presets and overlay lifecycle controls (UI-02, UI-03, UI-07, UI-13). Phase 4 dependency-verified deletions only. No Android/Valhalla graph/F8 changed. Android F8 parity NOT_VERIFIED and production connectivity BLOCKED.
+
+
 ## Graph Studio Phase 2 — grouped workflows and unified comparisons (2026-10-16)
 
 - User requested Phase 2 directly. From current main `98d5701`, branch `feat/graph-studio-phase2-workflow-navigation`: grouped primary tool dropdown into Build / Inspect / Test / Data / Publish / Advanced (9 destination options); Region Editor and Toolchain unchanged internally but removed from top-level menu, opened contextually from left New/Edit region tree and header toolchain readiness badge / visible compact Tools status action. Back button returns to last active normal workflow; persisted tool IDs `region`/`toolchain` now migrate safely to Build on startup.
