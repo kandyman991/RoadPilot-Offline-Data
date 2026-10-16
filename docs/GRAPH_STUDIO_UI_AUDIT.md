@@ -1,0 +1,35 @@
+# Graph Studio UI audit — durable issue register
+
+**Recorded:** 2026-10-16 · **Reference:** Graph Studio `main` after merged PR #88 (`3e43167`) · **Scope:** UI/UX only; this is the canonical register for future cleanup. Update status, evidence, PRs and acceptance tests as work progresses; do not silently drop entries. See `CHAT_HANDOFF.md`, `docs/ARCHITECTURE_CONTRACT.md` and GitHub issue linked from the handoff.
+
+**Evidence and limitations:** The compiled Graph Studio frontend was systematically inspected across **all 11 tools**, at **1920×1080, 1200×740, 960×600** (plus layout at 1001–1100px); available accessibility nodes of the running Legion Tauri app and frontend source/CSS were also inspected. GNOME denied direct live-desktop screenshots; headless browser screenshots lack Tauri backend and are **not evidence of live backend failures**. No graph builds, F8 source scans, or Android device tests were performed in the audit. Separate confirmed defects from proposed simplifications. Do not delete historical artifacts or code until callers, evidence and dependencies are audited.
+
+| ID | Priority | Area | Finding and action | Evidence strength | Phase | Status |
+|---|---|---|---|---|---|---|
+| UI-01 | P0 | Responsive layout | At <=1000px `.inspector` is hidden; at ~1001–1089px minimum grid width clips tools. **FIX:** preserve desktop 3-pane layout and provide accessible Regions/Map/Tools workspace switching on narrower windows. | Confirmed CSS and render | 1 | IMPLEMENTED IN PHASE 1 / CI PENDING |
+| UI-02 | P1 | Border inspector | Current edge picks/overrides, road overlap, connector matrix and historical diagnostics share a very long inspector (about 2.6 viewport heights at 1200×740). **REDESIGN:** current inspection vs Advanced/historical diagnostics. | Confirmed structure; layout observed | 3 | OPEN |
+| UI-03 | P1 | Historical crossing surfaces | OSM-way road overlap and old connector matrix are not authoritative native F8. **MOVE:** mark Legacy Diagnostics, not primary discovery; only delete after checking downstream readers and saved artifacts. | Architecture contract + inspected UI | 3–4 | OPEN |
+| UI-04 | P1 | Build prerequisites | Build action visually enabled when toolchain ready even with no queued regions; handler rejects afterward. **FIX:** disable and show prerequisite until valid selection/version/toolchain. | Confirmed handler | 1 | IMPLEMENTED IN PHASE 1 / CI PENDING |
+| UI-05 | P1 | Route prerequisites | Route may remain enabled before active region/graph context; handler returns/reports failure. **FIX:** disable until selected routing graph and valid inputs, communicate graph/version. | Confirmed handler and layout | 1 | IMPLEMENTED IN PHASE 1 / CI PENDING |
+| UI-06 | P1 | Flat tool navigation | 11 options in one dropdown. **GROUP:** Build/Inspect/Test/Data/Publish/Advanced; preserve access/IDs and keyboard navigation. | Confirmed UI | 2 | OPEN |
+| UI-07 | P1 | Global map overlays | Many technical overlay toggles begin enabled and live inside Visual tool. **SIMPLIFY:** Map presets and toolbar exposure; do not silently drop diagnostic layers. | UI audit + frontend state | 3 | OPEN |
+| UI-08 | P2 | Console footprint | Bottom console and recent builds occupy 196px when idle. **FIX:** collapsible compact status strip with resumable log/progress and resizable expanded console. | Confirmed CSS/viewport | 1 | IMPLEMENTED IN PHASE 1 / CI PENDING |
+| UI-09 | P2 | Comparisons | Routing build comparison has its own tool; Visual and Search comparison controls scattered in their panels. **CONSOLIDATE** into Routing/Visual/Search tabs only after validating shared data models. | Confirmed UI structure | 2 | OPEN |
+| UI-10 | P2 | Toolchain | Toolchain is top-level menu option despite header readiness badge. **MOVE** details behind badge; keep underlying diagnostics. | Confirmed duplicate surface | 2 | OPEN |
+| UI-11 | P2 | Region editing | Left tree exposes New/Edit while a separate Region editor tool repeats navigation. **SIMPLIFY** entry points after verifying configuration and manual border-validation workflows. | Confirmed UI | 2–3 | OPEN |
+| UI-12 | P2 | Route planner form | `Show search expansion` wraps awkwardly in narrow inspector; graph/version context not prominent. **FIX** compact check-row and explicit selected graph/build context. | Observed at 1200px; layout | 1–2 | IMPLEMENTED IN PHASE 1 / CI PENDING |
+| UI-13 | P2 | Overlay lifecycle | Tool switching changes inspector but leaves map overlays, potentially confusing comparisons. **ADD** clear-tool-overlays and explicit presets; do not auto-delete useful layers. | Observed handling | 3 | OPEN |
+
+## Work rules and release gates
+
+- **Phase 1 — UI-01, UI-04, UI-05, UI-08, UI-12:** responsive workspace and prerequisites. No changes to routing, graph compilation, native F8 proof, search data, R2 uploading, on-device fallback, or immutable source artifacts. Test 1920/1440/1200/1100/1024/960/800 widths, mouse and keyboard; resize from wide to narrow and back without losing selections. Test console collapse and restore. Validate backend CI.
+- **Phase 2 — UI-06, UI-09, UI-10, UI-11:** simplify navigation and consolidate workflows; retain tool/data capabilities while migrating.
+- **Phase 3 — UI-02, UI-03, UI-07, UI-13:** isolate advanced/historical features and introduce map presets, preserving forensics.
+- **Phase 4 — deprecated-code removal:** trace usage of every legacy component, keep saved overrides, and remove only after contract tests prove no behavior regression.
+- **Never conflate diagnostic native F8 proposals or sampled Valhalla proofs with Android F8 parity.** Parity stays NOT_VERIFIED and publication BLOCKED until proven separately.
+
+## History
+
+- 2026-10-16: Initial audit captured all findings, evidence limitations and intended phases. Phase 1 implementation initiated on `feat/graph-studio-responsive-foundation`.
+
+- 2026-10-16: Phase 1 branch implements narrow Regions/Map/Tools switcher, resizable desktop layout safety, collapsible console, validated Build/Route prerequisites and route expansion label layout. Verified in headless Chromium at 650, 800, 960, 1024, 1100, 1150, 1200, 1440 and 1920px; test of oversized persisted desktop panes and narrow↔wide transition passed. These are **locally verified only until PR CI and review pass**. Remaining UI-02/03/06/07/09/10/11/13 are tracked and deliberately not deleted.

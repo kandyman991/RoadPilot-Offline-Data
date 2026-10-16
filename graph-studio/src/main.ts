@@ -450,6 +450,11 @@ app.innerHTML = `
     <div id="metricDisk" class="metric">Disk <b>—</b></div>
     <div id="metricTemp" class="metric">Temp <b>—</b></div>
     <div class="topbar-spacer"></div>
+    <nav id="workspaceSwitcher" class="workspace-switcher" aria-label="Workspace panes" hidden>
+      <button id="showRegionsPane" class="workspace-pane-btn" type="button" aria-pressed="false">Regions</button>
+      <button id="showMapPane" class="workspace-pane-btn" type="button" aria-pressed="true">Map</button>
+      <button id="showToolsPane" class="workspace-pane-btn" type="button" aria-pressed="false">Tools</button>
+    </nav>
     <div id="toolchainBadge" class="metric">Toolchain <b>checking…</b></div>
   </header>
 
@@ -512,6 +517,7 @@ app.innerHTML = `
           <button id="cancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
         <div id="buildSelectionSummary" class="status-line">No regions selected.</div>
+        <div id="buildPrerequisite" class="status-line" aria-live="polite">Select a region and wait for the toolchain.</div>
         <label class="check-row"><input id="refreshSourceCheckbox" type="checkbox" />
           Force source re-download (ignore unchanged source cache)
         </label>
@@ -857,11 +863,10 @@ app.innerHTML = `
         <div class="actions">
           <button id="pickRouteStartBtn" class="btn" type="button">Pick start</button>
           <button id="pickRouteEndBtn" class="btn" type="button">Pick end</button>
-          <button id="runRouteBtn" class="btn primary" type="button">Route</button>
+          <button id="runRouteBtn" class="btn primary" type="button" disabled>Route</button>
         </div>
-        <div class="field inline-field">
-          <label><input id="routeExpansionToggle" type="checkbox" /> Show search expansion</label>
-        </div>
+        <div id="routePrerequisite" class="status-line" aria-live="polite">Select a built region and valid route coordinates.</div>
+        <label class="check-row route-expansion-row"><input id="routeExpansionToggle" type="checkbox" /> <span>Show search expansion</span></label>
         <div id="expansionPlayback" class="empty" hidden>
           <label for="expansionProgress">Expansion playback <span id="expansionProgressLabel">0 / 0 edges</span></label>
           <input id="expansionProgress" type="range" min="0" max="1000" step="1" value="1000" />
@@ -907,6 +912,7 @@ app.innerHTML = `
       <div id="statusStage" class="status-line">No build running.</div>
       <div id="progress" class="progress idle"><div></div></div>
       <div id="statusQueue" class="status-line"></div>
+      <button id="consoleToggle" type="button" class="console-toggle" aria-controls="consoleLog builds" aria-expanded="false">Show log</button>
     </section>
     <pre id="consoleLog" class="console-log">Graph Studio ready.\n</pre>
     <section class="console-side">
@@ -924,6 +930,13 @@ const toolPanels = [...document.querySelectorAll<HTMLElement>(".tool-panel")];
 const leftSplitter = document.querySelector<HTMLDivElement>("#leftSplitter")!;
 const rightSplitter = document.querySelector<HTMLDivElement>("#rightSplitter")!;
 const consoleSplitter = document.querySelector<HTMLDivElement>("#consoleSplitter")!;
+const workspaceSwitcher = document.querySelector<HTMLElement>("#workspaceSwitcher")!;
+const workspaceButtons = {
+  regions: document.querySelector<HTMLButtonElement>("#showRegionsPane")!,
+  map: document.querySelector<HTMLButtonElement>("#showMapPane")!,
+  tools: document.querySelector<HTMLButtonElement>("#showToolsPane")!,
+};
+const consoleToggle = document.querySelector<HTMLButtonElement>("#consoleToggle")!;
 const configuredRegionsTab = document.querySelector<HTMLButtonElement>("#configuredRegionsTab")!;
 const catalogRegionsTab = document.querySelector<HTMLButtonElement>("#catalogRegionsTab")!;
 const regionSearch = document.querySelector<HTMLInputElement>("#regionSearch")!;
@@ -957,6 +970,8 @@ const clearEditorPinsBtn = document.querySelector<HTMLButtonElement>("#clearEdit
 const saveRegionBtn = document.querySelector<HTMLButtonElement>("#saveRegionBtn")!;
 const closeRegionEditorBtn = document.querySelector<HTMLButtonElement>("#closeRegionEditorBtn")!;
 const buildBtn = document.querySelector<HTMLButtonElement>("#buildBtn")!;
+const buildPrerequisite = document.querySelector<HTMLDivElement>("#buildPrerequisite")!;
+const routePrerequisite = document.querySelector<HTMLDivElement>("#routePrerequisite")!;
 const cancelBtn = document.querySelector<HTMLButtonElement>("#cancelBtn")!;
 const r2CredentialSummary = document.querySelector<HTMLDivElement>("#r2CredentialSummary")!;
 const r2AccountId = document.querySelector<HTMLInputElement>("#r2AccountId")!;
@@ -1086,6 +1101,9 @@ let r2Credentials: R2CredentialStatus | null = null;
 let remotePublication: R2RegionPublicationStatus | null = null;
 let currentPublicationStatus: PublicationStatus | null = null;
 let toolchainReady = false;
+let latestBuildRunning = false;
+let buildSubmitting = false;
+let routeSubmitting = false;
 let handoffMarkerA: Marker | null = null;
 let handoffMarkerB: Marker | null = null;
 let routePickMode: "start" | "end" | null = null;
@@ -1114,6 +1132,7 @@ function activateTool(tool: ToolId, remember = true): void {
   toolMenu.value = tool;
   for (const panel of toolPanels) panel.hidden = panel.dataset.tool !== tool;
   if (remember) localStorage.setItem(TOOL_STORAGE_KEY, tool);
+  if (remember && window.matchMedia("(max-width: 1100px)").matches) setCompactPane("tools");
 }
 
 const storedTool = localStorage.getItem(TOOL_STORAGE_KEY);
@@ -1760,8 +1779,80 @@ function persistLayout(): void {
   localStorage.setItem(LAYOUT_KEYS.console, String(Math.round(numericCssVar("--console-height", 196))));
 }
 
+type WorkspacePane = "regions" | "map" | "tools";
+const COMPACT_PANE_KEY = "roadpilot.graph-studio.compact-pane";
+const CONSOLE_COLLAPSED_KEY = "roadpilot.graph-studio.console-collapsed";
+let activeCompactPane: WorkspacePane = "map";
+let consoleCollapsed = true;
+
+function setCompactPane(pane: WorkspacePane, remember = true): void {
+  activeCompactPane = pane;
+  for (const [key, button] of Object.entries(workspaceButtons)) {
+    const selected = key === pane;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  }
+  appRoot.dataset.workspacePane = pane;
+  if (remember) localStorage.setItem(COMPACT_PANE_KEY, pane);
+  map.resize();
+}
+
+function setConsoleCollapsed(collapsed: boolean, remember = true): void {
+  consoleCollapsed = collapsed;
+  appRoot.classList.toggle("console-collapsed", collapsed);
+  consoleToggle.textContent = collapsed ? "Show log" : "Hide log";
+  consoleToggle.setAttribute("aria-expanded", String(!collapsed));
+  consoleSplitter.setAttribute("aria-disabled", String(collapsed));
+  if (remember) localStorage.setItem(CONSOLE_COLLAPSED_KEY, String(collapsed));
+  map.resize();
+}
+
+function reconcileDesktopPanes(): void {
+  if (window.matchMedia("(max-width: 1100px)").matches) return;
+  const workspace = document.querySelector<HTMLElement>(".workspace")!;
+  const available = Math.max(0, workspace.clientWidth - 420 - 10);
+  let left = numericCssVar("--left-pane", 300);
+  let right = numericCssVar("--right-pane", 360);
+  if (left + right > available) {
+    const excess = left + right - available;
+    const leftAllowance = Math.max(0, left - 220);
+    const rightAllowance = Math.max(0, right - 280);
+    const totalAllowance = leftAllowance + rightAllowance;
+    if (totalAllowance > 0) {
+      left -= Math.min(leftAllowance, excess * leftAllowance / totalAllowance);
+      right -= Math.min(rightAllowance, excess * rightAllowance / totalAllowance);
+    }
+    if (left + right > available) {
+      left = Math.max(220, available - right);
+      right = Math.max(280, available - left);
+    }
+    appRoot.style.setProperty("--left-pane", `${Math.floor(left)}px`);
+    appRoot.style.setProperty("--right-pane", `${Math.floor(right)}px`);
+  }
+}
+
+function applyResponsiveWorkspace(): void {
+  const compact = window.matchMedia("(max-width: 1100px)").matches;
+  appRoot.classList.toggle("compact-workspace", compact);
+  workspaceSwitcher.hidden = !compact;
+  if (!compact) reconcileDesktopPanes();
+  map.resize();
+}
+
+const storedCompactPane = localStorage.getItem(COMPACT_PANE_KEY);
+activeCompactPane = storedCompactPane === "regions" || storedCompactPane === "tools" ? storedCompactPane : "map";
+const storedConsoleCollapsed = localStorage.getItem(CONSOLE_COLLAPSED_KEY);
+setCompactPane(activeCompactPane, false);
+setConsoleCollapsed(storedConsoleCollapsed !== "false", false);
+for (const [pane, button] of Object.entries(workspaceButtons)) {
+  button.addEventListener("click", () => setCompactPane(pane as WorkspacePane));
+}
+consoleToggle.addEventListener("click", () => setConsoleCollapsed(!consoleCollapsed));
+window.addEventListener("resize", applyResponsiveWorkspace);
+
 function installVerticalSplitter(splitter: HTMLElement, side: "left" | "right"): void {
   splitter.addEventListener("pointerdown", event => {
+    if (window.matchMedia("(max-width: 1100px)").matches) return;
     event.preventDefault();
     splitter.setPointerCapture(event.pointerId);
     document.body.classList.add("pane-resizing");
@@ -1803,6 +1894,7 @@ function installVerticalSplitter(splitter: HTMLElement, side: "left" | "right"):
 
 function installConsoleSplitter(): void {
   consoleSplitter.addEventListener("pointerdown", event => {
+    if (consoleCollapsed) return;
     event.preventDefault();
     consoleSplitter.setPointerCapture(event.pointerId);
     document.body.classList.add("pane-resizing");
@@ -1837,6 +1929,7 @@ applyStoredLayout();
 installVerticalSplitter(leftSplitter, "left");
 installVerticalSplitter(rightSplitter, "right");
 installConsoleSplitter();
+applyResponsiveWorkspace();
 
 leftSplitter.addEventListener("dblclick", () => {
   appRoot.style.setProperty("--left-pane", "300px");
@@ -1849,6 +1942,7 @@ rightSplitter.addEventListener("dblclick", () => {
   map.resize();
 });
 consoleSplitter.addEventListener("dblclick", () => {
+  if (consoleCollapsed) return;
   appRoot.style.setProperty("--console-height", "196px");
   persistLayout();
   map.resize();
@@ -3489,6 +3583,7 @@ function setRoutePoint(kind: "start" | "end", lat: number, lng: number): void {
     .addTo(map);
   if (kind === "start") routeStartMarker = marker;
   else routeEndMarker = marker;
+  updateRouteButtonState();
 }
 
 function renderRouteResult(result: RoutePlanResult, expansion?: ExpansionResult): void {
@@ -3586,7 +3681,8 @@ async function runStandardRoute(): Promise<void> {
     routeSummary.textContent = `Route failed for ${activeRegion?.id ?? "unknown region"}: ${String(error)}`;
     appendLog(`Valhalla route failed: ${String(error)}`);
   } finally {
-    runRouteBtn.disabled = false;
+    routeSubmitting = false;
+    updateRouteButtonState();
   }
 }
 
@@ -3685,6 +3781,7 @@ function setActiveRegion(region: RegionSummary): void {
   fitActiveRegion();
   renderRegions();
   renderVisualBuildSelectors();
+  updateRouteButtonState();
 }
 
 function normalizedRegionSearchText(value: string): string {
@@ -3731,11 +3828,38 @@ function makeStatusBadge(text: "AVAILABLE" | "CONFIGURED" | "BUILT"): HTMLSpanEl
   return badge;
 }
 
+function updateBuildButtonState(): void {
+  const versionValid = /^\d{4}\.\d{2}\.\d{2}-[A-Za-z0-9._-]+$/.test(packageVersionInput.value.trim());
+  const selectedAny = selected.size > 0 || pendingCatalogSelection.size > 0;
+  const reason = !toolchainReady ? "Toolchain is not ready." :
+    latestBuildRunning || buildSubmitting ? "A regional build is already running." :
+    !selectedAny ? "Choose at least one region in the left tree." :
+    !versionValid ? "Enter a package version like 2026.10.16-1." : "Ready to build the selected regions.";
+  buildBtn.disabled = !toolchainReady || latestBuildRunning || buildSubmitting || !selectedAny || !versionValid;
+  buildPrerequisite.textContent = reason;
+}
+
+function updateRouteButtonState(): void {
+  const selectedGraph = activeRegion && artifacts.some(item => item.region_id === activeRegion!.id);
+  const fields: Array<[HTMLInputElement, number]> = [
+    [routeStartLat, 90], [routeStartLng, 180], [routeEndLat, 90], [routeEndLng, 180],
+  ];
+  const coordinatesValid = fields.every(([field, limit]) =>
+    field.value.trim() !== "" && Number.isFinite(Number(field.value)) && Math.abs(Number(field.value)) <= limit);
+  const reason = !activeRegion ? "Select a region in the left tree." :
+    !selectedGraph ? `Build ${activeRegion.id} first to enable routing.` :
+    !coordinatesValid ? `Enter valid start and destination coordinates for ${activeRegion.id}.` :
+    `Ready: ${activeRegion.id} · ${artifacts.filter(item => item.region_id === activeRegion?.id).at(-1)?.version ?? "retained build"}.`;
+  runRouteBtn.disabled = routeSubmitting || !selectedGraph || !coordinatesValid;
+  routePrerequisite.textContent = reason;
+}
+
 function updateRegionSelectionSummary(): void {
   const ready = selected.size;
   const toConfigure = pendingCatalogSelection.size;
   const status = `${ready} ready to build · ${toConfigure} awaiting setup`;
   buildSelectionSummary.textContent = ready || toConfigure ? status : "No regions selected.";
+  updateBuildButtonState();
   configureQueuedBtn.disabled = toConfigure === 0;
   configureQueuedBtn.textContent = toConfigure
     ? `Configure queued (${toConfigure})` : "Configure queued regions";
@@ -4371,7 +4495,7 @@ async function refreshToolchain(): Promise<void> {
     toolHost.appendChild(row);
   }
   toolchainReady = status.ready;
-  buildBtn.disabled = !toolchainReady;
+  updateBuildButtonState();
 }
 
 async function refreshStats(): Promise<void> {
@@ -4392,7 +4516,8 @@ function renderBuildStatus(status: BuildStatus): void {
   document.querySelector("#statusQueue")!.textContent = status.queue.length ? `Queue: ${status.queue.join(" → ")}` : "";
   document.querySelector("#progress")!.classList.toggle("idle", !status.running);
   cancelBtn.disabled = !status.running;
-  buildBtn.disabled = status.running || !toolchainReady;
+  latestBuildRunning = status.running;
+  updateBuildButtonState();
 }
 
 async function refreshBuildStatus(): Promise<void> {
@@ -4749,6 +4874,7 @@ async function refreshBuilds(): Promise<void> {
   renderF8BuildSelectors();
   renderPublicationBuildSelector();
   renderRegions();
+  updateRouteButtonState();
 }
 
 function renderCompareSelectors(): void {
@@ -5019,6 +5145,11 @@ async function autoPrepareSelectedRegions(): Promise<void> {
   renderRegions();
 }
 
+packageVersionInput.addEventListener("input", updateBuildButtonState);
+for (const field of [routeStartLat, routeStartLng, routeEndLat, routeEndLng]) {
+  field.addEventListener("input", updateRouteButtonState);
+}
+
 buildBtn.addEventListener("click", async () => {
   const version = packageVersionInput.value.trim();
   if (!/^\d{4}\.\d{2}\.\d{2}-[A-Za-z0-9._-]+$/.test(version)) {
@@ -5029,7 +5160,9 @@ buildBtn.addEventListener("click", async () => {
     appendLog("Select at least one region in the left tree.");
     return;
   }
-  buildBtn.disabled = true;
+  if (buildBtn.disabled) return;
+  buildSubmitting = true;
+  updateBuildButtonState();
   try {
     await autoPrepareSelectedRegions();
     const queue = [...selected].filter(id => regions.some(region => region.id === id));
@@ -5040,7 +5173,9 @@ buildBtn.addEventListener("click", async () => {
     await refreshBuildStatus();
   } catch (error) {
     appendLog(`Could not start automatic build: ${String(error)}`);
-    buildBtn.disabled = !toolchainReady;
+  } finally {
+    buildSubmitting = false;
+    updateBuildButtonState();
   }
 });
 
@@ -5187,7 +5322,12 @@ pickRouteEndBtn.addEventListener("click", () => {
   pickRouteEndBtn.textContent = "Click map…";
   pickRouteStartBtn.textContent = "Pick start";
 });
-runRouteBtn.addEventListener("click", () => { void runStandardRoute(); });
+runRouteBtn.addEventListener("click", () => {
+  if (runRouteBtn.disabled) return;
+  routeSubmitting = true;
+  updateRouteButtonState();
+  void runStandardRoute();
+});
 syncRouteSlider(routeUseHighways, routeUseHighwaysValue);
 syncRouteSlider(routeUseTolls, routeUseTollsValue);
 syncRouteSlider(routeUseFerry, routeUseFerryValue);
