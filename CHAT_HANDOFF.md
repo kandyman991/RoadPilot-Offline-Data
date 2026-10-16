@@ -1,5 +1,11 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Graph Studio Phase 2 Legion installation verified (2026-10-16)
+
+- Official rolling Linux release workflow **38966295556** on merge `6606d0f33fb4d885039fe9b5ba74e92e618e1013` **SUCCESS**. Published/dowloaded AppImage SHA-256 `30a37a198b476b1b845ed7111eafcacb1380f59a91c02265233255900e8e85ec` match. Installed at `~/Applications/RoadPilot-Graph-Studio-Linux.AppImage` without admin authentication; previous AppImage retained at `~/Applications/RoadPilot-Graph-Studio-Linux.previous.AppImage`. Desktop launcher Exec/Comment validated. No active graph build/F8 tasks when restarting GUI; new AppImage launched and live AT-SPI reports header `Show toolchain details`, `Graph Studio workflow` combo, `Open toolchain diagnostics`, Regions and Native F8 controls. Live workflow comparison backend not yet human-device-tested.
+- PR #91 is MERGED, `docs/GRAPH_STUDIO_UI_AUDIT.md` UI-06/09/10/11 DONE; issue #89 remains OPEN for UI-02/03/07/13 and Phase 4 dependency analysis. Continue next milestone without reintroducing removed OSM seam matching, false Android parity proof, automatic first-time F8 route rescans, or dangerous deletion of historical artifacts.
+
+
 ## Graph Studio Phase 2 merged (2026-10-16)
 
 - **PR #91 MERGED** to `main` at `6606d0f33fb4d885039fe9b5ba74e92e618e1013`; reviewed head `bfb6da8962a3b287464a54d2c8ec92323b401a65` passed GitHub `architecture-contract`, `validate` and `linux` checks (all GREEN), plus local 106 Python tests, TypeScript/Vite and four-width Chromium UI tests. Remote Legion repo synchronized to main.
