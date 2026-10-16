@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-10-16T20:24:15.909Z",
+  "generatedAt": "2026-10-16T21:00:27.291Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,16 +11,16 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "95a95c5dd342edcbe3b10848cec3e6f185b9897d",
-    "message": "Graph Studio Phase 1: responsive panes, console and audit register (#90)\n\n* ui: restore responsive graph studio panels and track UX audit\n\n* fix: keep compact map-point picking usable across panes\n\n* fix: keep Graph Studio build action disabled during startup checks\n\n* fix: label route planner with latest retained graph version",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/95a95c5dd342edcbe3b10848cec3e6f185b9897d"
+    "sha": "6606d0f33fb4d885039fe9b5ba74e92e618e1013",
+    "message": "Graph Studio Phase 2: grouped workflows and unified comparisons (#91)\n\n* ui: group Graph Studio workflows and unify build comparisons\n\n* fix: wire toolchain disclosures to the actual diagnostic panel",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/6606d0f33fb4d885039fe9b5ba74e92e618e1013"
   },
   "openPullRequests": [],
   "openIssues": [
     {
       "number": 89,
       "title": "Graph Studio UI audit: tracked fixes and cleanup (UI-01–UI-13)",
-      "updatedAt": "2026-10-16T20:01:06Z",
+      "updatedAt": "2026-10-16T20:54:25Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/issues/89"
     },
     {
@@ -80,114 +80,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 38961974120,
+      "id": 38966295622,
+      "name": "F8 Architecture Contract",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "6606d0f33fb4d885039fe9b5ba74e92e618e1013",
+      "event": "push",
+      "updatedAt": "2026-10-16T21:00:24Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38966295622"
+    },
+    {
+      "id": 38966295556,
       "name": "Build RoadPilot Graph Studio",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "6606d0f33fb4d885039fe9b5ba74e92e618e1013",
+      "event": "push",
+      "updatedAt": "2026-10-16T21:00:24Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38966295556"
+    },
+    {
+      "id": 38965464653,
+      "name": "F8 Architecture Contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feat/graph-studio-phase2-workflow-navigation",
+      "headSha": "bfb6da8962a3b287464a54d2c8ec92323b401a65",
+      "event": "pull_request",
+      "updatedAt": "2026-10-16T20:53:32Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38965464653"
+    },
+    {
+      "id": 38965464494,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feat/graph-studio-phase2-workflow-navigation",
+      "headSha": "bfb6da8962a3b287464a54d2c8ec92323b401a65",
+      "event": "pull_request",
+      "updatedAt": "2026-10-16T20:59:51Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38965464494"
+    },
+    {
+      "id": 38965464463,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feat/graph-studio-phase2-workflow-navigation",
+      "headSha": "bfb6da8962a3b287464a54d2c8ec92323b401a65",
+      "event": "pull_request",
+      "updatedAt": "2026-10-16T20:56:33Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38965464463"
+    },
+    {
+      "id": 38965304005,
+      "name": "F8 Architecture Contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feat/graph-studio-phase2-workflow-navigation",
+      "headSha": "fdf0e23deb8ab7c806b54649bdbc688ee299e196",
+      "event": "pull_request",
+      "updatedAt": "2026-10-16T20:52:13Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38965304005"
+    },
+    {
+      "id": 38965303995,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "branch": "feat/graph-studio-phase2-workflow-navigation",
+      "headSha": "fdf0e23deb8ab7c806b54649bdbc688ee299e196",
+      "event": "pull_request",
+      "updatedAt": "2026-10-16T20:54:44Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38965303995"
+    },
+    {
+      "id": 38965303890,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "branch": "feat/graph-studio-phase2-workflow-navigation",
+      "headSha": "fdf0e23deb8ab7c806b54649bdbc688ee299e196",
+      "event": "pull_request",
+      "updatedAt": "2026-10-16T20:54:44Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38965303890"
+    },
+    {
+      "id": 38961974120,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "95a95c5dd342edcbe3b10848cec3e6f185b9897d",
       "event": "push",
-      "updatedAt": "2026-10-16T20:24:13Z",
+      "updatedAt": "2026-10-16T20:32:00Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38961974120"
     },
     {
       "id": 38961973921,
       "name": "F8 Architecture Contract",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "95a95c5dd342edcbe3b10848cec3e6f185b9897d",
       "event": "push",
-      "updatedAt": "2026-10-16T20:24:13Z",
+      "updatedAt": "2026-10-16T20:24:31Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38961973921"
-    },
-    {
-      "id": 38958907900,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feat/graph-studio-responsive-foundation",
-      "headSha": "c771d8b64f8dfc4e1571f11b7a46933130f9c168",
-      "event": "pull_request",
-      "updatedAt": "2026-10-16T20:09:01Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38958907900"
-    },
-    {
-      "id": 38958907744,
-      "name": "F8 Architecture Contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feat/graph-studio-responsive-foundation",
-      "headSha": "c771d8b64f8dfc4e1571f11b7a46933130f9c168",
-      "event": "pull_request",
-      "updatedAt": "2026-10-16T19:59:27Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38958907744"
-    },
-    {
-      "id": 38958907651,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feat/graph-studio-responsive-foundation",
-      "headSha": "c771d8b64f8dfc4e1571f11b7a46933130f9c168",
-      "event": "pull_request",
-      "updatedAt": "2026-10-16T20:02:26Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38958907651"
-    },
-    {
-      "id": 38958653368,
-      "name": "F8 Architecture Contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feat/graph-studio-responsive-foundation",
-      "headSha": "e6c7b6a9b1f45ad3096d96b222b3b14e85aa4932",
-      "event": "pull_request",
-      "updatedAt": "2026-10-16T19:57:14Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38958653368"
-    },
-    {
-      "id": 38958653361,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "feat/graph-studio-responsive-foundation",
-      "headSha": "e6c7b6a9b1f45ad3096d96b222b3b14e85aa4932",
-      "event": "pull_request",
-      "updatedAt": "2026-10-16T20:00:08Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38958653361"
-    },
-    {
-      "id": 38958653261,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "feat/graph-studio-responsive-foundation",
-      "headSha": "e6c7b6a9b1f45ad3096d96b222b3b14e85aa4932",
-      "event": "pull_request",
-      "updatedAt": "2026-10-16T20:00:39Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38958653261"
-    },
-    {
-      "id": 38958299461,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feat/graph-studio-responsive-foundation",
-      "headSha": "06d7ffc28ffcd5c38db2bbb9d5c32a4e41fb06c7",
-      "event": "pull_request",
-      "updatedAt": "2026-10-16T19:56:26Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38958299461"
-    },
-    {
-      "id": 38958299366,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "feat/graph-studio-responsive-foundation",
-      "headSha": "06d7ffc28ffcd5c38db2bbb9d5c32a4e41fb06c7",
-      "event": "pull_request",
-      "updatedAt": "2026-10-16T19:57:52Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/38958299366"
     }
   ]
 }
