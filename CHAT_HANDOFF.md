@@ -1,5 +1,12 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Graph Studio Phase 3 — verified installed on Legion (2026-10-17)
+
+- Official **main-branch rolling Linux release #39009406452 SUCCESS** on squash commit `437af035331e9b983fb4d7f6f34f7a28dabd9188` (not the subsequent `[skip ci]` documentation commit). Published and installed AppImage SHA-256 **`54bac0a760fb4de98c0a083b78c34147f8c8a4ae27606520cb88deeab84dcb75`** verified identical on Legion. Installed without sudo at `~/Applications/RoadPilot-Graph-Studio-Linux.AppImage`, preserved previous Phase 2 build as `~/Applications/RoadPilot-Graph-Studio-Linux.previous.AppImage`, validated existing menu `.desktop` launcher.
+- No graph build, F8 discovery or Valhalla jobs active when Graph Studio was restarted. New AppImage started and live AT-SPI verified `Map layer preset` items Borders/All diagnostics, `Clear temporary map overlays`, grouped Graph Studio workflow including Border Inspector and Native F8 connectivity, existing Regions browser and Native F8 tabs. Browser-only earlier test covered functional Border tabs and Custom persistence; live full backend interaction remains a user-device acceptance test, **not claimed completed**.
+- All original UI audit items **UI-01..UI-13 DONE**, GitHub issue **#89 remains OPEN to carry the separate Phase 4 dependency audit** before any legacy function/data deletion; native F8 Android parity NOT_VERIFIED, production cross-region connectivity publication BLOCKED.
+
+
 ## Graph Studio Phase 3 merged; installation pending (2026-10-17)
 
 - **PR #92 merged** into `main` as `437af035331e9b983fb4d7f6f34f7a28dabd9188` (reviewed HEAD `3fc8f35b41838c233aa5c927dcef183b0b02c940`). GitHub `architecture-contract`, `validate`, `linux` all GREEN on reviewed commit. Legion repo main ff-only synced, automatic handoff ahead commit `50ebee2`.
