@@ -1,5 +1,12 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Graph Studio Phase 3 merged; installation pending (2026-10-17)
+
+- **PR #92 merged** into `main` as `437af035331e9b983fb4d7f6f34f7a28dabd9188` (reviewed HEAD `3fc8f35b41838c233aa5c927dcef183b0b02c940`). GitHub `architecture-contract`, `validate`, `linux` all GREEN on reviewed commit. Legion repo main ff-only synced, automatic handoff ahead commit `50ebee2`.
+- Full audited list `docs/GRAPH_STUDIO_UI_AUDIT.md` now marks UI-02/03/07/13 DONE (Phase 3), making **13 of 13 UI findings DONE** across Phases 1–3; GitHub issue #89 stays **OPEN for separate Phase 4 dependency audit of legacy code/data**, not because these UI screens remain unfixed. No existing archived handoff files, manual override records or F8 diagnostics deleted. Native F8 Android parity remains NOT_VERIFIED and production publication BLOCKED.
+- Phase 3 official main-branch release workflow **39009406452** initiated from exact merge SHA. Leave Legion AppImage unchanged until official artifact passes release CI and SHA-256 verification; install using `~/Applications/RoadPilot-Graph-Studio-Linux.AppImage` and retain previous binary for rollback. Live app interaction needs verification after install.
+
+
 ## Graph Studio Phase 3 — Border inspector and map overlay UX (2026-10-17)
 
 - User explicitly requested Phase 3. Created `feat/graph-studio-phase3-inspection-overlays` from clean current GitHub main `f0632d3`. Scope: `docs/GRAPH_STUDIO_UI_AUDIT.md` UI-02/03/07/13; no routing/Valhalla/native F8 backend, Android, immutable graphs or historical artifacts changed.
