@@ -484,6 +484,12 @@ app.innerHTML = `
         <span id="activeRegionBadge" class="map-badge">No region selected</span>
         <button id="graphLayerBtn" class="btn" type="button" disabled>Show graph</button>
         <button id="fitBtn" class="btn" type="button" disabled>Fit region</button>
+        <label class="map-layers-control" for="mapLayerPreset">Layers
+          <select id="mapLayerPreset" aria-label="Map layer preset">
+            <option value="map">Map</option><option value="routing">Routing</option><option value="borders">Borders</option><option value="all">All diagnostics</option><option value="custom" disabled>Custom</option>
+          </select>
+        </label>
+        <button id="clearToolOverlaysBtn" class="btn" type="button" aria-label="Clear temporary map overlays" title="Remove temporary diagnostic overlays from the map; saved files and selections are unchanged">Clear</button>
       </div>
     </section>
 
@@ -654,8 +660,9 @@ app.innerHTML = `
         </div>
         <div id="visualBuildSummary" class="empty" style="margin-top:8px">No retained visual build selected.</div>
 
-        <details class="route-options" open style="margin-top:10px">
-          <summary>Map layers</summary>
+        <details class="route-options" style="margin-top:10px">
+          <summary>Detailed map layers (advanced)</summary>
+          <p class="status-line">Use the map toolbar to choose a preset. Individual switches create a Custom view; no routing or graph evidence is modified.</p>
           <div id="mapLayerToggles" class="layer-toggle-grid">
             <label><input type="checkbox" data-layer-toggle="offlineVisual" checked /> RoadPilot offline visual</label>
             <label><input type="checkbox" data-layer-toggle="onlineReference" checked /> Online reference</label>
@@ -689,6 +696,7 @@ app.innerHTML = `
       </section>
       <section class="section tool-panel" data-tool="border" hidden>
         <h2>Border inspector</h2>
+        <p class="status-line">Inspect retained graph pairs and manually validate specific directed crossings. Native F8 discovery and journey proofs are in the separate Native F8 tool.</p>
         <div class="coord-grid">
           <div class="field">
             <label for="borderRegionA">Graph A</label>
@@ -699,6 +707,13 @@ app.innerHTML = `
             <select id="borderRegionB"></select>
           </div>
         </div>
+        <div class="border-tabs" role="tablist" aria-label="Border inspection workflow">
+          <button id="borderManualTab" class="border-tab active" type="button" role="tab" aria-selected="true" aria-controls="borderManualPanel">Manual validation</button>
+          <button id="borderEvidenceTab" class="border-tab" type="button" role="tab" aria-selected="false" aria-controls="borderEvidencePanel" tabindex="-1">Saved evidence</button>
+          <button id="borderLegacyTab" class="border-tab" type="button" role="tab" aria-selected="false" aria-controls="borderLegacyPanel" tabindex="-1">Legacy diagnostics</button>
+        </div>
+        <div id="borderManualPanel" class="border-subpanel" role="tabpanel" aria-labelledby="borderManualTab">
+          <h3>Manual directed-edge crossing</h3>
         <div class="actions">
           <button id="loadBorderPairBtn" class="btn" type="button">Load A/B overlay</button>
           <button id="pickHandoffABtn" class="btn" type="button">Pick A edge</button>
@@ -721,17 +736,10 @@ app.innerHTML = `
         </div>
         <div id="handoffValidationSummary" class="empty" style="margin-top:8px">No manual crossing selected.</div>
         <div id="handoffProbeList" class="probe-list"></div>
-        <h2 style="margin-top:16px">Road overlap</h2>
-        <div class="border-diff-legend">
-          <span><i class="legend-common"></i>Common OSM way</span>
-          <span><i class="legend-a"></i>A only</span>
-          <span><i class="legend-b"></i>B only</span>
         </div>
-        <div class="actions" style="margin-top:8px">
-          <button id="refreshBorderDiffBtn" class="btn" type="button" disabled>Refresh road diff</button>
-        </div>
-        <div id="borderDiffSummary" class="empty">Load a graph pair to compare border roads.</div>
-        <h2 style="margin-top:16px">Handoff layers</h2>
+        <div id="borderEvidencePanel" class="border-subpanel" role="tabpanel" aria-labelledby="borderEvidenceTab" hidden>
+          <p class="status-line">Read-only historical artifact review. Saved overrides remain available but do not establish native F8 parity or global journey completeness.</p>
+        <h3>Historical handoff artifacts and manual evidence</h3>
         <div class="handoff-artifact-legend">
           <span><i class="artifact-candidate"></i>Candidate</span>
           <span><i class="artifact-accepted"></i>Accepted / bound</span>
@@ -743,7 +751,26 @@ app.innerHTML = `
         </div>
         <div id="handoffArtifactSummary" class="empty">Load a graph pair to inspect handoff artifacts.</div>
         <div id="handoffArtifactList" class="artifact-list"></div>
-        <h2 style="margin-top:16px">Regional connector matrix</h2>
+        <div class="actions" style="margin-top:10px">
+          <button id="exportBorderDiagnosticsBtn" class="btn" type="button" disabled>Export diagnostics</button>
+        </div>
+        <div id="borderReportSummary" class="empty" style="margin-top:8px">No diagnostics report exported.</div>
+        <h3>Saved manual overrides</h3>
+        <div id="handoffOverrideList" class="empty">No manual overrides.</div>
+        </div>
+        <div id="borderLegacyPanel" class="border-subpanel" role="tabpanel" aria-labelledby="borderLegacyTab" hidden>
+          <p class="legacy-diagnostic-warning"><strong>Legacy diagnostics — not native F8 proof.</strong> OSM-way overlap and the historical connector matrix are retained for investigation only. They must not determine production F8 crossing acceptance, completeness, or directionality.</p>
+        <h3>OSM-way road overlap (non-authoritative)</h3>
+        <div class="border-diff-legend">
+          <span><i class="legend-common"></i>Common OSM way</span>
+          <span><i class="legend-a"></i>A only</span>
+          <span><i class="legend-b"></i>B only</span>
+        </div>
+        <div class="actions" style="margin-top:8px">
+          <button id="refreshBorderDiffBtn" class="btn" type="button" disabled>Refresh road diff</button>
+        </div>
+        <div id="borderDiffSummary" class="empty">Load a graph pair to compare border roads.</div>
+        <h3>Historical regional connector matrix</h3>
         <div class="coord-grid">
           <div class="field">
             <label for="connectorRegion">Region</label>
@@ -768,12 +795,7 @@ app.innerHTML = `
         </div>
         <div id="connectorMatrixSummary" class="empty">Choose a locally built region to inspect its connector inventory and matrix.</div>
         <div id="connectorMatrixList" class="artifact-list"></div>
-        <div class="actions" style="margin-top:10px">
-          <button id="exportBorderDiagnosticsBtn" class="btn" type="button" disabled>Export diagnostics</button>
         </div>
-        <div id="borderReportSummary" class="empty" style="margin-top:8px">No diagnostics report exported.</div>
-        <h2 style="margin-top:16px">Saved manual overrides</h2>
-        <div id="handoffOverrideList" class="empty">No manual overrides.</div>
       </section>
       <section class="section tool-panel" data-tool="f8" hidden>
         <h2>Native F8 connectivity</h2>
@@ -1239,6 +1261,43 @@ type F8PairOverview = {
   androidParity:string; productionPublication:string;
 };
 type F8JobStatus = {running:boolean;stage:string;lastError:string|null;lastResult:F8PairOverview|null};
+
+type BorderSubTab = "manual" | "evidence" | "legacy";
+const BORDER_TAB_KEY = "roadpilot.graph-studio.border.tab";
+const borderTabs = {
+  manual: document.querySelector<HTMLButtonElement>("#borderManualTab")!,
+  evidence: document.querySelector<HTMLButtonElement>("#borderEvidenceTab")!,
+  legacy: document.querySelector<HTMLButtonElement>("#borderLegacyTab")!,
+};
+const borderPanels = {
+  manual: document.querySelector<HTMLDivElement>("#borderManualPanel")!,
+  evidence: document.querySelector<HTMLDivElement>("#borderEvidencePanel")!,
+  legacy: document.querySelector<HTMLDivElement>("#borderLegacyPanel")!,
+};
+function activateBorderTab(tab: BorderSubTab, remember = true): void {
+  for (const key of ["manual", "evidence", "legacy"] as const) {
+    const chosen = key === tab;
+    borderPanels[key].hidden = !chosen;
+    borderTabs[key].classList.toggle("active", chosen);
+    borderTabs[key].setAttribute("aria-selected", String(chosen));
+    borderTabs[key].tabIndex = chosen ? 0 : -1;
+  }
+  if (remember) localStorage.setItem(BORDER_TAB_KEY, tab);
+  if (remember && tab === "legacy") scheduleBorderRoadDiff();
+}
+const savedBorderTab = localStorage.getItem(BORDER_TAB_KEY);
+activateBorderTab(savedBorderTab === "evidence" || savedBorderTab === "legacy" ? savedBorderTab : "manual", false);
+for (const tab of ["manual", "evidence", "legacy"] as const) {
+  borderTabs[tab].addEventListener("click", () => activateBorderTab(tab));
+  borderTabs[tab].addEventListener("keydown", event => {
+    const all: BorderSubTab[] = ["manual", "evidence", "legacy"];
+    const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    const next = event.key === "Home" ? "manual" : event.key === "End" ? "legacy" :
+      delta ? all[(all.indexOf(tab) + delta + all.length) % all.length] : null;
+    if (!next) return;
+    event.preventDefault(); activateBorderTab(next); borderTabs[next].focus();
+  });
+}
 
 type F8SubTab = "discovery" | "validation";
 const F8_TAB_STORAGE_KEY = "roadpilot.graph-studio.f8.active-tab";
@@ -2040,6 +2099,58 @@ function setLayerVisibility(ids: string[], visible: boolean): void {
   }
 }
 
+const mapLayerPreset = document.querySelector<HTMLSelectElement>("#mapLayerPreset")!;
+const clearToolOverlaysBtn = document.querySelector<HTMLButtonElement>("#clearToolOverlaysBtn")!;
+const MAP_PRESET_KEY = "roadpilot.graph-studio.map-preset";
+const MAP_LAYER_KEY = "roadpilot.graph-studio.map-layer-choices";
+const layerKeys = ["offlineVisual", "onlineReference", "graphEdges", "graphNodes", "shortcuts",
+  "restrictions", "borderBuffer", "graphA", "graphB", "route", "expansion", "handoffs"] as const;
+type LayerKey = typeof layerKeys[number];
+const mapPresets: Record<Exclude<string, "custom">, ReadonlySet<LayerKey>> = {
+  map: new Set<LayerKey>(["offlineVisual", "onlineReference", "graphEdges", "graphA", "graphB", "route"]),
+  routing: new Set<LayerKey>(["offlineVisual", "onlineReference", "graphEdges", "graphNodes", "shortcuts", "restrictions", "route", "expansion"]),
+  borders: new Set<LayerKey>(["offlineVisual", "onlineReference", "graphA", "graphB", "handoffs", "borderBuffer"]),
+  all: new Set<LayerKey>(layerKeys),
+};
+function applyLayerSelection(chosen: ReadonlySet<LayerKey>): void {
+  for (const key of layerKeys) {
+    const input = mapLayerToggles.querySelector<HTMLInputElement>(`input[data-layer-toggle="${key}"]`)!;
+    input.checked = chosen.has(key);
+  }
+  applyMapLayerToggles();
+}
+function persistLayerSelection(): void {
+  const saved: Record<string, boolean> = {};
+  for (const key of layerKeys) saved[key] = layerToggleChecked(key);
+  localStorage.setItem(MAP_LAYER_KEY, JSON.stringify(saved));
+  localStorage.setItem(MAP_PRESET_KEY, mapLayerPreset.value);
+}
+function selectMapLayerPreset(preset: string, remember = true): void {
+  if (!Object.prototype.hasOwnProperty.call(mapPresets, preset)) return;
+  mapLayerPreset.value = preset;
+  applyLayerSelection(mapPresets[preset]);
+  if (remember) persistLayerSelection();
+}
+function initializeMapLayerPreset(): void {
+  const stored = localStorage.getItem(MAP_PRESET_KEY);
+  if (stored && Object.prototype.hasOwnProperty.call(mapPresets, stored)) {
+    selectMapLayerPreset(stored, false);
+    return;
+  }
+  if (stored === "custom") {
+    try {
+      const state: unknown = JSON.parse(localStorage.getItem(MAP_LAYER_KEY) || "null");
+      if (state && typeof state === "object" && !Array.isArray(state) &&
+        layerKeys.every(key => typeof (state as Record<string, unknown>)[key] === "boolean")) {
+        mapLayerPreset.value = "custom";
+        applyLayerSelection(new Set(layerKeys.filter(key => (state as Record<string, boolean>)[key])));
+        return;
+      }
+    } catch { /* corrupt saved state: fall back to the map preset */ }
+  }
+  selectMapLayerPreset("map", false);
+}
+
 function layerToggleChecked(name: string): boolean {
   const input = mapLayerToggles.querySelector<HTMLInputElement>(
     `input[data-layer-toggle="${name}"]`,
@@ -2075,8 +2186,14 @@ function applyMapLayerToggles(): void {
 }
 
 mapLayerToggles.querySelectorAll<HTMLInputElement>("input[data-layer-toggle]").forEach(input => {
-  input.addEventListener("change", applyMapLayerToggles);
+  input.addEventListener("change", () => {
+    mapLayerPreset.value = "custom";
+    applyMapLayerToggles();
+    persistLayerSelection();
+  });
 });
+mapLayerPreset.addEventListener("change", () => selectMapLayerPreset(mapLayerPreset.value));
+initializeMapLayerPreset();
 
 map.on("load", () => {
   referenceLayerIds = (map.getStyle().layers ?? []).map(layer => layer.id);
@@ -2742,8 +2859,9 @@ function refreshBorderRoadDiff(): void {
 }
 
 function scheduleBorderRoadDiff(): void {
-  if (!map.getSource(borderSourceA) || !map.getSource(borderSourceB)) return;
+  if (borderPanels.legacy.hidden || !map.getSource(borderSourceA) || !map.getSource(borderSourceB)) return;
   window.setTimeout(() => {
+    if (borderPanels.legacy.hidden || !map.getSource(borderSourceA) || !map.getSource(borderSourceB)) return;
     try {
       refreshBorderRoadDiff();
     } catch (error) {
@@ -2785,9 +2903,9 @@ function showBorderPairLayers(regionA: string, regionB: string): void {
   refreshHandoffArtifactsBtn.disabled = false;
   exportBorderDiagnosticsBtn.disabled = false;
   borderDiffSummary.className = "empty";
-  borderDiffSummary.textContent = "Loading OSM way identities from both graph tile sets…";
+  borderDiffSummary.textContent = "Open Legacy diagnostics to inspect historical OSM-way overlap (not native F8 proof).";
   applyMapLayerToggles();
-  map.once("idle", scheduleBorderRoadDiff);
+  if (!borderPanels.legacy.hidden) map.once("idle", scheduleBorderRoadDiff);
   refreshHandoffArtifactOverlay().catch(error => appendLog(String(error)));
 }
 
@@ -2888,6 +3006,7 @@ async function refreshHandoffOverrides(): Promise<void> {
       load.textContent = "Inspect";
       load.addEventListener("click", () => {
         editingHandoffId = item.id;
+        activateBorderTab("manual");
         borderRegionA.value = item.regionA;
         borderRegionB.value = item.regionB;
         handoffSnapA = item.snapA;
@@ -4736,6 +4855,7 @@ const visualCompareSourceB = "roadpilot-visual-compare-b";
 const visualCompareHiddenA = "roadpilot-visual-compare-a-hidden";
 const visualCompareHiddenB = "roadpilot-visual-compare-b-hidden";
 const visualDiffSource = "roadpilot-visual-road-diff";
+let visualComparisonGeneration = 0;
 const visualDiffLayers = [
   "roadpilot-visual-diff-unchanged",
   "roadpilot-visual-diff-removed",
@@ -4744,12 +4864,34 @@ const visualDiffLayers = [
 ];
 
 function removeVisualComparison(): void {
+  visualComparisonGeneration += 1;
   for (const id of visualDiffLayers) if (map.getLayer(id)) map.removeLayer(id);
   for (const id of [visualCompareHiddenA, visualCompareHiddenB]) if (map.getLayer(id)) map.removeLayer(id);
   for (const id of [visualDiffSource, visualCompareSourceA, visualCompareSourceB]) {
     if (map.getSource(id)) map.removeSource(id);
   }
 }
+
+// Removes temporary rendered diagnostics only, never graph archives, files, manual saved fixes,
+// search queries or selected build IDs. Does not change the current map-layer preset.
+function clearTransientMapOverlays(): void {
+  // Prevent an outstanding async comparison/road-diff callback from restoring a cleared view.
+  buildComparisonGeneration += 1;
+  removeBuildDiffOverlay();
+  removeVisualComparison();
+  removeConnectorMatrixOverlay();
+  removeBorderPairLayers();
+  removeRouteLayers();
+  removeLocateEdgeOverlay();
+  // POI result list/data is intentionally preserved. Remove its map rendering only.
+  for (const id of ["search-poi-labels", "search-poi-points"]) if (map.getLayer(id)) map.removeLayer(id);
+  if (map.getSource("search-poi-results")) map.removeSource("search-poi-results");
+  // The user can re-load the selected A/B pair. Saved manual crossings, editor input,
+  // displayed report files, retained graph versions and source data remain untouched.
+  clearToolOverlaysBtn.textContent = "Cleared";
+  window.setTimeout(() => { clearToolOverlaysBtn.textContent = "Clear"; }, 1800);
+}
+clearToolOverlaysBtn.addEventListener("click", clearTransientMapOverlays);
 
 function visualFeatureId(feature: { id?: string | number | undefined }): string | null {
   if (feature.id == null) return null;
@@ -4920,7 +5062,11 @@ function compareVisualBuilds(): void {
   });
   visualComparisonSummary.className = "empty";
   visualComparisonSummary.textContent = "Loading exact PMTiles road features from both builds…";
-  map.once("idle", () => classifyVisualRoadComparison(a, b));
+  const generation = visualComparisonGeneration;
+  map.once("idle", () => {
+    if (generation !== visualComparisonGeneration || !map.getSource(visualCompareSourceA) || !map.getSource(visualCompareSourceB)) return;
+    classifyVisualRoadComparison(a, b);
+  });
 }
 
 async function refreshBuilds(): Promise<void> {
@@ -5268,7 +5414,7 @@ loadBorderPairBtn.addEventListener("click", () => {
   clearHandoffSelection(false);
   showBorderPairLayers(a, b);
   handoffValidationSummary.className = "empty";
-  handoffValidationSummary.textContent = `Overlay loaded: A=${a}, B=${b}. Road diff uses stable OSM way identity.`;
+  handoffValidationSummary.textContent = `Overlay loaded: A=${a}, B=${b}. Manual validation uses correlated Valhalla directed edges; historical OSM overlap is non-authoritative.`;
 });
 
 refreshBorderDiffBtn.addEventListener("click", scheduleBorderRoadDiff);
