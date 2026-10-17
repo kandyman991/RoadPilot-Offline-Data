@@ -427,6 +427,66 @@ button { cursor: pointer; }
   flex-wrap: wrap;
   gap: 6px;
 }
+/* Phase 3: simple global map presets with detailed layer controls retained in Visual. */
+.map-toolbar { max-width: calc(100% - 20px); }
+.map-layers-control {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 3px 7px;
+  border: 1px solid #334150;
+  border-radius: 6px;
+  color: #d7dee7;
+  background: rgba(17, 24, 32, .95);
+  font-size: 11px;
+}
+.map-layers-control select {
+  min-width: 0;
+  max-width: 112px;
+  padding: 3px;
+  border: 1px solid #415267;
+  border-radius: 5px;
+  color: #edf4fc;
+  background: #152638;
+  font-size: 11px;
+}
+.map-layers-control select:focus-visible, #clearToolOverlaysBtn:focus-visible {
+  outline: 2px solid #77b9fa; outline-offset: 2px;
+}
+#clearToolOverlaysBtn { flex: 0 0 auto; padding: 6px 7px; font-size: 10px; }
+/* Border workflows: current manual proof, saved evidence, and legacy forensics are distinct. */
+.border-tabs {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px; padding: 4px; margin: 10px 0 12px;
+  border: 1px solid #344455; border-radius: 8px;
+  background: #0c141d;
+}
+.border-tab {
+  min-width: 0; min-height: 36px; padding: 5px 3px;
+  border: 0; border-radius: 5px; font-size: 10px;
+  color: #b4c2d0; background: transparent;
+}
+.border-tab:hover { background: #1b2b38; }
+.border-tab.active, .border-tab[aria-selected="true"] { background: #224663; color: white; }
+.border-tab:focus-visible { outline: 2px solid #77b9fa; outline-offset: 2px; }
+.border-subpanel[hidden] { display: none !important; }
+.border-subpanel { min-width: 0; }
+.border-subpanel h3 { font-size: 12px; color: #b8d7f3; margin: 12px 0; }
+.legacy-diagnostic-warning {
+  color: #e9c98c !important;
+  background: #302416;
+  border: 1px solid #77552b;
+  border-radius: 6px;
+  padding: 10px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 750px) {
+  .map-toolbar { gap: 4px; }
+  .map-toolbar .btn { min-height: 31px; padding: 4px 6px; font-size: 10px; }
+  .map-layers-control { min-height: 31px; font-size: 10px; }
+  .map-layers-control select { max-width: 105px; font-size: 10px; }
+}
 .map-badge {
   border: 1px solid #334150;
   border-radius: 6px;

@@ -50,6 +50,9 @@ jobs:
       - name: Graph Studio Phase 2 navigation and comparison regression gate
         run: python -m unittest discover -s tests -p 'test_graph_studio_ui_phase2.py' -v
 
+      - name: Graph Studio Phase 3 border/map UI regression gate
+        run: python -m unittest discover -s tests -p 'test_graph_studio_ui_phase3.py' -v
+
       - name: Native F8 directed-edge parity-audit contract regressions
         run: python -m unittest discover -s tests -p 'test_f8_graph_edge_audit.py' -v
 
