@@ -34,3 +34,10 @@
 Update `CHAT_HANDOFF.md` (what changed, verified SHA/PR/CI, test evidence and next exact step) and add/supersede material decisions or failed tests in the registers. The automated GitHub state snapshot **cannot** recover chat-only engineering decisions. See `docs/CONTINUITY_PLAYBOOK.md`.
 
 **Resume:** “Resume RoadPilot Graph Studio / Offline Data” means read these records and verify GitHub. It does not authorize bypassing review, tests or device validation.
+
+## Mandatory architectural failure-history check
+- Before structural changes, read `docs/ARCHITECTURE_MEMORY.md`, relevant `docs/FAILED_APPROACHES.md` entries, accepted decisions and binding architecture contracts, then reconcile with live main/PR/CI.
+- After a material failed/superseded/rejected design, record the attempted hypothesis, actual tests and outcome, confidence in the root cause, evidence links and exact conditions for reconsideration **with the same PR**, or track missing evidence explicitly.
+- Classify CONFIRMED_FAILURE, REJECTED_BY_DESIGN, SUPERSEDED and INCONCLUSIVE separately; do not invent test results or treat old proposals as current implementations.
+- For architecture-affecting PRs, state whether a rejected approach is being revived and link explicit approval, changed assumptions and regressions proving the old failure is addressed. Existing repository architecture contracts take precedence.
+- Do not run expensive builds or upload Actions artifacts for documentation-only changes.
