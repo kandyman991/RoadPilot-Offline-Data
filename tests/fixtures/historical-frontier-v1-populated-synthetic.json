@@ -1,0 +1,90 @@
+{
+  "discovery": {
+    "f8GraphEdgeParity": "NOT_VERIFIED",
+    "nominalRoadAnchors": 2,
+    "overlapRoadAnchors": 0,
+    "overlapSourceRoadWaysExamined": 0,
+    "scope": "NOMINAL_ONLY",
+    "sourceExhausted": true
+  },
+  "fromBoundaryFingerprint": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "fromRegionId": "region-a",
+  "generator": {
+    "name": "roadpilot-osm-frontier-inventory",
+    "version": "1"
+  },
+  "pairId": "region-a__region-b",
+  "roads": [
+    {
+      "crossingCoordinate": {
+        "lat": 0.5,
+        "lng": 1
+      },
+      "crossingIndex": 0,
+      "crossingKind": "CROSSING",
+      "headingDegrees": 90,
+      "id": "fri1-c86033b158eac28ed3266572",
+      "routingTags": {
+        "highway": "primary",
+        "name": "Cross Road",
+        "ref": "A1"
+      },
+      "snippet": {
+        "coordinates": [
+          [
+            0.9977541268477762,
+            0.5000000857022966
+          ],
+          [
+            1,
+            0.5
+          ],
+          [
+            1.002245873152224,
+            0.5000000857022966
+          ]
+        ],
+        "type": "LineString"
+      },
+      "wayId": 100
+    },
+    {
+      "crossingCoordinate": {
+        "lat": 0.500000137639527,
+        "lng": 1
+      },
+      "crossingIndex": 0,
+      "crossingKind": "FRONTIER_OVERLAP",
+      "headingDegrees": 0,
+      "id": "fri1-0e11765f2fe494cdd1a46665",
+      "overlapLengthMeters": 66344.62231318644,
+      "routingTags": {
+        "highway": "secondary",
+        "name": "Border Road"
+      },
+      "snippet": {
+        "coordinates": [
+          [
+            1,
+            0.4977392156680014
+          ],
+          [
+            1,
+            0.5022610595954174
+          ]
+        ],
+        "type": "LineString"
+      },
+      "wayId": 102
+    }
+  ],
+  "schema": "roadpilot.frontier-road-inventory",
+  "source": {
+    "fromPolygonSha256": "sha256:4e92ce7f4ea7e357948dcb8464c99b7fdc5a21cf2b03cba8f9ee5d7c1494eab1",
+    "osmSha256": "sha256:fc1573b943ad6e84081c2ee55e6b247204a9204f4a8c3edb833cd0510f99b77e",
+    "toPolygonSha256": "sha256:65ba54305cb1db4c21873da19a1d04685d34711d829e767f0793ac9602d2e8f1"
+  },
+  "toBoundaryFingerprint": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "toRegionId": "region-b",
+  "version": 1
+}
