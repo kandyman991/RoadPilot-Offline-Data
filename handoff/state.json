@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-11-01T20:09:14.968Z",
+  "generatedAt": "2026-11-01T20:38:20.670Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,16 +11,16 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "a973fa14c4dfcfec249c2447b87c6cb711c53a7d",
-    "message": "P4-B3: audit populated historical fixtures and legacy CLI consumers (#98)\n\nOwner-authorized, reviewed and exact-head CI-green non-destructive audit. Retain all 11 legacy validator CLIs and keep Phase 4 issue #89 open.",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/a973fa14c4dfcfec249c2447b87c6cb711c53a7d"
+    "sha": "6ccd9d168010656b54a589a72ea61dbfa8f7271c",
+    "message": "P4-B4: replay populated historical frontier fixture and define safe CLI compatibility gates (#99)\n\n* test(P4-B4): preserve reconstructed historical two-road frontier inventory as synthetic contract fixture\n\n* test(P4-B4): add positive and corruption regression for reconstructed two-road legacy format\n\n* docs(P4-B4): record reconstructed positive road-record parity and staged CLI retention/deprecation gates\n\n* docs(P4-B4): hand off two-road synthetic historical replay and safe CLI retirement policy\n\n* test(P4-B4): pin canonical historic synthetic fixture fingerprint against drift\n\n* docs(P4-B4): distinguish canonical fixture hash from raw regenerated artifact hash\n\n* fix(P4-B4): correct fixture hash assertion formatting\n\n* ci: enforce historical populated frontier compatibility regression on PR head",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/6ccd9d168010656b54a589a72ea61dbfa8f7271c"
   },
   "openPullRequests": [],
   "openIssues": [
     {
       "number": 89,
       "title": "Graph Studio UI audit: tracked fixes and cleanup (UI-01–UI-13)",
-      "updatedAt": "2026-11-01T20:05:08Z",
+      "updatedAt": "2026-11-01T20:25:35Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/issues/89"
     },
     {
@@ -80,114 +80,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 41345350119,
+      "id": 41347875473,
       "name": "F8 Architecture Contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "a973fa14c4dfcfec249c2447b87c6cb711c53a7d",
+      "headSha": "6ccd9d168010656b54a589a72ea61dbfa8f7271c",
       "event": "push",
-      "updatedAt": "2026-11-01T20:09:10Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41345350119"
+      "updatedAt": "2026-11-01T20:38:17Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41347875473"
     },
     {
-      "id": 41344713821,
+      "id": 41347875460,
+      "name": "Validate offline-data repository",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "6ccd9d168010656b54a589a72ea61dbfa8f7271c",
+      "event": "push",
+      "updatedAt": "2026-11-01T20:38:17Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41347875460"
+    },
+    {
+      "id": 41347525382,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "audit/graph-studio-p4b4-populated-replay-deprecation-20261101",
+      "headSha": "83dff5c703ef4922a0e3467903043165107bc30a",
+      "event": "pull_request",
+      "updatedAt": "2026-11-01T20:37:37Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41347525382"
+    },
+    {
+      "id": 41347525344,
       "name": "F8 Architecture Contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graphstudio-p4b3-history-fixture-inventory-20261101",
-      "headSha": "345379bc862d46c387ac9200a09712a65b88853d",
+      "branch": "audit/graph-studio-p4b4-populated-replay-deprecation-20261101",
+      "headSha": "83dff5c703ef4922a0e3467903043165107bc30a",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T20:02:02Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41344713821"
+      "updatedAt": "2026-11-01T20:34:36Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41347525344"
     },
     {
-      "id": 41344713758,
+      "id": 41346629008,
       "name": "Validate offline-data repository",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graphstudio-p4b3-history-fixture-inventory-20261101",
-      "headSha": "345379bc862d46c387ac9200a09712a65b88853d",
+      "branch": "audit/graph-studio-p4b4-populated-replay-deprecation-20261101",
+      "headSha": "6fb240e7c89c8223b6e2819a792b93aa5e1fe6dd",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T20:05:12Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41344713758"
+      "updatedAt": "2026-11-01T20:26:56Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41346629008"
     },
     {
-      "id": 41344678444,
+      "id": 41346628999,
       "name": "F8 Architecture Contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graphstudio-p4b3-history-fixture-inventory-20261101",
-      "headSha": "7ab864c2cffdcc2cffef77dd68b7e15a4ebb645e",
+      "branch": "audit/graph-studio-p4b4-populated-replay-deprecation-20261101",
+      "headSha": "6fb240e7c89c8223b6e2819a792b93aa5e1fe6dd",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T20:01:40Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41344678444"
+      "updatedAt": "2026-11-01T20:23:56Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41346628999"
     },
     {
-      "id": 41344678433,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "audit/graphstudio-p4b3-history-fixture-inventory-20261101",
-      "headSha": "7ab864c2cffdcc2cffef77dd68b7e15a4ebb645e",
-      "event": "pull_request",
-      "updatedAt": "2026-11-01T20:04:44Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41344678433"
-    },
-    {
-      "id": 41344658480,
+      "id": 41346576050,
       "name": "F8 Architecture Contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graphstudio-p4b3-history-fixture-inventory-20261101",
-      "headSha": "f3b18981adb67f96b96a5ffe372a4f9f63251717",
+      "branch": "audit/graph-studio-p4b4-populated-replay-deprecation-20261101",
+      "headSha": "647785147907eeac3ba3a1642f475f88f75db09c",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T20:01:23Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41344658480"
+      "updatedAt": "2026-11-01T20:23:19Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41346576050"
     },
     {
-      "id": 41344658401,
+      "id": 41346576038,
       "name": "Validate offline-data repository",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graphstudio-p4b3-history-fixture-inventory-20261101",
-      "headSha": "f3b18981adb67f96b96a5ffe372a4f9f63251717",
+      "branch": "audit/graph-studio-p4b4-populated-replay-deprecation-20261101",
+      "headSha": "647785147907eeac3ba3a1642f475f88f75db09c",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T20:04:44Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41344658401"
+      "updatedAt": "2026-11-01T20:26:57Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41346576038"
     },
     {
-      "id": 41344640529,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "audit/graphstudio-p4b3-history-fixture-inventory-20261101",
-      "headSha": "51287b037ee2ffd9076433aee04ed30d142f8dc3",
-      "event": "pull_request",
-      "updatedAt": "2026-11-01T20:03:30Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41344640529"
-    },
-    {
-      "id": 41344640515,
+      "id": 41346561035,
       "name": "F8 Architecture Contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graphstudio-p4b3-history-fixture-inventory-20261101",
-      "headSha": "51287b037ee2ffd9076433aee04ed30d142f8dc3",
+      "branch": "audit/graph-studio-p4b4-populated-replay-deprecation-20261101",
+      "headSha": "0383f5a1a1c1246ab4383b6a04eb00aea301712d",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T20:01:15Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41344640515"
+      "updatedAt": "2026-11-01T20:23:09Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41346561035"
     },
     {
-      "id": 41344526797,
+      "id": 41346561031,
       "name": "Validate offline-data repository",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graphstudio-p4b3-history-fixture-inventory-20261101",
-      "headSha": "261a90cc7dd46151f945dc7732ea31287baee7bb",
+      "branch": "audit/graph-studio-p4b4-populated-replay-deprecation-20261101",
+      "headSha": "0383f5a1a1c1246ab4383b6a04eb00aea301712d",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T20:02:41Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41344526797"
+      "updatedAt": "2026-11-01T20:26:47Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41346561031"
     }
   ]
 }
