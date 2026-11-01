@@ -1,5 +1,13 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Phase 4 dependency audit — draft PR #95 (2026-11-01)
+
+- **Draft [PR #95](https://github.com/kandyman991/RoadPilot-Offline-Data/pull/95)** branched from exact GitHub main `1d71db0` and adds `docs/GRAPH_STUDIO_PHASE4_DEPENDENCY_AUDIT.md`, a read-only dependency inventory / gated cleanup plan. **No application source or user data deleted; no merge or release authorized.**
+- Examined Legion Graph Studio checkout and live main documentation, all tracked tool references, Tauri commands, frontend invokes, packaging and workflow hooks. Manual overrides, historical handoff records, connector matrix inspection, legacy OSM overlap visual diagnostics, F8 core, and current region/build/publish tools are actively referenced; **retain**.
+- Eleven standalone historical schema validators have no detected in-repository callers, but are bundled in installed AppImage/.deb, so external CLI consumers and historical forensic value remain unknown. They are **candidates for negative-dependency verification**, not safe deletions. The retired OSM-based F8 discovery producers are already absent and must not be restored.
+- Read-only test baseline on Legion: 110 Python unit tests **PASS** when invoking the existing Graph Studio app venv with its `bin` at the start of `PATH`. No UI acceptance or real graph/device test performed. Android F8 parity `NOT_VERIFIED`; production connectivity `BLOCKED`.
+- **NEXT EXACT ACTION:** obtain independent architecture/compatibility/data-integrity review of PR #95, verify external installed uses of the eleven candidates and historical schema fixtures, then propose a *separate*, narrowly scoped cleanup implementation PR for explicit owner approval. Keep issue #89 open; don't merge/delete on reference counts alone.
+
 ## Graph Studio Phase 3 — verified installed on Legion (2026-10-17)
 
 - Official **main-branch rolling Linux release #39009406452 SUCCESS** on squash commit `437af035331e9b983fb4d7f6f34f7a28dabd9188` (not the subsequent `[skip ci]` documentation commit). Published and installed AppImage SHA-256 **`54bac0a760fb4de98c0a083b78c34147f8c8a4ae27606520cb88deeab84dcb75`** verified identical on Legion. Installed without sudo at `~/Applications/RoadPilot-Graph-Studio-Linux.AppImage`, preserved previous Phase 2 build as `~/Applications/RoadPilot-Graph-Studio-Linux.previous.AppImage`, validated existing menu `.desktop` launcher.
