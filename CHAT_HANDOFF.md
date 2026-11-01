@@ -1,5 +1,13 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Phase 4B2 — actual workspace and external consumer evidence (2026-11-01)
+
+- User requested continued P4-B historical compatibility after PR #96 squash-merged into `main` as `9f2e6919c161fa433174a05b56699659969dcf7e`; issue #89 remains open.
+- Found the *actual* Linux operational workspace `~/RoadPilotGraphStudio`, approximately **53 GiB**, distinct from XDG app-data folder. Read-only parsed **81** JSON files below 8 MiB, skipped **4** larger; one genuine `roadpilot.frontier-road-inventory` v1 artifact saved under `diagnostics/f8-italy-austria-validation/` (SHA-256 `87a1cbf59546cd42644577185a2fd5c4f5155e536f05018ebcdf24ce9add261e`). **Important: `roads: []` is empty; not nonempty-road or F8 parity proof.**
+- Tested checksummed **temporary copies only** against legacy source and installed Debian validator: both exit 0, exact stdout/stderr parity, no extra files, original and copies unchanged. New developer-only opt-in verifier `devtools/verify_legacy_fixture_parity.py` plus 4 tests; Legion clean temp checkout initially **118/118** Python tests passed.
+- Bounded external-callers scan: owner's Bash history, Git-tracked SmartRide-Next, accessible cron/systemd scripts, runners and F8/LegionBridge worktrees show **zero exact script-name matches**, but dynamic, historical and remote callers still UNKNOWN. The tools remain in installed Debian and AppImage packages.
+- New P4-B2 report `docs/GRAPH_STUDIO_PHASE4B_REAL_FIXTURE_EXTERNAL_CONSUMER_EVIDENCE.md`, updated earlier baseline scope; PR created on branch `audit/graph-studio-p4b-real-fixtures-callers-20261101`. **No deletion, merge, release, F8 or installed-machine changes authorized**. Next: independent code/security review, corrections, exact-head CI, collect nonempty true legacy fixtures and operator consumer attestation. Keep all 11 validator CLIs RETAIN and issue #89 OPEN.
+
 ## Phase 4B — installed CLI dependency evidence (development, 2026-11-01)
 
 - User authorized merger of docs-only Phase 4A PR #95 and development of **P4-B**; PR #95 squash-merged as `c555dc9e45e2642433affeb5bfb97355f10ce391`, with exact-head `architecture-contract` and `validate` green.
