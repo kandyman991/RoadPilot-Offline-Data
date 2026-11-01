@@ -6,7 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from devtools.verify_legacy_fixture_parity import verify
+from devtools.verify_legacy_fixture_parity import schema_for, verify
+from devtools.audit_legacy_validator_dependencies import CANDIDATES
 
 VALIDATOR = "validate_frontier_road_inventory.py"
 
@@ -50,12 +51,37 @@ class HistoricalFixtureParityTests(unittest.TestCase):
         self.assertEqual(result["classification"],
                          "REAL_INPUT_PARITY_ONLY_NOT_RETIREMENT_AUTHORIZATION")
         self.assertTrue(result["original_unchanged"])
+        self.assertTrue(result["script_bytes_identical"])
+        self.assertEqual(len(result["source_script_sha256"]), 64)
+        self.assertEqual(result["source_script_sha256"], result["installed_script_sha256"])
         self.assertEqual(result["source"]["exit_code"], 0)
         self.assertEqual(result["installed"]["exit_code"], 0)
         self.assertFalse(result["source"]["new_files_created"])
         self.assertEqual(self.fixture.read_bytes(), original)
         self.assertEqual(result["external_consumers"], "NOT_VERIFIED")
         self.assertNotIn(str(self.root), json.dumps(result))
+
+    def test_all_historical_schema_names_are_pinned(self):
+        expected = {
+            "validate_connectivity_chain_plan.py": "roadpilot.connectivity-chain-plan",
+            "validate_connectivity_refresh_plan.py": "roadpilot.connectivity-refresh-plan",
+            "validate_crossing_candidates.py": "roadpilot.crossing-candidates",
+            "validate_crossing_proofs.py": "roadpilot.crossing-proofs",
+            "validate_frontier_road_correlations.py": "roadpilot.frontier-road-correlations",
+            "validate_frontier_road_inventory.py": "roadpilot.frontier-road-inventory",
+            "validate_hierarchical_connectivity_plan.py": "roadpilot.hierarchical-connectivity-plan",
+            "validate_region_connector_inventory.py": "roadpilot.region-connector-inventory",
+            "validate_region_connector_matrix.py": "roadpilot.region-connector-matrix",
+            "validate_region_connector_refresh_plan.py": "roadpilot.region-connector-refresh-plan",
+            "validate_runtime_connectivity.py": "roadpilot.runtime-connectivity",
+        }
+        self.assertEqual(set(expected), set(CANDIDATES))
+        self.assertEqual({name: schema_for(name) for name in CANDIDATES}, expected)
+
+    def test_same_source_and_installed_path_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "distinct regular files"):
+            verify(VALIDATOR, self.fixture, self.tools, repo_root=self.repo,
+                   acknowledge_execution=True)
 
     def test_unacknowledged_or_wrong_schema_rejected(self):
         with self.assertRaisesRegex(ValueError, "acknowledge-execution"):
