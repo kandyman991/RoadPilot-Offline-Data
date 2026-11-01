@@ -16,6 +16,11 @@ class LegacyValidatorDependencyAuditTests(unittest.TestCase):
         report = audit(root)
         self.assertEqual(len(report["candidates"]), 11)
         self.assertTrue(report["tauri_tools_bundle_wildcard"])
+        self.assertEqual(report["repository"], "git-checkout")
+        self.assertTrue(report["git_head"])
+        self.assertIn("tracked_worktree_dirty", report)
+        with self.assertRaisesRegex(ValueError, "acknowledge"):
+            audit(root, probe_help=True)
         self.assertEqual(report["classification"],
                          "EVIDENCE_ONLY_NOT_DELETION_AUTHORIZATION")
         for item in report["candidates"]:
@@ -58,6 +63,10 @@ class LegacyValidatorDependencyAuditTests(unittest.TestCase):
                 [])
             self.assertNotIn("src/untracked.py", tracked_sources(root))
             self.assertEqual(report, audit(root))
+            self.assertEqual(report["git_head"], "UNBORN_HEAD")
+            self.assertTrue(report["tracked_worktree_dirty"])
+            with self.assertRaisesRegex(RuntimeError, "committed HEAD"):
+                audit(root, probe_help=True, acknowledge_cli_execution=True)
 
     def test_scan_ignores_symlink_targets_outside_repository(self):
         with tempfile.TemporaryDirectory() as temp:
