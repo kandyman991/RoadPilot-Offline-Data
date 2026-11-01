@@ -32,7 +32,7 @@ PAYLOAD_ARRAYS = frozenset({
 })
 SKIP_DIRS = frozenset({
     ".git", "node_modules", "target", ".gradle", ".venv", "venv",
-    "__pycache__", "build", "dist",
+    "__pycache__",
 })
 
 
