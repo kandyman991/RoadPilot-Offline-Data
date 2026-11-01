@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.audit_legacy_validator_dependencies import CANDIDATES, audit, tracked_sources
+from devtools.audit_legacy_validator_dependencies import CANDIDATES, audit, tracked_sources
 
 
 class LegacyValidatorDependencyAuditTests(unittest.TestCase):
@@ -19,6 +19,10 @@ class LegacyValidatorDependencyAuditTests(unittest.TestCase):
         report = audit(root)
         self.assertEqual(len(report["candidates"]), 11)
         self.assertTrue(report["tauri_tools_bundle_wildcard"])
+        # The audit program is for developers; it must not be included in the
+        # Tauri wildcard bundle of application CLI tools.
+        self.assertTrue((root / "devtools" / "audit_legacy_validator_dependencies.py").is_file())
+        self.assertFalse((root / "tools" / "audit_legacy_validator_dependencies.py").exists())
         self.assertEqual(report["repository"], "git-checkout")
         self.assertTrue(report["git_head"])
         self.assertIn("tracked_worktree_dirty", report)
