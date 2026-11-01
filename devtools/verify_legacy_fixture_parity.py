@@ -79,6 +79,10 @@ def verify(
     root = repo_root or Path(__file__).resolve().parent.parent
     original_script = _regular_file(root / "tools" / candidate)
     installed_script = _regular_file(installed_tools / candidate)
+    if original_script.samefile(installed_script):
+        raise ValueError("source and installed validators must be distinct regular files")
+    source_script_sha256 = sha256(original_script.read_bytes())
+    installed_script_sha256 = sha256(installed_script.read_bytes())
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1"}
     interpreter = python_executable or sys.executable
     records = {}
@@ -125,6 +129,9 @@ def verify(
         "version": 1,
         "input_size_bytes": size,
         "input_sha256": sha256(original),
+        "source_script_sha256": source_script_sha256,
+        "installed_script_sha256": installed_script_sha256,
+        "script_bytes_identical": source_script_sha256 == installed_script_sha256,
         "original_unchanged": original_unchanged,
         "source": records["source"],
         "installed": records["installed"],
