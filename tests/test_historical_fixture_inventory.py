@@ -96,6 +96,15 @@ class HistoricalFixtureInventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "positive"):
             scan_root(self.root, max_files=0)
 
+    def test_generated_build_directories_are_not_silently_excluded(self):
+        self.put("work/region/build/generated.json", {
+            "schema": "roadpilot.crossing-candidates", "version": 1,
+            "candidates": [1, 2, 3],
+        })
+        report = scan_root(self.root)
+        self.assertEqual(len(report["matches"]), 1)
+        self.assertEqual(report["matches"][0]["payload_array_lengths"]["candidates"], 3)
+
     def test_depth_cap_is_disclosed(self):
         self.put("sub/deep.json", {
             "schema": "roadpilot.runtime-connectivity", "version": 1,
