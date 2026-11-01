@@ -6,6 +6,10 @@
 **Last functional Graph Studio source independently inspected on Legion:** `265eab5` (same functional source as merged PR #92).  
 **Documentation audit merged:** PR #95, merge `c555dc9e45e2642433affeb5bfb97355f10ce391`.
 
+## P4-B follow-up: actual operational workspace and positive fixture (2026-11-01)
+
+The initial baseline below searched tracked repository roots and the desktop application-data directory, but **not** the application's actual operational workspace at `~/RoadPilotGraphStudio` (approximately 53 GiB of builds and diagnostics). The follow-up [real-fixture and consumer evidence report](GRAPH_STUDIO_PHASE4B_REAL_FIXTURE_EXTERNAL_CONSUMER_EVIDENCE.md) corrects that coverage gap and records one genuine historical-format `roadpilot.frontier-road-inventory` version-1 artifact. Its **empty** `roads` list passes **both source and installed Debian validator**, exit 0 and identical output, with checksummed copy/original unchanged. This does **not** establish populated road-record compatibility. The other ten historical positive formats remain not found in the bounded scan; external consumers remain UNKNOWN. All eleven legacy validators **RETAIN**. This addendum supersedes any earlier assertion that *no* genuine v1 legacy artifact had been located.
+
 ## What was actually verified
 
 1. The 11 legacy validators are **Git-tracked**, and the installed Debian package `road-pilot-graph-studio` **version 0.1.0** includes all 11 under `/usr/lib/RoadPilot Graph Studio/pipeline/tools/`. Each installed Debian script is byte-identical to its corresponding file in the inspected Legion functional checkout; no candidate-path mismatch was reported by `dpkg --verify`.
