@@ -4,13 +4,14 @@
 This is a *negative-dependency screen*, not proof of dead code. It reads Git-tracked
 source and the current Tauri packaging map, never user workspaces, and does not
 change or execute any build, routing, or artifact-generation code. Optional --probe-help
-executes only the 11 fixed, repository-tracked scripts with --help.
+executes only the 11 fixed, repository-tracked scripts with --help, but such\nexecution is NOT intrinsically read-only: it requires explicit acknowledgment and\na clean Git-tracked working tree. Use only with trusted repository code.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -65,8 +66,34 @@ def tracked_sources(root: Path) -> dict[str, Path]:
     return dict(sorted(files.items()))
 
 
-def audit(root: Path, probe_help: bool = False) -> dict:
+def git_provenance(root: Path) -> tuple[str, bool]:
+    """Pin observations to checked-out HEAD and disclose dirty tracked files."""
+    head = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--verify", "HEAD"],
+        check=False, capture_output=True, text=True,
+    )
+    status = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+        check=True, capture_output=True, text=True,
+    )
+    return (head.stdout.strip() if head.returncode == 0 else "UNBORN_HEAD",
+            bool(status.stdout.strip()))
+
+
+def audit(root: Path, probe_help: bool = False,
+          acknowledge_cli_execution: bool = False) -> dict:
     root = root.resolve(strict=True)
+    git_head, dirty = git_provenance(root)
+    if probe_help and not acknowledge_cli_execution:
+        raise ValueError(
+            "--probe-help runs actual Python programs; explicit "
+            "--acknowledge-cli-execution is required"
+        )
+    if probe_help and (dirty or git_head == "UNBORN_HEAD"):
+        raise RuntimeError(
+            "--probe-help only runs in a checkout with a committed HEAD "
+            "and no modified/staged tracked files"
+        )
     tracked = tracked_sources(root)
     config = root / TAURI_CONFIG
     packaging = json.loads(config.read_text(encoding="utf-8"))
@@ -74,7 +101,9 @@ def audit(root: Path, probe_help: bool = False) -> dict:
     packaged = resource_map.get("../../tools/") == "pipeline/tools/"
     result: dict = {
         "classification": "EVIDENCE_ONLY_NOT_DELETION_AUTHORIZATION",
-        "repository": str(root),
+        "repository": "git-checkout",
+        "git_head": git_head,
+        "tracked_worktree_dirty": dirty,
         "tracked_source_files_scanned": len(tracked),
         "tauri_tools_bundle_wildcard": packaged,
         "scope_limitations": [
@@ -82,6 +111,8 @@ def audit(root: Path, probe_help: bool = False) -> dict:
             "No dynamically computed imports or runtime-dispatched filenames",
             "No external scripts, manual CLI consumers or older installed versions",
             "No historical schema fixtures, user data or Android device proof",
+            "Dirty tracked checkouts may differ from the reported HEAD",
+            "Optional --probe-help executes local code and is NOT inherently read-only",
         ],
         "candidates": [],
     }
@@ -113,6 +144,8 @@ def audit(root: Path, probe_help: bool = False) -> dict:
             run = subprocess.run(
                 [sys.executable, str(candidate), "--help"], cwd=root,
                 capture_output=True, timeout=15, check=False,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1",
+                     "PYTHONNOUSERSITE": "1"},
             )
             record["help_probe"] = {
                 "exit_code": run.returncode,
@@ -129,9 +162,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo-root", type=Path,
                         default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--probe-help", action="store_true",
-                        help="Additionally invoke only the 11 fixed CLIs with --help")
+                        help="Execute 11 fixed CLIs with --help (not guaranteed read-only)")
+    parser.add_argument("--acknowledge-cli-execution", action="store_true",
+                        help="Acknowledge --probe-help runs trusted local Python code")
     args = parser.parse_args(argv)
-    result = audit(args.repo_root, probe_help=args.probe_help)
+    try:
+        result = audit(args.repo_root, probe_help=args.probe_help,
+                       acknowledge_cli_execution=args.acknowledge_cli_execution)
+    except (RuntimeError, ValueError) as exc:
+        parser.error(str(exc))
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
