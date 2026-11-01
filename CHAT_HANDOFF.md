@@ -1,5 +1,13 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## P4-B5 — positive synthetic historical CI and consumer gate (2026-11-01)
+
+- After owner-authorized #99 merge, P4-B5 is developed separately on audit/graph-studio-p4b5-legacy-positive-parity-20261101. No merge, validator removal, public deprecation or release permission is implied.
+- Replayed 12/12 committed pre-#84 historical CI stages in disposable Legion directories from Git 9c95ca37ef763f3e3d123fb3c77f2c9b25ab0be3. 40 reconstructed synthetic artifacts across all 11 historical validator schemas were accepted with exact return code/stdout/stderr parity by historical, current and installed Debian scripts (scripts byte-identical). THIS IS NOT recovered production data or Android F8 graph-edge evidence.
+- Saved ten reconstructed nonprivate positive v1 fixture snapshots, checksummed metadata and 10-family positive/negative read-only CLI regression gate in hosted repository CI. Existing frontier positive test retained. See docs/GRAPH_STUDIO_PHASE4B5_POSITIVE_CLI_AND_CONSUMER_EVIDENCE.md.
+- Fresh scoped tracked-source scan found no direct literal runtime/workflow caller. Historical CI (11 tools) and retired orchestrator (7) remain proven past consumers. Current external/manual/other-device users remain UNKNOWN, not zero; genuine positive saved production fixtures remain NOT_RECOVERED. All eleven CLIs stay supported. Issue #89 stays OPEN; native F8 unaffected.
+
+
 ## P4-B4 — replay historical populated frontier data and define CLI policy (2026-11-01)
 
 - User requested further issue #89 Phase 4B compatibility work after merged PR #98 (merge `a973fa14c4dfcfec249c2447b87c6cb711c53a7d`). Work on **draft** `audit/graph-studio-p4b4-populated-replay-deprecation-20261101`; no removal, release or main merge permission yet.

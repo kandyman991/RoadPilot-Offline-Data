@@ -1,0 +1,268 @@
+{
+  "anchorCount": 9,
+  "anchors": [
+    {
+      "candidateId": "xpc1-360634ba273ddc939dad8bda",
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "graphAnchor": {
+        "coordinate": {
+          "lat": 0.5,
+          "lng": 0.9998
+        },
+        "graphId": 2002,
+        "percentAlong": 0.5,
+        "wayId": 100
+      },
+      "id": "rca1-91645c9dc7c341412830f218",
+      "neighborRegionId": "region-a",
+      "roles": {
+        "CAR": [
+          "ENTRY",
+          "EXIT"
+        ],
+        "MOTORCYCLE": [
+          "ENTRY"
+        ]
+      },
+      "sourcePairId": "region-a__region-b",
+      "stableWayId": 100
+    },
+    {
+      "candidateId": "xpc1-3e1b826dab18a6a963b8e6d6",
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "graphAnchor": {
+        "coordinate": {
+          "lat": 0.5,
+          "lng": 0.9998
+        },
+        "graphId": 2002,
+        "percentAlong": 0.5,
+        "wayId": 100
+      },
+      "id": "rca1-7fbd226d15764fb0c0e1a5b2",
+      "neighborRegionId": "region-a",
+      "roles": {
+        "CAR": [
+          "ENTRY",
+          "EXIT"
+        ],
+        "MOTORCYCLE": [
+          "ENTRY"
+        ]
+      },
+      "sourcePairId": "region-a__region-b",
+      "stableWayId": 100
+    },
+    {
+      "candidateId": "xpc1-b39be1eada58d7f5f5e6ec48",
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "graphAnchor": {
+        "coordinate": {
+          "lat": 0.5,
+          "lng": 0.9997
+        },
+        "graphId": 2003,
+        "percentAlong": 0.5,
+        "wayId": 102
+      },
+      "id": "rca1-a11b06232ef42145265816dc",
+      "neighborRegionId": "region-a",
+      "roles": {
+        "CAR": [
+          "ENTRY",
+          "EXIT"
+        ],
+        "MOTORCYCLE": [
+          "ENTRY"
+        ]
+      },
+      "sourcePairId": "region-a__region-b",
+      "stableWayId": 100
+    },
+    {
+      "candidateId": "xpc1-d3b982dbd8cdd2967d4e61fb",
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "graphAnchor": {
+        "coordinate": {
+          "lat": 0.5,
+          "lng": 0.9997
+        },
+        "graphId": 2003,
+        "percentAlong": 0.5,
+        "wayId": 102
+      },
+      "id": "rca1-90e66565fd0e4d3bcb6b780c",
+      "neighborRegionId": "region-a",
+      "roles": {
+        "CAR": [
+          "ENTRY",
+          "EXIT"
+        ],
+        "MOTORCYCLE": [
+          "ENTRY"
+        ]
+      },
+      "sourcePairId": "region-a__region-b",
+      "stableWayId": 100
+    },
+    {
+      "candidateId": "xpc1-188b5caec412ae07c18f9a5f",
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "graphAnchor": {
+        "coordinate": {
+          "lat": 0.500000137639527,
+          "lng": 0.9998
+        },
+        "graphId": 2002,
+        "percentAlong": 0.5,
+        "wayId": 100
+      },
+      "id": "rca1-a5064a91af6c440b6340c784",
+      "neighborRegionId": "region-a",
+      "roles": {
+        "CAR": [
+          "ENTRY",
+          "EXIT"
+        ],
+        "MOTORCYCLE": [
+          "ENTRY"
+        ]
+      },
+      "sourcePairId": "region-a__region-b",
+      "stableWayId": 102
+    },
+    {
+      "candidateId": "xpc1-37b89571fc63b65832621bbb",
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "graphAnchor": {
+        "coordinate": {
+          "lat": 0.500000137639527,
+          "lng": 0.9997
+        },
+        "graphId": 2003,
+        "percentAlong": 0.5,
+        "wayId": 102
+      },
+      "id": "rca1-2408f32f9ff6faa852754514",
+      "neighborRegionId": "region-a",
+      "roles": {
+        "CAR": [
+          "ENTRY",
+          "EXIT"
+        ],
+        "MOTORCYCLE": [
+          "ENTRY"
+        ]
+      },
+      "sourcePairId": "region-a__region-b",
+      "stableWayId": 102
+    },
+    {
+      "candidateId": "xpc1-48b900ce1415901c41161e39",
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "graphAnchor": {
+        "coordinate": {
+          "lat": 0.500000137639527,
+          "lng": 0.9998
+        },
+        "graphId": 2002,
+        "percentAlong": 0.5,
+        "wayId": 100
+      },
+      "id": "rca1-9b76b6586b59dff754b50500",
+      "neighborRegionId": "region-a",
+      "roles": {
+        "CAR": [
+          "ENTRY",
+          "EXIT"
+        ],
+        "MOTORCYCLE": [
+          "ENTRY"
+        ]
+      },
+      "sourcePairId": "region-a__region-b",
+      "stableWayId": 102
+    },
+    {
+      "candidateId": "xpc1-5ccd40eb30727e2823b6599f",
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "graphAnchor": {
+        "coordinate": {
+          "lat": 0.500000137639527,
+          "lng": 0.9997
+        },
+        "graphId": 2003,
+        "percentAlong": 0.5,
+        "wayId": 102
+      },
+      "id": "rca1-983831e9bb202060bef778b9",
+      "neighborRegionId": "region-a",
+      "roles": {
+        "CAR": [
+          "ENTRY",
+          "EXIT"
+        ],
+        "MOTORCYCLE": [
+          "ENTRY"
+        ]
+      },
+      "sourcePairId": "region-a__region-b",
+      "stableWayId": 102
+    },
+    {
+      "candidateId": "xpc1-cccccccccccccccccccccccc",
+      "frontierRoadId": "fri1-dddddddddddddddddddddddd",
+      "graphAnchor": {
+        "coordinate": {
+          "lat": 0.5,
+          "lng": 1.1998
+        },
+        "graphId": 2001,
+        "percentAlong": 0.5,
+        "wayId": 200
+      },
+      "id": "rca1-667344203915907642291a56",
+      "neighborRegionId": "region-c",
+      "roles": {
+        "CAR": [
+          "ENTRY",
+          "EXIT"
+        ],
+        "MOTORCYCLE": [
+          "EXIT"
+        ]
+      },
+      "sourcePairId": "region-b__region-c",
+      "stableWayId": 200
+    }
+  ],
+  "generator": {
+    "name": "roadpilot-region-connector-inventory",
+    "version": "1"
+  },
+  "graph": {
+    "graphFingerprint": "sha256:b25befd63587e7f2c23e5af165156fe9c955b14a4d7e606e731539e7379d92a0",
+    "packageVersion": "b-v1",
+    "primaryGeofabrikId": "country/region-b",
+    "regionId": "region-b"
+  },
+  "regionId": "region-b",
+  "schema": "roadpilot.region-connector-inventory",
+  "sourceConnectivity": [
+    {
+      "neighborPrimaryGeofabrikId": "country/region-a",
+      "neighborRegionId": "region-a",
+      "pairId": "region-a__region-b",
+      "regionBoundaryFingerprint": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "sha256": "sha256:941c7b73866633a8282d67c535ee982caa17897da2b2554bad5ae719f15fa21a"
+    },
+    {
+      "neighborPrimaryGeofabrikId": "country/region-c",
+      "neighborRegionId": "region-c",
+      "pairId": "region-b__region-c",
+      "regionBoundaryFingerprint": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "sha256": "sha256:c7af55bfdedab259d1959d3e44444c1d82d39c9f9b199d68a9153b236733bf60"
+    }
+  ],
+  "version": 1
+}

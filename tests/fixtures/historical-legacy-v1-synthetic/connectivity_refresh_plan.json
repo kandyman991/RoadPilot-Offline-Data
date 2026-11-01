@@ -1,0 +1,70 @@
+{
+  "affectedPairs": [
+    "region-b__region-c"
+  ],
+  "currentPairCount": 1,
+  "generator": {
+    "name": "roadpilot-connectivity-refresh-planner",
+    "version": "1"
+  },
+  "pairs": [
+    {
+      "fromSide": {
+        "boundBoundaryFingerprint": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "boundGraphFingerprint": "sha256:d8213feb6870bd577f1ec01869a6969d45206182e329729cda835c61fe292ee6",
+        "boundaryMatches": true,
+        "currentBoundaryFingerprint": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "currentGraphFingerprint": "sha256:d8213feb6870bd577f1ec01869a6969d45206182e329729cda835c61fe292ee6",
+        "graphMatches": true,
+        "neighborPrimaryGeofabrikId": "country/region-b",
+        "regionId": "region-a"
+      },
+      "pairId": "region-a__region-b",
+      "reasons": [],
+      "refreshAction": "NONE",
+      "status": "CURRENT",
+      "toSide": {
+        "boundBoundaryFingerprint": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "boundGraphFingerprint": "sha256:b25befd63587e7f2c23e5af165156fe9c955b14a4d7e606e731539e7379d92a0",
+        "boundaryMatches": true,
+        "currentBoundaryFingerprint": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "currentGraphFingerprint": "sha256:b25befd63587e7f2c23e5af165156fe9c955b14a4d7e606e731539e7379d92a0",
+        "graphMatches": true,
+        "neighborPrimaryGeofabrikId": "country/region-a",
+        "regionId": "region-b"
+      }
+    },
+    {
+      "fromSide": {
+        "boundBoundaryFingerprint": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "boundGraphFingerprint": "sha256:b25befd63587e7f2c23e5af165156fe9c955b14a4d7e606e731539e7379d92a0",
+        "boundaryMatches": true,
+        "currentBoundaryFingerprint": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "currentGraphFingerprint": "sha256:b25befd63587e7f2c23e5af165156fe9c955b14a4d7e606e731539e7379d92a0",
+        "graphMatches": true,
+        "neighborPrimaryGeofabrikId": "country/region-c",
+        "regionId": "region-b"
+      },
+      "pairId": "region-b__region-c",
+      "reasons": [
+        "TO_BOUNDARY_CHANGED"
+      ],
+      "refreshAction": "REDISCOVER_BOUNDARY",
+      "status": "STALE",
+      "toSide": {
+        "boundBoundaryFingerprint": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "boundGraphFingerprint": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "boundaryMatches": false,
+        "currentBoundaryFingerprint": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+        "currentGraphFingerprint": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "graphMatches": true,
+        "neighborPrimaryGeofabrikId": "country/region-b",
+        "regionId": "region-c"
+      }
+    }
+  ],
+  "schema": "roadpilot.connectivity-refresh-plan",
+  "stalePairCount": 1,
+  "unresolvedPairCount": 0,
+  "version": 1
+}

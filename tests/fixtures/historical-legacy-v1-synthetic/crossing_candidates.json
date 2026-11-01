@@ -1,0 +1,1374 @@
+{
+  "candidateCount": 18,
+  "candidates": [
+    {
+      "candidateRank": 0,
+      "crossingIndex": 0,
+      "crossingKind": "CROSSING",
+      "evidence": {
+        "bothMatchStableWay": true,
+        "combinedCorrelationDistanceMeters": 44.476338506234455,
+        "headingDeltaDegrees": 180.0,
+        "oneMatchesStableWay": true,
+        "sameCorrelatedWay": true,
+        "separationMeters": 44.47633850623445,
+        "sharedRoadNames": [
+          "Road 100"
+        ],
+        "tier": 0
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.0002
+        },
+        "correlationRank": 0,
+        "distanceMeters": 22.238169253117228,
+        "graphId": 1002,
+        "headingDegrees": 275.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": true
+      },
+      "frontierCoordinate": {
+        "lat": 0.5,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 90.0,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "id": "xpc1-360634ba273ddc939dad8bda",
+      "routingTags": {
+        "highway": "primary",
+        "name": "Cross Road",
+        "ref": "A1"
+      },
+      "stableWayId": 100,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": false
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 0.9998
+        },
+        "correlationRank": 0,
+        "distanceMeters": 22.238169253117228,
+        "graphId": 2002,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": true
+      }
+    },
+    {
+      "candidateRank": 1,
+      "crossingIndex": 0,
+      "crossingKind": "CROSSING",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 2.2238169253265365,
+        "headingDeltaDegrees": 0.0,
+        "oneMatchesStableWay": false,
+        "sameCorrelatedWay": true,
+        "separationMeters": 0.0,
+        "sharedRoadNames": [
+          "Road 999"
+        ],
+        "tier": 1
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.1119084626632683,
+        "graphId": 1001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.5,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 90.0,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "id": "xpc1-87afbb0a9395d1a978066e27",
+      "routingTags": {
+        "highway": "primary",
+        "name": "Cross Road",
+        "ref": "A1"
+      },
+      "stableWayId": 100,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.1119084626632683,
+        "graphId": 2001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      }
+    },
+    {
+      "candidateRank": 2,
+      "crossingIndex": 0,
+      "crossingKind": "CROSSING",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 66.71450775935169,
+        "headingDeltaDegrees": 0.0,
+        "oneMatchesStableWay": false,
+        "sameCorrelatedWay": true,
+        "separationMeters": 66.71450775935166,
+        "sharedRoadNames": [
+          "Road 102"
+        ],
+        "tier": 1
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.0003
+        },
+        "correlationRank": 2,
+        "distanceMeters": 33.357253879675845,
+        "graphId": 1003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.5,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 90.0,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "id": "xpc1-b39be1eada58d7f5f5e6ec48",
+      "routingTags": {
+        "highway": "primary",
+        "name": "Cross Road",
+        "ref": "A1"
+      },
+      "stableWayId": 100,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 0.9997
+        },
+        "correlationRank": 2,
+        "distanceMeters": 33.357253879675845,
+        "graphId": 2003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": false
+      }
+    },
+    {
+      "candidateRank": 3,
+      "crossingIndex": 0,
+      "crossingKind": "CROSSING",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 23.350077715780497,
+        "headingDeltaDegrees": 90.0,
+        "oneMatchesStableWay": true,
+        "sameCorrelatedWay": false,
+        "separationMeters": 21.12626079045396,
+        "sharedRoadNames": [],
+        "tier": 2
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.0002
+        },
+        "correlationRank": 0,
+        "distanceMeters": 22.238169253117228,
+        "graphId": 1002,
+        "headingDegrees": 275.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": true
+      },
+      "frontierCoordinate": {
+        "lat": 0.5,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 90.0,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "id": "xpc1-38db2a72f0d371bff1a55a64",
+      "routingTags": {
+        "highway": "primary",
+        "name": "Cross Road",
+        "ref": "A1"
+      },
+      "stableWayId": 100,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.1119084626632683,
+        "graphId": 2001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      }
+    },
+    {
+      "candidateRank": 4,
+      "crossingIndex": 0,
+      "crossingKind": "CROSSING",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 23.350077715780497,
+        "headingDeltaDegrees": 90.0,
+        "oneMatchesStableWay": true,
+        "sameCorrelatedWay": false,
+        "separationMeters": 23.350077715780497,
+        "sharedRoadNames": [],
+        "tier": 2
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.1119084626632683,
+        "graphId": 1001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.5,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 90.0,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "id": "xpc1-a6d44883e070695e55da8b76",
+      "routingTags": {
+        "highway": "primary",
+        "name": "Cross Road",
+        "ref": "A1"
+      },
+      "stableWayId": 100,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": false
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 0.9998
+        },
+        "correlationRank": 0,
+        "distanceMeters": 22.238169253117228,
+        "graphId": 2002,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": true
+      }
+    },
+    {
+      "candidateRank": 5,
+      "crossingIndex": 0,
+      "crossingKind": "CROSSING",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 55.59542313279307,
+        "headingDeltaDegrees": 180.0,
+        "oneMatchesStableWay": true,
+        "sameCorrelatedWay": false,
+        "separationMeters": 55.59542313279305,
+        "sharedRoadNames": [],
+        "tier": 2
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.0002
+        },
+        "correlationRank": 0,
+        "distanceMeters": 22.238169253117228,
+        "graphId": 1002,
+        "headingDegrees": 275.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": true
+      },
+      "frontierCoordinate": {
+        "lat": 0.5,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 90.0,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "id": "xpc1-d3b982dbd8cdd2967d4e61fb",
+      "routingTags": {
+        "highway": "primary",
+        "name": "Cross Road",
+        "ref": "A1"
+      },
+      "stableWayId": 100,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 0.9997
+        },
+        "correlationRank": 2,
+        "distanceMeters": 33.357253879675845,
+        "graphId": 2003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": false
+      }
+    },
+    {
+      "candidateRank": 6,
+      "crossingIndex": 0,
+      "crossingKind": "CROSSING",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 55.59542313279307,
+        "headingDeltaDegrees": 0.0,
+        "oneMatchesStableWay": true,
+        "sameCorrelatedWay": false,
+        "separationMeters": 55.59542313279305,
+        "sharedRoadNames": [],
+        "tier": 2
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.0003
+        },
+        "correlationRank": 2,
+        "distanceMeters": 33.357253879675845,
+        "graphId": 1003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.5,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 90.0,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "id": "xpc1-3e1b826dab18a6a963b8e6d6",
+      "routingTags": {
+        "highway": "primary",
+        "name": "Cross Road",
+        "ref": "A1"
+      },
+      "stableWayId": 100,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": false
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 0.9998
+        },
+        "correlationRank": 0,
+        "distanceMeters": 22.238169253117228,
+        "graphId": 2002,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": true
+      }
+    },
+    {
+      "candidateRank": 7,
+      "crossingIndex": 0,
+      "crossingKind": "CROSSING",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 34.46916234233911,
+        "headingDeltaDegrees": 90.0,
+        "oneMatchesStableWay": false,
+        "sameCorrelatedWay": false,
+        "separationMeters": 32.24534541701257,
+        "sharedRoadNames": [],
+        "tier": 4
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.0003
+        },
+        "correlationRank": 2,
+        "distanceMeters": 33.357253879675845,
+        "graphId": 1003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.5,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 90.0,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "id": "xpc1-0cdc04a23c50d3e99e2598de",
+      "routingTags": {
+        "highway": "primary",
+        "name": "Cross Road",
+        "ref": "A1"
+      },
+      "stableWayId": 100,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.1119084626632683,
+        "graphId": 2001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      }
+    },
+    {
+      "candidateRank": 8,
+      "crossingIndex": 0,
+      "crossingKind": "CROSSING",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 34.46916234233911,
+        "headingDeltaDegrees": 90.0,
+        "oneMatchesStableWay": false,
+        "sameCorrelatedWay": false,
+        "separationMeters": 34.46916234233911,
+        "sharedRoadNames": [],
+        "tier": 4
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.1119084626632683,
+        "graphId": 1001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.5,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 90.0,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "id": "xpc1-f2e91c84714d0c149ccf0b6b",
+      "routingTags": {
+        "highway": "primary",
+        "name": "Cross Road",
+        "ref": "A1"
+      },
+      "stableWayId": 100,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.5,
+          "lng": 0.9997
+        },
+        "correlationRank": 2,
+        "distanceMeters": 33.357253879675845,
+        "graphId": 2003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": false
+      }
+    },
+    {
+      "candidateRank": 0,
+      "crossingIndex": 0,
+      "crossingKind": "FRONTIER_OVERLAP",
+      "evidence": {
+        "bothMatchStableWay": true,
+        "combinedCorrelationDistanceMeters": 66.71450775795307,
+        "headingDeltaDegrees": 0.0,
+        "oneMatchesStableWay": true,
+        "sameCorrelatedWay": true,
+        "separationMeters": 66.71450775795304,
+        "sharedRoadNames": [
+          "Road 102"
+        ],
+        "tier": 0
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.0003
+        },
+        "correlationRank": 0,
+        "distanceMeters": 33.357253878976536,
+        "graphId": 1003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": true
+      },
+      "frontierCoordinate": {
+        "lat": 0.500000137639527,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 0.0,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "id": "xpc1-37b89571fc63b65832621bbb",
+      "routingTags": {
+        "highway": "secondary",
+        "name": "Border Road"
+      },
+      "stableWayId": 102,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 0.9997
+        },
+        "correlationRank": 0,
+        "distanceMeters": 33.357253878976536,
+        "graphId": 2003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": true
+      }
+    },
+    {
+      "candidateRank": 1,
+      "crossingIndex": 0,
+      "crossingKind": "FRONTIER_OVERLAP",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 2.223816925279916,
+        "headingDeltaDegrees": 0.0,
+        "oneMatchesStableWay": false,
+        "sameCorrelatedWay": true,
+        "separationMeters": 0.0,
+        "sharedRoadNames": [
+          "Road 999"
+        ],
+        "tier": 1
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.111908462639958,
+        "graphId": 1001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.500000137639527,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 0.0,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "id": "xpc1-0b630e846a6bbfc2c56e8638",
+      "routingTags": {
+        "highway": "secondary",
+        "name": "Border Road"
+      },
+      "stableWayId": 102,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.111908462639958,
+        "graphId": 2001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      }
+    },
+    {
+      "candidateRank": 2,
+      "crossingIndex": 0,
+      "crossingKind": "FRONTIER_OVERLAP",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 44.476338505302046,
+        "headingDeltaDegrees": 180.0,
+        "oneMatchesStableWay": false,
+        "sameCorrelatedWay": true,
+        "separationMeters": 44.47633850530203,
+        "sharedRoadNames": [
+          "Road 100"
+        ],
+        "tier": 1
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.0002
+        },
+        "correlationRank": 2,
+        "distanceMeters": 22.238169252651023,
+        "graphId": 1002,
+        "headingDegrees": 275.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.500000137639527,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 0.0,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "id": "xpc1-188b5caec412ae07c18f9a5f",
+      "routingTags": {
+        "highway": "secondary",
+        "name": "Border Road"
+      },
+      "stableWayId": 102,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": false
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 0.9998
+        },
+        "correlationRank": 2,
+        "distanceMeters": 22.238169252651023,
+        "graphId": 2002,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": false
+      }
+    },
+    {
+      "candidateRank": 3,
+      "crossingIndex": 0,
+      "crossingKind": "FRONTIER_OVERLAP",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 34.469162341616496,
+        "headingDeltaDegrees": 90.0,
+        "oneMatchesStableWay": true,
+        "sameCorrelatedWay": false,
+        "separationMeters": 32.245345416336576,
+        "sharedRoadNames": [],
+        "tier": 2
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.0003
+        },
+        "correlationRank": 0,
+        "distanceMeters": 33.357253878976536,
+        "graphId": 1003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": true
+      },
+      "frontierCoordinate": {
+        "lat": 0.500000137639527,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 0.0,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "id": "xpc1-434bd4dc166b0d573bbac412",
+      "routingTags": {
+        "highway": "secondary",
+        "name": "Border Road"
+      },
+      "stableWayId": 102,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.111908462639958,
+        "graphId": 2001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      }
+    },
+    {
+      "candidateRank": 4,
+      "crossingIndex": 0,
+      "crossingKind": "FRONTIER_OVERLAP",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 34.469162341616496,
+        "headingDeltaDegrees": 90.0,
+        "oneMatchesStableWay": true,
+        "sameCorrelatedWay": false,
+        "separationMeters": 34.46916234161648,
+        "sharedRoadNames": [],
+        "tier": 2
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.111908462639958,
+        "graphId": 1001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.500000137639527,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 0.0,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "id": "xpc1-27f0a61df2a0da175ee2ba29",
+      "routingTags": {
+        "highway": "secondary",
+        "name": "Border Road"
+      },
+      "stableWayId": 102,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 0.9997
+        },
+        "correlationRank": 0,
+        "distanceMeters": 33.357253878976536,
+        "graphId": 2003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": true
+      }
+    },
+    {
+      "candidateRank": 5,
+      "crossingIndex": 0,
+      "crossingKind": "FRONTIER_OVERLAP",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 55.595423131627555,
+        "headingDeltaDegrees": 0.0,
+        "oneMatchesStableWay": true,
+        "sameCorrelatedWay": false,
+        "separationMeters": 55.595423131627534,
+        "sharedRoadNames": [],
+        "tier": 2
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.0003
+        },
+        "correlationRank": 0,
+        "distanceMeters": 33.357253878976536,
+        "graphId": 1003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": true
+      },
+      "frontierCoordinate": {
+        "lat": 0.500000137639527,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 0.0,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "id": "xpc1-48b900ce1415901c41161e39",
+      "routingTags": {
+        "highway": "secondary",
+        "name": "Border Road"
+      },
+      "stableWayId": 102,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": false
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 0.9998
+        },
+        "correlationRank": 2,
+        "distanceMeters": 22.238169252651023,
+        "graphId": 2002,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": false
+      }
+    },
+    {
+      "candidateRank": 6,
+      "crossingIndex": 0,
+      "crossingKind": "FRONTIER_OVERLAP",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 55.595423131627555,
+        "headingDeltaDegrees": 180.0,
+        "oneMatchesStableWay": true,
+        "sameCorrelatedWay": false,
+        "separationMeters": 55.595423131627534,
+        "sharedRoadNames": [],
+        "tier": 2
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.0002
+        },
+        "correlationRank": 2,
+        "distanceMeters": 22.238169252651023,
+        "graphId": 1002,
+        "headingDegrees": 275.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.500000137639527,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 0.0,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "id": "xpc1-5ccd40eb30727e2823b6599f",
+      "routingTags": {
+        "highway": "secondary",
+        "name": "Border Road"
+      },
+      "stableWayId": 102,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 0.9997
+        },
+        "correlationRank": 0,
+        "distanceMeters": 33.357253878976536,
+        "graphId": 2003,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 102"
+        ],
+        "use": "road",
+        "wayId": 102,
+        "wayMatch": true
+      }
+    },
+    {
+      "candidateRank": 7,
+      "crossingIndex": 0,
+      "crossingKind": "FRONTIER_OVERLAP",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 23.35007771529098,
+        "headingDeltaDegrees": 90.0,
+        "oneMatchesStableWay": false,
+        "sameCorrelatedWay": false,
+        "separationMeters": 21.126260790011063,
+        "sharedRoadNames": [],
+        "tier": 4
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.0002
+        },
+        "correlationRank": 2,
+        "distanceMeters": 22.238169252651023,
+        "graphId": 1002,
+        "headingDegrees": 275.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.500000137639527,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 0.0,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "id": "xpc1-fa1f82d10de77fbdd0aa23f4",
+      "routingTags": {
+        "highway": "secondary",
+        "name": "Border Road"
+      },
+      "stableWayId": 102,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.111908462639958,
+        "graphId": 2001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      }
+    },
+    {
+      "candidateRank": 8,
+      "crossingIndex": 0,
+      "crossingKind": "FRONTIER_OVERLAP",
+      "evidence": {
+        "bothMatchStableWay": false,
+        "combinedCorrelationDistanceMeters": 23.35007771529098,
+        "headingDeltaDegrees": 90.0,
+        "oneMatchesStableWay": false,
+        "sameCorrelatedWay": false,
+        "separationMeters": 23.35007771529098,
+        "sharedRoadNames": [],
+        "tier": 4
+      },
+      "fromEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": true
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 1.00001
+        },
+        "correlationRank": 1,
+        "distanceMeters": 1.111908462639958,
+        "graphId": 1001,
+        "headingDegrees": 5.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 999"
+        ],
+        "use": "road",
+        "wayId": 999,
+        "wayMatch": false
+      },
+      "frontierCoordinate": {
+        "lat": 0.500000137639527,
+        "lng": 1.0
+      },
+      "frontierHeadingDegrees": 0.0,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "id": "xpc1-ac16e538e56da30481dc97da",
+      "routingTags": {
+        "highway": "secondary",
+        "name": "Border Road"
+      },
+      "stableWayId": 102,
+      "toEdge": {
+        "access": {
+          "car": true,
+          "motorcycle": false
+        },
+        "correlatedCoordinate": {
+          "lat": 0.500000137639527,
+          "lng": 0.9998
+        },
+        "correlationRank": 2,
+        "distanceMeters": 22.238169252651023,
+        "graphId": 2002,
+        "headingDegrees": 95.0,
+        "linearReference": null,
+        "percentAlong": 0.5,
+        "roadClass": "primary",
+        "roadNames": [
+          "Road 100"
+        ],
+        "use": "road",
+        "wayId": 100,
+        "wayMatch": false
+      }
+    }
+  ],
+  "discovery": {
+    "f8GraphEdgeParity": "NOT_VERIFIED",
+    "nominalRoadAnchors": 2,
+    "overlapRoadAnchors": 0,
+    "overlapSourceRoadWaysExamined": 0,
+    "scope": "NOMINAL_ONLY",
+    "sourceExhausted": true
+  },
+  "fromBoundaryFingerprint": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "fromGraph": {
+    "graphFingerprint": "sha256:d8213feb6870bd577f1ec01869a6969d45206182e329729cda835c61fe292ee6",
+    "packageVersion": "a-v1",
+    "primaryGeofabrikId": "country/region-a",
+    "regionId": "region-a"
+  },
+  "fromRegionId": "region-a",
+  "frontierRoadCount": 2,
+  "generator": {
+    "name": "roadpilot-crossing-candidate-compiler",
+    "version": "1"
+  },
+  "pairId": "region-a__region-b",
+  "schema": "roadpilot.crossing-candidates",
+  "toBoundaryFingerprint": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "toGraph": {
+    "graphFingerprint": "sha256:b25befd63587e7f2c23e5af165156fe9c955b14a4d7e606e731539e7379d92a0",
+    "packageVersion": "b-v1",
+    "primaryGeofabrikId": "country/region-b",
+    "regionId": "region-b"
+  },
+  "toRegionId": "region-b",
+  "unresolvedFrontierRoadIds": [],
+  "validationState": "UNPROVEN",
+  "version": 1
+}

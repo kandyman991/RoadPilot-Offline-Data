@@ -1,0 +1,164 @@
+{
+  "f8GraphEdgeParity": "NOT_VERIFIED",
+  "fixtures": [
+    {
+      "bytes": 16206,
+      "file": "connectivity_chain_plan.json",
+      "schema": "roadpilot.connectivity-chain-plan",
+      "sha256": "90b5900c816b1cbb73a6af9c96c73375cd7b2a7236e5f8a388ae09fcda8ffda5",
+      "top_level_list_counts": [
+        [
+          "sourceArtifacts",
+          3
+        ],
+        [
+          "regionGraphs",
+          3
+        ],
+        [
+          "chains",
+          2
+        ]
+      ],
+      "validator": "validate_connectivity_chain_plan.py"
+    },
+    {
+      "bytes": 3106,
+      "file": "connectivity_refresh_plan.json",
+      "schema": "roadpilot.connectivity-refresh-plan",
+      "sha256": "1b1a8147bed39e235175c6ee55926954bc6d929081ca5216b9eda594edb31d35",
+      "top_level_list_counts": [
+        [
+          "affectedPairs",
+          1
+        ],
+        [
+          "pairs",
+          2
+        ]
+      ],
+      "validator": "validate_connectivity_refresh_plan.py"
+    },
+    {
+      "bytes": 35897,
+      "file": "crossing_candidates.json",
+      "schema": "roadpilot.crossing-candidates",
+      "sha256": "573074450fc5e8a7ead02cf4f48a3a89792ba390cec22446d9c4deaedea89ff1",
+      "top_level_list_counts": [
+        [
+          "unresolvedFrontierRoadIds",
+          0
+        ],
+        [
+          "candidates",
+          18
+        ]
+      ],
+      "validator": "validate_crossing_candidates.py"
+    },
+    {
+      "bytes": 119859,
+      "file": "crossing_proofs.json",
+      "schema": "roadpilot.crossing-proofs",
+      "sha256": "e0f5219358fe3fd1e448f7680b33ca3378664069a2399f5163c89987ea7d3a73",
+      "top_level_list_counts": [
+        [
+          "proofs",
+          18
+        ]
+      ],
+      "validator": "validate_crossing_proofs.py"
+    },
+    {
+      "bytes": 10127,
+      "file": "frontier_road_correlations.json",
+      "schema": "roadpilot.frontier-road-correlations",
+      "sha256": "bace6e55b34424d44f684010028e8634d7bae652978ea1acf5ccc7d15b428c98",
+      "top_level_list_counts": [
+        [
+          "correlations",
+          2
+        ]
+      ],
+      "validator": "validate_frontier_road_correlations.py"
+    },
+    {
+      "bytes": 5375,
+      "file": "hierarchical_connectivity_plan.json",
+      "schema": "roadpilot.hierarchical-connectivity-plan",
+      "sha256": "812713ac56e6603871958c868ec601a6c8b0adb67e3c6f838ecf8ff96421b1a9",
+      "top_level_list_counts": [
+        [
+          "missingMatrixRegions",
+          0
+        ],
+        [
+          "sourceConnectivity",
+          2
+        ],
+        [
+          "sourceInventories",
+          3
+        ],
+        [
+          "sourceMatrices",
+          1
+        ],
+        [
+          "chains",
+          2
+        ]
+      ],
+      "validator": "validate_hierarchical_connectivity_plan.py"
+    },
+    {
+      "bytes": 6678,
+      "file": "region_connector_inventory.json",
+      "schema": "roadpilot.region-connector-inventory",
+      "sha256": "662086a1829289fd23a6c2dcfd753da2d0b7d0fb90f60b7bdbbaa077d590b686",
+      "top_level_list_counts": [
+        [
+          "sourceConnectivity",
+          2
+        ],
+        [
+          "anchors",
+          9
+        ]
+      ],
+      "validator": "validate_region_connector_inventory.py"
+    },
+    {
+      "bytes": 4856,
+      "file": "region_connector_matrix.json",
+      "schema": "roadpilot.region-connector-matrix",
+      "sha256": "2996fbf82749aadeacc0a8634402007c6f77392092ce54ad7233eb1165668903",
+      "top_level_list_counts": [],
+      "validator": "validate_region_connector_matrix.py"
+    },
+    {
+      "bytes": 1528,
+      "file": "region_connector_refresh_plan.json",
+      "schema": "roadpilot.region-connector-refresh-plan",
+      "sha256": "36f42c75438d9b728e2c100eebafa5d808d108beaa9ae54516d041c315ebd997",
+      "top_level_list_counts": [],
+      "validator": "validate_region_connector_refresh_plan.py"
+    },
+    {
+      "bytes": 12264,
+      "file": "runtime_connectivity.json",
+      "schema": "roadpilot.runtime-connectivity",
+      "sha256": "95d18a220fc5dcb7964459ba99356c0f982c0936e87bd60b05fd20f1306c1092",
+      "top_level_list_counts": [
+        [
+          "crossings",
+          8
+        ]
+      ],
+      "validator": "validate_runtime_connectivity.py"
+    }
+  ],
+  "historical_git_ref": "9c95ca37ef763f3e3d123fb3c77f2c9b25ab0be3",
+  "provenance": "RECONSTRUCTED_SYNTHETIC_HISTORICAL_CI_NOT_PRODUCTION",
+  "source": "pre-84 historical committed GitHub Actions synthetic stages"
+}

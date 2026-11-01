@@ -1,0 +1,3725 @@
+{
+  "discovery": {
+    "f8GraphEdgeParity": "NOT_VERIFIED",
+    "nominalRoadAnchors": 2,
+    "overlapRoadAnchors": 0,
+    "overlapSourceRoadWaysExamined": 0,
+    "scope": "NOMINAL_ONLY",
+    "sourceExhausted": true
+  },
+  "fromBoundaryFingerprint": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "fromGraph": {
+    "graphFingerprint": "sha256:d8213feb6870bd577f1ec01869a6969d45206182e329729cda835c61fe292ee6",
+    "packageVersion": "a-v1",
+    "primaryGeofabrikId": "country/region-a",
+    "regionId": "region-a"
+  },
+  "fromRegionId": "region-a",
+  "generator": {
+    "name": "roadpilot-local-valhalla-crossing-proof",
+    "version": "1"
+  },
+  "inconclusiveCandidateCount": 0,
+  "pairId": "region-a__region-b",
+  "proofs": [
+    {
+      "candidateId": "xpc1-360634ba273ddc939dad8bda",
+      "candidateRank": 0,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 0.9977541268477762
+        },
+        "fromProbeDistanceMeters": 249.72053658115274,
+        "strategy": "REGION_INTERIOR",
+        "toProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 1.002245873152224
+        },
+        "toProbeDistanceMeters": 249.7205365811651
+      },
+      "proofState": "PROVEN",
+      "stableWayId": 100,
+      "supportedDirections": [
+        "MOTORCYCLE_FROM_TO",
+        "CAR_FROM_TO",
+        "CAR_TO_FROM"
+      ]
+    },
+    {
+      "candidateId": "xpc1-87afbb0a9395d1a978066e27",
+      "candidateRank": 1,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 0.9977541268477762
+        },
+        "fromProbeDistanceMeters": 249.72053658115274,
+        "strategy": "REGION_INTERIOR",
+        "toProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 1.002245873152224
+        },
+        "toProbeDistanceMeters": 249.7205365811651
+      },
+      "proofState": "REJECTED",
+      "stableWayId": 100,
+      "supportedDirections": []
+    },
+    {
+      "candidateId": "xpc1-b39be1eada58d7f5f5e6ec48",
+      "candidateRank": 2,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": true,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 0.9977541268477762
+        },
+        "fromProbeDistanceMeters": 249.72053658115274,
+        "strategy": "REGION_INTERIOR",
+        "toProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 1.002245873152224
+        },
+        "toProbeDistanceMeters": 249.7205365811651
+      },
+      "proofState": "PROVEN",
+      "stableWayId": 100,
+      "supportedDirections": [
+        "MOTORCYCLE_FROM_TO",
+        "CAR_FROM_TO",
+        "CAR_TO_FROM"
+      ]
+    },
+    {
+      "candidateId": "xpc1-38db2a72f0d371bff1a55a64",
+      "candidateRank": 3,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 0.9977541268477762
+        },
+        "fromProbeDistanceMeters": 249.72053658115274,
+        "strategy": "REGION_INTERIOR",
+        "toProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 1.002245873152224
+        },
+        "toProbeDistanceMeters": 249.7205365811651
+      },
+      "proofState": "REJECTED",
+      "stableWayId": 100,
+      "supportedDirections": []
+    },
+    {
+      "candidateId": "xpc1-a6d44883e070695e55da8b76",
+      "candidateRank": 4,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 0.9977541268477762
+        },
+        "fromProbeDistanceMeters": 249.72053658115274,
+        "strategy": "REGION_INTERIOR",
+        "toProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 1.002245873152224
+        },
+        "toProbeDistanceMeters": 249.7205365811651
+      },
+      "proofState": "REJECTED",
+      "stableWayId": 100,
+      "supportedDirections": []
+    },
+    {
+      "candidateId": "xpc1-d3b982dbd8cdd2967d4e61fb",
+      "candidateRank": 5,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": true,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 271.95870581925595,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0002
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 0.9977541268477762
+        },
+        "fromProbeDistanceMeters": 249.72053658115274,
+        "strategy": "REGION_INTERIOR",
+        "toProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 1.002245873152224
+        },
+        "toProbeDistanceMeters": 249.7205365811651
+      },
+      "proofState": "PROVEN",
+      "stableWayId": 100,
+      "supportedDirections": [
+        "MOTORCYCLE_FROM_TO",
+        "CAR_FROM_TO",
+        "CAR_TO_FROM"
+      ]
+    },
+    {
+      "candidateId": "xpc1-3e1b826dab18a6a963b8e6d6",
+      "candidateRank": 6,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 271.9587058192683,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 0.9977541268477762
+        },
+        "fromProbeDistanceMeters": 249.72053658115274,
+        "strategy": "REGION_INTERIOR",
+        "toProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 1.002245873152224
+        },
+        "toProbeDistanceMeters": 249.7205365811651
+      },
+      "proofState": "PROVEN",
+      "stableWayId": 100,
+      "supportedDirections": [
+        "MOTORCYCLE_FROM_TO",
+        "CAR_FROM_TO",
+        "CAR_TO_FROM"
+      ]
+    },
+    {
+      "candidateId": "xpc1-0cdc04a23c50d3e99e2598de",
+      "candidateRank": 7,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 283.0777904391837,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.0003
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 248.6086281193224,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 0.9977541268477762
+        },
+        "fromProbeDistanceMeters": 249.72053658115274,
+        "strategy": "REGION_INTERIOR",
+        "toProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 1.002245873152224
+        },
+        "toProbeDistanceMeters": 249.7205365811651
+      },
+      "proofState": "REJECTED",
+      "stableWayId": 100,
+      "supportedDirections": []
+    },
+    {
+      "candidateId": "xpc1-f2e91c84714d0c149ccf0b6b",
+      "candidateRank": 8,
+      "frontierRoadId": "fri1-c86033b158eac28ed3266572",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": true,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": true,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 250.83244504300268,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.5000000857022967,
+                "lng": 0.9977541268477762
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 283.077790439196,
+              "edgeMatched": false,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.5,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5000000857022967,
+                "lng": 1.002245873152224
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 0.9977541268477762
+        },
+        "fromProbeDistanceMeters": 249.72053658115274,
+        "strategy": "REGION_INTERIOR",
+        "toProbe": {
+          "lat": 0.5000000857022967,
+          "lng": 1.002245873152224
+        },
+        "toProbeDistanceMeters": 249.7205365811651
+      },
+      "proofState": "REJECTED",
+      "stableWayId": 100,
+      "supportedDirections": []
+    },
+    {
+      "candidateId": "xpc1-37b89571fc63b65832621bbb",
+      "candidateRank": 0,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": true,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": true,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.4977392156680014,
+          "lng": 1.0
+        },
+        "fromProbeDistanceMeters": 251.4034000255475,
+        "strategy": "FRONTIER_LONGITUDINAL",
+        "toProbe": {
+          "lat": 0.5022610595954176,
+          "lng": 1.0
+        },
+        "toProbeDistanceMeters": 251.40339828700698
+      },
+      "proofState": "PROVEN",
+      "stableWayId": 102,
+      "supportedDirections": [
+        "MOTORCYCLE_FROM_TO",
+        "CAR_FROM_TO",
+        "CAR_TO_FROM"
+      ]
+    },
+    {
+      "candidateId": "xpc1-0b630e846a6bbfc2c56e8638",
+      "candidateRank": 1,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.4977392156680014,
+          "lng": 1.0
+        },
+        "fromProbeDistanceMeters": 251.4034000255475,
+        "strategy": "FRONTIER_LONGITUDINAL",
+        "toProbe": {
+          "lat": 0.5022610595954176,
+          "lng": 1.0
+        },
+        "toProbeDistanceMeters": 251.40339828700698
+      },
+      "proofState": "REJECTED",
+      "stableWayId": 102,
+      "supportedDirections": []
+    },
+    {
+      "candidateId": "xpc1-188b5caec412ae07c18f9a5f",
+      "candidateRank": 2,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": true,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": false,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": false,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.4977392156680014,
+          "lng": 1.0
+        },
+        "fromProbeDistanceMeters": 251.4034000255475,
+        "strategy": "FRONTIER_LONGITUDINAL",
+        "toProbe": {
+          "lat": 0.5022610595954176,
+          "lng": 1.0
+        },
+        "toProbeDistanceMeters": 251.40339828700698
+      },
+      "proofState": "PROVEN",
+      "stableWayId": 102,
+      "supportedDirections": [
+        "MOTORCYCLE_FROM_TO",
+        "CAR_FROM_TO",
+        "CAR_TO_FROM"
+      ]
+    },
+    {
+      "candidateId": "xpc1-434bd4dc166b0d573bbac412",
+      "candidateRank": 3,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": true,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": true,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.4977392156680014,
+          "lng": 1.0
+        },
+        "fromProbeDistanceMeters": 251.4034000255475,
+        "strategy": "FRONTIER_LONGITUDINAL",
+        "toProbe": {
+          "lat": 0.5022610595954176,
+          "lng": 1.0
+        },
+        "toProbeDistanceMeters": 251.40339828700698
+      },
+      "proofState": "REJECTED",
+      "stableWayId": 102,
+      "supportedDirections": []
+    },
+    {
+      "candidateId": "xpc1-27f0a61df2a0da175ee2ba29",
+      "candidateRank": 4,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.4977392156680014,
+          "lng": 1.0
+        },
+        "fromProbeDistanceMeters": 251.4034000255475,
+        "strategy": "FRONTIER_LONGITUDINAL",
+        "toProbe": {
+          "lat": 0.5022610595954176,
+          "lng": 1.0
+        },
+        "toProbeDistanceMeters": 251.40339828700698
+      },
+      "proofState": "REJECTED",
+      "stableWayId": 102,
+      "supportedDirections": []
+    },
+    {
+      "candidateId": "xpc1-48b900ce1415901c41161e39",
+      "candidateRank": 5,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": true,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": true,
+              "elapsedMs": 28,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1003,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": true,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 253.60673554413677,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1003,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0003
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": false,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.4977392156680014,
+          "lng": 1.0
+        },
+        "fromProbeDistanceMeters": 251.4034000255475,
+        "strategy": "FRONTIER_LONGITUDINAL",
+        "toProbe": {
+          "lat": 0.5022610595954176,
+          "lng": 1.0
+        },
+        "toProbeDistanceMeters": 251.40339828700698
+      },
+      "proofState": "PROVEN",
+      "stableWayId": 102,
+      "supportedDirections": [
+        "MOTORCYCLE_FROM_TO",
+        "CAR_FROM_TO",
+        "CAR_TO_FROM"
+      ]
+    },
+    {
+      "candidateId": "xpc1-5ccd40eb30727e2823b6599f",
+      "candidateRank": 6,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2003,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "status": "PASSED"
+            },
+            "passed": true
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": false,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 253.60673230978142,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9997
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2003,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.4977392156680014,
+          "lng": 1.0
+        },
+        "fromProbeDistanceMeters": 251.4034000255475,
+        "strategy": "FRONTIER_LONGITUDINAL",
+        "toProbe": {
+          "lat": 0.5022610595954176,
+          "lng": 1.0
+        },
+        "toProbeDistanceMeters": 251.40339828700698
+      },
+      "proofState": "PROVEN",
+      "stableWayId": 102,
+      "supportedDirections": [
+        "MOTORCYCLE_FROM_TO",
+        "CAR_FROM_TO",
+        "CAR_TO_FROM"
+      ]
+    },
+    {
+      "candidateId": "xpc1-fa1f82d10de77fbdd0aa23f4",
+      "candidateRank": 7,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 27,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 252.38503498852754,
+              "edgeMatched": false,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1002,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.0002
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 251.4058571518539,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 2002, not candidate edge 2001.",
+              "expectedGraphId": 2001,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.4977392156680014,
+          "lng": 1.0
+        },
+        "fromProbeDistanceMeters": 251.4034000255475,
+        "strategy": "FRONTIER_LONGITUDINAL",
+        "toProbe": {
+          "lat": 0.5022610595954176,
+          "lng": 1.0
+        },
+        "toProbeDistanceMeters": 251.40339828700698
+      },
+      "proofState": "REJECTED",
+      "stableWayId": 102,
+      "supportedDirections": []
+    },
+    {
+      "candidateId": "xpc1-ac16e538e56da30481dc97da",
+      "candidateRank": 8,
+      "frontierRoadId": "fri1-0e11765f2fe494cdd1a46665",
+      "modes": {
+        "CAR": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": true,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          }
+        },
+        "MOTORCYCLE": {
+          "fromTo": {
+            "graphA": {
+              "actualEndpointGraphId": 1002,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "endpointEdgePosition": "END",
+              "error": "Valhalla route used endpoint edge 1002, not candidate edge 1001.",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": 2002,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": true,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": 0.12,
+              "routeTimeSeconds": 8.0,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "status": "PASSED"
+            },
+            "passed": false
+          },
+          "toFrom": {
+            "graphA": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 251.40585889207088,
+              "edgeMatched": false,
+              "elapsedMs": 26,
+              "end": {
+                "lat": 0.4977392156680014,
+                "lng": 1.0
+              },
+              "endpointEdgePosition": "START",
+              "error": "No path could be found",
+              "expectedGraphId": 1001,
+              "regionId": "region-a",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.500000137639527,
+                "lng": 1.00001
+              },
+              "status": "FAILED"
+            },
+            "graphB": {
+              "actualEndpointGraphId": null,
+              "directDistanceMeters": 252.3850325819787,
+              "edgeMatched": false,
+              "elapsedMs": 25,
+              "end": {
+                "lat": 0.500000137639527,
+                "lng": 0.9998
+              },
+              "endpointEdgePosition": "END",
+              "error": "No path could be found",
+              "expectedGraphId": 2002,
+              "regionId": "region-b",
+              "routeLengthKm": null,
+              "routeTimeSeconds": null,
+              "start": {
+                "lat": 0.5022610595954176,
+                "lng": 1.0
+              },
+              "status": "FAILED"
+            },
+            "passed": false
+          }
+        }
+      },
+      "probeGeometry": {
+        "fromProbe": {
+          "lat": 0.4977392156680014,
+          "lng": 1.0
+        },
+        "fromProbeDistanceMeters": 251.4034000255475,
+        "strategy": "FRONTIER_LONGITUDINAL",
+        "toProbe": {
+          "lat": 0.5022610595954176,
+          "lng": 1.0
+        },
+        "toProbeDistanceMeters": 251.40339828700698
+      },
+      "proofState": "REJECTED",
+      "stableWayId": 102,
+      "supportedDirections": []
+    }
+  ],
+  "provenCandidateCount": 8,
+  "rejectedCandidateCount": 10,
+  "schema": "roadpilot.crossing-proofs",
+  "sourceCandidateCount": 18,
+  "toBoundaryFingerprint": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "toGraph": {
+    "graphFingerprint": "sha256:b25befd63587e7f2c23e5af165156fe9c955b14a4d7e606e731539e7379d92a0",
+    "packageVersion": "b-v1",
+    "primaryGeofabrikId": "country/region-b",
+    "regionId": "region-b"
+  },
+  "toRegionId": "region-b",
+  "version": 1
+}
