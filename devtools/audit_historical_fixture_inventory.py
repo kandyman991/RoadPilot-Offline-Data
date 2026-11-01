@@ -15,7 +15,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-from devtools.audit_legacy_validator_dependencies import CANDIDATES
+if __package__:
+    from devtools.audit_legacy_validator_dependencies import CANDIDATES
+else:
+    from audit_legacy_validator_dependencies import CANDIDATES
 
 SCHEMAS = {
     "roadpilot." + filename.removeprefix("validate_").removesuffix(".py").replace("_", "-"): filename
