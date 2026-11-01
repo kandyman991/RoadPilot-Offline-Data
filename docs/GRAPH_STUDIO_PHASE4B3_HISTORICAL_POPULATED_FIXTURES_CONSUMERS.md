@@ -15,7 +15,7 @@
 
 ## Reproducible on-device inventory — avoid manual interpretation
 
-Added **development-only** `devtools/audit_historical_fixture_inventory.py`. It does not execute scripts, import user artifacts into Git, write files, or print private content, paths, coordinates or identifiers. The caller must explicitly nominate roots using `--root`. JSON files are scanned under size/file/depth limits, with symlinks and common dependency trees excluded. The output contains only allowlisted schema IDs, versions, SHA-256, byte length, and top-level payload list **counts**, including a precise `frontier_roads_populated` flag. SHA-256 is proof of file identity, **not** content sanitization or validation. Missing results never authorize deletion.
+Added **development-only** `devtools/audit_historical_fixture_inventory.py`. It does not execute scripts, import user artifacts into Git, write files, or print private content, paths, coordinates or identifiers. The caller must explicitly nominate roots using `--root`. JSON files are scanned under size/file/depth limits, with symlinks, non-regular files (e.g. FIFOs), and common dependency trees excluded. The output contains only allowlisted schema IDs, versions, SHA-256, byte length, and top-level payload list **counts**, including a precise `frontier_roads_populated` flag. SHA-256 is proof of file identity, **not** content sanitization or validation. Missing results never authorize deletion.
 
 On the author's connected Legion, a temporary clone of the P4-B3 branch used:
 
@@ -49,7 +49,7 @@ All four root reports had `truncated: false` at the explicit **20,000 JSON files
 
 ## Tests and safety decisions
 
-- `tests/test_historical_fixture_inventory.py` covers **six** deterministic synthetic tests: empty vs populated frontier roads flagged separately without private values; exact allowlisted 11 schema names and rejection of unrelated historical formats; symlink traversal exclusion; file-count/size caps and truncation; depth-cap disclosure; **generated `work/*/build/` outputs included**.
+- `tests/test_historical_fixture_inventory.py` covers **seven** deterministic synthetic tests: empty vs populated frontier roads flagged separately without private values; exact allowlisted 11 schema names and rejection of unrelated historical formats; symlink traversal exclusion; file-count/size caps and truncation; depth-cap disclosure; **generated `work/*/build/` outputs included**; non-regular JSON paths (such as POSIX named pipes) skipped without opening them.
 - No application runtime/package, `tools/` validator, graph, Android integration, installation or user artifact was edited. No historical private fixture data was copied into GitHub.
 - Verify exact-head Python tests and the two path-applicable GitHub checks (`architecture-contract`, `validate`) after review/correction. Final Linux packaging is path-filtered for `devtools/`, `tests/`, `docs/` and `CHAT_HANDOFF.md`.
 - Keep [issue #89](https://github.com/kandyman991/RoadPilot-Offline-Data/issues/89) **OPEN** and all **11/11 validators RETAIN**. Real populated schema acceptance, currently active external/manual consumers, graph-edge parity and Android device acceptance remain **NOT_VERIFIED**. Later deletion or deprecation must be proposed separately, with explicit owner approval, staged wrappers/compatibility contract, data checksums and reversible tests using isolated copies.
