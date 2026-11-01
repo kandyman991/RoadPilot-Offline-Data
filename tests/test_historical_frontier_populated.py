@@ -38,7 +38,7 @@ class ReconstructedPopulatedFrontierTests(unittest.TestCase):
 
     def test_historical_two_road_reconstruction_is_positive(self) -> None:
         obj = json.loads(self.input.read_bytes())
-        self.assertEqual(obj["schema"], "roadpilot.frontier-road-inventory")
+        self.assertEqual(hashlib.sha256(FIXTURE.read_bytes()).hexdigest(),\n                         "14ea1c5422f34dfcb92f67309ce04fae9416419d59420ca59fe9fd12930c2eee")\n        self.assertEqual(obj["schema"], "roadpilot.frontier-road-inventory")
         self.assertEqual(obj["version"], 1)
         self.assertEqual(obj["generator"], {"name": "roadpilot-osm-frontier-inventory", "version": "1"})
         self.assertEqual(len(obj["roads"]), 2)
