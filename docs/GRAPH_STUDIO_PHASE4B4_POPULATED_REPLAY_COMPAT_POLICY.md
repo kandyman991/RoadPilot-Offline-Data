@@ -21,7 +21,7 @@ These stages were independently replayed on the owner's connected Legion in an *
 
 ### Durable, nonprivate, positive fixture
 
-`tests/fixtures/historical-frontier-v1-populated-synthetic.json` is the **semantically identical** canonicalized JSON snapshot of the reproduced CI artifact. A second complete historical replay reconstructed the two roads and confirmed **JSON structural equality** against the committed test fixture. It contains exclusively historical CI's invented coordinates/way IDs (`region-a`, `region-b`, tiny synthetic OSM), **no original user data** or actual operating-road observations.
+`tests/fixtures/historical-frontier-v1-populated-synthetic.json` is the **semantically identical** canonicalized JSON snapshot of the reproduced CI artifact. Its canonicalized committed-file SHA-256 is **`14ea1c5422f34dfcb92f67309ce04fae9416419d59420ca59fe9fd12930c2eee`**; the different raw-replay SHA above reflects JSON reserialization/ordering, not altered data. The regression suite pins this canonical file hash. A second complete historical replay reconstructed the two roads and confirmed **JSON structural equality** against the committed test fixture. It contains exclusively historical CI's invented coordinates/way IDs (`region-a`, `region-b`, tiny synthetic OSM), **no original user data** or actual operating-road observations.
 
 `tests/test_historical_frontier_populated.py` adds:
 - Accepted **nonempty** v1 frontier inventory (two roads) via the current CLI, with no writes to the copied artifact or temporary directory.
