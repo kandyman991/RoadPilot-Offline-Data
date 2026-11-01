@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -79,6 +80,15 @@ class HistoricalFixtureInventoryTests(unittest.TestCase):
         self.assertEqual(report["symlinks_skipped"], 2)
         with self.assertRaisesRegex(ValueError, "not a symlink"):
             scan_root(scoped / "other")
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "POSIX FIFO test only")
+    def test_named_pipe_json_cannot_block_scanner(self):
+        pipe = self.root / "must-not-open.json"
+        os.mkfifo(pipe)
+        report = scan_root(self.root)
+        self.assertEqual(report["files_checked"], 1)
+        self.assertEqual(report["non_regular_skipped"], 1)
+        self.assertEqual(report["matches"], [])
 
     def test_bounded_scans_report_incomplete_evidence(self):
         self.put("a.json", {
