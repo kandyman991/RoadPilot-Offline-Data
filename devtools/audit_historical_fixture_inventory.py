@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +52,7 @@ def scan_root(
     root = path.resolve(strict=True)
     result: dict[str, Any] = {
         "files_checked": 0, "oversize": 0, "unreadable_or_invalid": 0,
+        "non_regular_skipped": 0,
         "symlinks_skipped": 0, "non_json_skipped": 0,
         "truncated": False, "matches": [],
     }
@@ -83,6 +85,9 @@ def scan_root(
             result["files_checked"] += 1
             try:
                 metadata = file.stat()
+                if not stat.S_ISREG(metadata.st_mode):
+                    result["non_regular_skipped"] += 1
+                    continue
                 if metadata.st_size > max_file_bytes:
                     result["oversize"] += 1
                     continue
