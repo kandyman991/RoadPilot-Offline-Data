@@ -1,5 +1,13 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Phase 4B — installed CLI dependency evidence (development, 2026-11-01)
+
+- User authorized merger of docs-only Phase 4A PR #95 and development of **P4-B**; PR #95 squash-merged as `c555dc9e45e2642433affeb5bfb97355f10ce391`, with exact-head `architecture-contract` and `validate` green.
+- Separate P4-B branch `audit/graph-studio-p4b-cli-compatibility-20261101` adds a read-only tracked-source validator-dependency scanner, three deterministic/symlink-safety unit tests, and `docs/GRAPH_STUDIO_PHASE4B_CLI_COMPATIBILITY.md` with installed-package evidence.
+- On Legion, **11/11** validators are present in the installed `.deb` and AppImage; Debian installed file copies byte-equal to functional checkout, AppImage SHA-256 pinned; eleven CLI `--help` invocations passed. No literal tracked callers found (NOT proof of no external use).
+- **New investigation:** `validate_region_connector_refresh_plan.py` has no matching tracked `schemas/region-connector-refresh-plan.schema.json`; assess historical provenance before any intervention. Real historical fixtures, installed/external consumers and Android F8 parity still NOT_VERIFIED. All 11 validators **RETAIN**.
+- **NEXT:** independent review, exact-head `architecture-contract`/`validate`/`linux` CI for P4-B development PR; inspect historical fixtures and external/operational callers in a separate read-only gate. No deletion/merge/release approval for P4-B, and keep #89 open.
+
 ## Phase 4 dependency audit — draft PR #95 (2026-11-01)
 
 - **Draft [PR #95](https://github.com/kandyman991/RoadPilot-Offline-Data/pull/95)** branched from exact GitHub main `1d71db0` and adds `docs/GRAPH_STUDIO_PHASE4_DEPENDENCY_AUDIT.md`, a read-only dependency inventory / gated cleanup plan. **No application source or user data deleted; no merge or release authorized.**
