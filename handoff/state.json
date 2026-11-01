@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-11-01T19:15:58.173Z",
+  "generatedAt": "2026-11-01T19:47:39.951Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,16 +11,16 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "9f2e6919c161fa433174a05b56699659969dcf7e",
-    "message": "P4-B: document legacy CLI compatibility evidence (#96)\n\nNon-destructive, reviewed and exact-head CI-green evidence increment. Retain all legacy validators and keep Phase 4 issue #89 open.",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/9f2e6919c161fa433174a05b56699659969dcf7e"
+    "sha": "e6203676255c2842638523e9fcf4508cd2859145",
+    "message": "P4-B2: document real historical fixture parity and CLI consumers (#97)\n\nOwner-authorized non-destructive evidence increment. Retain 11 legacy validators; leave Phase 4 issue #89 open until further compatibility verification.",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/e6203676255c2842638523e9fcf4508cd2859145"
   },
   "openPullRequests": [],
   "openIssues": [
     {
       "number": 89,
       "title": "Graph Studio UI audit: tracked fixes and cleanup (UI-01–UI-13)",
-      "updatedAt": "2026-11-01T19:11:37Z",
+      "updatedAt": "2026-11-01T19:33:44Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/issues/89"
     },
     {
@@ -80,114 +80,114 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 41340837772,
+      "id": 41343514003,
       "name": "F8 Architecture Contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
-      "headSha": "9f2e6919c161fa433174a05b56699659969dcf7e",
+      "headSha": "e6203676255c2842638523e9fcf4508cd2859145",
       "event": "push",
-      "updatedAt": "2026-11-01T19:15:54Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41340837772"
+      "updatedAt": "2026-11-01T19:47:37Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41343514003"
     },
     {
-      "id": 41340115253,
+      "id": 41342083558,
       "name": "F8 Architecture Contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graph-studio-p4b-cli-compatibility-20261101",
-      "headSha": "db934338014bee67bc90d871a2cd089574acbc5b",
+      "branch": "audit/graph-studio-p4b-real-fixtures-callers-20261101",
+      "headSha": "ce66df4bda4a1bc0984d5ffa5ac0556506ead0ff",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T19:07:48Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41340115253"
+      "updatedAt": "2026-11-01T19:30:53Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41342083558"
     },
     {
-      "id": 41340115247,
+      "id": 41342083503,
       "name": "Validate offline-data repository",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graph-studio-p4b-cli-compatibility-20261101",
-      "headSha": "db934338014bee67bc90d871a2cd089574acbc5b",
+      "branch": "audit/graph-studio-p4b-real-fixtures-callers-20261101",
+      "headSha": "ce66df4bda4a1bc0984d5ffa5ac0556506ead0ff",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T19:10:40Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41340115247"
+      "updatedAt": "2026-11-01T19:32:55Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41342083503"
     },
     {
-      "id": 41340096047,
+      "id": 41342048858,
       "name": "F8 Architecture Contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graph-studio-p4b-cli-compatibility-20261101",
-      "headSha": "3f02d0ac9826a72064d9a93c20fed86a98e5dd60",
+      "branch": "audit/graph-studio-p4b-real-fixtures-callers-20261101",
+      "headSha": "113b13b8d2debb1c8ad0aca63f0a5adc37289680",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T19:07:37Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41340096047"
+      "updatedAt": "2026-11-01T19:30:33Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41342048858"
     },
     {
-      "id": 41340096023,
+      "id": 41342048851,
       "name": "Validate offline-data repository",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graph-studio-p4b-cli-compatibility-20261101",
-      "headSha": "3f02d0ac9826a72064d9a93c20fed86a98e5dd60",
+      "branch": "audit/graph-studio-p4b-real-fixtures-callers-20261101",
+      "headSha": "113b13b8d2debb1c8ad0aca63f0a5adc37289680",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T19:10:38Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41340096023"
+      "updatedAt": "2026-11-01T19:33:31Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41342048851"
     },
     {
-      "id": 41340083123,
+      "id": 41341874077,
+      "name": "F8 Architecture Contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "audit/graph-studio-p4b-real-fixtures-callers-20261101",
+      "headSha": "3403fbe5a5aba24e3935c4300e2b233aa883b247",
+      "event": "pull_request",
+      "updatedAt": "2026-11-01T19:28:22Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41341874077"
+    },
+    {
+      "id": 41341874031,
       "name": "Validate offline-data repository",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graph-studio-p4b-cli-compatibility-20261101",
-      "headSha": "01a7fe9273d592e988a2792a16959229d7a9e847",
+      "branch": "audit/graph-studio-p4b-real-fixtures-callers-20261101",
+      "headSha": "3403fbe5a5aba24e3935c4300e2b233aa883b247",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T19:09:34Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41340083123"
+      "updatedAt": "2026-11-01T19:30:45Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41341874031"
     },
     {
-      "id": 41340082959,
+      "id": 41341854307,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "audit/graph-studio-p4b-real-fixtures-callers-20261101",
+      "headSha": "8e0247860b773d0ad25f0b43a95c8be9b49f56ae",
+      "event": "pull_request",
+      "updatedAt": "2026-11-01T19:31:09Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41341854307"
+    },
+    {
+      "id": 41341854154,
       "name": "F8 Architecture Contract",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graph-studio-p4b-cli-compatibility-20261101",
-      "headSha": "01a7fe9273d592e988a2792a16959229d7a9e847",
+      "branch": "audit/graph-studio-p4b-real-fixtures-callers-20261101",
+      "headSha": "8e0247860b773d0ad25f0b43a95c8be9b49f56ae",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T19:07:30Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41340082959"
+      "updatedAt": "2026-11-01T19:28:08Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41341854154"
     },
     {
-      "id": 41340082957,
-      "name": "Build RoadPilot Graph Studio",
+      "id": 41341773400,
+      "name": "Validate offline-data repository",
       "status": "completed",
       "conclusion": "success",
-      "branch": "audit/graph-studio-p4b-cli-compatibility-20261101",
-      "headSha": "01a7fe9273d592e988a2792a16959229d7a9e847",
+      "branch": "audit/graph-studio-p4b-real-fixtures-callers-20261101",
+      "headSha": "00d50f7f39514308de7a9ca48280d93df5967d20",
       "event": "pull_request",
-      "updatedAt": "2026-11-01T19:12:17Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41340082957"
-    },
-    {
-      "id": 41340063039,
-      "name": "F8 Architecture Contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "audit/graph-studio-p4b-cli-compatibility-20261101",
-      "headSha": "37d436084071ca12e8d218584675144152eb4259",
-      "event": "pull_request",
-      "updatedAt": "2026-11-01T19:07:12Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41340063039"
-    },
-    {
-      "id": 41340063006,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "audit/graph-studio-p4b-cli-compatibility-20261101",
-      "headSha": "37d436084071ca12e8d218584675144152eb4259",
-      "event": "pull_request",
-      "updatedAt": "2026-11-01T19:07:29Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41340063006"
+      "updatedAt": "2026-11-01T19:29:38Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41341773400"
     }
   ]
 }
