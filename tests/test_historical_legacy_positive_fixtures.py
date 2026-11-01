@@ -31,6 +31,20 @@ EXPECTED = {
     "roadpilot.runtime-connectivity": "validate_runtime_connectivity.py",
 }
 
+# These are material historical-CI payloads, not merely schema-valid empty shells.
+EXPECTED_NONEMPTY_COUNTS = {
+    "roadpilot.connectivity-chain-plan": ("chains", 2),
+    "roadpilot.connectivity-refresh-plan": ("pairs", 2),
+    "roadpilot.crossing-candidates": ("candidates", 18),
+    "roadpilot.crossing-proofs": ("proofs", 18),
+    "roadpilot.frontier-road-correlations": ("correlations", 2),
+    "roadpilot.hierarchical-connectivity-plan": ("chains", 2),
+    "roadpilot.region-connector-inventory": ("anchors", 9),
+    "roadpilot.runtime-connectivity": ("crossings", 8),
+}
+PINNED_MANIFEST_SHA256 = "4eebc2f06754bedd29e7d0511cc7649c10fb4ffdb38c54535d9e5a6295a31a0f"
+
+
 
 class HistoricalLegacyPositiveFixturesTests(unittest.TestCase):
     @classmethod
@@ -52,6 +66,10 @@ class HistoricalLegacyPositiveFixturesTests(unittest.TestCase):
         )
         self.assertEqual(len(self.entries), 10)
         self.assertEqual(
+            hashlib.sha256((FIXTURES / "manifest.json").read_bytes()).hexdigest(),
+            PINNED_MANIFEST_SHA256,
+        )
+        self.assertEqual(
             {p.name for p in FIXTURES.glob("*.json")},
             {"manifest.json", *[entry["file"] for entry in self.entries]},
         )
@@ -68,6 +86,17 @@ class HistoricalLegacyPositiveFixturesTests(unittest.TestCase):
                 obj = json.loads(path.read_bytes())
                 self.assertEqual(obj["schema"], entry["schema"])
                 self.assertEqual(obj["version"], 1)
+                if entry["schema"] in EXPECTED_NONEMPTY_COUNTS:
+                    field, count = EXPECTED_NONEMPTY_COUNTS[entry["schema"]]
+                    self.assertEqual(len(obj[field]), count)
+                elif entry["schema"] == "roadpilot.region-connector-matrix":
+                    self.assertEqual(obj["sourceAnchorCount"], 3)
+                    self.assertEqual(set(obj["modes"]), {"CAR", "MOTORCYCLE"})
+                elif entry["schema"] == "roadpilot.region-connector-refresh-plan":
+                    self.assertEqual(obj["status"], "STALE")
+                    self.assertEqual(obj["refreshAction"], "REBUILD_INVENTORY_AND_MATRIX")
+                else:
+                    self.fail("No material-payload assertion for historical schema")
                 raw = path.read_text(encoding="utf-8")
                 self.assertNotIn("/home/", raw)
                 self.assertNotIn("/tmp/", raw)
