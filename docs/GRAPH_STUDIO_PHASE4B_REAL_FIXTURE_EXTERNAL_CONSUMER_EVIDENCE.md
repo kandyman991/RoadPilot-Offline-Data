@@ -68,6 +68,16 @@ Read-only *literal-name* scans were run for all **11 complete validator script s
 
 For local script/config scans, scope intentionally restricted file extensions to `.sh`, `.py`, `.yml`, `.yaml`, `.json`, `.toml`, `.service`, `.timer`, `.bash`, `.zsh`, `.log`, `.txt`, `.md`, `.ini`; files over 4 MiB, build/dependency/output directories, symlinks and unvisited external resources were not searched. No personal shell-history or user-artifact contents were copied to GitHub.
 
+### Recovered historical source consumers (important distinction)
+
+An additional **read-only Git-history search** over locally reachable revisions (799 reachable commits as inspected) identified actual earlier caller code; the initial "zero literal callers" assessment applies **only to the current checked-out source**:
+
+- In the historical pre-retirement tree `661a23a^` (also `2b16d2b^`), `.github/workflows/validate.yml` contains direct invocations of **all 11** validators with their original `--artifact` or `--inventory` flags. Example historical CI had `python tools/validate_frontier_road_inventory.py --inventory "$root/inventory.json"` and comparable source-validation calls for crossing candidates, proofs, connectivity chains, connector matrices, region-connector refresh, etc. Those workflow fixtures were generated inside CI workspace; **their persisted bytes were not recovered**, so they do not count as genuine saved user artifacts.
+- The then-existing `tools/refresh_graph_connectivity.py` orchestrator explicitly referenced `validate_frontier_road_inventory`, `validate_frontier_road_correlations`, `validate_crossing_candidates`, `validate_crossing_proofs`, `validate_runtime_connectivity`, `validate_region_connector_inventory`, and `validate_region_connector_matrix` as tool stages or direct run_tool calls.
+- The old `plan_region_connector_refresh.py` (retired in #84) created the version-1 `roadpilot.region-connector-refresh-plan` format checked by the retained validator. No corresponding standalone JSON-schema file was found in available tracked Git history.
+
+**Conclusion:** historic direct consumers are **CONFIRMED**, not "never used". Those specific workflow/orchestrator implementations were subsequently retired from the present source. This is **neither proof that a current external/manual consumer exists nor proof that one does not**; legacy installed CLIs must continue to be preserved pending explicit compatibility/deprecation decisions.
+
 ## 4. Reproducible test and review gates
 
 - New developer verifier is **not bundled into the Linux application**, because Tauri packages `tools/` via wildcard. Existing 11 CLIs and Android/F8 logic are unchanged.
