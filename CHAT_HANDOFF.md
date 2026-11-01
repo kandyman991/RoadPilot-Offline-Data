@@ -1,5 +1,14 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## P4-B3 — populated legacy fixture and external consumer follow-up (2026-11-01)
+
+- After owner-authorized PR #97 merge (`e6203676255c2842638523e9fcf4508cd2859145`), continue #89 in **draft evidence branch `audit/graphstudio-p4b3-history-fixture-inventory-20261101`**; no merge or deletion approval.
+- New **devtools-only**, non-executing `devtools/audit_historical_fixture_inventory.py` collects hashes and top-level array counts for the 11 known v1 schemas from *explicitly selected* roots. No artifact bytes, filenames or personal paths are printed or committed. Regression tests distinguish `roads: []` from populated arrays and keep `work/*/build` in scan scope.
+- Legion real workspace scan: **85** JSON files read under 16 MiB, **4** skipped above limit; only historical `roadpilot.frontier-road-inventory` v1 with **0 roads** found. Three historical F8 worktree roots each scanned **137** JSON files, no matches. No genuine populated legacy v1 saved inputs recovered; ten remaining schema types have no positive real file.
+- Legacy `.github/workflows/validate.yml` from pre-#84 Git revision **used all 11 validators** and old `refresh_graph_connectivity.py` invoked seven; these are confirmed historical callers. The old CI generated temporary fixture JSON but GitHub currently reports **0 retained repository Actions artifacts**; historical committed `tests/fixtures/` samples use separate `roadpilot.boundary-edge-inventory` and `roadpilot.transition-proof-results` schemas, not legacy validator formats.
+- GitHub code search across owner's default-branch indexed repositories for exact two sample validator filenames returned only this repo's audit docs/tests, and current Rust dynamic R2 dispatcher uses fixed R2 scripts, not these 11 names. Remaining external/manual callers remain UNKNOWN; all 11 installed CLI files must be RETAIN.
+- Evidence saved at `docs/GRAPH_STUDIO_PHASE4B3_HISTORICAL_POPULATED_FIXTURES_CONSUMERS.md`. Next gate: independent architecture/security/data-integrity review and exact-head CI; keep PR draft, #89 open, no data/routing/Android change.
+
 ## Phase 4B2 — actual workspace and external consumer evidence (2026-11-01)
 
 - User requested continued P4-B historical compatibility after PR #96 squash-merged into `main` as `9f2e6919c161fa433174a05b56699659969dcf7e`; issue #89 remains open.
