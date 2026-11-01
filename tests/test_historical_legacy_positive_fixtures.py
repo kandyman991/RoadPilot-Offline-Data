@@ -42,7 +42,7 @@ EXPECTED_NONEMPTY_COUNTS = {
     "roadpilot.region-connector-inventory": ("anchors", 9),
     "roadpilot.runtime-connectivity": ("crossings", 8),
 }
-PINNED_MANIFEST_SHA256 = "4eebc2f06754bedd29e7d0511cc7649c10fb4ffdb38c54535d9e5a6295a31a0f"
+PINNED_MANIFEST_SHA256 = "595a2f49f31415f67ca0542cf0b4e74f2c77b5ab9f9424258245cca85f31e123"
 
 
 
@@ -119,6 +119,7 @@ class HistoricalLegacyPositiveFixturesTests(unittest.TestCase):
                 outcome = self.run_cli(ROOT / "tools" / entry["validator"], copy, directory)
                 self.assertEqual(outcome.returncode, 0, outcome.stderr.decode(errors="replace"))
                 self.assertEqual(outcome.stderr, b"")
+                self.assertEqual(hashlib.sha256(outcome.stdout).hexdigest(), entry["positiveStdoutSha256"])
                 self.assertEqual(hashlib.sha256(copy.read_bytes()).hexdigest(), before)
                 self.assertEqual([p.name for p in directory.iterdir()], ["artifact.json"])
 
@@ -133,6 +134,9 @@ class HistoricalLegacyPositiveFixturesTests(unittest.TestCase):
                 before = hashlib.sha256(copy.read_bytes()).hexdigest()
                 outcome = self.run_cli(ROOT / "tools" / entry["validator"], copy, directory)
                 self.assertNotEqual(outcome.returncode, 0)
+                self.assertEqual(outcome.returncode, entry["invalidSchemaExitCode"])
+                self.assertEqual(hashlib.sha256(outcome.stdout).hexdigest(), entry["invalidSchemaStdoutSha256"])
+                self.assertEqual(hashlib.sha256(outcome.stderr).hexdigest(), entry["invalidSchemaStderrSha256"])
                 self.assertEqual(hashlib.sha256(copy.read_bytes()).hexdigest(), before)
                 self.assertEqual([p.name for p in directory.iterdir()], ["artifact.json"])
 

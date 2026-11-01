@@ -20,6 +20,16 @@ The new tests/test_historical_legacy_positive_fixtures.py asserts the ten fixed 
 
 **Hosted CI verifies current-source validators only.** The installed Debian and historical-source parity checks were separately executed on the Legion, not in GitHub Actions.
 
+### Independent exact-head replay and CLI-output regression correction (2026-11-01)
+
+A **separate clean checkout** of PR #100 at `ded619b` was independently replayed from the historical committed workflow, without using the author-side fixture capture procedure. The original twelve historical stages again all passed, the historical/current/installed validator scripts remained byte-identical, and 134/134 Python tests passed.
+
+**Important determinism limitation:** only **3/10 curated fixture snapshots matched structurally after JSON parsing** against outputs of that fresh replay. The other seven had differences in execution-dependent `elapsedMs` timing and/or derived source-artifact SHA-256 fields (such as `sha256`, `sourceInventorySha256`, `proofsSha256`). For example, the generated proof timings differ and the resulting proof-JSON hash changes in downstream runtime-connectivity documents. Therefore the manifest hashes **identify the committed snapshots**; they are **not guaranteed deterministic replays** of the historical generator, and must not be interpreted as saved production artifact provenance.
+
+A third independent replay compared the ten fixed synthetic snapshots after ignoring **only four observed volatile field names** (elapsedMs, sha256, sourceInventorySha256, proofsSha256). **All 10/10 normalized JSON structures then matched** at full nested depth. This is narrow compatibility evidence about otherwise stable synthetic fields; it does **not** validate the content of ignored source hashes, establish exact historic byte reproducibility, or establish production F8 parity.
+
+**Correction:** strengthen the committed ten-family tests to pin and compare **exact successful CLI stdout SHA-256** and **invalid-schema exit code, stdout SHA-256, stderr SHA-256** in addition to input immutability, fixture checksums, and meaningful material payload assertions. This enforces legacy CLI observable output compatibility for these ten curated examples on every hosted PR run. It does not claim historical CI workflow replay (or installed Debian execution) happens on hosted GitHub CI.
+
 ## 2. Genuine historic production artifacts
 
 **NOT RECOVERED.** Earlier P4-B2/B3 bounded scans of the actual Graph Studio workspace and three historical F8 worktrees found one genuine v1 frontier inventory with **roads: []**, but no genuinely populated artifacts for the eleven validator families. This audit verified the known workspace remains present and checked relevant diagnostic filenames, but did not repeat the full contents scan, search other peoples' accounts, access old external disks, or recover operator backups. The historical CI snapshots in this PR **do not** fill this provenance gap.
