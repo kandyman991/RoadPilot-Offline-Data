@@ -1,8 +1,11 @@
 """Regression gates for the non-destructive P4-B legacy CLI audit."""
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -67,6 +70,37 @@ class LegacyValidatorDependencyAuditTests(unittest.TestCase):
             self.assertTrue(report["tracked_worktree_dirty"])
             with self.assertRaisesRegex(RuntimeError, "committed HEAD"):
                 audit(root, probe_help=True, acknowledge_cli_execution=True)
+
+    def test_all_legacy_validators_reject_wrong_schema_without_fixture_writes(self):
+        """Synthetic negative-path contract only, NOT real historical acceptance."""
+        root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory(prefix="p4b-invalid-schema-") as temp:
+            directory = Path(temp)
+            fixture = directory / "invalid.json"
+            fixture.write_text(
+                '{"schema":"roadpilot.intentionally-invalid","version":1}\n',
+                encoding="utf-8",
+            )
+            before = hashlib.sha256(fixture.read_bytes()).hexdigest()
+            environment = dict(os.environ)
+            environment["PYTHONDONTWRITEBYTECODE"] = "1"
+            environment["PYTHONNOUSERSITE"] = "1"
+            for name in CANDIDATES:
+                flag = "--inventory" if name == "validate_frontier_road_inventory.py" else "--artifact"
+                completed = subprocess.run(
+                    [sys.executable, str(root / "tools" / name), flag, str(fixture)],
+                    cwd=directory, env=environment, capture_output=True,
+                    timeout=10, check=False,
+                )
+                with self.subTest(name=name):
+                    self.assertEqual(completed.returncode, 1)
+                    self.assertIn(b"unexpected schema", completed.stderr)
+                    self.assertEqual(
+                        hashlib.sha256(fixture.read_bytes()).hexdigest(), before
+                    )
+                    self.assertEqual(
+                        sorted(path.name for path in directory.iterdir()), ["invalid.json"]
+                    )
 
     def test_scan_ignores_symlink_targets_outside_repository(self):
         with tempfile.TemporaryDirectory() as temp:
