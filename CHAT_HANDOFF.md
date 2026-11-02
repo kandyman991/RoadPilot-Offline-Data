@@ -1,5 +1,15 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+
+## P4-B6 — external/manual consumer evidence and backup scope (2026-11-02)
+
+- Owner merged PR #100 into main (squash b8c8df10dad611cdcf7322eb7b26d5f42c944310). Starting P4-B6 as separate audit branch audit/graph-studio-p4b6-external-cli-evidence-20261102; draft evidence PR only, NO MERGE/RELEASE/DEPRECATION/CLEANUP authorized in this step.
+- Fresh read-only Legion evidence: actual workspace 85 JSON checked, 4 oversized; original saved frontier inventory SHA 87a1cbf59546cd42644577185a2fd5c4f5155e536f05018ebcdf24ce9add261e still has roads=[]; three other historical worktrees each 137 JSON with zero legacy matches. 12 TAR files had 5,162 members but zero .json filename entries; 8 GZIP files had no JSON schema header in the first 4 KiB; four large JSON had no known v1 schema in first 8 KiB. Scans bounded; real populated operational data STILL NOT RECOVERED.
+- New developer-only, nonexecuting privacy-minimal literal CLI caller scanner with explicit roots, symlink/non-regular exclusions, limits, aggregate counts only, and eight synthetic unit tests. Nine Legion script/config/service roots: 704 eligible files, 0 literal legacy CLI mentions, 0 scan truncation. Negative local search DOES NOT resolve manual/dynamic/off-machine callers, which remain UNKNOWN; historical CI (11 validators) and retired orchestrator (7) are confirmed former consumers.
+- Updated docs/GRAPH_STUDIO_PHASE4B6_REAL_ARCHIVES_EXTERNAL_CONSUMERS.md with operator attestation template and G1–G4 blockers; added dedicated hosted CI test step. No changes to shipped tools, F8, Android or real user data. Issue #89 remains OPEN (UI-01..UI-13 were previously marked done).
+- Next: independent security/data-integrity review, exact-head CI, explicit owner approval before merge. Later consented archive/backup recovery and manual consumer attestations are separate G1 tasks; no removal of 11 validators.
+
+
 ## P4-B5 — positive synthetic historical CI and consumer gate (2026-11-01)
 
 - After owner-authorized #99 merge, P4-B5 is developed separately on audit/graph-studio-p4b5-legacy-positive-parity-20261101. No merge, validator removal, public deprecation or release permission is implied.
