@@ -25,7 +25,7 @@ These are negative findings **only within the defined inspection**. Renamed JSON
 
 ## 2. Reproducible external/manual consumer audit
 
-New development-only tool: devtools/audit_legacy_cli_external_consumers.py. It accepts **explicitly nominated script/configuration directories**, scans only allowlisted source suffixes and records **aggregate per-validator literal filename/stem mentions**, never absolute source paths, commands, arguments, private values or host identifiers. It executes no legacy validators and makes no network requests.
+New development-only tool: devtools/audit_legacy_cli_external_consumers.py. It accepts **explicitly nominated script/configuration directories**, scans allowlisted source suffixes, common shell startup files and executable extensionless scripts and records **aggregate per-validator literal filename/stem mentions**, never absolute source paths, commands, arguments, private values or host identifiers. It executes no legacy validators and makes no network requests.
 
 Safety and scope: maximum 10,000 eligible files per root, 512 KiB per file, 12 directory levels; no followed symlinks, FIFOs or dependency/build directories. It reports skipped/oversized files, unreadable subdirectories and truncation; inaccessible trees must never be silently interpreted as empty. A literal mention is not an established execution consumer; zero matches does not prove that external or dynamic/manual consumers are absent. Output explicitly says manual_and_dynamic_consumers = UNKNOWN.
 
@@ -49,7 +49,7 @@ Actual Legion root scan (only directory categories disclosed, not private filena
 
 All nine scopes were nontruncated. This updates earlier P4-B2/B3 bounded Bash-history and owner-indexed GitHub observations. The historical pre-#84 CI calling **all 11** and retired orchestration invoking **seven** remain confirmed former consumers; the installed Debian/AppImage shipping all eleven still creates a compatibility obligation. Other devices, manual use, third-party integrations and dynamically assembled commands remain UNKNOWN.
 
-New tests/test_legacy_cli_external_consumers.py has seven synthetic regression tests for positives, private-output suppression, symlink and FIFO exclusion, unreadable directory disclosure, file/byte/depth limits, binary handling and the UNKNOWN interpretation. Add its invocation to hosted repository CI. The new tool stays under devtools, not installed wildcard tools/.
+New tests/test_legacy_cli_external_consumers.py has eight synthetic regression tests for positives, private-output suppression, symlink and FIFO exclusion, unreadable directory disclosure, file/byte/depth limits, binary handling and the UNKNOWN interpretation. Add its invocation to hosted repository CI. The new tool stays under devtools, not installed wildcard tools/.
 
 ## 3. Operator evidence request — NOT an attestation
 

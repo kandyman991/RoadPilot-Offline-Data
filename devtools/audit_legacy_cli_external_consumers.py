@@ -29,6 +29,7 @@ SKIP_DIRS = frozenset({
     ".git", "node_modules", "target", ".gradle", ".venv", "venv",
     "__pycache__", ".cache", "dist", "build",
 })
+SHELL_RC_FILES = frozenset({".bashrc", ".zshrc", ".profile", ".bash_profile", ".kshrc", "crontab"})
 MAX_FILES = 10000
 MAX_FILE_BYTES = 512 * 1024
 MAX_DEPTH = 12
@@ -79,7 +80,9 @@ def audit_root(
             if file.is_symlink():
                 result["symlinks_skipped"] += 1
                 continue
-            if file.suffix.lower() not in SOURCE_SUFFIXES:
+            suffix = file.suffix.lower()
+            extensionless = not suffix and not name.startswith(".") and name != "crontab"
+            if suffix not in SOURCE_SUFFIXES and name not in SHELL_RC_FILES and not extensionless:
                 continue
             if result["files_checked"] >= max_files:
                 result["truncated"] = True
@@ -92,6 +95,11 @@ def audit_root(
                 metadata = os.fstat(fd)
                 if not stat.S_ISREG(metadata.st_mode):
                     result["non_regular_skipped"] += 1
+                    continue
+                # Extensionless non-executables (README, random files) are not scripts.
+                if extensionless and not metadata.st_mode & (
+                    stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+                ):
                     continue
                 if metadata.st_size > max_file_bytes:
                     result["oversize_skipped"] += 1

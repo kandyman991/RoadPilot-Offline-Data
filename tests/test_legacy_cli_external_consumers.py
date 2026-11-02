@@ -64,6 +64,16 @@ class ExternalConsumerAuditTests(unittest.TestCase):
         self.assertEqual(report["validator_literal_file_counts"][self.v1], 0)
         self.assertEqual(report["validator_literal_file_counts"][self.v2], 1)
 
+    def test_executable_extensionless_script_and_known_shell_rc(self) -> None:
+        script = self.put("maintenance", self.v1)
+        script.chmod(0o700)
+        self.put(".bashrc", self.v2)
+        self.put("README", self.v2)
+        report = audit_root(self.root)
+        self.assertEqual(report["matching_files"], 2)
+        self.assertEqual(report["validator_literal_file_counts"][self.v1], 1)
+        self.assertEqual(report["validator_literal_file_counts"][self.v2], 1)
+
     def test_symlink_file_and_directory_are_not_followed(self) -> None:
         outside = self.root.parent / "outside"
         outside.mkdir()
