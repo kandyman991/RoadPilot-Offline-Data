@@ -1,0 +1,156 @@
+{
+  "generator": {
+    "name": "ci-hierarchical-fixture",
+    "version": "1"
+  },
+  "graph": {
+    "graphFingerprint": "sha256:b25befd63587e7f2c23e5af165156fe9c955b14a4d7e606e731539e7379d92a0",
+    "packageVersion": "b-v1",
+    "primaryGeofabrikId": "country/region-b",
+    "regionId": "region-b"
+  },
+  "modes": {
+    "CAR": {
+      "candidatePairCount": 6,
+      "cells": [
+        {
+          "actualFromGraphId": null,
+          "actualToGraphId": null,
+          "distanceKm": null,
+          "error": null,
+          "fromAnchorId": "rca1-18400c1d134898c806de54d6",
+          "matrixCost": null,
+          "matrixDistanceKm": null,
+          "matrixTimeSeconds": null,
+          "status": "UNREACHABLE",
+          "timeSeconds": null,
+          "toAnchorId": "rca1-667344203915907642291a56"
+        },
+        {
+          "actualFromGraphId": null,
+          "actualToGraphId": null,
+          "distanceKm": null,
+          "error": null,
+          "fromAnchorId": "rca1-18400c1d134898c806de54d6",
+          "matrixCost": null,
+          "matrixDistanceKm": null,
+          "matrixTimeSeconds": null,
+          "status": "UNREACHABLE",
+          "timeSeconds": null,
+          "toAnchorId": "rca1-91645c9dc7c341412830f218"
+        },
+        {
+          "actualFromGraphId": null,
+          "actualToGraphId": null,
+          "distanceKm": null,
+          "error": null,
+          "fromAnchorId": "rca1-667344203915907642291a56",
+          "matrixCost": null,
+          "matrixDistanceKm": null,
+          "matrixTimeSeconds": null,
+          "status": "UNREACHABLE",
+          "timeSeconds": null,
+          "toAnchorId": "rca1-18400c1d134898c806de54d6"
+        },
+        {
+          "actualFromGraphId": null,
+          "actualToGraphId": null,
+          "distanceKm": null,
+          "error": null,
+          "fromAnchorId": "rca1-667344203915907642291a56",
+          "matrixCost": null,
+          "matrixDistanceKm": null,
+          "matrixTimeSeconds": null,
+          "status": "UNREACHABLE",
+          "timeSeconds": null,
+          "toAnchorId": "rca1-91645c9dc7c341412830f218"
+        },
+        {
+          "actualFromGraphId": null,
+          "actualToGraphId": null,
+          "distanceKm": null,
+          "error": null,
+          "fromAnchorId": "rca1-91645c9dc7c341412830f218",
+          "matrixCost": null,
+          "matrixDistanceKm": null,
+          "matrixTimeSeconds": null,
+          "status": "UNREACHABLE",
+          "timeSeconds": null,
+          "toAnchorId": "rca1-18400c1d134898c806de54d6"
+        },
+        {
+          "actualFromGraphId": null,
+          "actualToGraphId": null,
+          "distanceKm": null,
+          "error": null,
+          "fromAnchorId": "rca1-91645c9dc7c341412830f218",
+          "matrixCost": null,
+          "matrixDistanceKm": null,
+          "matrixTimeSeconds": null,
+          "status": "UNREACHABLE",
+          "timeSeconds": null,
+          "toAnchorId": "rca1-667344203915907642291a56"
+        }
+      ],
+      "entryAnchorIds": [
+        "rca1-18400c1d134898c806de54d6",
+        "rca1-667344203915907642291a56",
+        "rca1-91645c9dc7c341412830f218"
+      ],
+      "exitAnchorIds": [
+        "rca1-18400c1d134898c806de54d6",
+        "rca1-667344203915907642291a56",
+        "rca1-91645c9dc7c341412830f218"
+      ],
+      "inconclusiveCount": 0,
+      "reachableCount": 0,
+      "unreachableCount": 6
+    },
+    "MOTORCYCLE": {
+      "candidatePairCount": 2,
+      "cells": [
+        {
+          "actualFromGraphId": 2002,
+          "actualToGraphId": 2011,
+          "distanceKm": 5.0,
+          "error": null,
+          "fromAnchorId": "rca1-91645c9dc7c341412830f218",
+          "matrixCost": 200.0,
+          "matrixDistanceKm": 5.0,
+          "matrixTimeSeconds": 200.0,
+          "status": "REACHABLE",
+          "timeSeconds": 200.0,
+          "toAnchorId": "rca1-18400c1d134898c806de54d6"
+        },
+        {
+          "actualFromGraphId": null,
+          "actualToGraphId": null,
+          "distanceKm": null,
+          "error": "synthetic exact-edge mismatch",
+          "fromAnchorId": "rca1-91645c9dc7c341412830f218",
+          "matrixCost": 100.0,
+          "matrixDistanceKm": 10.0,
+          "matrixTimeSeconds": 100.0,
+          "status": "INCONCLUSIVE",
+          "timeSeconds": null,
+          "toAnchorId": "rca1-667344203915907642291a56"
+        }
+      ],
+      "entryAnchorIds": [
+        "rca1-91645c9dc7c341412830f218"
+      ],
+      "exitAnchorIds": [
+        "rca1-18400c1d134898c806de54d6",
+        "rca1-667344203915907642291a56"
+      ],
+      "inconclusiveCount": 1,
+      "reachableCount": 1,
+      "unreachableCount": 0
+    }
+  },
+  "regionId": "region-b",
+  "schema": "roadpilot.region-connector-matrix",
+  "sourceAnchorCount": 3,
+  "sourceInventorySha256": "sha256:d1f956f2f4555a139a46b5470aa29fe57db07de93423df629d03eb37837a5237",
+  "version": 1
+}

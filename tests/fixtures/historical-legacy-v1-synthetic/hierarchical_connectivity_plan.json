@@ -1,0 +1,168 @@
+{
+  "chains": [
+    {
+      "crossings": [
+        {
+          "candidateId": "xpc1-360634ba273ddc939dad8bda",
+          "evidenceTier": 0,
+          "fromExitAnchorId": "rca1-9baaac81f5970ae685af4c01",
+          "fromRegionId": "region-a",
+          "sourceCandidateRank": 0,
+          "sourcePairId": "region-a__region-b",
+          "stableWayId": 100,
+          "toEntryAnchorId": "rca1-91645c9dc7c341412830f218",
+          "toRegionId": "region-b"
+        },
+        {
+          "candidateId": "xpc1-888888888888888888888888",
+          "evidenceTier": 0,
+          "fromExitAnchorId": "rca1-18400c1d134898c806de54d6",
+          "fromRegionId": "region-b",
+          "sourceCandidateRank": 1,
+          "sourcePairId": "region-b__region-c",
+          "stableWayId": 201,
+          "toEntryAnchorId": "rca1-6bc11db70caab126f1f01440",
+          "toRegionId": "region-c"
+        }
+      ],
+      "estimatedIntermediateDistanceKm": 5.0,
+      "estimatedIntermediateTimeSeconds": 200.0,
+      "hopCount": 2,
+      "id": "xhc1-99faf7c86d7407ed2b67f9ea",
+      "internalTraversals": [
+        {
+          "distanceKm": 5.0,
+          "fromEntryAnchorId": "rca1-91645c9dc7c341412830f218",
+          "regionId": "region-b",
+          "timeSeconds": 200.0,
+          "toExitAnchorId": "rca1-18400c1d134898c806de54d6"
+        }
+      ],
+      "rank": 0,
+      "regions": [
+        "region-a",
+        "region-b",
+        "region-c"
+      ],
+      "score": 5.0,
+      "scoreUnit": "KILOMETERS"
+    },
+    {
+      "crossings": [
+        {
+          "candidateId": "xpc1-360634ba273ddc939dad8bda",
+          "evidenceTier": 0,
+          "fromExitAnchorId": "rca1-9baaac81f5970ae685af4c01",
+          "fromRegionId": "region-a",
+          "sourceCandidateRank": 0,
+          "sourcePairId": "region-a__region-b",
+          "stableWayId": 100,
+          "toEntryAnchorId": "rca1-91645c9dc7c341412830f218",
+          "toRegionId": "region-b"
+        },
+        {
+          "candidateId": "xpc1-cccccccccccccccccccccccc",
+          "evidenceTier": 0,
+          "fromExitAnchorId": "rca1-667344203915907642291a56",
+          "fromRegionId": "region-b",
+          "sourceCandidateRank": 0,
+          "sourcePairId": "region-b__region-c",
+          "stableWayId": 200,
+          "toEntryAnchorId": "rca1-f5168fa505c8817dd1b8bfa9",
+          "toRegionId": "region-c"
+        }
+      ],
+      "estimatedIntermediateDistanceKm": 10.0,
+      "estimatedIntermediateTimeSeconds": 100.0,
+      "hopCount": 2,
+      "id": "xhc1-ebfc6f4f65a4e9cde4b6b198",
+      "internalTraversals": [
+        {
+          "distanceKm": 10.0,
+          "fromEntryAnchorId": "rca1-91645c9dc7c341412830f218",
+          "regionId": "region-b",
+          "timeSeconds": 100.0,
+          "toExitAnchorId": "rca1-667344203915907642291a56"
+        }
+      ],
+      "rank": 1,
+      "regions": [
+        "region-a",
+        "region-b",
+        "region-c"
+      ],
+      "score": 10.0,
+      "scoreUnit": "KILOMETERS"
+    }
+  ],
+  "fromRegionId": "region-a",
+  "generator": {
+    "name": "roadpilot-hierarchical-connectivity-composer",
+    "version": "1"
+  },
+  "maxCandidates": 8,
+  "maxHops": 8,
+  "missingMatrixRegions": [],
+  "mode": "MOTORCYCLE",
+  "routeStyle": "SHORTER",
+  "schema": "roadpilot.hierarchical-connectivity-plan",
+  "scoreScope": "INTERMEDIATE_REGIONS_ONLY",
+  "sourceConnectivity": [
+    {
+      "pairId": "region-a__region-b",
+      "sha256": "sha256:3526b8fb8a79dbb8dd7d6f3e5448e83f61f8520affc3e2234f7a930268e846ce"
+    },
+    {
+      "pairId": "region-b__region-c",
+      "sha256": "sha256:92806b2ac7e942201a12ca358834312d47796e506cc4eeb3229547a24185faee"
+    }
+  ],
+  "sourceInventories": [
+    {
+      "graph": {
+        "graphFingerprint": "sha256:d8213feb6870bd577f1ec01869a6969d45206182e329729cda835c61fe292ee6",
+        "packageVersion": "a-v1",
+        "primaryGeofabrikId": "country/region-a",
+        "regionId": "region-a"
+      },
+      "regionId": "region-a",
+      "sha256": "sha256:907e05cce42af9e8fb606020a5439514589b5083fd95bf1e5ac9fa4141e1c804"
+    },
+    {
+      "graph": {
+        "graphFingerprint": "sha256:b25befd63587e7f2c23e5af165156fe9c955b14a4d7e606e731539e7379d92a0",
+        "packageVersion": "b-v1",
+        "primaryGeofabrikId": "country/region-b",
+        "regionId": "region-b"
+      },
+      "regionId": "region-b",
+      "sha256": "sha256:d1f956f2f4555a139a46b5470aa29fe57db07de93423df629d03eb37837a5237"
+    },
+    {
+      "graph": {
+        "graphFingerprint": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "packageVersion": "c-v1",
+        "primaryGeofabrikId": "country/region-c",
+        "regionId": "region-c"
+      },
+      "regionId": "region-c",
+      "sha256": "sha256:42e3e20077ef44a8933ef85a07815abe26954626f4322960e7d773e589bb35dd"
+    }
+  ],
+  "sourceMatrices": [
+    {
+      "graph": {
+        "graphFingerprint": "sha256:b25befd63587e7f2c23e5af165156fe9c955b14a4d7e606e731539e7379d92a0",
+        "packageVersion": "b-v1",
+        "primaryGeofabrikId": "country/region-b",
+        "regionId": "region-b"
+      },
+      "regionId": "region-b",
+      "sha256": "sha256:90a8c02565241016fff692c211646db5642bceb35bb629aeb033b84dc6e99b20",
+      "sourceInventorySha256": "sha256:d1f956f2f4555a139a46b5470aa29fe57db07de93423df629d03eb37837a5237"
+    }
+  ],
+  "status": "FOUND",
+  "toRegionId": "region-c",
+  "version": 1
+}

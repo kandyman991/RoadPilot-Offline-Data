@@ -1,0 +1,44 @@
+{
+  "currentGraphFingerprint": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+  "generator": {
+    "name": "roadpilot-region-connector-refresh-planner",
+    "version": "1"
+  },
+  "inventory": {
+    "anchorCount": 3,
+    "boundaryChecks": [
+      {
+        "boundBoundaryFingerprint": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "currentBoundaryFingerprint": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "matches": true,
+        "neighborPrimaryGeofabrikId": "country/region-a"
+      },
+      {
+        "boundBoundaryFingerprint": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "currentBoundaryFingerprint": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "matches": true,
+        "neighborPrimaryGeofabrikId": "country/region-c"
+      }
+    ],
+    "current": false,
+    "present": true,
+    "reasons": [
+      "INVENTORY_GRAPH_CHANGED"
+    ],
+    "sha256": "sha256:d1f956f2f4555a139a46b5470aa29fe57db07de93423df629d03eb37837a5237"
+  },
+  "matrix": {
+    "current": false,
+    "present": true,
+    "reasons": [
+      "MATRIX_GRAPH_CHANGED"
+    ],
+    "sourceAnchorCount": 3,
+    "sourceInventorySha256": "sha256:d1f956f2f4555a139a46b5470aa29fe57db07de93423df629d03eb37837a5237"
+  },
+  "refreshAction": "REBUILD_INVENTORY_AND_MATRIX",
+  "regionId": "region-b",
+  "schema": "roadpilot.region-connector-refresh-plan",
+  "status": "STALE",
+  "version": 1
+}
