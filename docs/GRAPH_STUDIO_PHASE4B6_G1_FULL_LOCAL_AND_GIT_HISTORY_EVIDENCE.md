@@ -36,6 +36,8 @@ Fresh Legion checkout anchored at main 48f5e794d12898d93b2d2c212c33a84cfbbbe7ca:
 
 The eleven known schemas match the earlier **synthetic reconstructed CI** test fixtures (one frontier inventory, ten others); this does not establish recovered operational data. Nested formats may have material data without any of the specifically named top-level arrays.
 
+Independent checkout control: a separate single-branch checkout from the exact PR head had **2,454 ref object records and 137 JSON blobs**, versus 3,654 and 162 in the full clone. **All eleven known v1 test fixture matches were still found.** The different non-legacy counts reflect different fetched-ref scopes and must not be interpreted as disappearing records or a source-code regression.
+
 Important limits: only currently reachable, locally fetched named Git objects; no dangling/pruned objects, other repositories, unfetched remote branches, expired Actions artifacts, backups, old device installations, private exports, or files without JSON names. Object path classification is indicative, not a production/nonproduction proof. No absence claim about external/manual consumers.
 
 ## Remain-open G1 gates and decisions
