@@ -1,6 +1,17 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
 
+## P4-B6 G1 continuation — actual large JSON and all-ref legacy blob audit (2026-11-02)
+
+- After owner-authorized PR #101 merge (squash 7dacb81fa6cb66afcc571e3f64119b26e4393a67), advanced G1 on separate audit branch audit/graph-studio-p4b6-g1-git-history-20261102, documentation and developer-only tool only. No permission to merge, deprecate, remove, change installed binaries or F8/Android.
+- Full existing privacy-minimal operational workspace inventory with 96 MiB cap parsed **all 85 JSON** (including four previous large exclusions): 0 oversize, 0 unreadable, 0 truncated. Only genuine v1 is prior empty frontier roads=[] with same SHA 87a1cbf59546cd42644577185a2fd5c4f5155e536f05018ebcdf24ce9add261e.
+- Scanned JSON Git blobs across locally fetched history: 867 reachable commits, 91 remote refs, 3,654 Git object records, 162 JSON blobs parsed, 11 legacy schemas all with known historical synthetic test-fixture path classifications; no genuine production saved inputs. This does NOT cover unfetched/pruned Git objects, expired CI artifacts or off-device backups.
+- Added opt-in/read-only devtools/audit_historical_git_legacy_blobs.py with privacy-minimal aggregate classifications, positive synthetic tests, bounded object limits, no validator execution and dedicated hosted regression CI. Report docs/GRAPH_STUDIO_PHASE4B6_G1_FULL_LOCAL_AND_GIT_HISTORY_EVIDENCE.md.
+- G1 still INCOMPLETE: historic operational nonempty v1 artifacts and operator/manually invoked CLI consumers UNKNOWN. All 11 legacy CLIs RETAIN, no deprecation, no F8 graph-edge parity claim. Issue #89 OPEN.
+- Next gate is independent security/data-integrity review and exact-head CI. No merge until explicit authorization.
+
+
+
 ## P4-B6 — external/manual consumer evidence and backup scope (2026-11-02)
 
 - Owner merged PR #100 into main (squash b8c8df10dad611cdcf7322eb7b26d5f42c944310). Starting P4-B6 as separate audit branch audit/graph-studio-p4b6-external-cli-evidence-20261102; draft evidence PR only, NO MERGE/RELEASE/DEPRECATION/CLEANUP authorized in this step.

@@ -154,6 +154,9 @@ jobs:
       - name: Regression-test reconstructed populated historical frontier v1
         run: python -m unittest discover -s tests -p 'test_historical_frontier_populated.py'
 
+      - name: Regression-test local Git ref legacy schema inventory privacy
+        run: python -m unittest discover -s tests -p 'test_historical_git_legacy_blobs.py'
+
       - name: Regression-test privacy-safe legacy external CLI consumer audit
         run: python -m unittest discover -s tests -p 'test_legacy_cli_external_consumers.py'
 
