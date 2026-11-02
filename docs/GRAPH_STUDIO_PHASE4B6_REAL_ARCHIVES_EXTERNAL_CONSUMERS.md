@@ -37,15 +37,15 @@ Actual Legion root scan (only directory categories disclosed, not private filena
 
 | Scoped category | Eligible files | Literal CLI references |
 | --- | ---: | ---: |
-| User local executable scripts | 0 | 0 |
-| User Applications folder | 559 | 0 |
+| User local executable scripts | 8 | 0 |
+| User Applications folder | 574 | 0 |
 | User systemd units | 6 | 0 |
 | System systemd units | 5 | 0 |
-| System cron.d and cron.daily | 0 | 0 |
+| System cron.d and cron.daily | 8 | 0 |
 | Historical F8 stage-5 worktree | 33 | 0 |
 | Historical F8 learned-replay worktree | 34 | 0 |
 | Historical F8 cleanup worktree | 36 | 0 |
-| **Total** | **673** | **0** |
+| **Total** | **704** | **0** |
 
 All nine scopes were nontruncated. This updates earlier P4-B2/B3 bounded Bash-history and owner-indexed GitHub observations. The historical pre-#84 CI calling **all 11** and retired orchestration invoking **seven** remain confirmed former consumers; the installed Debian/AppImage shipping all eleven still creates a compatibility obligation. Other devices, manual use, third-party integrations and dynamically assembled commands remain UNKNOWN.
 
