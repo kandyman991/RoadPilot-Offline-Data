@@ -72,3 +72,5 @@ for Italy→Austria motorcycle; **3 of 6** sampled directed GPS seeds passed and
 pair-to-graph binding is compatible with the real deployed graph fingerprint
 identities. This does **not** verify Android F8 JNI parity or production
 cross-region connection completeness.
+
+> **Scope note (D-017, 2026-11-03).** `ALL_RETAINED_DIRECTED_NATIVE_SCAN_EDGES` describes the current retained scan. The intended handoff candidates are the terminal edge of each road where a graph's network ends (`docs/F8_TERMINAL_EDGE_HANDOFF.md`); this document's behavior is unchanged and equivalence is NOT_RUN.

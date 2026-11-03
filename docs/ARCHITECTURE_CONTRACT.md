@@ -13,6 +13,8 @@ This file is the stable behavioral contract for **what must be built**. It is no
 
 **A2 — Work moves, behavior stays.** Graph Studio moves expensive handoff discovery, directional Valhalla proofs and reusable connection inventory production onto the Legion during graph builds/refresh. It must not replace the F8 frontier scan with a narrower search unless *equivalence is demonstrated* using actual F8 graph-edge results.
 
+**A2 scope clarification (D-017, 2026-11-03).** The handoff candidate set is the **terminal edge of each road and direction** where one graph's network ends inside the neighbour's territory, not every directed edge of the overlap. Narrowing the F8 frontier scan this way still requires demonstrated equivalence with the Android F8 graph-edge results (B4). See `docs/F8_TERMINAL_EDGE_HANDOFF.md`.
+
 **A3 — Independent graphs.** Each region remains its own immutable, independently built Valhalla graph. No direct cross-graph sharing/comparison of GraphIds; never modify raw .gph files. RoadPilot composes region-local route legs with independently correlated, exact fingerprint-bound handoffs.
 
 ## B. Discovery completeness

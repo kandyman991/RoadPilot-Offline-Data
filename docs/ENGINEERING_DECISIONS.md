@@ -177,3 +177,17 @@ Reference: D-012, D-013, D-014; `docs/ARCHITECTURE_CONTRACT.md`; `docs/GRAPH_STU
 
 Reference: D-014, D-015; `docs/GRAPH_STUDIO_PHASE4C_ARCHIVE_LEGACY_VALIDATORS.md`.
 
+
+## D-017 — Cross-graph handoff candidates are the terminal edge of each road, not every overlap edge (2026-11-03)
+
+**Recorded at the owner's instruction (2026-11-03). The owner corrected the documented design: the earlier wording (inherited from a ChatGPT-assisted draft) scanned and kept every directed edge of the overlap zone. The owner is asked to confirm this wording in PR review. This is a documentation decision only.**
+
+- **Intended model.** Where two regional graphs overlap (each extends roughly 25 km into the neighbour), Graph Studio identifies, per road and direction of travel, the **final suitable directed edge** of a graph's network. That edge has an exact corresponding road connection in the neighbour graph. RoadPilot routes to that point with the first graph and continues with the neighbour graph; Valhalla still proves each leg.
+- **Replaces** the all-overlap scan scope in the wording of contract A2/B1, Graph Studio #82, the F8 parity definition and the proof-workload estimates. It does **not** change the rules that all valid alternatives are kept (separate carriageways, ramps, both directions, separate locations on the same named road, multi-hop chains), that Valhalla proves legs, or that F8 stays the Android fallback.
+- **Measured basis (read-only, Legion, Italy-NE and Austria graphs, 2026-11-03):** the overlap scan returns 323,372 (Italy) and 334,973 (Austria) directed edges. Edges that dead-end in their own graph while the other graph has a through edge ending at the same point (within about 8 m): **871 (Italy), 788 (Austria)**, about 0.25% of the scan. Of these, 743 / 688 are class 6-7 (residential/service) and 25 / 15 are class 0-2. Only 287 / 395 end 25 km or more inside their own graph's outline: graphs were extracted with osmium `complete_ways`, so a road's last edge can lie at or beyond the nominal outline. The rule is therefore "where the graph's network ends", not "25 km".
+- **A2 is still binding.** The narrower terminal-edge scope may replace the full-overlap scan **only after equivalence is demonstrated** against the actual Android F8 graph-edge results on the same exact graph versions (clause B4). Until then the status is **IMPLEMENTED-DESIGN, equivalence NOT_RUN**; no release may claim F8 parity from this record.
+- **Unverified assumptions (open):** about 2.5% of edges could not be matched by id in the measurement; roads that cross the border several times; parallel carriageways staying separate termini; the 8 m matching tolerance; neighbour coverage beyond the outline.
+- **Not changed or authorized:** no Android change, no new producer or schema, no publication, no merge, no change to native F8 tools, no deletion of evidence.
+- A formal distance bound for pruning remains unavailable (the only sound bound from Valhalla 3.6.3 is about half the chord length); pruning stays off.
+
+Reference: D-014, D-015; `docs/F8_TERMINAL_EDGE_HANDOFF.md`; `docs/ARCHITECTURE_CONTRACT.md` A2, B1, B4; issues #73, #82; Android #512.
