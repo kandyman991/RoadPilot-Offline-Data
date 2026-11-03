@@ -44,6 +44,9 @@ jobs:
           python -m unittest discover -s tests -p 'test_native_f8_receiver_topology_audit.py' -v
           python -m unittest discover -s tests -p 'test_native_f8_receiver_adjacency.py' -v
 
+      - name: Directed native terminal source and receiver route trace proof regressions
+        run: python -m unittest discover -s tests -p 'test_native_f8_terminal_handoff_proofs.py' -v
+
       - name: Bounded native F8 journey Valhalla proof regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_journey_probe.py' -v
 
