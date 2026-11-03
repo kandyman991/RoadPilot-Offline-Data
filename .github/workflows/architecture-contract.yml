@@ -39,6 +39,11 @@ jobs:
       - name: Terminal handoff evidence uncertainty and no-legacy regression checks
         run: python -m unittest discover -s tests -p 'test_native_f8_terminal_evidence_audit.py' -v
 
+      - name: Native F8 receiver endpoint correlation and exact outgoing adjacency regressions
+        run: |
+          python -m unittest discover -s tests -p 'test_native_f8_receiver_topology_audit.py' -v
+          python -m unittest discover -s tests -p 'test_native_f8_receiver_adjacency.py' -v
+
       - name: Bounded native F8 journey Valhalla proof regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_journey_probe.py' -v
 

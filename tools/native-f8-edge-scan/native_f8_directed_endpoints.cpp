@@ -4,6 +4,7 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <valhalla/baldr/graphreader.h>
+#include <valhalla/baldr/graphconstants.h>
 #include <valhalla/midgard/logging.h>
 
 #include <cstdint>
@@ -35,8 +36,9 @@ int main(int argc, char** argv) {
     std::cout << ROADPILOT_VALHALLA_VERSION << '\n';
     return 0;
   }
-  if (argc != 3) {
-    std::cerr << "usage: native_f8_directed_endpoints <valhalla.json> <graph_ids.txt>\n";
+  const bool include_continuations = argc == 4 && std::string(argv[3]) == "--continuations";
+  if (argc != 3 && !include_continuations) {
+    std::cerr << "usage: native_f8_directed_endpoints <valhalla.json> <graph_ids.txt> [--continuations]\n";
     return 64;
   }
   try {
@@ -78,8 +80,41 @@ int main(int argc, char** argv) {
                 << ",\"forward\":" << (edge->forward() ? "true" : "false")
                 << ",\"wayId\":" << way
                 << ",\"forwardAccess\":" << edge->forwardaccess()
-                << ",\"reverseAccess\":" << edge->reverseaccess()
-                << "}\n";
+                << ",\"reverseAccess\":" << edge->reverseaccess();
+      if (include_continuations) {
+        // Exact receiving graph node adjacency, NOT turn/mode route proof.
+        const auto* node = end_tile->node(end_id.id());
+        // Opposing directed edge is the immediate reverse of the incoming edge.
+        // Exclude it only from diagnostic forward-continuation counts, never
+        // from underlying evidence; route costs and turn legality still need Valhalla.
+        if (edge->opp_index() >= node->edge_count())
+          throw std::runtime_error("Invalid opposing directed edge index");
+        const valhalla::baldr::GraphId reverse(
+            end_tile->id().tileid(), end_tile->id().level(),
+            node->edge_index() + edge->opp_index());
+        std::cout << ",\"opposingGraphId\":" << reverse.value;
+        std::cout << ",\"outgoingDirectedEdges\":[";
+        for (uint32_t offset = 0; offset < node->edge_count(); ++offset) {
+          const valhalla::baldr::GraphId other(
+              end_tile->id().tileid(), end_tile->id().level(),
+              node->edge_index() + offset);
+          const auto* next = end_tile->directededge(other);
+          if (offset) std::cout << ',';
+          const uint32_t mask = next->forwardaccess();
+          std::cout << "{\"graphId\":" << other.value
+                    << ",\"endNodeGraphId\":" << next->endnode().value
+                    << ",\"forwardAccess\":" << mask
+                    << ",\"isRoad\":" << (next->is_road() ? "true" : "false")
+                    << ",\"isShortcut\":" << (next->is_shortcut() ? "true" : "false")
+                    << ",\"motorcycleBit\":" <<
+                       ((mask & valhalla::baldr::kMotorcycleAccess) != 0 ? "true" : "false")
+                    << ",\"autoBit\":" <<
+                       ((mask & valhalla::baldr::kAutoAccess) != 0 ? "true" : "false")
+                    << '}';
+        }
+        std::cout << ']';
+      }
+      std::cout << "}\n";
       if (!std::cout) throw std::runtime_error("Endpoint output write failed");
     }
     if (!input.eof()) throw std::runtime_error("Endpoint input read failed");
