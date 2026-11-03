@@ -11,3 +11,10 @@ target_link_libraries(native_f8_edge_scan PRIVATE PkgConfig::VALHALLA)
 # it must equal the version recorded in BOTH retained regional graph manifests.
 target_compile_definitions(native_f8_edge_scan PRIVATE ROADPILOT_VALHALLA_VERSION="${VALHALLA_VERSION}")
 target_compile_options(native_f8_edge_scan PRIVATE -Wall -Wextra -Wpedantic)
+
+# Read-only exact graph-local endpoint extraction for the D-017 feasibility audit.
+add_executable(native_f8_directed_endpoints native_f8_directed_endpoints.cpp)
+target_compile_features(native_f8_directed_endpoints PRIVATE cxx_std_20)
+target_link_libraries(native_f8_directed_endpoints PRIVATE PkgConfig::VALHALLA)
+target_compile_definitions(native_f8_directed_endpoints PRIVATE ROADPILOT_VALHALLA_VERSION="${VALHALLA_VERSION}")
+target_compile_options(native_f8_directed_endpoints PRIVATE -Wall -Wextra -Wpedantic)

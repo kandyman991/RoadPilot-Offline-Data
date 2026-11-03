@@ -43,6 +43,42 @@ python tools/audit_native_f8_terminal_evidence.py \
   --to-neighbour-probes /path/to/s1/m3/terminals2-austria.jsonl
 ```
 
+## Exact native graph-local endpoint extraction (new)
+
+`tools/native-f8-edge-scan/native_f8_directed_endpoints.cpp` compiles alongside
+(the existing scanner is unchanged) with the pinned native Valhalla 3.6.3 SDK:
+
+```bash
+cmake -S tools/native-f8-edge-scan -B /tmp/native-f8-endpoints-build
+cmake --build /tmp/native-f8-endpoints-build --target native_f8_directed_endpoints
+/tmp/native-f8-endpoints-build/native_f8_directed_endpoints --version
+/tmp/native-f8-endpoints-build/native_f8_directed_endpoints \
+  /path/to/exact/pinned/valhalla.json /path/to/one-directed-graph-id-per-line.txt \
+  > /tmp/native-f8-directed-endpoints.jsonl
+```
+
+The new command fetches each source directed edge by its GraphId from its OWN
+archive, then fetches the real end-node GraphId/coordinates and edge attributes.
+It reports errors on missing IDs, duplicate input or missing end nodes, and
+requires callers to **discard all partial stdout** on a nonzero exit code.
+It reads but does not modify `.gph` files; it does not compare source/receiver
+GraphIds or independently attest an archive hash.
+
+For the auditor, pass both `--from-exact-endpoints` and
+`--to-exact-endpoints` instead of the older `--from-ends`/`--to-ends`
+S1 files. The neighbour-side probes remain provisional S1 8 m `locate`
+evidence in either mode.
+
+**Retained real-graph result (Legion, Valhalla 3.6.3):** exact source endpoints
+were recovered for **323,372/323,372** Italy edges and **334,973/334,973**
+Austria edges. The native `deadend` flag was set on **21,652** and **22,565**
+edges respectively. S1 had missed 8,160 and 8,371 source endpoints via
+`locate`; using native endpoints reduces unresolved source endpoints to zero.
+However, the pre-existing neighbour S1 observations cover only the older
+21,631 / 22,546 matched local dead ends: **21 Italy and 19 Austria new
+native dead-end observations remain unprobed**. The same 871 / 788 old
+provisional continuation counts are unchanged and are NOT route proof.
+
 Optional `--include-candidates` returns each distinct *source graph-local*
 directed edge and the observed endpoint; the receiving GraphId remains
 `null`. The key is never just a road name, reference or OSM way ID.
@@ -68,6 +104,8 @@ independent native-GraphReader terminal proof. Scan summary provenance is
 cryptographically bound by the historical side-scan summary.
 The endpoint and neighbour-locate scratch logs themselves also lack an
 independent cryptographic graph binding (`UNBOUND_S1_SCRATCH_LOGS`).
+The new exact native endpoint stream still requires independent archive-hash
+attestation and a fully graph-native receiving-side directed-edge match.
 
 ## Required correctness gates (NOT yet passed)
 

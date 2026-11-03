@@ -48,6 +48,34 @@ def keyed_rows(rows: list[dict], valid_ids: set[int], label: str) -> dict[int, d
     return out
 
 
+def native_endpoints_to_observations(edges: list[dict], rows: list[dict], side: str) -> list[dict]:
+    """Convert exact graph-local end-node observations; not intergraph proof."""
+    source = {edge["graphId"]: edge for edge in edges}
+    if len(source) != len(edges):
+        raise ValueError(f"{side}: duplicate native scan edges")
+    indexed = keyed_rows(
+        [{**row, "g": row.get("sourceGraphId")} for row in rows],
+        set(source), f"{side} native endpoints")
+    if len(indexed) != len(source):
+        raise ValueError(f"{side}: exact native endpoint coverage incomplete")
+    out = []
+    for graph_id, row in indexed.items():
+        edge = source[graph_id]
+        if (type(row.get("endNodeGraphId")) is not int or
+                row["endNodeGraphId"] < 0):
+            raise ValueError(f"{side}: invalid native end-node graph identity")
+        for field in ("wayId", "forwardAccess", "reverseAccess"):
+            if row.get(field) != edge.get(field) or type(row.get(field)) is not int:
+                raise ValueError(f"{side}: native endpoint {field} mismatches scanner")
+        if any(type(row.get(field)) is not bool for field in
+               ("deadend", "notThru", "forward")):
+            raise ValueError(f"{side}: invalid native endpoint attributes")
+        out.append({"g": graph_id, "id": True,
+                    "e": [row.get("endLat"), row.get("endLon")],
+                    "d": row["deadend"], "n": row["notThru"]})
+    return out
+
+
 def audit_side(edges: list[dict], ends: list[dict], probes: list[dict],
                side: str, *, include_candidates: bool = False) -> dict:
     """Classify evidence, never infer proof from road name or approximate location."""
@@ -121,11 +149,13 @@ def main() -> int:
     parser.add_argument("--from-scan", type=Path, required=True)
     parser.add_argument("--to-scan", type=Path, required=True)
     parser.add_argument("--scan-summary", type=Path, required=True)
-    parser.add_argument("--from-ends", type=Path, required=True)
-    parser.add_argument("--to-ends", type=Path, required=True)
+    parser.add_argument("--from-ends", type=Path)
+    parser.add_argument("--to-ends", type=Path)
     parser.add_argument("--from-neighbour-probes", type=Path, required=True)
     parser.add_argument("--to-neighbour-probes", type=Path, required=True)
     parser.add_argument("--include-candidates", action="store_true")
+    parser.add_argument("--from-exact-endpoints", type=Path)
+    parser.add_argument("--to-exact-endpoints", type=Path)
     args = parser.parse_args()
 
     pair = json.loads(args.pair.read_text(encoding="utf-8"))
@@ -134,10 +164,21 @@ def main() -> int:
         pair, from_scan=json.loads(args.from_scan.read_text(encoding="utf-8")),
         to_scan=json.loads(args.to_scan.read_text(encoding="utf-8")),
         scan_summary=json.loads(args.scan_summary.read_text(encoding="utf-8")))
-    from_side = audit_side(from_scan["edges"], load_jsonl(args.from_ends),
+    exact = args.from_exact_endpoints is not None or args.to_exact_endpoints is not None
+    if exact and (args.from_exact_endpoints is None or args.to_exact_endpoints is None):
+        raise ValueError("Exact native endpoints require both regional files")
+    if not exact and (args.from_ends is None or args.to_ends is None):
+        raise ValueError("S1 endpoint observations require both regional files")
+    from_ends = (native_endpoints_to_observations(
+        from_scan["edges"], load_jsonl(args.from_exact_endpoints), "from")
+                 if exact else load_jsonl(args.from_ends))
+    to_ends = (native_endpoints_to_observations(
+        to_scan["edges"], load_jsonl(args.to_exact_endpoints), "to")
+               if exact else load_jsonl(args.to_ends))
+    from_side = audit_side(from_scan["edges"], from_ends,
                            load_jsonl(args.from_neighbour_probes), "from",
                            include_candidates=args.include_candidates)
-    to_side = audit_side(to_scan["edges"], load_jsonl(args.to_ends),
+    to_side = audit_side(to_scan["edges"], to_ends,
                          load_jsonl(args.to_neighbour_probes), "to",
                          include_candidates=args.include_candidates)
     report = {
@@ -145,7 +186,8 @@ def main() -> int:
         "graphFingerprints": {"from": pair["fromGraphFingerprint"],
                               "to": pair["toGraphFingerprint"]},
         "sourceBinding": provenance["sourceBindingLevel"],
-        "endpointObservationBinding": "UNBOUND_S1_SCRATCH_LOGS",
+        "endpointObservationBinding": ("NATIVE_GRAPHREADER_ENDPOINTS_NO_ARCHIVE_HASH_ATTESTATION"
+                                       if exact else "UNBOUND_S1_SCRATCH_LOGS"),
         "spatialMatchToleranceMetres": 8,
         "source": "S1_RETROACTIVE_VALHALLA_LOCATE_OBSERVATIONS",
         "status": "INCOMPLETE",
