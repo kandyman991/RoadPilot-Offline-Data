@@ -87,6 +87,18 @@ class FullDirectedGeometryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate"):
             inspect_geometry(A, [edge(22, [[0, 0], [0, .001]])] * 2, "auto")
 
+    def test_native_reader_full_geometry_opt_in_and_existing_modes_preserved(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "tools/native-f8-edge-scan/native_f8_directed_endpoints.cpp").read_text()
+        self.assertIn('include_geometry', source)
+        self.assertIn('"--geometry"', source)
+        self.assertIn('"--continuations"', source)
+        self.assertIn("if (!edge->forward()) std::reverse(shape.begin(), shape.end())", source)
+        self.assertIn("PARTIAL_STDOUT_MUST_BE_DISCARDED", source)
+        for retired in ("build_frontier_road_inventory", "build_region_connector_matrix",
+                        "plan_multiregion_route"):
+            self.assertNotIn(retired, source)
+
     def test_short_terminal_and_curved_polyline(self):
         source = edge(11, [[0, 0], [.00001, .00001], [.00002, .00002]])
         samples = tail_points(checked_edge(source)["directedGeometry"])
