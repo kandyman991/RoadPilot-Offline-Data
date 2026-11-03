@@ -36,6 +36,9 @@ jobs:
       - name: Exhaustive native directed GPS crossing proposal regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_crossing_discovery.py' -v
 
+      - name: Terminal handoff evidence uncertainty and no-legacy regression checks
+        run: python -m unittest discover -s tests -p 'test_native_f8_terminal_evidence_audit.py' -v
+
       - name: Bounded native F8 journey Valhalla proof regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_journey_probe.py' -v
 
