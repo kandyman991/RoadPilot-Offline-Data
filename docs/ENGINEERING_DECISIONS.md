@@ -148,3 +148,18 @@ all relevant alternatives, Valhalla route leg proof and multi-hop journey cost.
 Until then production connectivity is disabled and parity remains NOT_VERIFIED.
 
 Tracking: Graph Studio #82 and #73; Android #512. Cleanup PR pending.
+
+
+## D-015 — Native F8 builds forward from the native evidence chain; the retired formats are not its foundation (2026-11-03)
+
+**Recorded at the owner's instruction (2026-11-03), after an independent architectural review stopped a design that had drifted toward retired components. The owner is asked to confirm this wording in PR review.**
+
+- The components retired by D-014 stay retired: the OSM buffered-overlap sampler, the legacy correlation, candidate and proof producers, regional connector matrices, and the old bounded multi-region planner. They must not be recreated, called, or revived as a shortcut to F8 parity. See `docs/RETIRED_ARCHITECTURE.md`.
+- `roadpilot.runtime-connectivity` (and its candidate-pair model) is a **historical format**. It is not the foundation of the native F8 production schema. Reusing any part of it requires an explicit, written compatibility justification recorded in a decision; none exists.
+- The existing native F8 implementation is preserved unchanged: `native-f8-edge-scan`, `capture_native_f8_graph_windows.py`, `discover_native_f8_crossings.py`, `probe_native_f8_journey.py`, `graph_studio_f8_workspace.py` (with `build_native_f8_pair_evidence.py`, `build_connectivity_pair_manifest.py` and `native_f8_inputs.py`).
+- Further F8 production work builds forward from the native directed-edge evidence and GPS proposals, preserves every relevant alternative, and validates through actual Valhalla routes.
+- Historical connector-matrix and runtime-connectivity references in Android issue #512 do not override D-014.
+- Legacy validators, schemas, readers and saved evidence are preserved until the independently authorized Phase 4 cleanup completes; this decision and its documentation change delete none of them.
+- No Android change, new producer, schema, publication or merge is authorized by this record.
+
+Reference: D-012, D-013, D-014; `docs/ARCHITECTURE_CONTRACT.md`; `docs/GRAPH_STUDIO_PHASE4_DEPENDENCY_AUDIT.md`; issues #73, #82; Android #512.

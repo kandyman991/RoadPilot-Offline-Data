@@ -1,6 +1,16 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
 
+## Retired-architecture documentation cleanup (2026-11-03)
+
+- Branch `docs/retire-osm-first-architecture-20261103` from main `48f5e79` (draft PR; **documentation only**; no merge, release or deletion authorized). It follows an independent review that stopped an F8 design which had drifted toward the retired runtime-connectivity and candidate-pair format.
+- Changed: new `docs/RETIRED_ARCHITECTURE.md` (retired, retained read-only, and current native F8, plus a suggested clarifying note for Android #512); D-015 in `docs/ENGINEERING_DECISIONS.md`; a rejected-design entry in `docs/FAILED_APPROACHES.md`; retirement banners and corrected status rows in `ROADMAP.md`; `graph-studio/README.md` no longer lists the retired schemas as "current".
+- Not changed: any code, schema, workflow, test, fixture, tool, validator or saved data. The 11 legacy validators, their schemas, the historical viewers and all evidence remain; Phase 4 cleanup (P4-B/C/D) is still separately gated. Android code and issue #512 are untouched.
+- Older sections of this handoff and of the roadmap that mention `plan_multiregion_route.py`, connector matrices or the runtime-connectivity compiler describe the retired design only.
+- Verification: see the PR (existing Python suite and the architecture-contract check). Native F8 parity, exhaustive discovery, device acceptance and publication remain NOT_VERIFIED / BLOCKED.
+- **Next exact action:** owner reviews the draft PR and confirms D-015 wording, the axis-to-key and `frontierCorrelations` questions listed in the PR, and whether to post the suggested note on Android #512. After that, the read-only S1 measurements (Valhalla benchmark, fingerprint interoperability, Android candidate-reduction) still need explicit owner approval before any run. Open draft PR #102 also edits this file's top section; resolve the overlap when merging.
+
+
 ## P4-B6 — external/manual consumer evidence and backup scope (2026-11-02)
 
 - Owner merged PR #100 into main (squash b8c8df10dad611cdcf7322eb7b26d5f42c944310). Starting P4-B6 as separate audit branch audit/graph-studio-p4b6-external-cli-evidence-20261102; draft evidence PR only, NO MERGE/RELEASE/DEPRECATION/CLEANUP authorized in this step.

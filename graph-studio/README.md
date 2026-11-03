@@ -125,13 +125,15 @@ graph-local edge IDs as durable identity.
 
 ## Connectivity and handoff artifact overlay
 
-The Border Inspector normalizes and displays both the current build-time connectivity pipeline
-and older RoadPilot handoff evidence from the local Graph Studio workspace.
+The Border Inspector normalizes and displays historical build-time connectivity records
+and older RoadPilot handoff evidence from the local Graph Studio workspace (read-only).
 
-Current connectivity schemas:
+Historical build-time connectivity schemas (read-only, **retired producers — not current F8 evidence**, D-014):
 
-- `roadpilot.crossing-candidates` — generated `UNPROVEN` Graph A × Graph B candidate pairs;
-- `roadpilot.runtime-connectivity` — compact `VALIDATED` crossings promoted only after exact-edge plain-Valhalla proof.
+- `roadpilot.crossing-candidates` — former generated `UNPROVEN` Graph A × Graph B candidate pairs;
+- `roadpilot.runtime-connectivity` — former compact `VALIDATED` crossings compiled by the retired proof pipeline.
+
+They remain readable so old local records can be inspected. They are neither the current native F8 format nor a foundation for it. The current native F8 artifacts are listed in `docs/RETIRED_ARCHITECTURE.md` (pair manifest, native edge scan, physical pair evidence, GPS proposals, journey probes).
 
 Legacy/debug schemas remain inspectable for development history:
 
@@ -154,7 +156,7 @@ Artifacts copied from another machine/device can be placed under:
 
 Legacy transition/handoff imports remain supported under `transitions/` and `imports/handoffs/`.
 
-For current connectivity artifacts, Graph Studio compares both exact regional graph fingerprints
+For these historical connectivity artifacts, Graph Studio compares both exact regional graph fingerprints
 and the relevant per-neighbor boundary fingerprints against the latest local builds. It shows
 `UNPROVEN` vs `VALIDATED` separately from `CURRENT` vs `STALE`. Graph-local ids are trusted only
 inside artifacts bound to their exact graph fingerprints and are never used as cross-build identity.

@@ -1,6 +1,6 @@
 # RoadPilot Offline Data & Graph Studio Roadmap
 
-> **Architecture update — 2026-10-16:** The earlier OSM-based crossing discovery, connector-matrix composer, and old multi-region planner are retired from executable Graph Studio source (pending cleanup PR). Existing older roadmap sections describe history, **not** a request to restore those algorithms. Next gate: native directed graph frontier candidates from exact immutable Valhalla edge scans, two-direction/two-vehicle Valhalla proofs, real Android F8 parity, then new ranked multi-hop output. See `docs/ARCHITECTURE_CONTRACT.md`, issues #73/#82.
+> **Architecture update — 2026-10-16, cleanup documented 2026-11-03:** The earlier OSM-based crossing discovery, connector-matrix composer, and old multi-region planner are retired from executable Graph Studio source (D-014). Their historical validators, schemas, readers and saved evidence are **retained read-only** and are not removed by this record. Older roadmap sections below describe history, **not** a request to restore those algorithms. Next gate: native directed graph frontier proposals from exact immutable Valhalla edge scans, two-direction/two-vehicle Valhalla proofs, real Android F8 parity, then new ranked multi-hop output. See `docs/RETIRED_ARCHITECTURE.md`, `docs/ARCHITECTURE_CONTRACT.md`, issues #73/#82.
 
 
 _Last updated: 2026-10-06_
@@ -52,8 +52,8 @@ Each region is intended to expose independently versioned routing, visual, and s
 | Standard Valhalla route planner | #12 / PR #19 | Merged | Normal routing, costing controls, route geometry, maneuvers, search expansion |
 | Border inspector + manual crossings | #11 / PRs #20-#23 | Merged | A/B road diff, manual/automatic/learned handoffs, validation, stale detection, diagnostics export |
 | Exact graph/boundary diffing | #13 / PRs #24-#25 | Merged | Deterministic graph/boundary fingerprints plus retained-build road-level diffing |
-| Build-time cross-region connectivity | #26 | Complete | Fingerprint-bound pair manifests, discovery/proof/runtime pipeline, multi-hop composition, F8 fallback |
-| Regional connector matrices | #35 | Complete | Exact graph-bound entry→exit matrices, sparse hierarchical ranking, Graph Studio inspection and lifecycle refresh |
+| Build-time cross-region connectivity (OSM-first pipeline) | #26 | **Retired (D-014)** | Historical. Only the fingerprint-bound pair manifest survives; discovery/proof/runtime/multi-hop producers were removed. Replaced by the native F8 path (see `docs/RETIRED_ARCHITECTURE.md`) |
+| Regional connector matrices | #35 | **Retired (D-014)** | Historical. Producers and composer removed; read-only inspector and validators retained. Not a source for F8 multi-hop ranking |
 | Cloudflare R2 publication manager | #14 | Complete | Safe immutable release contract, R2 publication, latest/history/rollback in Graph Studio |
 | Visual map production/inspection | #16 | Complete | Retained PMTiles builds, exact Graph Studio inspection/diff and independent visual R2 publication |
 | POI/search production/inspection | #17 | Active | Overture/SQLite offline search artifact |
@@ -154,6 +154,9 @@ Implemented:
 
 ## Completed — Build-time cross-region connectivity metadata (#26)
 
+> **RETIRED (D-014, 2026-10-16) — historical record only.** The pipeline described in this section (OSM buffered-overlap sampler, correlation/candidate/proof producers, `roadpilot.runtime-connectivity` compiler, regional connector matrices, bounded multi-region planner) was removed from executable Graph Studio paths. Do not restore it or treat its milestones as live evidence of F8 completeness. See `docs/RETIRED_ARCHITECTURE.md`.
+
+
 Issue #26 is complete across PRs #27-#34. PR #27 established the fingerprint-bound region-pair
 contract and the later milestones carry that stable physical identity through Valhalla proof,
 runtime metadata, multi-hop composition, route-style ranking, surgical refresh and Graph Studio inspection.
@@ -217,6 +220,9 @@ F8 remains the fallback when metadata is missing, stale or ambiguous.
 ## Next
 
 ### 1. Regional connector matrices (#35)
+
+> **RETIRED (D-014, 2026-10-16) — historical record only.** The pipeline described in this section (OSM buffered-overlap sampler, correlation/candidate/proof producers, `roadpilot.runtime-connectivity` compiler, regional connector matrices, bounded multi-region planner) was removed from executable Graph Studio paths. Do not restore it or treat its milestones as live evidence of F8 completeness. See `docs/RETIRED_ARCHITECTURE.md`.
+
 
 Add a sparse hierarchical routing layer on top of completed #26 connectivity.
 
@@ -426,6 +432,8 @@ The offline-data system is production ready when Graph Studio can, without hand-
 14. let RoadPilot download only individual regional artifacts that actually changed.
 
 ## Immediate execution order
+
+> **Historical ordering.** The sequence below includes retired steps (#26 connectivity, #35 connector matrices). The current connectivity gate is the native F8 path in `docs/RETIRED_ARCHITECTURE.md` and issues #73/#82.
 
 ~~~
 finish #11 border diff / candidates / reports

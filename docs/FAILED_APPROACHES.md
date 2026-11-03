@@ -70,3 +70,12 @@ do not re-enable it or classify old VALIDATED sidecars as source-exhaustive F8.
 - **Root cause:** Sampling broad shared-buffer OSM road fragments every 1,500 m created massive unrelated candidates; arbitrary cap increases or nominal-polygon shortcuts could not establish directed F8 equivalence.
 - **Decision:** Retain authentic read-only directed graph scan work; retire the OSM buffered-overlap/correlation producer. Separate completion tiers: scan completed does not mean correlation/proofs, Android F8 parity, end-to-end ranking or Android consumption verified.
 - **Reconsider only if:** Direct matched-fingerprint F8 graph-edge comparison and full directional Valhalla proof demonstrate complete finite frontier extraction. See `docs/F8_NATIVE_PARITY_AUDIT.md` and `docs/ARCHITECTURE_GAPS.md`.
+
+## Rejected design proposal — runtime-connectivity v2 and the candidate-pair model as the native F8 foundation (2026-11-03)
+- **Status:** REJECTED_BY_DESIGN (owner and independent architectural review, 2026-11-03). Never implemented in this repository; this is not a tested failure.
+- **Hypothesis:** A new, versioned `roadpilot.runtime-connectivity` v2, keeping the v1 crossing record (candidate id, frontier-road id, paired from/to anchors, candidate and proof counts), could carry completeness metadata for native F8 and be consumed by Android.
+- **What existed:** design documents and a scratch schema, fixtures and validator held outside the repository. No tool, schema or workflow in this repository was changed.
+- **Why rejected:** the format and its candidate-pair model belong to the producer chain retired by D-014 (OSM-first sampling, correlation, candidate and proof producers). Native F8 has no paired A-side and B-side candidate; its handoff is a receiver-side GPS proposal proved by plain Valhalla. Building on the old format re-creates a retired layer by the back door and invites validating against retired validators.
+- **Root cause confidence:** high that this is architectural drift (the old format was reused for convenience because validators and an issue still cited it).
+- **Decision / replacement:** D-015 and `docs/RETIRED_ARCHITECTURE.md`. Build forward from the native evidence chain, keyed by receiver directed edge, using the existing manifest tier keys as the vocabulary.
+- **Reconsider only if:** the owner records a decision with a written compatibility justification for a specific field, and the result passes the contract tiers.
