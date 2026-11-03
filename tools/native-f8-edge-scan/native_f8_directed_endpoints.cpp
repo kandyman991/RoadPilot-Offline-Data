@@ -7,6 +7,8 @@
 #include <valhalla/baldr/graphconstants.h>
 #include <valhalla/midgard/logging.h>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
@@ -37,8 +39,9 @@ int main(int argc, char** argv) {
     return 0;
   }
   const bool include_continuations = argc == 4 && std::string(argv[3]) == "--continuations";
-  if (argc != 3 && !include_continuations) {
-    std::cerr << "usage: native_f8_directed_endpoints <valhalla.json> <graph_ids.txt> [--continuations]\n";
+  const bool include_geometry = argc == 4 && std::string(argv[3]) == "--geometry";
+  if (argc != 3 && !include_continuations && !include_geometry) {
+    std::cerr << "usage: native_f8_directed_endpoints <valhalla.json> <graph_ids.txt> [--continuations|--geometry]\n";
     return 64;
   }
   try {
@@ -81,6 +84,25 @@ int main(int argc, char** argv) {
                 << ",\"wayId\":" << way
                 << ",\"forwardAccess\":" << edge->forwardaccess()
                 << ",\"reverseAccess\":" << edge->reverseaccess();
+      if (include_geometry) {
+        // Full directed Valhalla 3.6.3 shape, NOT a physical cross-graph proof.
+        // Keep the original graph-local node subdivision; never infer peer
+        // GraphIds or silently snap endpoints in the extractor.
+        auto shape = tile->edgeinfo(edge).shape();
+        if (!edge->forward()) std::reverse(shape.begin(), shape.end());
+        if (shape.size() < 2)
+          throw std::runtime_error("Missing native directed road geometry");
+        std::cout << ",\"directedGeometry\":[";
+        for (std::size_t i = 0; i < shape.size(); ++i) {
+          const auto& point = shape[i];
+          if (!std::isfinite(point.lat()) || !std::isfinite(point.lng()) ||
+              std::abs(point.lat()) > 90 || std::abs(point.lng()) > 180)
+            throw std::runtime_error("Invalid native directed geometry point");
+          if (i) std::cout << ',';
+          std::cout << '[' << point.lat() << ',' << point.lng() << ']';
+        }
+        std::cout << ']';
+      }
       if (include_continuations) {
         // Exact receiving graph node adjacency, NOT turn/mode route proof.
         const auto* node = end_tile->node(end_id.id());
