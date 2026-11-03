@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-11-03T23:12:43.122Z",
+  "generatedAt": "2026-11-03T23:13:11.730Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,20 +11,20 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "3ee6ec2d20bddd9cd43dc259a93bae4c2b53d203",
-    "message": "Merge pull request #108 from kandyman991/fix/f8-terminal-107-review-20261103\n\nfix(f8): correct PR #107 graph-local vs cross-graph proof semantics",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/3ee6ec2d20bddd9cd43dc259a93bae4c2b53d203"
+    "sha": "e7578dd3832da8bc5cb17756215883005f465ed3",
+    "message": "Merge pull request #109 from kandyman991/feature/f8-native-terminal-geometry-20261103\n\nfeat(f8): inspect full directed terminal geometry across independent graphs",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/e7578dd3832da8bc5cb17756215883005f465ed3"
   },
   "openPullRequests": [
     {
-      "number": 109,
-      "title": "feat(f8): inspect full directed terminal geometry across independent graphs",
+      "number": 110,
+      "title": "test(f8): prove receiving-graph directed turns, preserve cross-seam uncertainty",
       "draft": true,
-      "head": "feature/f8-native-terminal-geometry-20261103",
-      "headSha": "e4907dccefb99989898fcd63394b5d56eed1a821",
+      "head": "feature/f8-directed-seam-turn-proof-20261103",
+      "headSha": "9d6f6bed8bfa4bedfe7c65b38ad8d371be1cd072",
       "base": "main",
-      "updatedAt": "2026-11-03T23:12:40Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/pull/109"
+      "updatedAt": "2026-11-03T23:13:08Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/pull/110"
     },
     {
       "number": 111,
@@ -35,16 +35,6 @@
       "base": "feature/f8-directed-seam-turn-proof-20261103",
       "updatedAt": "2026-11-03T22:54:35Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/pull/111"
-    },
-    {
-      "number": 110,
-      "title": "test(f8): prove receiving-graph directed turns, preserve cross-seam uncertainty",
-      "draft": true,
-      "head": "feature/f8-directed-seam-turn-proof-20261103",
-      "headSha": "9d6f6bed8bfa4bedfe7c65b38ad8d371be1cd072",
-      "base": "feature/f8-native-terminal-geometry-20261103",
-      "updatedAt": "2026-11-03T22:29:30Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/pull/110"
     },
     {
       "number": 105,
@@ -131,14 +121,47 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 41737310276,
+      "id": 41737374670,
       "name": "F8 Architecture Contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "e7578dd3832da8bc5cb17756215883005f465ed3",
+      "event": "push",
+      "updatedAt": "2026-11-03T23:13:08Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41737374670"
+    },
+    {
+      "id": 41737374619,
+      "name": "Validate offline-data repository",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "e7578dd3832da8bc5cb17756215883005f465ed3",
+      "event": "push",
+      "updatedAt": "2026-11-03T23:13:08Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41737374619"
+    },
+    {
+      "id": 41737374586,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "pending",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "e7578dd3832da8bc5cb17756215883005f465ed3",
+      "event": "push",
+      "updatedAt": "2026-11-03T23:13:06Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41737374586"
+    },
+    {
+      "id": 41737310276,
+      "name": "F8 Architecture Contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "3ee6ec2d20bddd9cd43dc259a93bae4c2b53d203",
       "event": "push",
-      "updatedAt": "2026-11-03T23:12:40Z",
+      "updatedAt": "2026-11-03T23:12:51Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41737310276"
     },
     {
@@ -206,39 +229,6 @@
       "event": "pull_request",
       "updatedAt": "2026-11-03T22:54:58Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41734302671"
-    },
-    {
-      "id": 41734302612,
-      "name": "F8 Architecture Contract",
-      "status": "completed",
-      "conclusion": "failure",
-      "branch": "feature/f8-selected-journey-evidence-m5-20261103",
-      "headSha": "b18acd74e20c776684d95a74f2ce4dc55fcca602",
-      "event": "pull_request",
-      "updatedAt": "2026-11-03T22:51:27Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41734302612"
-    },
-    {
-      "id": 41734302553,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/f8-selected-journey-evidence-m5-20261103",
-      "headSha": "b18acd74e20c776684d95a74f2ce4dc55fcca602",
-      "event": "pull_request",
-      "updatedAt": "2026-11-03T22:54:18Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41734302553"
-    },
-    {
-      "id": 41731251926,
-      "name": "F8 Architecture Contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feature/f8-directed-seam-turn-proof-20261103",
-      "headSha": "9d6f6bed8bfa4bedfe7c65b38ad8d371be1cd072",
-      "event": "pull_request",
-      "updatedAt": "2026-11-03T22:29:54Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41731251926"
     }
   ]
 }
