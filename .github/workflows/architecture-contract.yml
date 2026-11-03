@@ -50,6 +50,9 @@ jobs:
       - name: Full directed terminal geometry observation regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_terminal_geometry.py' -v
 
+      - name: Exact B-graph directed seam turn and uncertainty regressions
+        run: python -m unittest discover -s tests -p 'test_native_f8_directed_turn.py' -v
+
       - name: Bounded native F8 journey Valhalla proof regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_journey_probe.py' -v
 
