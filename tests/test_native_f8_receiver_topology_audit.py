@@ -86,5 +86,20 @@ class ReceiverDirectedTopologyAuditTests(unittest.TestCase):
         self.assertEqual(report["observations"][0]["status"], "UNRESOLVED_NO_NEARBY_RECEIVER_INCOMING")
 
 
+class NoRetiredProducerDependencyTests(unittest.TestCase):
+    def test_receiver_native_diagnostics_do_not_import_retired_producers(self):
+        root = Path(__file__).resolve().parents[1]
+        for name in ("audit_native_f8_receiver_topology.py",
+                     "verify_native_f8_receiver_adjacency.py"):
+            code = (root / "tools" / name).read_text(encoding="utf-8")
+            for retired in ("build_frontier_road_inventory",
+                            "build_crossing_candidates",
+                            "refresh_graph_connectivity",
+                            "plan_multiregion_route",
+                            "build_region_connector_matrix",
+                            "roadpilot.runtime-connectivity"):
+                self.assertNotIn(retired, code, f"{name} revived {retired}")
+
+
 if __name__ == "__main__":
     unittest.main()
