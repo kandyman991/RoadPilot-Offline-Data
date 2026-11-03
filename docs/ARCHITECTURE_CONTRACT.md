@@ -13,11 +13,13 @@ This file is the stable behavioral contract for **what must be built**. It is no
 
 **A2 — Work moves, behavior stays.** Graph Studio moves expensive handoff discovery, directional Valhalla proofs and reusable connection inventory production onto the Legion during graph builds/refresh. It must not replace the F8 frontier scan with a narrower search unless *equivalence is demonstrated* using actual F8 graph-edge results.
 
+**A2 scope clarification (D-017, 2026-11-03).** The handoff candidate set is the **terminal edge of each road and direction** where one graph's network ends inside the neighbour's territory, not every directed edge of the overlap. Narrowing the F8 frontier scan this way still requires demonstrated equivalence with the Android F8 graph-edge results (B4). See `docs/F8_TERMINAL_EDGE_HANDOFF.md`.
+
 **A3 — Independent graphs.** Each region remains its own immutable, independently built Valhalla graph. No direct cross-graph sharing/comparison of GraphIds; never modify raw .gph files. RoadPilot composes region-local route legs with independently correlated, exact fingerprint-bound handoffs.
 
 ## B. Discovery completeness
 
-**B1 — No first-success lock-in.** A successful handoff, cached route, learned section, or verified connection is NOT proof that all other connections are known. Continue discovery across every relevant frontier/overlap area. Preserve all valid alternatives (including separate highway carriageways, ramps, both travel directions, separate locations on the same named road, and multi-hop chains).
+**B1 — No first-success lock-in.** A successful handoff, cached route, learned section, or verified connection is NOT proof that all other connections are known. Continue discovery across every relevant frontier/overlap area. Preserve all valid alternatives (including separate highway carriageways, ramps, both travel directions, genuinely distinct road branches, and multi-hop chains). **Reconciled by D-017:** intermediate edges of one continuous directed road path inside an overlap are NOT separate alternatives; one verified terminal connection represents that path. Separate alternatives are separate only when the paths are disconnected, branch apart, or cannot be represented by the same terminal connection (e.g. different carriageway, ramp or direction).
 
 **B2 — No unproven pre-Valhalla rejection.** Heading, geometry gap, road class, road name/ref, nearest distance, and a failed partial route are ranking/diagnostic evidence, not hard eligibility gates. Valhalla is authoritative for directional/mode-specific legality.
 
