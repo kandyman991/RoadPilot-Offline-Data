@@ -188,6 +188,19 @@ class SelectedJourneyTests(unittest.TestCase):
         self.assertTrue(result["twoGraphLocalTracesMatched"])
         self.assertEqual(result["crossSeamTurnLegality"], "NOT_VERIFIED")
 
+    def test_inconclusive_b_journey_keeps_positive_local_turn_evidence(self):
+        def unable_to_complete_b_leg(config, start, destination, mode):
+            result = fake_route(config, start, destination, mode)
+            if result["encodedShape"] == "b-journey":
+                return {"status": "INCONCLUSIVE", "reason": "Routing engine unavailable"}
+            return result
+        result = evaluate(route_fn=unable_to_complete_b_leg)
+        self.assertEqual(result["bLocalTracedTurns"], 3)
+        self.assertEqual(result["twoGraphJourneyObservation"]["status"], "INCONCLUSIVE")
+        self.assertFalse(result["twoGraphLocalTracesMatched"])
+        self.assertEqual(result["outgoingAlternativesEnumerated"], 3)
+        self.assertEqual(result["crossSeamTurnLegality"], "NOT_VERIFIED")
+
     def test_invalid_mode_budget_and_coordinates_fail_closed(self):
         with self.assertRaisesRegex(ValueError, "Unsupported"):
             evaluate(mode="foot")
