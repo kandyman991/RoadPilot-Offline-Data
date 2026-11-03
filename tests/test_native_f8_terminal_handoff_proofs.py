@@ -104,9 +104,12 @@ class TerminalJourneyProofTests(unittest.TestCase):
         result = check_terminal(candidate(), Path("A"), Path("B"),
                                 START, DEST, "auto",
                                 fake_route, traces_for())
-        self.assertEqual(result["status"], "VALIDATED_FOR_THIS_JOURNEY")
+        self.assertEqual(result["status"], "GRAPH_LOCAL_TRACES_MATCHED_FOR_THIS_JOURNEY")
         self.assertEqual(result["actualSourceLastGraphId"], 11)
         self.assertEqual(result["actualReceiverFirstGraphId"], 33)
+        self.assertEqual(result["graphLocalDirectedLegTrace"], "MATCHED_FOR_THIS_JOURNEY_ONLY")
+        self.assertEqual(result["exactCrossGraphDirectedHandoff"], "NOT_VERIFIED")
+        self.assertEqual(result["crossGraphPhysicalContinuity"], "NOT_VERIFIED")
 
     def test_same_coordinate_wrong_source_final_edge_rejected(self):
         result = check_terminal(candidate(), Path("A"), Path("B"),
@@ -127,7 +130,7 @@ class TerminalJourneyProofTests(unittest.TestCase):
         result = check_terminal(candidate(), Path("A"), Path("B"),
                                 START, DEST, "auto",
                                 fake_route, traces_for(second=(22, 33)))
-        self.assertEqual(result["status"], "VALIDATED_FOR_THIS_JOURNEY")
+        self.assertEqual(result["status"], "GRAPH_LOCAL_TRACES_MATCHED_FOR_THIS_JOURNEY")
         rejected = check_terminal(candidate(), Path("A"), Path("B"),
                                   START, DEST, "auto",
                                   fake_route, traces_for(second=(22,)))
@@ -177,7 +180,7 @@ class TerminalJourneyProofTests(unittest.TestCase):
                          START, DEST, "from-to", "auto", 2,
                          fake_route, traces_for(first=(11,)))
         self.assertEqual(report["probed"], 2)
-        self.assertEqual(report["validatedForThisJourneyOnly"], 1)
+        self.assertEqual(report["matchedGraphLocalTracesForThisJourneyOnly"], 1)
         self.assertEqual(
             report["bestOfProbedOnly"]["FASTER"],
             {"sourceDirectedGraphId": 11, "receiverIncomingGraphId": 22},
@@ -217,6 +220,38 @@ class TerminalJourneyProofTests(unittest.TestCase):
                         "build_region_connector_matrix", "plan_multiregion_route",
                         "roadpilot.runtime-connectivity"):
             self.assertNotIn(retired, source)
+
+    def test_ranked_graph_local_result_never_promotes_cross_graph_proof(self):
+        pair, audit, receiver = pair_and_audit()
+        report = inspect(
+            pair, audit, receiver, Path("A"), Path("B"),
+            START, DEST, "from-to", "motorcycle", 1,
+            fake_route, traces_for(),
+        )
+        self.assertEqual(report["matchedGraphLocalTracesForThisJourneyOnly"], 1)
+        self.assertEqual(report["crossGraphPhysicalContinuity"], "NOT_VERIFIED")
+        self.assertEqual(report["handoffTurnLegality"], "NOT_VERIFIED")
+        self.assertEqual(report["routeOptimality"], "NOT_VERIFIED")
+        self.assertEqual(report["productionPublication"], "BLOCKED")
+        self.assertIn("NOT_A_PROVEN_CROSS_GRAPH_ROUTE", report["rankingScope"])
+        self.assertEqual(report["results"][0]["exactCrossGraphDirectedHandoff"],
+                         "NOT_VERIFIED")
+
+    def test_route_engine_inconclusive_is_not_a_negative_crossing_result(self):
+        first = check_terminal(candidate(), Path("A"), Path("B"),
+                               START, DEST, "auto",
+                               lambda *_: {"status": "INCONCLUSIVE"},
+                               traces_for())
+        self.assertEqual(first["status"], "INCONCLUSIVE")
+
+        def second_inconclusive(config, start, end, mode):
+            if str(config) == "B":
+                return {"status": "INCONCLUSIVE"}
+            return leg(start, end)
+        second = check_terminal(candidate(), Path("A"), Path("B"),
+                                START, DEST, "auto",
+                                second_inconclusive, traces_for())
+        self.assertEqual(second["status"], "INCONCLUSIVE")
 
     def test_invalid_coordinates_rejected(self):
         for coords in ({"lat": float("nan"), "lng": 13.7},

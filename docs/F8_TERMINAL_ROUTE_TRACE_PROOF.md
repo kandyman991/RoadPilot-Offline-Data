@@ -1,6 +1,7 @@
 # F8 terminal handoff directed-route proof (increment 1)
 
 **Status:** Diagnostic, read-only, opt-in. Not a production crossing producer.
+**PR #107 review correction:** Matched graph-local traces are **not** a validated inter-graph transition. Previous success labels overstated the proof scope.
 **Development owner:** Graph Studio. Source of record: current `main` after PR #106.
 **Architecture boundary:** D-017 / PR #105 remains a separate, unmerged
 design draft. This increment does not adopt, merge or implement that PR.
@@ -39,7 +40,7 @@ checksum-retained receiver topology and native outgoing-edge snapshots
 from PR #106, checks receiver-directed identity, and builds a **bounded
 journey-scoped candidate order** without overwriting or publishing data.
 
-A selected hypothesis is proven for one journey only when:
+A selected hypothesis has **matched graph-local route traces for one journey** only when:
 
 1. Graph A's actual route ends at the requested terminal (1 m tolerance).
 2. Graph A's **last traced directed edge** equals the nominated source edge.
@@ -54,10 +55,10 @@ A selected hypothesis is proven for one journey only when:
    start/destination; nonzero reported offsets, trace failures and
    mismatches remain explicit.
 
-**Scope caution:** The 1 m threshold is a *positive proof gate*, not a
+**Scope caution:** The 1 m threshold is an *experimental graph-local trace match gate*, not a
 discovery eligibility filter. All unprobed candidates remain unproven.
 An existing route starting exactly at the receiving node cannot by
-itself prove inter-graph turn restrictions; those remain `NOT_VERIFIED`
+itself prove inter-graph physical continuity or turn restrictions; those remain `NOT_VERIFIED`
 even if an individual two-leg trace passes. F8 parity and global
 FASTEST/SHORTEST optimality are also unverified.
 
@@ -129,3 +130,26 @@ Source/pair fingerprints and retention identities are preserved.
 Until then: `coverage=NOT_VERIFIED`,
 `androidF8Parity=NOT_VERIFIED`, `handoffTurnLegality=NOT_VERIFIED`,
 `productionPublication=BLOCKED`.
+
+
+## Review correction after PR #107
+
+The original probe labeled two matching graph-local traces
+VALIDATED_FOR_THIS_JOURNEY and set
+exactCrossGraphDirectedHandoff=VALIDATED_FOR_THIS_JOURNEY_ONLY.
+That was stronger than the evidence: it did not check whether the last
+physical road portion in Graph A was present as directed traversable geometry
+in Graph B, nor cross-seam turn restrictions.
+
+The corrected diagnostic returns
+status=GRAPH_LOCAL_TRACES_MATCHED_FOR_THIS_JOURNEY,
+graphLocalDirectedLegTrace=MATCHED_FOR_THIS_JOURNEY_ONLY, and
+exactCrossGraphDirectedHandoff=NOT_VERIFIED. Ranking remains explicitly
+within successfully *matched graph-local traces*, not among verified
+cross-graph routes. Inconclusive route-engine responses remain
+INCONCLUSIVE rather than being misclassified as negative proofs.
+
+Physical continuity must be assessed using graph-native directed road geometry,
+allowing different node subdivisions inside the two independent graphs.
+A matching endpoint within 1 metre must **not** become a production discovery
+eligibility rule; all nonmatching/unprobed alternatives remain unresolved.

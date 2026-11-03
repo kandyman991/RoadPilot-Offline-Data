@@ -140,7 +140,7 @@ def check_terminal(
     start: dict, destination: dict, mode: str,
     route_fn: Callable = route, trace_fn: Callable = trace_directed_ids,
 ) -> dict:
-    """Require source terminal trace AND verified receiver continuation trace."""
+    """Check two graph-local traces; never assert physical cross-graph continuity."""
     if mode not in MODES:
         raise ValueError("Unsupported vehicle mode")
     base = {
@@ -148,6 +148,8 @@ def check_terminal(
         "receiverIncomingGraphId": candidate["receiverIncomingGraphId"],
         "mode": mode, "coordinate": candidate["handoff"],
         "exactCrossGraphDirectedHandoff": "NOT_VERIFIED",
+        "crossGraphPhysicalContinuity": "NOT_VERIFIED",
+        "graphLocalDirectedLegTrace": "NOT_VERIFIED",
     }
     point = candidate["handoff"]
     matched = distance(point, candidate["receiverEnd"])
@@ -155,7 +157,8 @@ def check_terminal(
     try:
         first = route_fn(config_a, start, point, mode)
         if first["status"] != "SUCCEEDED":
-            return {**base, "status": "UNPROVEN", "reason": "Graph A route failed"}
+            status = "INCONCLUSIVE" if first["status"] == "INCONCLUSIVE" else "UNPROVEN"
+            return {**base, "status": status, "reason": "Graph A route did not succeed"}
         if (first["startOffsetMeters"] > ARRIVAL_TOLERANCE_METERS
                 or first["endOffsetMeters"] > EXACT_HANDOFF_TOLERANCE_METRES):
             return {**base, "status": "UNPROVEN",
@@ -171,7 +174,8 @@ def check_terminal(
 
         second = route_fn(config_b, first["endActual"], destination, mode)
         if second["status"] != "SUCCEEDED":
-            return {**base, "status": "UNPROVEN", "reason": "Graph B route failed",
+            status = "INCONCLUSIVE" if second["status"] == "INCONCLUSIVE" else "UNPROVEN"
+            return {**base, "status": status, "reason": "Graph B route did not succeed",
                     "actualSourceLastGraphId": a_edges[-1]}
         if (second["startOffsetMeters"] > EXACT_HANDOFF_TOLERANCE_METRES
                 or second["endOffsetMeters"] > ARRIVAL_TOLERANCE_METERS
@@ -212,8 +216,8 @@ def check_terminal(
                     "actualSourceLastGraphId": a_edges[-1],
                     "actualReceiverFirstGraphId": receiver_first}
         return {
-            **base, "status": "VALIDATED_FOR_THIS_JOURNEY",
-            "exactCrossGraphDirectedHandoff": "VALIDATED_FOR_THIS_JOURNEY_ONLY",
+            **base, "status": "GRAPH_LOCAL_TRACES_MATCHED_FOR_THIS_JOURNEY",
+            "graphLocalDirectedLegTrace": "MATCHED_FOR_THIS_JOURNEY_ONLY",
             "actualSourceLastGraphId": a_edges[-1],
             "actualReceiverFirstGraphId": receiver_first,
             "durationSeconds": first["durationSeconds"] + second["durationSeconds"],
@@ -257,7 +261,8 @@ def inspect(
                        route_fn, trace_fn)
         for candidate in chosen
     ]
-    passed = [r for r in results if r["status"] == "VALIDATED_FOR_THIS_JOURNEY"]
+    passed = [r for r in results
+              if r["status"] == "GRAPH_LOCAL_TRACES_MATCHED_FOR_THIS_JOURNEY"]
     return {
         "schema": "roadpilot.native-f8-terminal-route-probe", "version": 0,
         "pairId": pair["pairId"],
@@ -267,7 +272,8 @@ def inspect(
         "terminalHypothesesInProvisionalCatalog": len(pool),
         "selection": "EXPLICIT_DIRECTED_PAIR" if focused_identity else "JOURNEY_DISTANCE_RANKED",
         "probed": len(results), "unprobed": len(pool) - len(results),
-        "validatedForThisJourneyOnly": len(passed),
+        "matchedGraphLocalTracesForThisJourneyOnly": len(passed),
+        "rankingScope": "MATCHED_GRAPH_LOCAL_TRACES_ONLY_NOT_A_PROVEN_CROSS_GRAPH_ROUTE",
         "results": results,
         "bestOfProbedOnly": {
             style: (
@@ -282,6 +288,7 @@ def inspect(
                 ))) if passed else None)
             for style in ("FASTER", "SHORTER")
         },
+        "crossGraphPhysicalContinuity": "NOT_VERIFIED",
         "handoffTurnLegality": "NOT_VERIFIED",
         "coverage": "NOT_VERIFIED", "androidF8Parity": "NOT_VERIFIED",
         "routeOptimality": "NOT_VERIFIED",
