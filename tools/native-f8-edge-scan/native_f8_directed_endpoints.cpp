@@ -115,6 +115,7 @@ int main(int argc, char** argv) {
             end_tile->id().tileid(), end_tile->id().level(),
             node->edge_index() + edge->opp_index());
         std::cout << ",\"opposingGraphId\":" << reverse.value;
+        std::cout << ",\"nativeOutgoingDegree\":" << node->edge_count();
         std::cout << ",\"outgoingDirectedEdges\":[";
         for (uint32_t offset = 0; offset < node->edge_count(); ++offset) {
           const valhalla::baldr::GraphId other(
