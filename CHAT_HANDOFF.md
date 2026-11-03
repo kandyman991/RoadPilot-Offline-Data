@@ -1,6 +1,14 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
 
+## P4-C — archive the legacy validators and schemas behind wrappers (2026-11-03)
+
+- Owner-authorized (scope: the 11 legacy validators and their schemas; method: archive with tested wrappers). Branch `archive/legacy-validators-20261103`, a **draft PR stacked on the retirement-record PR; no merge, release or deletion of data authorized**.
+- Validators moved unchanged to `tools/legacy_archive/connectivity/`; thin wrappers keep the original CLI paths. The ten legacy schemas moved byte-identically to `schemas/legacy_archive/connectivity/` (a JSON file cannot be wrapped, so that path change needs owner confirmation). The active pair-manifest schema, `validate_cross_region_connectivity.py` and all native F8 tools are untouched. Decision D-016; details in `docs/GRAPH_STUDIO_PHASE4C_ARCHIVE_LEGACY_VALIDATORS.md`.
+- Evidence: 151 Python tests OK locally, including the existing byte-exact historical CLI gates and 9 new wrapper tests with a pre-archive baseline. Not exercised: installed AppImage/.deb, the `linux` packaging workflow result, the Legion GUI Legacy tab, external callers (UNKNOWN).
+- **Next exact action:** owner reviews the stacked draft PR, confirms the schema path change, and runs the P4-D acceptance (exact-head CI, packaged-app smoke, Legion GUI check). Do not merge before that.
+
+
 ## Retired-architecture documentation cleanup (2026-11-03)
 
 - Branch `docs/retire-osm-first-architecture-20261103` from main `48f5e79` (draft PR; **documentation only**; no merge, release or deletion authorized). It follows an independent review that stopped an F8 design which had drifted toward the retired runtime-connectivity and candidate-pair format.

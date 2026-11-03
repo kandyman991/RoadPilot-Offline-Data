@@ -163,3 +163,17 @@ Tracking: Graph Studio #82 and #73; Android #512. Cleanup PR pending.
 - No Android change, new producer, schema, publication or merge is authorized by this record.
 
 Reference: D-012, D-013, D-014; `docs/ARCHITECTURE_CONTRACT.md`; `docs/GRAPH_STUDIO_PHASE4_DEPENDENCY_AUDIT.md`; issues #73, #82; Android #512.
+
+
+## D-016 — Archive the 11 legacy connectivity validators and their schemas behind compatibility wrappers (2026-11-03)
+
+**Owner-authorized on 2026-11-03** (scope: the 11 legacy validators and their schemas; method: archive with tested wrappers). This is the Phase 4 P4-C step; it is a separate, stacked draft PR and is **not merged**.
+
+- The unchanged validators moved to `tools/legacy_archive/connectivity/`. Each original `tools/validate_*.py` path stays as a thin wrapper that runs the archived file with the same arguments, output and exit codes. The archive sits under `tools/` so the existing packaging mapping (`../../tools/` to `pipeline/tools/`) ships it with no packaging change.
+- The ten legacy schemas moved to `schemas/legacy_archive/connectivity/` byte-identically (`$id` unchanged); `schemas/` is already mapped into the packages. **A JSON file cannot be wrapped**, so the old top-level schema paths no longer exist. No tracked code reads them (the validators hand-check their inputs). Any external reader of those paths is UNKNOWN; the owner is asked to confirm this one path change in PR review.
+- Not changed: `roadpilot.cross-region-connectivity` (the active pair manifest), `validate_cross_region_connectivity.py`, all native F8 tools, the historical viewers and readers, `devtools/`, saved workspace evidence, Android.
+- Rollback: revert the PR. The files are moved with Git history preserved.
+- Acceptance still required before any merge (P4-D): exact-head CI, installed AppImage/.deb smoke, and a Legion GUI check of the Legacy tab. External and manual callers remain UNKNOWN, not zero.
+
+Reference: D-014, D-015; `docs/GRAPH_STUDIO_PHASE4C_ARCHIVE_LEGACY_VALIDATORS.md`.
+

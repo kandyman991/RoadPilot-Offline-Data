@@ -1,0 +1,227 @@
+{
+  "originalSchemaSha256": {
+    "connectivity-chain-plan": "c746b58895e7147c8034104254a982b08f87060f8d4867030ebf574bf27ba072",
+    "connectivity-refresh-plan": "8b993fe75e501e0ec3041dde152709d0ed85618d0c476a1eb8c3f6df94cc2e83",
+    "crossing-candidates": "ba181431765011e7a6c88f4f9a708e47cf6c002c2ad7086c437bf08c1a4a3cad",
+    "crossing-proofs": "8b3bf3464888457f467dd3a41f49964e15787cc5208d765cfb1c8a63de9625bf",
+    "frontier-road-correlations": "ef1343613056046df15beb02be6993f8573437dc86ef8bec7d2df69c08739107",
+    "frontier-road-inventory": "7dbd437982b58c58516b9964694d2a43f4808f024e7e02143c7d58c680015ea0",
+    "hierarchical-connectivity-plan": "4c7ee7aa646bf6c4faa4f275234399eeab8ba2c3627281a595be71ee6e7b4910",
+    "region-connector-inventory": "d5155eb9d27c36c03353b69148c1ec92d0c0fe8766c5d7bea76bc90349366eb8",
+    "region-connector-matrix": "91118459629510a5c50292c410852827f3f6ef96ef2edfa52f1ac11697161991",
+    "runtime-connectivity": "1d8439ce54491b874b8586c2631b2bd6884ab306d6c66cfdc1365441cd0feafb"
+  },
+  "originalValidatorSha256": {
+    "validate_connectivity_chain_plan": "863d79808a423f0235fd8042f5cdf7b4feea95b07e1e8df7210824a23f3d77b7",
+    "validate_connectivity_refresh_plan": "6ff85face1973506d3a6139c9c91062df7a95e8e5a76e9483a3481912a137b7e",
+    "validate_crossing_candidates": "738dfadc0f8aed077c5f9fe6ac70ee50eb0ded293e9915197cd1ae86f70839d9",
+    "validate_crossing_proofs": "a21f58bbc99087bd30b7f001fb6828c939bb5ade716e6dd4d671945a02f436f1",
+    "validate_frontier_road_correlations": "895278c829f7324eaf9c3330a5ec0fa3331eec77044f3eb1b5ebcd5b318f4a2d",
+    "validate_frontier_road_inventory": "ec9aaf917eaae7cdd704c006a05efa47a632dd9522b76e453a7fd06e2ce6110c",
+    "validate_hierarchical_connectivity_plan": "8fde4a608c4eed3c1a392652c707a3a6a3193b57fcaf985739b0d6f4e3d4bcc9",
+    "validate_region_connector_inventory": "472afa484199a279922ff99316746481b671ad113b6a178c3b33f4fcc90c93d1",
+    "validate_region_connector_matrix": "6399649c6491fd93c495ec9ee1dc52268aa57b9ac3e83a70e3b5a4d04aefddfa",
+    "validate_region_connector_refresh_plan": "2264b6d5e67d95edc2c0dc7674f7129af8d2fc1e642a95490ee7d79dace0c991",
+    "validate_runtime_connectivity": "07bdd60dfa44a8422c6566cac654fdebd56c8884c8d33582d31da01c82399d28"
+  },
+  "provenance": "captured from the pre-archive tools/*.py at main 48f5e79; run with an absolute script path from a neutral cwd; missing_input compares exit code and final stderr line only because tracebacks contain machine paths",
+  "scenarios": {
+    "help": [
+      "--help"
+    ],
+    "missing_input": [
+      "--artifact",
+      "/nonexistent/input.json"
+    ],
+    "no_args": []
+  },
+  "validators": {
+    "validate_connectivity_chain_plan": {
+      "help": {
+        "exitCode": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdoutSha256": "b6b0b696ac562262be4310c4181918fff642a4931f7a5a7faef19278165bc55f"
+      },
+      "missing_input": {
+        "exitCode": 1,
+        "lastStderrLine": "FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/input.json'",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "no_args": {
+        "exitCode": 2,
+        "stderrSha256": "5500eb53e34d3f7b44af1bb6e841f31189376264806ec69542c00dde68d626d4",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "validate_connectivity_refresh_plan": {
+      "help": {
+        "exitCode": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdoutSha256": "895ce2ed779d116c25c3f7ef9981a16dac2a656ca10cd32d26679975bbd765b2"
+      },
+      "missing_input": {
+        "exitCode": 1,
+        "lastStderrLine": "FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/input.json'",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "no_args": {
+        "exitCode": 2,
+        "stderrSha256": "3366513fbfddff67aa62da579298d234fed4beaef760a5d72aa2b5ecc93a0168",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "validate_crossing_candidates": {
+      "help": {
+        "exitCode": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdoutSha256": "afe6716509d63239349b22be5f455d2ad0f10aabac56ed4a3866cd4c0c92750b"
+      },
+      "missing_input": {
+        "exitCode": 1,
+        "lastStderrLine": "FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/input.json'",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "no_args": {
+        "exitCode": 2,
+        "stderrSha256": "c61b3aae0cb915917d6c1ab2e24070559783ec10304b9c03acc081153cc96fcc",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "validate_crossing_proofs": {
+      "help": {
+        "exitCode": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdoutSha256": "adca2affbf4b9021d5b34afd8dae464e93fda7738c60385994dce282a74a627c"
+      },
+      "missing_input": {
+        "exitCode": 1,
+        "lastStderrLine": "FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/input.json'",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "no_args": {
+        "exitCode": 2,
+        "stderrSha256": "7fc4a01645040c90b75bdb1f962a4323bbd021d2d7af9323327cca64179f38c0",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "validate_frontier_road_correlations": {
+      "help": {
+        "exitCode": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdoutSha256": "77ecbef28eada0d35ffa6be11a723ab5688c2dbff42d0481f5fae68de2bab36f"
+      },
+      "missing_input": {
+        "exitCode": 1,
+        "lastStderrLine": "FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/input.json'",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "no_args": {
+        "exitCode": 2,
+        "stderrSha256": "10ce6078d8f23afb30b7d5775ebc0321fef533f1631120d60f7eeff2f600250e",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "validate_frontier_road_inventory": {
+      "help": {
+        "exitCode": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdoutSha256": "d32d4b3151d1b468183ba622bde6081d6b1000274348f9a0eb9055c5a5b35a3e"
+      },
+      "missing_input": {
+        "exitCode": 2,
+        "lastStderrLine": "validate_frontier_road_inventory.py: error: the following arguments are required: --inventory",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "no_args": {
+        "exitCode": 2,
+        "stderrSha256": "8d7aca44a059f5ad480bdbbba80d30b8583179c93aa369356fa528eeb6fb05ac",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "validate_hierarchical_connectivity_plan": {
+      "help": {
+        "exitCode": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdoutSha256": "1e8457cb5434b8209d369b9e71d5fdd7216cd203a4d08d85e9a4e03ccd382504"
+      },
+      "missing_input": {
+        "exitCode": 1,
+        "lastStderrLine": "FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/input.json'",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "no_args": {
+        "exitCode": 2,
+        "stderrSha256": "aedfa0e612535356d2ed59a9c41be4db28b76d0476889e8813694f55c995b210",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "validate_region_connector_inventory": {
+      "help": {
+        "exitCode": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdoutSha256": "c543ce71b74900e711435c448a75887ba1c31750b3ff66921e6f6433b68f1c3f"
+      },
+      "missing_input": {
+        "exitCode": 1,
+        "lastStderrLine": "FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/input.json'",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "no_args": {
+        "exitCode": 2,
+        "stderrSha256": "e4f8166410ffdd8d00c4ad0c7ccf176c7a6e84f6440a16b2441d001301120559",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "validate_region_connector_matrix": {
+      "help": {
+        "exitCode": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdoutSha256": "158bb64ef849a0b6d65b3c5f8adb2ff4be30415ecd938b871b1c5e194fa69b96"
+      },
+      "missing_input": {
+        "exitCode": 1,
+        "lastStderrLine": "FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/input.json'",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "no_args": {
+        "exitCode": 2,
+        "stderrSha256": "e0b0d40a77957138b9dcdbad842e3051a5ae1886b1a155d9ec6d3690af11093f",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "validate_region_connector_refresh_plan": {
+      "help": {
+        "exitCode": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdoutSha256": "cb881b4da30f4ac88afe8a6e465cb374979961b40e7ff2029ab62801e452219f"
+      },
+      "missing_input": {
+        "exitCode": 1,
+        "lastStderrLine": "FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/input.json'",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "no_args": {
+        "exitCode": 2,
+        "stderrSha256": "b82a120c0c2c1798dd0d2794ebc0a4def2783109d169ce3336aacba9f19e2ce8",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "validate_runtime_connectivity": {
+      "help": {
+        "exitCode": 0,
+        "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdoutSha256": "9b61566988422ad5d3eb61bb2b2fb6d327a7faec87272ac0e68b5d820dc3dbaf"
+      },
+      "missing_input": {
+        "exitCode": 1,
+        "lastStderrLine": "FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/input.json'",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "no_args": {
+        "exitCode": 2,
+        "stderrSha256": "8f730bee6a9d1a995981b5eaa3e9c029645910a0d85da1efdcd2c8ef1ff6fd0e",
+        "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  }
+}
