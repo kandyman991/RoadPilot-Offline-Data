@@ -11,7 +11,13 @@ Consider a road connecting Italy and Austria.
 4. That edge has an exact corresponding road connection in the Austrian graph.
 5. RoadPilot routes to that point using the Italian graph and continues using the Austrian graph.
 
-Each leg is proven by Valhalla. F8 on Android remains the correctness fallback. All valid alternatives are kept (carriageways, ramps, both directions, separate locations on one named road, multi-hop chains).
+Each leg is proven by Valhalla. F8 on Android remains the correctness fallback. One matching terminal connection is sufficient for one continuous directed road path; intermediate edges along it are not separate crossings (the simulated Brenner corridor's 266 A13 edges are one path, not 266 alternatives). Distinct alternatives are kept only for genuinely different branches, disconnected paths, separate carriageways or ramps, and opposite directions (each with its own directed terminal connection), plus multi-hop chains.
+
+## Responsibilities
+- Graph Studio: discover roads linking overlapping graphs; identify their terminal directed connections; verify the corresponding connection in the receiving graph; store the validated crossing; preserve distinct branches and directions.
+- RoadPilot: select precomputed crossings for the journey; route with the existing regional graphs; reuse validated crossings without repeating discovery.
+
+The S1/M3 simulation of the legacy Android scan describes the old algorithm only and is not a requirement for an intermediate-crossing inventory.
 
 ## Why the old wording was wrong
 The documented scan kept every directed edge of the overlap (323,372 Italy / 334,973 Austria edges on the Italy-NE / Austria pair). Almost all are interior edges that cannot be a handoff, because both graphs continue past them. That scope is inherited from the retired buffered-overlap sampler (D-014).

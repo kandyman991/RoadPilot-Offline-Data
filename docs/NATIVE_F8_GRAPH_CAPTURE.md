@@ -114,8 +114,9 @@ actual Android/native evidence exists.
    prior exhaustive scan. The October 14 native run predates this CLI cleanup.
 2. Export true reference Android F8 directed scanner results (both modes and
    travel directions) for the same graph versions.
-3. Explain or recover missing F8 alternatives, including distinct crossings
-   of the same named road and multi-region chains.
+3. Explain or recover missing F8 alternatives, including distinct branches
+   and multi-region chains. Intermediate edges of one continuous directed road
+   path are represented by its terminal connection (D-017).
 4. Optimize window scan startup only after parity evidence is captured.
 5. Implement native graph-backed crossing creation and directional Valhalla
    proof, not a revival of old OSM sampling.

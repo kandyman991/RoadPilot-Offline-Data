@@ -19,7 +19,7 @@ This file is the stable behavioral contract for **what must be built**. It is no
 
 ## B. Discovery completeness
 
-**B1 — No first-success lock-in.** A successful handoff, cached route, learned section, or verified connection is NOT proof that all other connections are known. Continue discovery across every relevant frontier/overlap area. Preserve all valid alternatives (including separate highway carriageways, ramps, both travel directions, separate locations on the same named road, and multi-hop chains).
+**B1 — No first-success lock-in.** A successful handoff, cached route, learned section, or verified connection is NOT proof that all other connections are known. Continue discovery across every relevant frontier/overlap area. Preserve all valid alternatives (including separate highway carriageways, ramps, both travel directions, genuinely distinct road branches, and multi-hop chains). **Reconciled by D-017:** intermediate edges of one continuous directed road path inside an overlap are NOT separate alternatives; one verified terminal connection represents that path. Separate alternatives are separate only when the paths are disconnected, branch apart, or cannot be represented by the same terminal connection (e.g. different carriageway, ramp or direction).
 
 **B2 — No unproven pre-Valhalla rejection.** Heading, geometry gap, road class, road name/ref, nearest distance, and a failed partial route are ranking/diagnostic evidence, not hard eligibility gates. Valhalla is authoritative for directional/mode-specific legality.
 
