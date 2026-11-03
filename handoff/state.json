@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-11-03T20:45:49.311Z",
+  "generatedAt": "2026-11-03T21:23:31.659Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,9 +11,9 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "a3f410867f244c840a2eaef337c5f8f4cdc8eee0",
-    "message": "Merge pull request #106 from kandyman991/diagnostics/f8-terminal-source-audit-20261103\n\ndiag(f8): graph-native terminal endpoints and receiver-directed adjacency audit",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/a3f410867f244c840a2eaef337c5f8f4cdc8eee0"
+    "sha": "8c94702edfd73df9bb83a434a54da85aa40754c8",
+    "message": "Merge pull request #107 from kandyman991/feature/f8-terminal-route-proof-20261103\n\ntest(f8): exact source/receiver directed terminal journey proof",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/8c94702edfd73df9bb83a434a54da85aa40754c8"
   },
   "openPullRequests": [
     {
@@ -101,36 +101,102 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 41715527974,
+      "id": 41721350820,
+      "name": "Validate offline-data repository",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "8c94702edfd73df9bb83a434a54da85aa40754c8",
+      "event": "push",
+      "updatedAt": "2026-11-03T21:23:26Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41721350820"
+    },
+    {
+      "id": 41721350810,
+      "name": "F8 Architecture Contract",
+      "status": "in_progress",
+      "conclusion": null,
+      "branch": "main",
+      "headSha": "8c94702edfd73df9bb83a434a54da85aa40754c8",
+      "event": "push",
+      "updatedAt": "2026-11-03T21:23:26Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41721350810"
+    },
+    {
+      "id": 41721350761,
       "name": "Build RoadPilot Graph Studio",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "8c94702edfd73df9bb83a434a54da85aa40754c8",
+      "event": "push",
+      "updatedAt": "2026-11-03T21:23:26Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41721350761"
+    },
+    {
+      "id": 41719820910,
+      "name": "F8 Architecture Contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/f8-terminal-route-proof-20261103",
+      "headSha": "dbb9c768d84798c685c4ae2f07bdd72cb05a9b0e",
+      "event": "pull_request",
+      "updatedAt": "2026-11-03T21:13:53Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41719820910"
+    },
+    {
+      "id": 41719820888,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/f8-terminal-route-proof-20261103",
+      "headSha": "dbb9c768d84798c685c4ae2f07bdd72cb05a9b0e",
+      "event": "pull_request",
+      "updatedAt": "2026-11-03T21:17:36Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41719820888"
+    },
+    {
+      "id": 41719820596,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "feature/f8-terminal-route-proof-20261103",
+      "headSha": "dbb9c768d84798c685c4ae2f07bdd72cb05a9b0e",
+      "event": "pull_request",
+      "updatedAt": "2026-11-03T21:21:43Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41719820596"
+    },
+    {
+      "id": 41715527974,
+      "name": "Build RoadPilot Graph Studio",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "a3f410867f244c840a2eaef337c5f8f4cdc8eee0",
       "event": "push",
-      "updatedAt": "2026-11-03T20:45:45Z",
+      "updatedAt": "2026-11-03T20:53:37Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41715527974"
     },
     {
       "id": 41715527970,
       "name": "F8 Architecture Contract",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "a3f410867f244c840a2eaef337c5f8f4cdc8eee0",
       "event": "push",
-      "updatedAt": "2026-11-03T20:45:46Z",
+      "updatedAt": "2026-11-03T20:46:07Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41715527970"
     },
     {
       "id": 41715527881,
       "name": "Validate offline-data repository",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "a3f410867f244c840a2eaef337c5f8f4cdc8eee0",
       "event": "push",
-      "updatedAt": "2026-11-03T20:45:46Z",
+      "updatedAt": "2026-11-03T20:49:37Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41715527881"
     },
     {
@@ -143,72 +209,6 @@
       "event": "pull_request",
       "updatedAt": "2026-11-03T20:36:38Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41714108301"
-    },
-    {
-      "id": 41714108290,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "diagnostics/f8-terminal-source-audit-20261103",
-      "headSha": "46ec20af4db293e9b27a2ce5576bb976d31ba382",
-      "event": "pull_request",
-      "updatedAt": "2026-11-03T20:44:54Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41714108290"
-    },
-    {
-      "id": 41714108264,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "diagnostics/f8-terminal-source-audit-20261103",
-      "headSha": "46ec20af4db293e9b27a2ce5576bb976d31ba382",
-      "event": "pull_request",
-      "updatedAt": "2026-11-03T20:40:18Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41714108264"
-    },
-    {
-      "id": 41713721596,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "diagnostics/f8-terminal-source-audit-20261103",
-      "headSha": "e3973704dfb41bd80382bee990c32eeb85306cae",
-      "event": "pull_request",
-      "updatedAt": "2026-11-03T20:36:40Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41713721596"
-    },
-    {
-      "id": 41713721541,
-      "name": "F8 Architecture Contract",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "diagnostics/f8-terminal-source-audit-20261103",
-      "headSha": "e3973704dfb41bd80382bee990c32eeb85306cae",
-      "event": "pull_request",
-      "updatedAt": "2026-11-03T20:34:06Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41713721541"
-    },
-    {
-      "id": 41713721540,
-      "name": "Validate offline-data repository",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "diagnostics/f8-terminal-source-audit-20261103",
-      "headSha": "e3973704dfb41bd80382bee990c32eeb85306cae",
-      "event": "pull_request",
-      "updatedAt": "2026-11-03T20:37:43Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41713721540"
-    },
-    {
-      "id": 41708091500,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "diagnostics/f8-terminal-source-audit-20261103",
-      "headSha": "ae4d302287eaac182fc32d85741708c3b038fe56",
-      "event": "pull_request",
-      "updatedAt": "2026-11-03T20:05:33Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/41708091500"
     }
   ]
 }
