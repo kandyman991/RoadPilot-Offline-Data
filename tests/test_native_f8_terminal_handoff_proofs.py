@@ -221,6 +221,22 @@ class TerminalJourneyProofTests(unittest.TestCase):
                         "roadpilot.runtime-connectivity"):
             self.assertNotIn(retired, source)
 
+    def test_ranked_graph_local_result_never_promotes_cross_graph_proof(self):
+        pair, audit, receiver = pair_and_audit()
+        report = inspect(
+            pair, audit, receiver, Path("A"), Path("B"),
+            START, DEST, "from-to", "motorcycle", 1,
+            fake_route, traces_for(),
+        )
+        self.assertEqual(report["matchedGraphLocalTracesForThisJourneyOnly"], 1)
+        self.assertEqual(report["crossGraphPhysicalContinuity"], "NOT_VERIFIED")
+        self.assertEqual(report["handoffTurnLegality"], "NOT_VERIFIED")
+        self.assertEqual(report["routeOptimality"], "NOT_VERIFIED")
+        self.assertEqual(report["productionPublication"], "BLOCKED")
+        self.assertIn("NOT_A_PROVEN_CROSS_GRAPH_ROUTE", report["rankingScope"])
+        self.assertEqual(report["results"][0]["exactCrossGraphDirectedHandoff"],
+                         "NOT_VERIFIED")
+
     def test_route_engine_inconclusive_is_not_a_negative_crossing_result(self):
         first = check_terminal(candidate(), Path("A"), Path("B"),
                                START, DEST, "auto",
