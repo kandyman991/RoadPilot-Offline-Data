@@ -1,5 +1,77 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Active production continuation — PR #122 source-cut window coverage (2026-11-04)
+
+Dedicated PR #122 technical review corrected missing original Car/Motorcycle
+TripLeg sequence validation, short Austrian original final edge fallback
+reconciliation, source path proof counters and native JSON streaming limits.
+Re-ran actual immutable graph evidence with byte-identical SHA result and
+390/390 local tests PASS. Documented in
+docs/F8_PR122_TECHNICAL_REVIEW_20261104.md. Merge only after corrected
+exact-head GitHub CI; keep Graph Studio #73/#82 and RoadPilot #512 open.
+
+PR #121 merged, main d8fc29b then ea0afc0 handoff refresh. PR #122
+`feature/f8-physical-final-edge-id-20261104` is **DRAFT, unmerged**.
+The previous session left two uncommitted original SOURCE window-cut-census
+files and already-generated immutable v3 results. This recovery preserved
+those files, added a strict standalone source-side reconciliation tool,
+regressions and documented exact coverage gaps in
+`docs/F8_SOURCE_CUT_WINDOW_COVERAGE_AUDIT.md`.
+
+The 3,623 common-overlap native scan windows capture 658,345 unique original
+directed IDs, but they do **not enumerate all tiles in either original graph**.
+At the SHA-bound original 25-km source buffers 880 captured directed edges
+intersect the source cut (Italy 593, Austria 287). 331 have a known
+source direct-final/precursor link; 549 remain unresolved, including 159
+outward. Importantly 34 additional SHA-verified beyond-cut predecessor IDs
+were absent from window scans (Italy 18, Austria 16). They MUST NOT be
+silently excluded. Two predecessor branches remain depth-bounded unresolved.
+Source-only reconciliation report
+`~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/source-cut-coverage-reconciliation-v1.json`
+SHA256 `652c3efe77ebf3d60ae3e7be24e7d454279ba5b91ac5c6225d97596db3e68ecf`.
+Full 379-test Legion suite passes when the venv bin directory is on PATH.
+
+**NEXT EXACT PRODUCTION GATE:** Independently enumerate all original
+GraphReader tiles and directed road edges from both immutable original
+archives; reconcile every source cut edge and original branch with exactly
+one final retained original directed GraphId per physical road/direction.
+Only after that is complete begin receiving-B matching. Do not revive OSM
+samplers, same-name/way grouping, connector matrices, intermediate crossing
+point grids, or first-success. No graph changes, sidecar or Android release.
+Leave Graph Studio #73/#82 and Android #512 open. PR #122 requires review,
+new exact-head CI and owner authorization before merge.
+
+## After PR #121 merge — source-only last physical-road-edge census (2026-11-04)
+
+Owner explicitly authorized and the GitHub exact-head architecture, Linux and
+validate checks PASSED; **PR #121 MERGED into main** at
+d8fc29bc5bfff59fbb0e297e05fa9111f31ae8bb.
+The new source-only worktree from this actual merged main is
+feature/f8-physical-final-edge-id-20261104; any ensuing PR must remain
+DRAFT until separately authorized. NO receiving B graph work in this branch.
+
+Source-only immutable original Italy Nord-Est/Austria evidence now reconciles
+all 658,345 original native directed scan IDs, full exact mode-stranded IDs,
+68,784 unique Car/Motorcycle union node-stop GraphIds, reachable hierarchy
+branches and original source 25-km cut geometry. 251 final native directed
+shapes intersect the cut; another 49 final directed shapes wholly beyond cut
+are connected from native cut-crossing ORIGINAL predecessor chains. Together
+300 distinct *SOURCE* original last-edge candidate IDs each pass original
+Valhalla TripLeg final directed GraphId for BOTH Car and Motorcycle: 600/600
+mode-edge pairs, including 3.4m last edge with exact original predecessor
+TripLeg. At least 24,386 source candidates have hierarchy alternatives,
+including cases with local route success; two beyond-cut branches hit the
+bounded predecessor traversal depth. Do NOT claim global one-edge-per-real-
+physical-road equivalence, border completeness, legal A→X→B or Android
+JNI parity. No original .gph or production producer changed.
+Detailed source SHA file inventory and open blockers:
+docs/F8_SOURCE_FINAL_EDGE_IDENTIFICATION_PROGRESS.md.
+Source-side verification != physical-road uniqueness: the next hard gate
+is proving EVERY physical road/direction across the correct shared 25-km
+overlap has exactly ONE final original directed edge without grouping
+OSM way/name. Retain every unresolved candidate, ramps, branches and modes.
+Receiving-graph correlation is NOT_STARTED, publication BLOCKED.
+
 ## Production direction reset: ONE final original directed edge per physical road/direction (2026-11-04)
 
 The owner rejected expansion of full road reconstruction/journey diagnostics

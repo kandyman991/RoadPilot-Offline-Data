@@ -18,3 +18,23 @@ These explicitly declared legacy gaps make the contract honest while safeguards 
 **Status clarification (2026-11-01, Phase 4 PR #95):** Removed producer/planner file status is a tracked-source observation, not proof of F8 parity, Android adoption, completion, or safe removal of historical readers. The acceptance gaps below remain OPEN.
 
 **Promotion policy:** only close a row with direct tests and evidence linked to the actual graph versions/commit SHA. Passing synthetic CI alone never verifies F8 graph-edge parity or real-device success.
+
+
+**2026-11-04 after PR #121 (G-F8-06 STILL OPEN):** An independent source-only
+Valhalla native mode-stop census retains all 658,345 original directed source
+edges and their 68,784 distinct graph-local Car/Motorcycle endpoint candidates,
+including previously count-only mode-stranded nondeadends. All original
+hierarchy-outgoing alternatives stay unresolved, not suppressed. Source original
+full directed geometry identifies 251 last-edge shapes directly intersecting
+the SHA-bound source 25-km cut and 49 more original final edges wholly beyond
+that cut with original cut-crossing native predecessor paths. The 300 bounded
+source-cut candidate GraphIds have 600/600 mode-specific exact original
+Valhalla TripLeg last-edge matches (both Car and Motorcycle), with one tiny
+Austria last edge verified from its immediate native original predecessor.
+Two beyond-cut branches reached the configured predecessor depth cap, and
+global physical-road/direction equivalence and correct bilateral frontier
+completeness remain **NOT_VERIFIED**. Original receiving B correlation
+**NOT_STARTED**, production publication **BLOCKED**. See
+`docs/F8_SOURCE_FINAL_EDGE_IDENTIFICATION_PROGRESS.md`. Not a license for
+way/name grouping, intermediate connectors, entire-core route requirements,
+retired producers or fallback removal.

@@ -115,6 +115,78 @@ class OneFinalEdgeRegisterTests(unittest.TestCase):
         self.assertEqual(side["unresolvedModeStrandedNondeadendCounts"]["auto"], 2)
         self.assertTrue(side["noRoadsOrBranchesDiscardedFromFullSourceScan"])
 
+    def add_mode_stranded_full_identity(self):
+        # The same way contains distinct native end edges, one GraphId is
+        # eligible for both modes and another for Car alone.
+        self.a["edges"].extend([edge(104), edge(105, modes=1)])
+        side = self.c["directions"]["from-to"]
+        side["counts"]["nativeDirectedEdgesAudited"] = 5
+        side["counts"]["autoModeStrandedNondeadend"] = 2
+        side["counts"]["motorcycleModeStrandedNondeadend"] = 1
+        mode_rows = {
+            "auto": [dict(terminal(104), terminalStatus="NATIVE_MODE_STRANDED_NONDEADEND_ONLY",
+                          nativeOutgoingDegree=3),
+                     dict(terminal(105), terminalStatus="NATIVE_MODE_STRANDED_NONDEADEND_ONLY",
+                          nativeOutgoingDegree=2)],
+            "motorcycle": [dict(terminal(104),
+                terminalStatus="NATIVE_MODE_STRANDED_NONDEADEND_ONLY",
+                nativeOutgoingDegree=3)]}
+        side["allGraphLocalModeStrandedNondeadends"] = mode_rows
+        side["modeStrandedNativeIdCoverage"] = "ALL_MODE_STRANDED_NATIVE_IDS_RETAINED"
+        # The other region has complete stranding coverage of zero entries.
+        other = self.c["directions"]["to-from"]
+        other["counts"]["autoModeStrandedNondeadend"] = 0
+        other["counts"]["motorcycleModeStrandedNondeadend"] = 0
+        other["allGraphLocalModeStrandedNondeadends"] = {
+            "auto": [], "motorcycle": []}
+        other["modeStrandedNativeIdCoverage"] = "ALL_MODE_STRANDED_NATIVE_IDS_RETAINED"
+
+    def test_full_mode_stranded_ids_retained_once_per_directed_id(self):
+        self.add_mode_stranded_full_identity()
+        doc = self.compile()
+        self.assertEqual(doc["version"], 2)
+        rows = doc["directions"]["from-to"]["terminalCandidates"]
+        self.assertEqual(
+            [x["finalDirectedGraphId"] for x in rows],
+            [101, 102, 103, 104, 105])
+        self.assertEqual(rows[3]["vehicleModes"], ["auto", "motorcycle"])
+        self.assertEqual(rows[3]["candidateStatus"],
+                         "ORIGINAL_NATIVE_MODE_STRANDED_NODE_ONLY")
+        self.assertEqual(rows[4]["vehicleModes"], ["auto"])
+        self.assertEqual(doc["roadDirectionClasses"], "NOT_VERIFIED")
+        self.assertTrue(
+            doc["directions"]["from-to"]["modeStrandedOriginalDirectedIDsReconciled"])
+        self.assertEqual(
+            doc["directions"]["from-to"]["modeStrandedCandidateModeCounts"],
+            {"auto": 2, "motorcycle": 1})
+
+    def test_missing_truncated_or_forged_mode_stranded_rows_are_fatal(self):
+        self.add_mode_stranded_full_identity()
+        rows = self.c["directions"]["from-to"]["allGraphLocalModeStrandedNondeadends"]
+        for corrupt in (
+            lambda: rows["auto"].pop(),
+            lambda: rows["auto"].__setitem__(0, {
+                **rows["auto"][0], "graphId": 101}),
+            lambda: rows["auto"].__setitem__(0, {
+                **rows["auto"][0], "endLat": 90.1}),
+            lambda: rows["auto"].__setitem__(0, {
+                **rows["auto"][0], "nativeOutgoingDegree": 0}),
+            lambda: rows["auto"].__setitem__(0, {
+                **rows["auto"][0], "wayIdAnnotationOnly": 999}),
+        ):
+            old = copy.deepcopy(rows["auto"])
+            corrupt()
+            with self.assertRaises(ValueError):
+                self.compile()
+            rows["auto"] = old
+
+    def test_full_stranded_claim_without_rows_aborts(self):
+        self.add_mode_stranded_full_identity()
+        self.c["directions"]["from-to"].pop(
+            "allGraphLocalModeStrandedNondeadends")
+        with self.assertRaisesRegex(ValueError, "coverage declaration"):
+            self.compile()
+
     def test_duplicate_mode_terminal_aborts_not_deduplicated(self):
         self.ca["auto"].append(copy.deepcopy(self.ca["auto"][0]))
         self.c["directions"]["from-to"]["counts"]["autoGraphLocalFinalDirectedEdges"] += 1
