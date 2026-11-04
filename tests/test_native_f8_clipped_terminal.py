@@ -14,8 +14,9 @@ from shapely.geometry import Point, box
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from probe_native_f8_clipped_terminal import (
     CRS, SourceIntegrityError, _at,
-    check_source_terminal, inspect_receivers, local_journey_sample,
-    locate_receiver_edges, verified_buffer,
+    check_source_terminal, inspect_receiver_alternatives,
+    inspect_receivers, local_journey_sample, locate_receiver_edges,
+    verified_buffer,
 )
 
 MASK = 1025
@@ -88,6 +89,26 @@ class ClippedTerminalTests(unittest.TestCase):
                          "BOTH_SHA_BOUND_TO_RESPECTIVE_GRAPH_MANIFESTS")
         self.assertEqual(result["physicalRoadFinalEdgeIdentity"], "NOT_VERIFIED")
         self.assertEqual(result["crossGraphDirectedTransfer"], "NOT_VERIFIED")
+
+    def test_shortcut_or_nonroad_forward_access_is_not_dropped(self):
+        own, peer = buffers()
+        for continuation in (out(888, road=True, shortcut=True),
+                             out(888, road=False, shortcut=False)):
+            result = check_source_terminal(
+                edge(), adjacency([out(777), continuation]),
+                "auto", own, peer)
+            self.assertFalse(result["graphLocalModeTerminalConfirmed"])
+            self.assertFalse(result["graphLocalClippedTerminalCandidate"])
+            self.assertEqual(result["modeUsableNonreverseOutgoingGraphIds"], [888])
+            self.assertEqual(result["modeLegalNonreverseOutgoingRoadGraphIds"], [])
+            self.assertEqual(result["boundaryProximityEligibility"], "NOT_A_FILTER")
+
+    def test_missing_source_deadend_is_fatal_instead_of_classifying_nonterminal(self):
+        own, peer = buffers()
+        src = edge()
+        del src["deadend"]
+        with self.assertRaisesRegex(SourceIntegrityError, "deadend"):
+            check_source_terminal(src, adjacency(), "auto", own, peer)
 
     def test_real_forward_mode_edge_disables_this_terminal_status_only(self):
         own, peer = buffers()
@@ -177,6 +198,67 @@ class ClippedTerminalTests(unittest.TestCase):
         self.assertEqual([x["locateForward"] for x in observed],[True,False])
         self.assertTrue(all(x["locateDistanceMeters"] <= .2 for x in observed))
 
+    def test_malformed_locate_edge_fails_closed(self):
+        def response(data):
+            return lambda *args, **kwargs: SimpleNamespace(
+                returncode=0, stdout=json.dumps(data))
+        for invalid in ([None], [{"edges":{}}],
+                        [{"edges":[{"edge_id":{"value":42},
+                                    "distance":0.0, "edge":{}}]}],
+                        [{"edges":[{"edge_id":{"value":42},
+                                    "distance":0.0, "edge":{
+                                    "forward":"true", "deadend":False}}]}]):
+            with self.assertRaises(SourceIntegrityError):
+                locate_receiver_edges(
+                    Path("B"), END, "auto", runner=response(invalid))
+
+    def test_each_receiver_capture_failure_preserves_other_located_alternatives(self):
+        rows = [
+            {"receiverGraphId":1001,"locateDistanceMeters":0.0,
+             "locateNativeDeadend":False,"locateForward":True},
+            {"receiverGraphId":1002,"locateDistanceMeters":0.0,
+             "locateNativeDeadend":False,"locateForward":True},
+        ]
+        def capture(gid):
+            if gid == 1001:
+                raise ValueError("Native geometry capture failed; discard partial stdout")
+            result = edge(gid)
+            result["directedGeometry"]=[[46.499999,13.499999],[46.5,13.5]]
+            return result
+        found = inspect_receiver_alternatives(
+            edge(), END, rows, capture, Path("A"), Path("B"), "auto")
+        self.assertEqual(len(found),2)
+        self.assertEqual([r["receiverGraphId"] for r in found],[1001,1002])
+        self.assertEqual(found[0]["nativeGeometry"],"INCONCLUSIVE_B_NATIVE_CAPTURE")
+        self.assertEqual(found[1]["modeForwardAccess"],True)
+        self.assertEqual(found[1]["localJourney"]["status"],
+                         "NOT_ATTEMPTED_SHORT_OR_INACCESSIBLE_LOCAL_LEG")
+
+    def test_wrong_or_missing_receiver_id_and_count_are_fatal(self):
+        rows=[{"receiverGraphId":1001,"locateDistanceMeters":0.0}]
+        for capture in (
+            lambda gid: edge(9999),
+            lambda gid: {k:v for k,v in edge(gid).items() if k!="sourceGraphId"},
+            lambda gid: (_ for _ in ()).throw(ValueError(
+                "Native geometry identities/counts mismatch explicit selection")),
+        ):
+            with self.assertRaises(SourceIntegrityError):
+                inspect_receiver_alternatives(
+                    edge(), END, rows, capture, Path("A"), Path("B"), "auto")
+
+    def test_malformed_locate_json_and_native_json_abort_the_batch(self):
+        with self.assertRaises(SourceIntegrityError):
+            locate_receiver_edges(
+                Path("B"), END, "auto",
+                runner=lambda *args, **kwargs: SimpleNamespace(
+                    returncode=0, stdout="{malformed locate JSON"))
+        rows=[{"receiverGraphId":1001, "locateDistanceMeters":0.0}]
+        def corrupt_native(_id):
+            raise json.JSONDecodeError("unexpected invalid GraphReader JSON", "invalid", 0)
+        with self.assertRaises(SourceIntegrityError):
+            inspect_receiver_alternatives(
+                edge(), END, rows, corrupt_native, Path("A"), Path("B"), "auto")
+
     def test_receiver_identity_mismatch_is_fatal(self):
         located=[{"receiverGraphId":1001,"locateDistanceMeters":0.0}]
         with self.assertRaises(SourceIntegrityError):
@@ -206,6 +288,7 @@ class ClippedTerminalTests(unittest.TestCase):
             return {
                 "status":"SUCCEEDED","startActual":start,
                 "endActual":dest,"durationSeconds":5.0,"distanceKm":.025,
+                "startOffsetMeters":0.0,"endOffsetMeters":0.0,
             }
         result=local_journey_sample(source,receiver,Path("A"),
                                     Path("B"),"auto",route_fn=route_fn)
@@ -215,6 +298,43 @@ class ClippedTerminalTests(unittest.TestCase):
         self.assertEqual(result["sourcePhysicalRoadFinalEdgeIdentity"],"NOT_VERIFIED")
         self.assertEqual(result["routeEdgeIdentityFidelity"],"NOT_VERIFIED")
         self.assertEqual(result["crossGraphDirectedTransfer"],"NOT_VERIFIED")
+
+    def test_local_routes_reject_origin_snapping_and_missing_offsets(self):
+        source=edge(100)
+        receiver={
+            **edge(1001),
+            "directedGeometry":[[46.5,13.5],[46.5006,13.5006]],
+            "endLat":46.5006,"endLon":13.5006,
+        }
+        def good(config,start,end,mode):
+            return {"status":"SUCCEEDED","startActual":start,
+                    "endActual":end,"startOffsetMeters":0.0,
+                    "endOffsetMeters":0.0,"durationSeconds":4.0,
+                    "distanceKm":0.01}
+        def snapped(config,start,end,mode):
+            r=good(config,start,end,mode)
+            if str(config)=="A":
+                r["startActual"]={"lat":start["lat"]+0.001,
+                                  "lng":start["lng"]}
+            return r
+        bad=local_journey_sample(source,receiver,Path("A"),Path("B"),
+                                 "auto",route_fn=snapped)
+        self.assertEqual(bad["status"],"UNPROVEN_ENDPOINT_ALIGNMENT")
+        def offset(config,start,end,mode):
+            r=good(config,start,end,mode)
+            if str(config)=="B":r["startOffsetMeters"]=50.0
+            return r
+        bad=local_journey_sample(source,receiver,Path("A"),Path("B"),
+                                 "auto",route_fn=offset)
+        self.assertEqual(bad["status"],"UNPROVEN_ENDPOINT_ALIGNMENT")
+        def no_offset(config,start,end,mode):
+            r=good(config,start,end,mode)
+            del r["startOffsetMeters"]
+            return r
+        bad=local_journey_sample(source,receiver,Path("A"),Path("B"),
+                                 "auto",route_fn=no_offset)
+        self.assertEqual(bad["status"],"INCONCLUSIVE_INVALID_ROUTE_SNAP_EVIDENCE")
+        self.assertEqual(bad["routeEdgeIdentityFidelity"],"NOT_VERIFIED")
 
     def test_limited_receiver_length_records_unattempted_not_dropped(self):
         source=edge()

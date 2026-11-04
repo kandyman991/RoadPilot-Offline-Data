@@ -131,7 +131,17 @@ def check_source_terminal(edge: dict, adjacency: dict, mode: str,
         ids.append(item["graphId"])
     if len(ids) != len(set(ids)) or ids.count(reverse) != 1:
         raise SourceIntegrityError("Duplicate outgoing IDs or missing native reverse")
+    if type(source.get("deadend")) is not bool:
+        raise SourceIntegrityError("Missing native source deadend flag")
 
+    # A legal graph-native shortcut must never be excluded from the
+    # mode-usable continuation inventory. It may be important even when
+    # Valhalla does not classify it as an ordinary road.
+    mode_usable_nonreverse = [
+        item["graphId"] for item in entries
+        if item["graphId"] != reverse
+        and bool(item["forwardAccess"] & MODES[mode])
+    ]
     mode_legal_nonreverse = [
         item["graphId"] for item in entries
         if item["graphId"] != reverse
@@ -150,7 +160,7 @@ def check_source_terminal(edge: dict, adjacency: dict, mode: str,
     graph_local_terminal = (
         source.get("deadend") is True
         and bool(source["forwardAccess"] & MODES[mode])
-        and not mode_legal_nonreverse
+        and not mode_usable_nonreverse
     )
     candidate = graph_local_terminal and peer_shape.covers(at)
     near_buffer_outline = own_dist <= BOUNDARY_OBSERVATION_METRES
@@ -164,7 +174,9 @@ def check_source_terminal(edge: dict, adjacency: dict, mode: str,
         "allNativeOutgoingAlternatives": entries,
         "nativeOutgoingDegree": degree,
         "nativeOpposingReverseGraphId": reverse,
+        "modeUsableNonreverseOutgoingGraphIds": mode_usable_nonreverse,
         "modeLegalNonreverseOutgoingRoadGraphIds": mode_legal_nonreverse,
+        "shortcutAndNonroadContinuationsPreserved": True,
         "ownBufferBoundaryDistanceMeters": round(own_dist, 3),
         "peerBufferBoundaryDistanceMeters": round(peer_dist, 3),
         "sourceEndInsideOwnRetainedBuffer": own_shape.covers(at),
@@ -206,13 +218,18 @@ def locate_receiver_edges(
     )
     if result.returncode:
         raise OSError("Graph B locate failed")
-    doc, end = json.JSONDecoder().raw_decode(result.stdout.lstrip())
+    try:
+        doc, end = json.JSONDecoder().raw_decode(result.stdout.lstrip())
+    except (json.JSONDecodeError, AttributeError) as error:
+        raise SourceIntegrityError("Malformed Valhalla B locate JSON") from error
     trailing = result.stdout.lstrip()[end:].strip()
     if trailing and not all(
             line.startswith("[INFO] Running ") for line in trailing.splitlines()):
         raise SourceIntegrityError("Unexpected Valhalla locate stdout suffix")
     if not isinstance(doc, list) or len(doc) != 1:
         raise SourceIntegrityError("Valhalla locate returned malformed count")
+    if not isinstance(doc[0], dict):
+        raise SourceIntegrityError("Malformed Valhalla locate location")
     located = doc[0].get("edges", [])
     if not isinstance(located, list) or len(located) > MAX_B_LOCATE_RESULTS:
         raise SourceIntegrityError("Incomplete/oversized B locate result")
@@ -228,11 +245,16 @@ def locate_receiver_edges(
         dist = item.get("distance")
         if type(dist) not in (int, float) or not math.isfinite(dist) or dist < 0:
             raise SourceIntegrityError("Invalid B correlation distance")
+        record = item.get("edge")
+        if (not isinstance(record, dict) or
+                type(record.get("deadend")) is not bool or
+                type(record.get("forward")) is not bool):
+            raise SourceIntegrityError("Malformed locate directed edge metadata")
         observations.append({
             "receiverGraphId": gid,
             "locateDistanceMeters": float(dist),
-            "locateNativeDeadend": item.get("edge", {}).get("deadend"),
-            "locateForward": item.get("edge", {}).get("forward"),
+            "locateNativeDeadend": record["deadend"],
+            "locateForward": record["forward"],
         })
     return observations
 
@@ -245,9 +267,11 @@ def inspect_receivers(
         raise SourceIntegrityError("B located edge set/native geometry count mismatch")
     output = []
     for locator, raw in zip(located, receiver_rows):
+        if (not isinstance(raw, dict)
+                or type(raw.get("sourceGraphId")) is not int
+                or raw["sourceGraphId"] != locator["receiverGraphId"]):
+            raise SourceIntegrityError("Wrong/missing B native GraphId for locate identity")
         b = checked_edge(raw)
-        if b["sourceGraphId"] != locator["receiverGraphId"]:
-            raise SourceIntegrityError("Wrong B native GraphId for locate identity")
         p = nearest(source_endpoint, b["directedGeometry"])
         lengths = [distance(a, z) for a, z in zip(
             b["directedGeometry"], b["directedGeometry"][1:])]
@@ -306,23 +330,43 @@ def local_journey_sample(
         second = route_fn(receiver_cfg, normalized, dest, mode)
         if second.get("status") != "SUCCEEDED":
             return {**base, "status": "INCONCLUSIVE_B_RECEIVER_LOCAL_ROUTE"}
+        a_start = distance(
+            origin, strict_point(first["startActual"], "A actual origin"))
         a_arrival = distance(normalized, endpoint)
         b_start = distance(
             normalized, strict_point(second["startActual"], "B departure"))
         b_arrival = distance(
             dest, strict_point(second["endActual"], "B local destination"))
+        offsets = []
+        for leg in (first, second):
+            for key in ("startOffsetMeters", "endOffsetMeters"):
+                value = leg.get(key)
+                if (type(value) not in (float, int) or
+                        not math.isfinite(value) or value < 0):
+                    return {**base, "status": "INCONCLUSIVE_INVALID_ROUTE_SNAP_EVIDENCE"}
+                offsets.append(value)
+        costs = [first.get("durationSeconds"), first.get("distanceKm"),
+                 second.get("durationSeconds"), second.get("distanceKm")]
+        if any(type(x) not in (int, float) or not math.isfinite(x)
+               or x < 0 for x in costs):
+            return {**base, "status": "INCONCLUSIVE_INVALID_ROUTE_COST_EVIDENCE"}
         if any(x > ARRIVAL_TOLERANCE_METERS for x in (
-                a_arrival, b_start, b_arrival)):
+                a_start, a_arrival, b_start, b_arrival, *offsets)):
             return {**base, "status": "UNPROVEN_ENDPOINT_ALIGNMENT",
+                    "sourceOriginOffsetMeters": round(a_start, 3),
                     "terminalArrivalMeters": round(a_arrival, 3),
                     "crossGraphStartGapMeters": round(b_start, 3),
-                    "receiverArrivalMeters": round(b_arrival, 3)}
+                    "receiverArrivalMeters": round(b_arrival, 3),
+                    "reportedSnapOffsetsMeters": offsets}
         return {
             **base,
             "status": "TWO_GRAPH_LOCAL_ROUTE_LEGS_SUCCEEDED_FOR_TERMINAL_SAMPLE",
+            "sourceOriginOffsetMeters": round(a_start, 3),
             "terminalArrivalMeters": round(a_arrival, 3),
             "crossGraphStartGapMeters": round(b_start, 3),
             "receiverArrivalMeters": round(b_arrival, 3),
+            "reportedSnapOffsetsMeters": offsets,
+            "routeEdgeIdentityFidelity": "NOT_VERIFIED",
             "sourceLocalDurationSeconds": first["durationSeconds"],
             "receiverLocalDurationSeconds": second["durationSeconds"],
             "sourceLocalDistanceKm": first["distanceKm"],
@@ -333,6 +377,52 @@ def local_journey_sample(
         }
     except (ValueError, KeyError, TypeError, OSError, subprocess.TimeoutExpired):
         return {**base, "status": "INCONCLUSIVE_LOCAL_ROUTE_CAPTURE"}
+
+
+def inspect_receiver_alternatives(
+    source: dict, source_endpoint: dict, located: list[dict],
+    capture: Callable[[int], dict], config_a: Path, config_b: Path, mode: str,
+    route_fn: Callable = route,
+) -> list[dict]:
+    """Preserve all B locate identities; one recoverable capture failure
+    must not hide a different alternative or silently accept wrong GraphIds.
+    """
+    reports = []
+    for identity in located:
+        try:
+            raw = capture(identity["receiverGraphId"])
+            observed = inspect_receivers(
+                source_endpoint, [identity], [raw], mode)[0]
+            observed["localJourney"] = local_journey_sample(
+                source, raw, config_a, config_b, mode, route_fn)
+        except SourceIntegrityError:
+            raise
+        except ValueError as error:
+            if (isinstance(error, json.JSONDecodeError) or
+                    "Native geometry identities/counts mismatch explicit selection" in str(error)):
+                raise SourceIntegrityError(
+                    "Native B geometry identities/counts mismatch selected locate ID"
+                ) from error
+            observed = {
+                **identity,
+                "nativeGeometry": "INCONCLUSIVE_B_NATIVE_CAPTURE",
+                "candidatePhysicalRoadRelation": "NOT_VERIFIED",
+                "crossGraphLegalTransfer": "NOT_VERIFIED",
+                "localJourney": {"status": "INCONCLUSIVE_B_NATIVE_CAPTURE"},
+                "reason": str(error)[:200],
+            }
+        except (OSError, TypeError, IndexError, KeyError,
+                subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+            observed = {
+                **identity,
+                "nativeGeometry": "INCONCLUSIVE_B_NATIVE_CAPTURE",
+                "candidatePhysicalRoadRelation": "NOT_VERIFIED",
+                "crossGraphLegalTransfer": "NOT_VERIFIED",
+                "localJourney": {"status": "INCONCLUSIVE_B_NATIVE_CAPTURE"},
+                "reason": str(error)[:200],
+            }
+        reports.append(observed)
+    return reports
 
 
 def main() -> int:
@@ -381,15 +471,11 @@ def main() -> int:
             try:
                 found = locate_receiver_edges(
                     cb, endpoint, args.mode, radius=args.locate_radius)
-                receiver_ids = [x["receiverGraphId"] for x in found]
-                receiver_rows = (
-                    native_rows(args.native_endpoints_binary, cb, receiver_ids, temp)
-                    if receiver_ids else [])
-                receiver_observations = inspect_receivers(
-                    endpoint, found, receiver_rows, args.mode)
-                for item, raw in zip(receiver_observations, receiver_rows):
-                    item["localJourney"] = local_journey_sample(
-                        src, raw, ca, cb, args.mode)
+                def capture_b(gid: int) -> dict:
+                    return native_rows(
+                        args.native_endpoints_binary, cb, [gid], temp)[0]
+                receiver_observations = inspect_receiver_alternatives(
+                    src, endpoint, found, capture_b, ca, cb, args.mode)
                 receiver_error = None
             except SourceIntegrityError:
                 # Wrong/missing B native IDs, altered locate counts and

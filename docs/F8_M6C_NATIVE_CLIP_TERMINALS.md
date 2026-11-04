@@ -41,7 +41,8 @@ mode, it:
    is silently removed.
 4. Reports a **graph-local mode terminal** when the native source edge
    has `deadend=true`, supports the requested mode and has no other
-   forward mode-accessible ordinary road edge at that end node.
+   forward mode-accessible native edge of any type at that end node
+   (including shortcuts and non-road entries).
    This is evidence of how the *source graph* terminates; not proof of
    the physical road's overall final edge.
 5. Measures metres to the own retained-buffer polygon outline and
@@ -60,6 +61,8 @@ mode, it:
    native endpoint, then a B-local route departing the normalized A
    arrival to a point further on B. Checks route endpoints and costs.
    Other B directions are recorded as **NOT_ATTEMPTED**, not discarded.
+   Both route starts and ends, all four endpoint snap offsets, and route
+   costs are validated; route-edge identities remain unverified.
    A successful pair of route legs never proves the original route-edge
    identities or a legally traversable cross-graph turn.
 8. Every result marks receiver discovery `NOT_VERIFIED_RADIUS_ONLY`,
@@ -121,7 +124,7 @@ PATH="$HOME/.cache/app.roadpilot.graphstudio/python-env/bin:$PATH" python \
   --source-graph-id 364870918424 --source-graph-id 77309436192
 ~~~
 
-Unpublished raw reports with checksums live **outside Git** at
+Original milestone raw reports with checksums live **outside Git** at
 `~/RoadPilotGraphStudio/diagnostics/m6/20261104/m6c-clipped-terminals-v3/`:
 four direction/mode JSON reports, `SHA256SUMS`, `summary.json`.
 They can be independently hash checked. No graph archive, Android,
@@ -132,6 +135,50 @@ GraphId/adjacency/mode bits and truncated native outgoing inventory,
 one-way/mode-specific semantics, the dangerous boundary-distance filter
 regression, all B locate alternatives, wrong B identity, and B-local
 route proof's strictly limited meaning.
+
+## Independent review corrections for PR #114
+
+An additional review identified four diagnostic reliability gaps. They are
+corrected without changing the underlying immutable graphs, UI, Android F8,
+production discovery or publishing.
+
+- **F01 — fatal identity/count mismatches versus recoverable native reads.**
+  Wrong/missing native B GraphIds and explicit native geometry count/identity
+  errors now stop the whole diagnostic. An unavailable B geometry or timeout
+  produces an individual `INCONCLUSIVE_B_NATIVE_CAPTURE` observation without
+  erasing another B alternative. The same native source end-node integrity
+  remains fail-closed.
+- **F02 — preserve shortcut/non-road mode continuations.** The terminal
+  classification now checks *all* nonreverse native mode-accessible
+  outgoing edges, including shortcuts and non-road entries, rather than
+  silently treating them as absent. The ordinary-road-only subset remains
+  an annotation, and the full native inventory remains available.
+- **F03 — strengthen endpoint proof.** A local pair is reported successful
+  only when **both actual starts, both actual ends and all four Valhalla
+  snap-offset fields** meet the F8 arrival tolerance; costs must be finite
+  and nonnegative. A graph-local route that snaps away is not proof of
+  the nominated source road edge, and original route-edge IDs remain
+  `NOT_VERIFIED`.
+- **F04 — fail-closed malformed locate and preserve all returned B IDs.**
+  Malformed JSON, B location/edge metadata, or native extractor JSON
+  stops the batch as an integrity error;
+  recoverable extraction failure of one B edge leaves its identity
+  `INCONCLUSIVE` and allows subsequent alternatives to be tested.
+
+**Real-graph recheck:** The same five nominated motorway terminal IDs
+were checked in both directions and Car/Motorcycle modes using the
+reviewed pinned Valhalla 3.6.3 native binary. Ten source/mode-local
+terminals remained confirmed; the 20 locate B alternatives remained
+present, ten with valid two-leg **local** route checks and ten
+`NOT_ATTEMPTED`. Explicit source origin arrival and snap fields were
+checked for each successful local route. Corrected raw reports,
+checksums and a result summary are outside Git at
+`~/RoadPilotGraphStudio/diagnostics/m6/20261104/pr114-independent-review-v4/`.
+Earlier v3 evidence remains available but does not contain the tightened
+route checks or mode-usable shortcut inventory.
+
+**No source-wide census, road-lineage proof, cross-graph legal transfer,
+Android parity or production publication has been established.**
 
 ## Remaining M6c gates
 
