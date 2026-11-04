@@ -75,6 +75,24 @@ Under `~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/`:
 
 The original graph SHA fingerprints and buffer polygons are checked at runtime from the immutable pair and regional manifests. Exact SHA and interval identity are stored in the reports; do not replace input archives with a newly rebuilt graph.
 
+## Architecture-contract cross-check of real RoadPilot Android F8 reference
+
+Read-only inspection of Android RoadPilot at Legion checkout `01971ab93f7be3384b57784bff622861ed6ac6ba` included
+`app/src/main/java/com/kandyman991/smartridenext/routing/FrontierRouteLocalRecovery.kt`,
+`ManagedFrontierChainRoutingRuntime.kt` and `FrontierMultiRegionChainPlanner.kt`.
+These F8 source files demonstrate the distinction between frontier GPS candidate
+collection, region-local Valhalla route proof, destination-first discovery,
+chain continuation and selection among alternative learned/actual routes.
+The new Graph Studio full-source native ledger does NOT call or replace
+those Android algorithms. Architecture decision: **PRESERVES**; reference
+contract clauses **A1, A2, A3, B1, B2, B3, B4, C2, C3, D1, D3, D4**.
+Actual F8 graph-edge parity and Android emulator/device route acceptance:
+**NOT_VERIFIED / NOT_RUN**. The 0.05-degree geographic envelope is purely
+conservative shape-transfer filtering adjacent to ALL verified source-buffer
+boundary segments, never a selection of a narrower F8 frontier or
+physical-road equivalence. Tracked gates: Graph Studio issues #73 and #82,
+RoadPilot issue #512, and separate prerelease safety issue #123.
+
 ## Test, safety and unfinished gates
 
 Full Legion Python regression: **418 / 418 PASS**. New unit gates reject missing/duplicated/malformed tile records, misindexed GraphIds, omitted source cut observations, forged fingerprints, incomplete source predecessor recovery, source mode suppression and false publication claims. Original CMake build-provenance regression remains green. The new Valhalla C++ native build succeeds in Release configuration locally; GitHub CI has no Valhalla 3.6.3 build environment, so GitHub validates Python invariants, not this native build's executable SHA.
