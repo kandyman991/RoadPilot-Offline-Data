@@ -154,6 +154,77 @@ def make_register(pair: dict, census: dict, from_scan: dict, to_scan: dict) -> d
             if type(count) is not int or not 0 <= count <= len(edges):
                 raise ValueError("Invalid unresolved mode-stranded source count")
             stranded[mode] = count
+
+        # The original full census retained stranding COUNTS but not graph
+        # identities. New source-complete census reports the exact original
+        # directed GraphIds, separately from ordinary graph-local deadends.
+        # Never infer those IDs from way/name/proximity or treat a mode-stranded
+        # local node as proof of a unique physical-road endpoint.
+        strata = original.get("allGraphLocalModeStrandedNondeadends")
+        has_all_stranded_ids = (
+            original.get("modeStrandedNativeIdCoverage")
+            == "ALL_MODE_STRANDED_NATIVE_IDS_RETAINED")
+        if (strata is None) != (not has_all_stranded_ids):
+            raise ValueError("Incomplete source mode-stranded ID coverage declaration")
+        if has_all_stranded_ids:
+            if not isinstance(strata, dict):
+                raise ValueError("Malformed original mode-stranded identity inventory")
+            for mode, bit in MODE_BITS.items():
+                rows = strata.get(mode)
+                if not isinstance(rows, list) or len(rows) != stranded[mode]:
+                    raise ValueError("Original mode-stranded count/ID mismatch")
+                seen = set()
+                for item in rows:
+                    gid = item.get("graphId")
+                    source = original_by_id.get(gid)
+                    if type(gid) is not int or gid in seen or source is None:
+                        raise ValueError("Repeated/unscanned original mode-stranded GraphId")
+                    seen.add(gid)
+                    if (item.get("terminalStatus")
+                            != "NATIVE_MODE_STRANDED_NONDEADEND_ONLY"
+                            or item.get("wayIdAnnotationOnly") != source["wayId"]
+                            or type(item.get("endNodeGraphId")) is not int
+                            or item["endNodeGraphId"] <= 0
+                            or type(item.get("insidePeerBuffer")) is not bool
+                            or type(item.get("nativeOutgoingDegree")) is not int
+                            or item["nativeOutgoingDegree"] <= 0
+                            or not source["forwardAccess"] & bit):
+                        raise ValueError("Original mode-stranded identity/access mismatch")
+                    terminal = {"lat": _number(item.get("endLat"), 90),
+                                "lng": _number(item.get("endLon"), 180)}
+                    if gid in candidates and candidates[gid]["candidateStatus"] == (
+                            "ORIGINAL_NATIVE_GRAPH_LOCAL_TERMINAL_ONLY"):
+                        raise ValueError("One directed GraphId cannot be a deadend "
+                                         "and a nondeadend stranding")
+                    row = candidates.get(gid)
+                    if row is None:
+                        row = {
+                            "finalDirectedGraphId": gid,
+                            "nativeEndNodeGraphId": item["endNodeGraphId"],
+                            "nativeTerminal": terminal,
+                            "sourceStartNodeAnnotationOnly": {
+                                "lat": _number(source.get("lat"), 90),
+                                "lng": _number(source.get("lon"), 180)},
+                            "sourceInteriorSampleAnnotationOnly": {
+                                "lat": _number(source.get("innerLat"), 90),
+                                "lng": _number(source.get("innerLon"), 180)},
+                            "wayIdAnnotationOnly": source["wayId"],
+                            "insidePeerBufferAnnotationOnly": item["insidePeerBuffer"],
+                            "vehicleModes": [],
+                            "physicalRoadDirectionClass": "NOT_YET_ESTABLISHED",
+                            "finalPhysicalRoadEdgeUniqueness": "NOT_VERIFIED",
+                            "candidateStatus": "ORIGINAL_NATIVE_MODE_STRANDED_NODE_ONLY",
+                            "candidateSuppressed": False,
+                        }
+                        candidates[gid] = row
+                    elif (row["nativeEndNodeGraphId"] != item["endNodeGraphId"]
+                          or row["nativeTerminal"] != terminal
+                          or row["insidePeerBufferAnnotationOnly"]
+                          != item["insidePeerBuffer"]):
+                        raise ValueError("Two mode-stranded views disagree about one original edge")
+                    if mode in row["vehicleModes"]:
+                        raise ValueError("Repeated mode-specific stranding entry")
+                    row["vehicleModes"].append(mode)
         if any(x["candidateSuppressed"] for x in candidates.values()):
             raise ValueError("Native original candidate suppression is prohibited")
         results[direction] = {
@@ -163,13 +234,22 @@ def make_register(pair: dict, census: dict, from_scan: dict, to_scan: dict) -> d
             "uniqueOriginalTerminalCandidateGraphIds": len(candidates),
             "modeCounts": mode_ids,
             "unresolvedModeStrandedNondeadendCounts": stranded,
+            "modeStrandedOriginalDirectedIDsReconciled": has_all_stranded_ids,
+            "modeStrandedCandidateModeCounts": (
+                stranded if has_all_stranded_ids else {}),
+            "sourceGraphLocalModeTerminalCoverage": (
+                "ALL_NATIVE_NODE_MODE_STOP_IDS_RETAINED" if has_all_stranded_ids
+                else "NATIVE_DEADENDS_ONLY_STRANDING_IDS_NOT_PRESENT"),
             "originalSourceIDsOutsideTerminalRegisterStillInFullScan": len(edges) - len(candidates),
             "terminalCandidates": [candidates[gid] for gid in sorted(candidates)],
             "physicalRoadDirectionEquivalence": "NOT_VERIFIED",
             "noRoadsOrBranchesDiscardedFromFullSourceScan": True,
         }
     return {
-        "schema": SCHEMA, "version": 1, "pairId": pair["pairId"],
+        "schema": SCHEMA, "version": (
+            2 if all(results[s]["modeStrandedOriginalDirectedIDsReconciled"]
+                     for s in ("from-to", "to-from")) else 1),
+        "pairId": pair["pairId"],
         "graphFingerprints": {"from": pair["fromGraphFingerprint"],
                               "to": pair["toGraphFingerprint"]},
         "boundaryFingerprints": {"from": pair["fromBoundaryFingerprint"],

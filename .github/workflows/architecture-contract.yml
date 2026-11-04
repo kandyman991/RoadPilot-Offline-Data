@@ -83,6 +83,15 @@ jobs:
       - name: One final directed edge candidate per GraphId and mode-union contract
         run: python -m unittest discover -s tests -p "test_native_f8_final_edge_register.py" -v
 
+      - name: Original source-only terminal hierarchy, mode alternatives and cut geometry contract
+        run: python -m unittest discover -s tests -p 'test_native_f8_final_source_hierarchy.py' -v
+
+      - name: Original source-only cut last TripLeg and short-edge predecessor proof
+        run: python -m unittest discover -s tests -p 'test_native_f8_source_cut_last_tripleg.py' -v
+
+      - name: Original source-only beyond-cut final-edge predecessors and no first-success exclusion
+        run: python -m unittest discover -s tests -p 'test_native_f8_beyond_cut_predecessor.py' -v
+
       - name: Android JNI scanner cap and Kotlin road-key parity gating regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_android_jni_parity.py' -v
 

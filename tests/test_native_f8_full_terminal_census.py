@@ -78,6 +78,12 @@ class NativeFullCensusTests(unittest.TestCase):
         a = edge(100)
         report = audit_rows([a], lines(row(a, deadend=False)), buffer())
         self.assertEqual(report["counts"]["autoModeStrandedNondeadend"], 1)
+        self.assertEqual(
+            report["allGraphLocalModeStrandedNondeadends"]["auto"][0]["graphId"], 100)
+        self.assertEqual(
+            report["allGraphLocalModeStrandedNondeadends"]["motorcycle"][0]["graphId"], 100)
+        self.assertEqual(
+            report["modeStrandedNativeIdCoverage"], "ALL_MODE_STRANDED_NATIVE_IDS_RETAINED")
         self.assertEqual(report["counts"]["motorcycleModeStrandedNondeadend"], 1)
         self.assertEqual(report["allGraphLocalModeTerminals"]["auto"], [])
 

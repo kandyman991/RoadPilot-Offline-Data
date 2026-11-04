@@ -1,5 +1,36 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## After PR #121 merge — source-only last physical-road-edge census (2026-11-04)
+
+Owner explicitly authorized and the GitHub exact-head architecture, Linux and
+validate checks PASSED; **PR #121 MERGED into main** at
+d8fc29bc5bfff59fbb0e297e05fa9111f31ae8bb.
+The new source-only worktree from this actual merged main is
+feature/f8-physical-final-edge-id-20261104; any ensuing PR must remain
+DRAFT until separately authorized. NO receiving B graph work in this branch.
+
+Source-only immutable original Italy Nord-Est/Austria evidence now reconciles
+all 658,345 original native directed scan IDs, full exact mode-stranded IDs,
+68,784 unique Car/Motorcycle union node-stop GraphIds, reachable hierarchy
+branches and original source 25-km cut geometry. 251 final native directed
+shapes intersect the cut; another 49 final directed shapes wholly beyond cut
+are connected from native cut-crossing ORIGINAL predecessor chains. Together
+300 distinct *SOURCE* original last-edge candidate IDs each pass original
+Valhalla TripLeg final directed GraphId for BOTH Car and Motorcycle: 600/600
+mode-edge pairs, including 3.4m last edge with exact original predecessor
+TripLeg. At least 24,386 source candidates have hierarchy alternatives,
+including cases with local route success; two beyond-cut branches hit the
+bounded predecessor traversal depth. Do NOT claim global one-edge-per-real-
+physical-road equivalence, border completeness, legal A→X→B or Android
+JNI parity. No original .gph or production producer changed.
+Detailed source SHA file inventory and open blockers:
+docs/F8_SOURCE_FINAL_EDGE_IDENTIFICATION_PROGRESS.md.
+Source-side verification != physical-road uniqueness: the next hard gate
+is proving EVERY physical road/direction across the correct shared 25-km
+overlap has exactly ONE final original directed edge without grouping
+OSM way/name. Retain every unresolved candidate, ramps, branches and modes.
+Receiving-graph correlation is NOT_STARTED, publication BLOCKED.
+
 ## Production direction reset: ONE final original directed edge per physical road/direction (2026-11-04)
 
 The owner rejected expansion of full road reconstruction/journey diagnostics

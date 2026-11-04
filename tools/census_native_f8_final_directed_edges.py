@@ -111,6 +111,10 @@ def audit_rows(edges: list[dict], rows, peer_buffer: dict) -> dict:
     """Streaming, strict ordered 1:1 inventory; no sampling and no edge dedup."""
     counts = Counter()
     terminals = {"auto": [], "motorcycle": []}
+    # Capture the previously omitted exact identities of graph-local
+    # mode-stranded, nondeadend edges. Counts alone silently omit possible
+    # mode-specific final edges; keep all original directed GraphIds.
+    mode_stranded = {"auto": [], "motorcycle": []}
     source_digest = sha256()
     consumed = 0
     rows = iter(rows)
@@ -137,6 +141,17 @@ def audit_rows(edges: list[dict], rows, peer_buffer: dict) -> dict:
                 if item["graphId"] != reverse and item["forwardAccess"] & bit]
             if not continuations and not row["deadend"]:
                 counts[f"{mode}ModeStrandedNondeadend"] += 1
+                mode_stranded[mode].append({
+                    "graphId": row["sourceGraphId"],
+                    "endNodeGraphId": row["endNodeGraphId"],
+                    "wayIdAnnotationOnly": row["wayId"],
+                    "endLat": row["endLat"],
+                    "endLon": row["endLon"],
+                    "insidePeerBuffer": peer_buffer["polygon"].covers(
+                        _at({"lat": row["endLat"], "lng": row["endLon"]})),
+                    "nativeOutgoingDegree": row["nativeOutgoingDegree"],
+                    "terminalStatus": "NATIVE_MODE_STRANDED_NONDEADEND_ONLY",
+                })
             if not (row["deadend"] and not continuations):
                 continue
             inside_peer = peer_buffer["polygon"].covers(
@@ -162,11 +177,18 @@ def audit_rows(edges: list[dict], rows, peer_buffer: dict) -> dict:
         raise ValueError("Native topology emitted extra edges")
     for mode in MODES:
         ids = [item["graphId"] for item in terminals[mode]]
-        if len(ids) != len(set(ids)):
-            raise ValueError("Repeated terminal GraphId for one mode")
+        stranded_ids = [item["graphId"] for item in mode_stranded[mode]]
+        if len(ids) != len(set(ids)) or len(stranded_ids) != len(set(stranded_ids)):
+            raise ValueError("Repeated terminal/stranded GraphId for one mode")
+        if set(ids) & set(stranded_ids):
+            raise ValueError("Mode-stranded nondeadend cannot be a deadend terminal")
+        if len(stranded_ids) != counts[f"{mode}ModeStrandedNondeadend"]:
+            raise ValueError("Stranded native ID coverage incomplete")
     return {"counts": dict(sorted(counts.items())),
             "nativeTopologyJsonlSha256": "sha256:" + source_digest.hexdigest(),
             "allGraphLocalModeTerminals": terminals,
+            "allGraphLocalModeStrandedNondeadends": mode_stranded,
+            "modeStrandedNativeIdCoverage": "ALL_MODE_STRANDED_NATIVE_IDS_RETAINED",
             "edgeCoverage": "ALL_SOURCE_NATIVE_SCAN_IDS_RECONCILED",
             "physicalRoadUniqueFinalEdge": "NOT_VERIFIED",
             "originalRouteProofForAllTerminals": "NOT_VERIFIED",
