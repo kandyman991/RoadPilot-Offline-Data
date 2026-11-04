@@ -177,3 +177,7 @@ Reference: D-012, D-013, D-014; `docs/ARCHITECTURE_CONTRACT.md`; `docs/GRAPH_STU
 
 Reference: D-014, D-015; `docs/GRAPH_STUDIO_PHASE4C_ARCHIVE_LEGACY_VALIDATORS.md`.
 
+
+## D-018 — Exact source-directed terminal ledger before physical-road lineage promotion (2026-11-04, production stage)
+
+The agreed F8 production goal is **one final retained directed edge for each actual physical road and travel direction** across the shared 25-km overlap, but GraphReader graph-local dead ends cannot define physical-road equivalence. Never group by name, local OSM way ID, GPS proximity or first successful route. A durable graph-local terminal ledger must account for *all* native edges, preserve every branch/ramp and car/motorcycle mode, and record any original Valhalla TripLeg proof separately from the physical equivalence decision. The unbuffered Geofabrik core is at most an explicitly pinned annotation unless the graph build manifest independently binds it; source-buffer cut-distance may only schedule expensive proofs, never prune discovery. Exact original TripLeg last GraphId matches for 114/116 prioritized cut witnesses do not license production connectivity: global physical lineage, mode-stranded alternatives and the independent B-original-first-edge + full A→X→B remain unverified. Preserve original graph archives, native JNI/Kotlin F8 fallback and publication BLOCKED until global proof and real Android parity. See `docs/F8_PHYSICAL_ROAD_FINAL_EDGE_PROOF_GATE.md` and issues Graph Studio #73/#82, RoadPilot #512.
