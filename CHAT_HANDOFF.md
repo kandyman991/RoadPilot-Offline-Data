@@ -1,5 +1,30 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Production direction reset: ONE final original directed edge per physical road/direction (2026-11-04)
+
+The owner rejected expansion of full road reconstruction/journey diagnostics
+into the F8 production architecture. New isolated branch from main,
+feature/f8-one-final-edge-register-20261104, deliberately does NOT depend on
+draft PR #119 or #120. It introduces a nonpublishing final-edge register
+that uses the authoritative SHA-verified complete Italy/Austria full native
+census and produces one record per original directed GraphId, joining
+Car/Motorcycle access into one record without collapsing different physical
+roads, ramps, carriageways, branches or separate directed GraphIds.
+
+Real Legion result: 658,345 source directed edges still retained in original
+source scans; 43,939 unique graph-local final directed edge candidates
+(Italy 21,500; Austria 22,439), with mode-stranded nondeadends explicitly
+unresolved (Italy Car/Motorcycle 12,216/12,252; Austria 12,550/12,587).
+Immutable report under
+~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/one-final-directed-edge-candidate-register-v2.json;
+sha256 ebbd3709820fa15f593ac529b45931af4b2924d5f93b73da375f5b00067a167f.
+This is one candidate per native GraphId, NOT yet one proven physical
+road/direction per edge: original road equivalence, mode-stranded cases,
+actual receiving B road and legal Valhalla transfer still NOT_VERIFIED.
+See docs/F8_ONE_FINAL_EDGE_PRODUCTION_RESET.md. Prior diagnostics PRs
+#119/#120 remain drafts, not production dependencies. No graph/Android changes,
+no merged PR, no published package.
+
 ## F8-native full directed overlap census / Android parity gate (2026-11-04)
 
 - From verified merged main `d6f9514` (PR #117 merged), new **draft production-evidence branch** `feature/f8-full-native-terminal-census-20261104`. No PR merge or release authorized.

@@ -80,6 +80,9 @@ jobs:
       - name: Full native 25 km topology census and no-road-suppression gates
         run: python -m unittest discover -s tests -p 'test_native_f8_full_terminal_census.py' -v
 
+      - name: One final directed edge candidate per GraphId and mode-union contract
+        run: python -m unittest discover -s tests -p "test_native_f8_final_edge_register.py" -v
+
       - name: Android JNI scanner cap and Kotlin road-key parity gating regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_android_jni_parity.py' -v
 
