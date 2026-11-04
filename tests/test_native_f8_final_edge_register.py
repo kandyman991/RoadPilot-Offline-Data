@@ -4,10 +4,12 @@ from __future__ import annotations
 import copy
 import sys
 from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from build_native_f8_final_edge_register import make_register
+from build_native_f8_final_edge_register import main, make_register
 
 SHA = "sha256:" + "a" * 64
 
@@ -48,8 +50,8 @@ def census(a, b, *, ma, mb):
                 "nativeDirectedEdgesAudited": len(src),
                 "autoGraphLocalFinalDirectedEdges": len(modes["auto"]),
                 "motorcycleGraphLocalFinalDirectedEdges": len(modes["motorcycle"]),
-                "autoModeStrandedNondeadend": 2,
-                "motorcycleModeStrandedNondeadend": 1},
+                "autoModeStrandedNondeadend": min(2, len(src)),
+                "motorcycleModeStrandedNondeadend": min(1, len(src))},
             "allGraphLocalModeTerminals": modes,
         }
     return {
@@ -177,6 +179,28 @@ class OneFinalEdgeRegisterTests(unittest.TestCase):
         del self.a["edges"][0]["innerLat"]
         with self.assertRaisesRegex(ValueError, "coordinate"):
             self.compile()
+
+    def test_impossible_mode_stranded_counts_fail_closed(self):
+        self.c["directions"]["from-to"]["counts"]["autoModeStrandedNondeadend"] = 999
+        with self.assertRaisesRegex(ValueError, "mode-stranded"):
+            self.compile()
+
+    def test_cli_refuses_overwrite_before_reading_any_input(self):
+        with tempfile.TemporaryDirectory() as td:
+            existing = Path(td) / "immutable.json"
+            existing.write_text("original", encoding="utf8")
+            names = ("pair", "census", "from-scan", "to-scan",
+                     "native-summary", "output")
+            args = ["build_native_f8_final_edge_register.py"]
+            for name in names:
+                args.extend(["--" + name, str(existing)])
+            for name in ("census", "from-scan", "to-scan", "native-summary"):
+                args.extend(["--expected-" + name + "-sha256",
+                             "sha256:" + "a" * 64])
+            with patch.object(sys, "argv", args):
+                with self.assertRaisesRegex(ValueError, "Refusing to replace"):
+                    main()
+            self.assertEqual(existing.read_text(encoding="utf8"), "original")
 
     def test_incorrect_census_terminal_counts_do_not_silently_shrink(self):
         self.ca["auto"].pop()

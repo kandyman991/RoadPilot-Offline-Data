@@ -151,7 +151,7 @@ def make_register(pair: dict, census: dict, from_scan: dict, to_scan: dict) -> d
         stranded = {}
         for mode in MODE_BITS:
             count = counts.get(f"{mode}ModeStrandedNondeadend", 0)
-            if type(count) is not int or count < 0:
+            if type(count) is not int or not 0 <= count <= len(edges):
                 raise ValueError("Invalid unresolved mode-stranded source count")
             stranded[mode] = count
         if any(x["candidateSuppressed"] for x in candidates.values()):
