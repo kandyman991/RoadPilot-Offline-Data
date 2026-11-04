@@ -59,6 +59,9 @@ jobs:
       - name: Graph-native segmented receiving-chain geometry and Valhalla trace regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_directed_chain.py' -v
 
+      - name: Actual F8 native A-last and B-first full-journey trace regressions
+        run: python -m unittest discover -s tests -p 'test_native_f8_actual_journey.py' -v
+
       - name: Bounded native F8 journey Valhalla proof regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_journey_probe.py' -v
 
