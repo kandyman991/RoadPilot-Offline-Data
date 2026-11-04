@@ -8,7 +8,8 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from probe_native_f8_clipped_terminal import SourceIntegrityError
 from probe_native_f8_road_continuity import (
-    inspect_source_and_b_continuations, locate_set,
+    inspect_source_and_b_continuations,
+    inspect_one_source_with_recoverable_b_reads, locate_set,
 )
 
 MASK = 1257
@@ -248,6 +249,68 @@ class ContinuityTests(unittest.TestCase):
         self.assertEqual(branch["bOnlyRouteReplay"]["status"],
                          "UNPROVEN_FOR_THIS_ROUTE")
         self.assertEqual(branch["crossGraphLegalTransfer"],"NOT_VERIFIED")
+
+    def test_unavailable_b_locate_keeps_a_terminal_and_next_source_unblocked(self):
+        a, incoming, advance, reverse = source_and_b()
+        terminal={"sourceGraphId":10,"sourceDirectedEndpoint":A_END,
+                  "graphLocalModeTerminalConfirmed":True}
+        def timeout_locate(point, mode):
+            raise OSError("Temporary B locate process unavailable")
+        result=inspect_one_source_with_recoverable_b_reads(
+            a,terminal,"auto",Path("B"),timeout_locate,
+            lambda ids:[advance,incoming],lambda gid:adjacency(incoming),
+            lambda ids:[advance,reverse],route_fn=good_route,
+            trace_fn=good_trace)
+        self.assertEqual(result["diagnosticStatus"],
+                         "INCONCLUSIVE_B_READ_UNAVAILABLE")
+        self.assertEqual(result["unavailableStage"],"B_LOCATE")
+        self.assertIsNone(result["nominatedBIncomingCount"])
+        self.assertEqual(result["sourceGraphId"],10)
+        self.assertEqual(result["sourceDiscoveryCoverage"],"NOT_VERIFIED")
+        another=inspect_one_source_with_recoverable_b_reads(
+            a,terminal,"auto",Path("B"),
+            lambda point,mode:[locator(21),locator(20)],
+            lambda ids:[advance,incoming],
+            lambda gid:adjacency(incoming),
+            lambda ids:[{21:advance,22:reverse}[x] for x in ids],
+            route_fn=good_route,trace_fn=good_trace)
+        self.assertEqual(another["nominatedBIncomingCount"],1)
+        self.assertEqual(another["bOnlyRouteProbeCount"],2)
+
+    def test_unavailable_b_geometry_keeps_exact_b_locate_ids_unknown(self):
+        a, incoming, advance, reverse = source_and_b()
+        terminal={"sourceGraphId":10,"sourceDirectedEndpoint":A_END,
+                  "graphLocalModeTerminalConfirmed":True}
+        def unavailable_native(ids):
+            raise ValueError("Native geometry capture failed; discard partial stdout")
+        result=inspect_one_source_with_recoverable_b_reads(
+            a,terminal,"auto",Path("B"),
+            lambda point,mode:[locator(21),locator(20)],
+            unavailable_native,lambda gid:adjacency(incoming),
+            lambda ids:[advance,reverse],
+            route_fn=good_route,trace_fn=good_trace)
+        self.assertEqual(result["diagnosticStatus"],
+                         "INCONCLUSIVE_B_READ_UNAVAILABLE")
+        self.assertEqual(result["unavailableStage"],"B_GEOMETRY")
+        self.assertEqual(result["retainedReceiverIdentities"],[21,20])
+        self.assertEqual(len(result["allBLocatedEdges"]),2)
+        self.assertTrue(all(x["evaluationStatus"] ==
+            "NOT_EVALUATED_B_READ_UNAVAILABLE"
+            for x in result["allBLocatedEdges"]))
+
+    def test_b_native_identity_corruption_aborts_not_a_recoverable_road_miss(self):
+        a, incoming, advance, reverse=source_and_b()
+        terminal={"sourceGraphId":10,"sourceDirectedEndpoint":A_END,
+                  "graphLocalModeTerminalConfirmed":True}
+        def mismatched(_):
+            raise ValueError("Native geometry identities/counts mismatch explicit selection")
+        with self.assertRaisesRegex(ValueError,"identities/counts mismatch"):
+            inspect_one_source_with_recoverable_b_reads(
+                a,terminal,"auto",Path("B"),
+                lambda pt,mode:[locator(21),locator(20)],
+                mismatched,lambda gid:adjacency(incoming),
+                lambda ids:[advance,reverse],route_fn=good_route,
+                trace_fn=good_trace)
 
     def test_graph_id_numeric_reuse_is_not_a_cross_graph_id_match(self):
         a, incoming, advance, reverse = source_and_b()

@@ -46,6 +46,11 @@ connected B outgoing inventory, and requests a **B-local** turn.
 3. Invokes Valhalla B `locate` within a declared radius, retains **every**
    returned B directed ID, and fetches all actual B native geometries.
    A missing/duplicated/mismatched native GraphId or count fails closed.
+   Recoverable B locate/native geometry read failures produce an
+   **individual INCONCLUSIVE observation** instead of erasing this source
+   terminal or already returned B identities, and later nominated source
+   terminals can still be examined. Malformed JSON, native count/identity
+   corruption, or a stale hash remains a fatal integrity error.
 4. Observes the last 20 m of A against **each** returned B directed
    geometry. Identifies only a *nominated diagnostic B-incoming* when
    its native end node is within 2 m of A's end and at least two

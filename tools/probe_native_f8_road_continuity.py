@@ -264,6 +264,75 @@ def inspect_source_and_b_continuations(
     }
 
 
+def inspect_one_source_with_recoverable_b_reads(
+    source: dict, terminal: dict, mode: str, cfg_b: Path,
+    locate_fn: Callable[[dict, str], list[dict]],
+    native_b_located_fn: Callable[[list[int]], list[dict]],
+    native_b_adj_fn: Callable[[int], dict],
+    native_b_outgoings_fn: Callable[[list[int]], list[dict]],
+    *, max_route_probes: int = MAX_TURN_PROBES_PER_SOURCE,
+    route_fn: Callable = route,
+    trace_fn: Callable = trace_directed_ids,
+) -> dict:
+    """Preserve A terminal and all known B locate IDs when B reads fail.
+
+    Only genuine transport/extractor availability errors are downgraded.
+    GraphId/count corruption or malformed native JSON must fail closed.
+    """
+    locators: list[dict] = []
+    stage = "B_LOCATE"
+    try:
+        locators = locate_fn(terminal["sourceDirectedEndpoint"], mode)
+        stage = "B_GEOMETRY"
+        ids = [item["receiverGraphId"] for item in locators]
+        b_rows = native_b_located_fn(ids) if ids else []
+        stage = "B_TOPOLOGY_AND_ROUTE"
+        return inspect_source_and_b_continuations(
+            source, terminal, locators, b_rows, mode, cfg_b,
+            native_b_adj_fn, native_b_outgoings_fn,
+            max_route_probes=max_route_probes,
+            route_fn=route_fn, trace_fn=trace_fn)
+    except SourceIntegrityError:
+        raise
+    except (OSError, subprocess.TimeoutExpired) as error:
+        reason = type(error).__name__
+    except ValueError as error:
+        # Anything involving native counts, GraphIds or malformed JSON is
+        # a fatal integrity violation, never a negative road observation.
+        if not (
+            str(error).startswith("Native geometry capture failed")
+            or str(error).startswith("Native receiver adjacency failed")
+        ):
+            raise
+        reason = type(error).__name__
+    return {
+        "sourceGraphId": terminal["sourceGraphId"],
+        "sourceGraphLocalTerminal": terminal,
+        "diagnosticStatus": "INCONCLUSIVE_B_READ_UNAVAILABLE",
+        "unavailableStage": stage,
+        "readErrorType": reason,
+        "locatedReceiverCount": len(locators),
+        "retainedReceiverIdentities": [
+            item["receiverGraphId"] for item in locators],
+        "allBLocatedEdges": [
+            {**item, "evaluationStatus": "NOT_EVALUATED_B_READ_UNAVAILABLE",
+             "discoveryEligibility": "NOT_A_FILTER",
+             "crossGraphLegalTransfer": "NOT_VERIFIED"}
+            for item in locators],
+        "nominatedBIncomingCount": None,
+        "verifiedNativeBOutgoingBranchCount": None,
+        "bOnlyRouteProbeCount": 0,
+        "bLocateCompleteness": "NOT_VERIFIED",
+        "sourcePhysicalFinalRoadEdge": "NOT_VERIFIED",
+        "sourceEdgeProvedLastInThisNativeGraphMode": bool(
+            terminal["graphLocalModeTerminalConfirmed"]),
+        "originalValhallaRouteEdgeIdentity": "NOT_VERIFIED",
+        "crossGraphDirectedTurnLegality": "NOT_VERIFIED",
+        "sourceDiscoveryCoverage": "NOT_VERIFIED",
+        "productionPublication": "BLOCKED",
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("pair", "from-manifest", "to-manifest", "from-buffer",
@@ -311,21 +380,18 @@ def main() -> int:
             terminal = check_source_terminal(
                 a, a_adj, args.mode, *buffers)
             endpoint = terminal["sourceDirectedEndpoint"]
-            # B locate is explicit bounded diagnostic, not the full native
-            # directed edge inventory or a coverage certificate.
-            b_located = locate_receiver_edges(
-                cb, endpoint, args.mode, radius=args.locate_radius)
-            ids = [item["receiverGraphId"] for item in b_located]
-            b_shapes = (
-                native_rows(args.native_endpoints_binary, cb, ids, tmp)
-                if ids else [])
+            # B locate is explicit bounded diagnostic, not a complete
+            # crossing census. A failed read is scoped to this A terminal.
+            def get_located(end: dict, mode: str) -> list[dict]:
+                return locate_receiver_edges(
+                    cb, end, mode, radius=args.locate_radius)
             def get_b_adj(id: int) -> dict:
                 return native_adjacency(
                     args.native_endpoints_binary, cb, id, tmp)
             def get_b_rows(ids: list[int]) -> list[dict]:
                 return native_rows(args.native_endpoints_binary, cb, ids, tmp)
-            report = inspect_source_and_b_continuations(
-                a, terminal, b_located, b_shapes, args.mode, cb,
+            report = inspect_one_source_with_recoverable_b_reads(
+                a, terminal, args.mode, cb, get_located, get_b_rows,
                 get_b_adj, get_b_rows,
                 max_route_probes=args.max_route_probes_per_source)
             reports.append(report)
