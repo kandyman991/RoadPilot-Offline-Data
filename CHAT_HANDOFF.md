@@ -1,5 +1,41 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## LATEST completed merge — PR #122 reviewed source-only evidence (2026-11-04)
+
+Owner-authorized PR #122 was independently audited as a separate technical
+review pass, corrected, exact-head CI verified (architecture-contract,
+validate and Linux all PASS), and **MERGED** into main as
+`5e02be669681c1f33bb212da20c7dfe56f86e01a`.
+Corrected PR code head: `71c9e75d0c34ac9c70300950f044a487e40a1509`;
+390/390 local Legion tests passed. Findings and evidence:
+`docs/F8_PR122_TECHNICAL_REVIEW_20261104.md` and
+`docs/F8_SOURCE_CUT_WINDOW_COVERAGE_AUDIT.md`.
+
+**Do NOT duplicate PR #121 or #122.** PRs #119/#120 are older diagnostic
+branches and are NOT production merge dependencies. No original graph
+archives, Android runtime, receiving-B graph or connectivity sidecar changed.
+The 3,623 overlap-window native ID scan is NOT the whole original graph tile
+census; 880 window-captured original source cut directed observations,
+549 unresolved cut IDs, 34 native predecessor IDs missing from window scan,
+and two bounded unresolved branches remain. One final original directed edge
+per physical road/direction is NOT_VERIFIED. Receiving-B graph correlation
+NOT_STARTED; production publication BLOCKED.
+
+The merge commit contains `[skip ci]` to prevent an **unapproved rolling
+Linux prerelease publication** triggered automatically by main pushes.
+Post-merge the `roadpilot-graph-studio-linux` tag was verified unchanged
+at `d8fc29bc5bfff59fbb0e297e05fa9111f31ae8bb`.
+Release policy hazard is tracked in Graph Studio issue #123. Do not trigger
+rolling Linux publication or graph/sidecar release without explicit approval.
+
+**NEXT production milestone:** enumerate ALL original Valhalla GraphReader
+tiles and directed roads for both immutable original region archives; preserve
+all ramps, carriageways and mode-specific continuations, then prove a
+source-side original physical-road/direction-to-ONE final retained directed
+GraphId map across the 25-km overlap BEFORE any receiving graph correlation.
+Issue #73/#82 Graph Studio and #512 RoadPilot remain open.
+
+
 ## Active production continuation — PR #122 source-cut window coverage (2026-11-04)
 
 Dedicated PR #122 technical review corrected missing original Car/Motorcycle
