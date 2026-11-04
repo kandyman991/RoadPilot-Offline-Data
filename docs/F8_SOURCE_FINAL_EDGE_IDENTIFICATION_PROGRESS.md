@@ -134,3 +134,24 @@ Android JNI parity or production publication. Issues Graph Studio
 **Unchanged:** retired OSM-first crossing producer, regional connector
 matrix, old bounded planner remain retired. No graph .gph modification,
 Android routing runtime change or new crossing sidecar is authorized.
+
+## 2026-11-04 — recovered complete-window cut census and coverage blocker
+
+The interrupted session had already produced SHA-bound full-geometry cut
+observations for every captured source GraphId in all 3,623 **common-overlap
+windows**, not every original graph tile. That retained scan includes 593
+Italy and 287 Austria original directed edges intersecting each source's own
+25-km graph-build buffer cut (880 total). Independently reconciled against
+251 cut-intersecting last-edge proofs and 49 beyond-cut last-edge cases,
+only 331 distinct captured cut IDs currently have a known direct-final or
+cut-predecessor link. There are 549 unlinked captured cut observations,
+including 159 outward; 34 further known beyond-cut predecessor original
+GraphIds were never present in the 658,345-ID window capture. **These are
+coverage blockers, not rejectable or deduplicable roads.** No global physical
+road/direction inventory or receiving-B match is certified.
+
+Preserved evidence and precise regression gates:
+[Source cut window-coverage audit](F8_SOURCE_CUT_WINDOW_COVERAGE_AUDIT.md).
+The next engineering milestone is whole-original-graph-tile directed-road
+coverage followed by branch-aware cut→one-last-edge reconciliation before
+any B graph correlation. No production sidecar or Android change.

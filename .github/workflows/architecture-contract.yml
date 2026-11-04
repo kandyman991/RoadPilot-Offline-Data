@@ -92,6 +92,12 @@ jobs:
       - name: Original source-only beyond-cut final-edge predecessors and no first-success exclusion
         run: python -m unittest discover -s tests -p 'test_native_f8_beyond_cut_predecessor.py' -v
 
+      - name: Original directed cut window-census and no false whole-archive completeness claims
+        run: python -m unittest discover -s tests -p 'test_native_f8_original_source_cut_census.py' -v
+
+      - name: Source cut/full predecessor coverage reconciliation and missing-GraphId fail-closed gates
+        run: python -m unittest discover -s tests -p 'test_native_f8_source_cut_coverage_reconciliation.py' -v
+
       - name: Android JNI scanner cap and Kotlin road-key parity gating regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_android_jni_parity.py' -v
 

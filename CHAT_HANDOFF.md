@@ -1,5 +1,38 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Active production continuation — PR #122 source-cut window coverage (2026-11-04)
+
+PR #121 merged, main d8fc29b then ea0afc0 handoff refresh. PR #122
+`feature/f8-physical-final-edge-id-20261104` is **DRAFT, unmerged**.
+The previous session left two uncommitted original SOURCE window-cut-census
+files and already-generated immutable v3 results. This recovery preserved
+those files, added a strict standalone source-side reconciliation tool,
+regressions and documented exact coverage gaps in
+`docs/F8_SOURCE_CUT_WINDOW_COVERAGE_AUDIT.md`.
+
+The 3,623 common-overlap native scan windows capture 658,345 unique original
+directed IDs, but they do **not enumerate all tiles in either original graph**.
+At the SHA-bound original 25-km source buffers 880 captured directed edges
+intersect the source cut (Italy 593, Austria 287). 331 have a known
+source direct-final/precursor link; 549 remain unresolved, including 159
+outward. Importantly 34 additional SHA-verified beyond-cut predecessor IDs
+were absent from window scans (Italy 18, Austria 16). They MUST NOT be
+silently excluded. Two predecessor branches remain depth-bounded unresolved.
+Source-only reconciliation report
+`~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/source-cut-coverage-reconciliation-v1.json`
+SHA256 `652c3efe77ebf3d60ae3e7be24e7d454279ba5b91ac5c6225d97596db3e68ecf`.
+Full 379-test Legion suite passes when the venv bin directory is on PATH.
+
+**NEXT EXACT PRODUCTION GATE:** Independently enumerate all original
+GraphReader tiles and directed road edges from both immutable original
+archives; reconcile every source cut edge and original branch with exactly
+one final retained original directed GraphId per physical road/direction.
+Only after that is complete begin receiving-B matching. Do not revive OSM
+samplers, same-name/way grouping, connector matrices, intermediate crossing
+point grids, or first-success. No graph changes, sidecar or Android release.
+Leave Graph Studio #73/#82 and Android #512 open. PR #122 requires review,
+new exact-head CI and owner authorization before merge.
+
 ## After PR #121 merge — source-only last physical-road-edge census (2026-11-04)
 
 Owner explicitly authorized and the GitHub exact-head architecture, Linux and
