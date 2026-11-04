@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Read-only M6b: F8's actual A-last/B-first directed legs for native GPS proposals.
+"""Read-only M6b: F8 journey shape edge-walk replay at A-last/B-first for native GPS proposals.
 
 Original GPS proposals are explicitly selected, never filtered or replaced.
-The final directed edge of a *route leg* is NOT presumed the final retained
+The replay-inferred final directed edge of a *route leg* is NOT proved
+to be the route service's true edge under ambiguous geometries or the final retained
 road edge in the 25-km overlap, nor does GPS handoff prove cross-graph legality.
 """
 from __future__ import annotations
@@ -33,6 +34,56 @@ MAX_EXPLICIT_PROPOSALS = 8
 MAX_TRACE_EDGES = 100000
 TRACE_SAMPLE_COUNT = 8
 DIRECTIONS = ("from-to", "to-from")
+# The SHA of the independently archived pinned Valhalla 3.6.3 native
+# executable compiled and smoke-tested on the Legion for M6a/PR #112.
+# A different executable must undergo a new review instead of silently
+# borrowing this tool's native-geometry provenance.
+REVIEWED_M6A_EXTRACTOR_SHA256 = (
+    "sha256:14455ad673c464c3715f2e0b96adfa3aa1f1ecf2a99d347f59920a6a9cc91c6f"
+)
+EDGE_WALK_REPLAY_METHOD = "VALHALLA_TRACE_ATTRIBUTES_EDGE_WALK_OF_ROUTE_SHAPE"
+
+
+class NativeEvidenceIntegrityError(ValueError):
+    """Fatal identity or expected-executable mismatch; never downgrade."""
+
+
+def verify_native_extractor(
+    binary: Path, *, expected_sha256: str = REVIEWED_M6A_EXTRACTOR_SHA256,
+) -> dict:
+    """Hash the actual native executable; fail closed on non-reviewed bytes."""
+    if (not isinstance(expected_sha256, str) or
+            len(expected_sha256) != 71 or
+            not expected_sha256.startswith("sha256:") or
+            any(c not in "0123456789abcdef" for c in expected_sha256[7:])):
+        raise ValueError("Invalid expected native extractor SHA-256 pin")
+    digest = hashlib.sha256()
+    with binary.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    actual = "sha256:" + digest.hexdigest()
+    if actual != expected_sha256:
+        raise NativeEvidenceIntegrityError(
+            "Native extractor SHA-256 differs from the reviewed M6a build"
+        )
+    version = subprocess.run(
+        [str(binary), "--version"], capture_output=True,
+        text=True, timeout=15, check=True,
+    )
+    if version.stdout.strip() != "3.6.3":
+        raise NativeEvidenceIntegrityError(
+            "Native extractor is not pinned Valhalla 3.6.3"
+        )
+    return {
+        "nativeExtractorSha256": actual,
+        "nativeExtractorExpectedSha256": expected_sha256,
+        "nativeExtractorProvenance": (
+            "MATCHED_ARCHIVED_REVIEWED_M6A_BINARY"
+            if expected_sha256 == REVIEWED_M6A_EXTRACTOR_SHA256
+            else "MATCHED_TEST_CALLER_SHA256_NOT_REVIEWED"
+        ),
+        "nativeExtractorVersion": "3.6.3",
+    }
 
 
 def selected_catalog(file: Path, requested: list[str], direction: str,
@@ -78,14 +129,17 @@ def _trace_digest(trace: list[int]) -> str:
         ",".join(str(n) for n in trace).encode("ascii")).hexdigest()
 
 
-def trace_actual_legs(candidate: dict, config_a: Path, config_b: Path,
+def replay_route_shapes(candidate: dict, config_a: Path, config_b: Path,
                       origin: dict, destination: dict, mode: str,
                       route_fn: Callable = route,
                       trace_fn: Callable = trace_directed_ids) -> dict:
-    """Trace actual leg edges, F8 normalization and exact destination.
+    """Trace edge-walk *replays* of route shapes, F8 normalization, arrival.
 
-    An outcome is only a property of this explicit candidate/route/mode, not
-    negative evidence about other crossing positions or roads.
+    These independent trace_attributes(edge_walk) IDs are not directly
+    provided by the route service. Treat exact route-edge fidelity as
+    NOT_VERIFIED, especially on overlapping/ambiguous road geometries.
+    An outcome is only a property of this explicit candidate/route/mode,
+    never negative evidence about other crossing positions or roads.
     """
     if mode not in MODES:
         raise ValueError("Unsupported mode")
@@ -98,9 +152,12 @@ def trace_actual_legs(candidate: dict, config_a: Path, config_b: Path,
     base = {
         "candidateId": candidate["id"], "proposedReceiverGraphId": expected_b,
         "gpsProposal": point, "mode": mode,
-        "aLastEdgeMeaning": "ACTUAL_LAST_DIRECTED_EDGE_OF_THIS_A_ROUTE_ONLY",
+        "replayALastEdgeMeaning": "EDGE_WALK_REPLAY_LAST_DIRECTED_EDGE_OF_A_ROUTE_SHAPE_ONLY",
         "crossGraphPhysicalContinuity": "NOT_VERIFIED",
         "crossSeamTurnLegality": "NOT_VERIFIED",
+        "edgeWalkReplayMethod": EDGE_WALK_REPLAY_METHOD,
+        "routeEdgeIdentityFidelity": "NOT_VERIFIED",
+        "ambiguousGeometryEdgeIdentity": "NOT_VERIFIED",
     }
     try:
         first = route_fn(config_a, origin, point, mode)
@@ -111,18 +168,18 @@ def trace_actual_legs(candidate: dict, config_a: Path, config_b: Path,
         a_trace = trace_fn(config_a, first["encodedShape"], mode)
         if not _valid_trace(a_trace):
             return {**base, "status": "INCONCLUSIVE",
-                    "reason": "Missing/invalid actual A directed edge trace"}
+                    "reason": "Missing/invalid A edge-walk replay of route shape"}
         normalized = strict_point(first["endActual"], "actual A leg arrival")
         second = route_fn(config_b, normalized, destination, mode)
         if second.get("status") != "SUCCEEDED":
             return {**base, "status": "INCONCLUSIVE",
                     "reason": "B normalized-start-to-destination route did not succeed",
-                    "actualALastDirectedGraphId": a_trace[-1]}
+                    "replayedALastDirectedGraphId": a_trace[-1]}
         b_trace = trace_fn(config_b, second["encodedShape"], mode)
         if not _valid_trace(b_trace):
             return {**base, "status": "INCONCLUSIVE",
-                    "reason": "Missing/invalid actual B directed edge trace",
-                    "actualALastDirectedGraphId": a_trace[-1]}
+                    "reason": "Missing/invalid B edge-walk replay of route shape",
+                    "replayedALastDirectedGraphId": a_trace[-1]}
         offsets = {}
         for side, leg in (("A", first), ("B", second)):
             for name in ("startOffsetMeters", "endOffsetMeters"):
@@ -155,17 +212,17 @@ def trace_actual_legs(candidate: dict, config_a: Path, config_b: Path,
         matches = b_trace[0] == expected_b
         return {
             **base,
-            "status": ("BOTH_ACTUAL_GRAPH_LOCAL_LEGS_TRACED_FOR_THIS_JOURNEY"
+            "status": ("BOTH_EDGE_WALK_REPLAYS_MATCH_SELECTED_JOURNEY_SHAPES_ONLY"
                        if arrived and matches else "UNPROVEN_FOR_THIS_JOURNEY"),
             "endpointArrivalAndHandoffWithinF8Tolerance": arrived,
-            "proposedReceiverMatchesActualFirstEdge": matches,
-            "actualALastDirectedGraphId": a_trace[-1],
-            "actualBFirstDirectedGraphId": b_trace[0],
-            "aTraceEdgeCount": len(a_trace), "bTraceEdgeCount": len(b_trace),
-            "aTraceLastIds": a_trace[-TRACE_SAMPLE_COUNT:],
-            "bTraceFirstIds": b_trace[:TRACE_SAMPLE_COUNT],
-            "aTraceSha256": _trace_digest(a_trace),
-            "bTraceSha256": _trace_digest(b_trace),
+            "proposedReceiverMatchesReplayedFirstEdge": matches,
+            "replayedALastDirectedGraphId": a_trace[-1],
+            "replayedBFirstDirectedGraphId": b_trace[0],
+            "aEdgeWalkReplayEdgeCount": len(a_trace), "bEdgeWalkReplayEdgeCount": len(b_trace),
+            "aEdgeWalkReplayLastIds": a_trace[-TRACE_SAMPLE_COUNT:],
+            "bEdgeWalkReplayFirstIds": b_trace[:TRACE_SAMPLE_COUNT],
+            "aEdgeWalkReplaySha256": _trace_digest(a_trace),
+            "bEdgeWalkReplaySha256": _trace_digest(b_trace),
             "actualALegStart": a_start, "actualAHandoff": normalized,
             "actualBHandoff": b_start, "actualDestination": b_final,
             "handoffGapMeters": round(handoff_gap, 3),
@@ -187,17 +244,26 @@ def trace_actual_legs(candidate: dict, config_a: Path, config_b: Path,
                 "reason": str(exc)[:250]}
 
 
-def observe_actual_handoff_geometry(
+def observe_replayed_handoff_geometry(
     observation: dict, source_edge: dict, receiver_edge: dict, mode: str,
 ) -> dict:
-    """Native A/B edge geometry is observational, not a legal seam edge."""
+    """Native A/B geometry is bound to replay IDs, not confirmed route IDs."""
     if mode not in MODES:
         raise ValueError("Unsupported mode")
+    a_id = observation["replayedALastDirectedGraphId"]
+    b_id = observation["replayedBFirstDirectedGraphId"]
+    # A native payload with the wrong, missing, or malformed graph-local ID
+    # breaks its archive binding. It is NOT a recoverable route miss.
+    if (not isinstance(source_edge, dict) or
+            not isinstance(receiver_edge, dict) or
+            type(source_edge.get("sourceGraphId")) is not int or
+            type(receiver_edge.get("sourceGraphId")) is not int or
+            source_edge["sourceGraphId"] != a_id or
+            receiver_edge["sourceGraphId"] != b_id):
+        raise NativeEvidenceIntegrityError(
+            "Native geometry is not bound to replayed A-last/B-first identities"
+        )
     a, b = checked_edge(source_edge), checked_edge(receiver_edge)
-    a_id = observation["actualALastDirectedGraphId"]
-    b_id = observation["actualBFirstDirectedGraphId"]
-    if a["sourceGraphId"] != a_id or b["sourceGraphId"] != b_id:
-        raise ValueError("Native geometry is not bound to actual A-last/B-first trace")
     a_hand = strict_point(observation["actualAHandoff"], "A actual handoff")
     b_hand = strict_point(observation["actualBHandoff"], "B actual handoff")
     a_pos = nearest(a_hand, a["directedGeometry"])
@@ -214,15 +280,15 @@ def observe_actual_handoff_geometry(
         and gap <= GEOMETRY_OBSERVATION_METRES
     )
     return {
-        "sourceActualDirectedGraphId": a_id,
-        "receiverActualDirectedGraphId": b_id,
+        "sourceReplayedDirectedGraphId": a_id,
+        "receiverReplayedDirectedGraphId": b_id,
         "sourceWayIdAnnotation": a["wayId"],
         "receiverWayIdAnnotation": b["wayId"],
         "sourceForwardModeAccess": bool(a["forwardAccess"] & MODES[mode]),
         "receiverForwardModeAccess": bool(b["forwardAccess"] & MODES[mode]),
-        "aNativeLastEdgeDeadendFlag": a.get("deadend")
+        "aReplayedEdgeDeadendFlag": a.get("deadend")
         if type(a.get("deadend")) is bool else None,
-        "aNativeLastEdgeNotThruFlag": a.get("notThru")
+        "aReplayedEdgeNotThruFlag": a.get("notThru")
         if type(a.get("notThru")) is bool else None,
         "aRemainingDistanceToDirectedEdgeEndMeters": round(a_remaining, 3),
         "aHandoffIsAtEndOfActualLastEdgeWithinOneMetre": (
@@ -238,9 +304,10 @@ def observe_actual_handoff_geometry(
             b_pos["distanceAlongDirectedEdgeMeters"], 3),
         "aVsBLocalDirectedTangentCosine": round(tangent_cos, 5),
         "graphLocalGeometryObservation": (
-            "BOTH_TRACED_EDGES_COLOCATED_AT_SELECTED_HANDOFF_ONLY"
+            "BOTH_REPLAYED_EDGES_COLOCATED_AT_SELECTED_HANDOFF_ONLY"
             if co_located
             else "NOT_COLOCATED_WITHIN_ONE_METRE_FOR_SELECTED_HANDOFF"),
+        "routeEdgeIdentityFidelity": "NOT_VERIFIED",
         "physicalCrossGraphContinuity": "NOT_VERIFIED",
         "crossSeamDirectedLegality": "NOT_VERIFIED",
     }
@@ -253,16 +320,33 @@ def evaluate_candidate(
     route_fn: Callable = route,
     trace_fn: Callable = trace_directed_ids,
 ) -> dict:
-    journey = trace_actual_legs(candidate, config_a, config_b,
+    journey = replay_route_shapes(candidate, config_a, config_b,
                                 origin, destination, mode, route_fn, trace_fn)
     if not all(k in journey for k in (
-            "actualALastDirectedGraphId", "actualBFirstDirectedGraphId")):
+            "replayedALastDirectedGraphId", "replayedBFirstDirectedGraphId")):
         return {**journey, "nativeGeometry": "NOT_RUN_NO_COMPLETE_TWO_LEG_TRACE"}
-    a_edge, b_edge = native_geometry_fn(
-        journey["actualALastDirectedGraphId"],
-        journey["actualBFirstDirectedGraphId"])
-    geom = observe_actual_handoff_geometry(journey, a_edge, b_edge, mode)
-    result = {**journey, "actualEdgeGeometry": geom,
+    try:
+        a_edge, b_edge = native_geometry_fn(
+            journey["replayedALastDirectedGraphId"],
+            journey["replayedBFirstDirectedGraphId"])
+        geom = observe_replayed_handoff_geometry(journey, a_edge, b_edge, mode)
+    except NativeEvidenceIntegrityError:
+        # A returned wrong GraphId is evidence corruption, not a missed road.
+        # Abort the report instead of returning a misleading partial result.
+        raise
+    except (OSError, ValueError, TypeError, KeyError, IndexError,
+            subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+        # Missing native geometry or failed read is a local inconclusive
+        # sample. Other selected crossings MUST still be tested.
+        return {
+            **journey, "status": "INCONCLUSIVE",
+            "nativeGeometry": "UNAVAILABLE_FOR_THIS_CANDIDATE",
+            "reason": "Native geometry capture/inspection unavailable: "
+                      + str(error)[:180],
+            "crossGraphPhysicalContinuity": "NOT_VERIFIED",
+            "crossSeamTurnLegality": "NOT_VERIFIED",
+        }
+    result = {**journey, "replayedEdgeGeometry": geom,
               "crossGraphPhysicalContinuity": "NOT_VERIFIED",
               "crossSeamTurnLegality": "NOT_VERIFIED"}
     if not geom["sourceForwardModeAccess"] or not geom["receiverForwardModeAccess"]:
@@ -270,6 +354,23 @@ def evaluate_candidate(
         result["reason"] = ("Actual traced graph-local directed edge lacks "
                             "requested native forward mode access")
     return result
+
+
+def evaluate_selected_batch(
+    selected: list[dict], config_a: Path, config_b: Path,
+    origin: dict, destination: dict, mode: str,
+    native_geometry_fn: Callable[[int, int], tuple[dict, dict]],
+    route_fn: Callable = route,
+    trace_fn: Callable = trace_directed_ids,
+) -> list[dict]:
+    """Isolate recoverable candidate errors; do not conceal integrity errors."""
+    return [
+        evaluate_candidate(
+            entry, config_a, config_b, origin, destination, mode,
+            native_geometry_fn, route_fn, trace_fn,
+        )
+        for entry in selected
+    ]
 
 
 def main() -> int:
@@ -287,11 +388,7 @@ def main() -> int:
                           "requested origin")
     destination = strict_point({"lat": args.end_lat, "lng": args.end_lng},
                                "requested destination")
-    version = subprocess.run(
-        [str(args.native_endpoints_binary), "--version"], capture_output=True,
-        text=True, timeout=15, check=True)
-    if version.stdout.strip() != "3.6.3":
-        raise ValueError("Pinned Valhalla 3.6.3 GraphReader required")
+    native_provenance = verify_native_extractor(args.native_endpoints_binary)
     pair = json.loads(args.pair.read_text(encoding="utf-8"))
     pair_identity(pair)
     manifest = json.loads(
@@ -317,13 +414,24 @@ def main() -> int:
             cfg_a, cfg_b = cfg_b, cfg_a
 
         def capture_actual_native_edges(a_id: int, b_id: int) -> tuple[dict, dict]:
-            a = native_rows(args.native_endpoints_binary, cfg_a, [a_id], temp)[0]
-            b = native_rows(args.native_endpoints_binary, cfg_b, [b_id], temp)[0]
+            try:
+                a = native_rows(args.native_endpoints_binary, cfg_a, [a_id], temp)[0]
+                b = native_rows(args.native_endpoints_binary, cfg_b, [b_id], temp)[0]
+            except ValueError as error:
+                if str(error).startswith(
+                        "Native geometry identities/counts mismatch explicit selection"):
+                    raise NativeEvidenceIntegrityError(
+                        "Native extractor returned wrong edge identities/counts"
+                    ) from error
+                raise
             return a, b
 
-        reports = [evaluate_candidate(
-            cand, cfg_a, cfg_b, origin, destination, args.mode,
-            capture_actual_native_edges) for cand in selected]
+        reports = [
+            {**result, **native_provenance}
+            for result in evaluate_selected_batch(
+                selected, cfg_a, cfg_b, origin, destination, args.mode,
+                capture_actual_native_edges)
+        ]
 
     result = {
         "schema": "roadpilot.native-f8-m6b-actual-two-graph-leg-witness",
@@ -338,8 +446,12 @@ def main() -> int:
         "selectedProbeCount": len(reports),
         "totalOriginalNativeGpsProposals": total,
         "remainingUnprobedProposals": total - len(reports),
-        "sourceAIdentity": "ACTUAL_LAST_EDGE_OF_REQUESTED_GRAPH_A_LEG_ONLY",
+        "sourceAIdentity": "EDGE_WALK_REPLAY_LAST_EDGE_OF_A_LEG_SHAPE_ONLY",
         "results": reports,
+        **native_provenance,
+        "edgeWalkReplayMethod": EDGE_WALK_REPLAY_METHOD,
+        "routeEdgeIdentityFidelity": "NOT_VERIFIED",
+        "ambiguousGeometryEdgeIdentity": "NOT_VERIFIED",
         "graphLocalEvidenceOnly": True,
         "crossGraphPhysicalContinuity": "NOT_VERIFIED",
         "crossSeamTurnLegality": "NOT_VERIFIED",

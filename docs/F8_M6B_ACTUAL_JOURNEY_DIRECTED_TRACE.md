@@ -1,145 +1,69 @@
-# M6b — Actual F8 A-last / B-first directed route evidence
+# M6b — Native F8 journey endpoint and edge-walk replay observations
 
-**Status:** read-only diagnostic implementation with real-graph evidence;
-no production connectivity package, graph archive, Android or publisher
-changes. This milestone advances the native F8 **last-edge / 25-km-overlap**
-architecture without resurrecting any OSM sampler, candidate-pair/matrix
-producer or hard portal. PR #112 (M6a) is merged.
+**Status:** read-only diagnostic, subject to PR #113 review gates. No production routing change, connector matrix, Graph Studio publisher change, Android change or release authorization. The intended native F8 final-road-edge/25-km-overlap contract remains binding and **not yet demonstrated**.
 
-## Why M6b differs from M5/M6a
+## Source, meaning and limitations
 
-M5 used nominated A/B directed graph IDs, and the real Italy→Austria
-journeys did not use the proposed A terminal. M6a then validated the
-topology, geometry and local Valhalla traces of nominated B edge chains.
-Neither proved that a real A-origin-to-B-destination journey actually
-used those A and B edges.
+M6b tests selected native F8 GPS proposals by requesting two ordinary Valhalla 3.6.3 graph-local routes: origin→X in Graph A, then A's normalized actual arrival coordinate X→destination in Graph B. The route service provides encoded shapes, endpoint locations and journey metrics.
 
-**M6b now traces the exact A-last and B-first directed GraphIds used by
-Valhalla for a complete F8 two-leg journey.** It begins with the original
-validated-hash **native GPS proposal stream** and probes selected existing
-candidate IDs, rather than fabricating new crossing identities.
+**Review correction F02:** Directed GraphIds reported here are NOT obtained authoritatively from the route service. Each routed shape is independently sent to `valhalla_service trace_attributes` with `shape_match=edge_walk`. This produces a **reconstructed edge-walk replay** that might differ from the original route's edge choices when multiple directed edges share or closely follow one geometry. A route↔trace fidelity proof for overlapping/ambiguous geometry has **not** been performed.
 
-## Diagnostic: tools/probe_native_f8_actual_journey.py
+- `replayedALastDirectedGraphId`, `replayedBFirstDirectedGraphId`, `aEdgeWalkReplayLastIds`, `bEdgeWalkReplayFirstIds` and their SHA-256 digests identify only **edge-walk replay** IDs.
+- A replay matching the nominated GPS receiver ID does not independently prove the route service traversed that directed edge.
+- `edgeWalkReplayMethod=VALHALLA_TRACE_ATTRIBUTES_EDGE_WALK_OF_ROUTE_SHAPE`.
+- `routeEdgeIdentityFidelity=NOT_VERIFIED` and `ambiguousGeometryEdgeIdentity=NOT_VERIFIED`.
+- Positive status `BOTH_EDGE_WALK_REPLAYS_MATCH_SELECTED_JOURNEY_SHAPES_ONLY` means the requested A and B route legs arrived within the declared F8 tolerance, and B's *replayed* shape begins with the nominated GPS receiver edge. **Not** a route-edge identity, final-road-edge or seam-legality certificate.
 
-1. Verify original Graph Studio F8 GPS proposal manifest and the complete
-   compressed candidate-file SHA-256. Check exact graph package fingerprints
-   and both neighbour-boundary identities before routing.
-2. Select **explicit existing native GPS proposal IDs** (1–8 per diagnostic),
-   preserving original stream count. Never select just one per road/ref, never
-   treat the bounded selection as exhaustive, and never exclude unprobed
-   crossings. No new production artifact is written.
-3. Route origin→proposal X in Graph A, normalize X to Graph A's **actual**
-   Valhalla endpoint, then route actual X→destination on independent Graph B.
-   Check first/final route endpoints, F8's 25 m route-local tolerance,
-   destination arrival and complete two-leg Valhalla distance/time.
-4. Trace **actual** directed edge IDs from both returned Valhalla leg
-   geometries: actual last Graph A edge and actual first Graph B edge.
-   Compare B's first edge with the candidate's original Graph B ID.
-   Trace identities are **scoped to their own graph fingerprints**;
-   never compare numeric GraphIds across the independent archives.
-5. Independently extract the *actual* two directed native geometries with
-   pinned Valhalla 3.6.3 GraphReader. Check native forward vehicle mode access,
-   calculate each local edge's handoff projection, geometric gap and directed
-   tangents. Co-location is an observation, **not** proof of cross-graph
-   physical transfer or legal turn. Native/trace identity mismatch fails closed.
-6. Distinguish `aLastEdgeMeaning=ACTUAL_LAST_DIRECTED_EDGE_OF_THIS_A_ROUTE_ONLY`
-   from `sourceRoadFinalEdgeIdentity=NOT_VERIFIED_BY_SELECTED_LEG`.
-   Report metres remaining from handoff to **the end of that A directed
-   edge**, plus the Valhalla native `deadend` flag, with no inference that
-   the route's last edge is the final retained road edge 25 km inside the
-   neighbour graph.
-7. Failures, other traced B entry, missing geometry or invalid mode are
-   scoped to this selected journey; no unsuccessful proposal eliminates
-   a road, receiver alternative, direction or position.
+## What the diagnostic does
 
-Every report retains `crossGraphPhysicalContinuity=NOT_VERIFIED`,
-`crossSeamTurnLegality=NOT_VERIFIED`,
-`sourceDiscoveryCoverage=NOT_VERIFIED`,
-`androidF8Parity=NOT_VERIFIED`, `wholeJourneyOptimality=NOT_VERIFIED`
-and `productionPublication=BLOCKED`.
+`tools/probe_native_f8_actual_journey.py`:
 
-## Real graph results — 2026-11-04
+1. Verifies original, complete SHA-256-bound native GPS proposal stream and both immutable regional routing package/boundary fingerprints.
+2. Probes **1–8 explicitly selected original GPS proposal IDs**, preserving total stream count and the fact that all other crossing alternatives remain unprobed. No road-key or OSM correlation filter.
+3. Requests fresh graph-local routes; normalizes B's start to actual A-leg arrival; checks destinations and F8's 25 m local endpoint tolerance and stores real leg costs.
+4. Replays each shape using a **separate** Valhalla edge-walk trace. Real route endpoint coordinates are distinguished from replay edge IDs; numeric GraphIds never match across regional graphs.
+5. Uses the pinned native Valhalla GraphReader to inspect **replayed** A-last/B-first edge geometry and access flags. Co-location, orientation, `deadend` and remaining distance on the replayed A edge are observations only.
+6. **F01:** Missing/unreadable native geometry, timeouts or malformed geometric details are `INCONCLUSIVE` for one selected candidate, allowing the rest of its batch to continue. Wrong, missing or inconsistent native GraphIds/counts are fatal data-integrity failures.
+7. **F03:** Calculates the native executable's SHA-256 and checks it against the independently compiled and archived M6a/PR #112 binary, as well as Valhalla version 3.6.3. Mismatch stops the entire run before routing. Each report and candidate row binds `nativeExtractorSha256` and `nativeExtractorProvenance`.
 
-Validated against **the same immutable 2026.10.13-1** Italy Nord-Est
-and Austria Valhalla 3.6.3 packages and boundary fingerprints. A new
-route is calculated by Valhalla for every selected candidate/mode;
-the historical native journey JSON is used only to identify worthwhile
-existing native proposal IDs to test, **not** as a substitute for a
-fresh route or trace.
+### Archived pinned native extractor
 
-Original candidate streams contain **334,973** GPS proposals in
-Italy→Austria direction and **323,372** in Austria→Italy direction.
-M6b probes **3 distinct original candidates** for each of Car and
-Motorcycle in each direction, **12 selected candidate/mode results**
-total. It never suppresses or ranks away the remaining proposals.
+SHA-256: `14455ad673c464c3715f2e0b96adfa3aa1f1ecf2a99d347f59920a6a9cc91c6f`
 
-| Direction | Mode | A actual last directed edges | Graph B actual first directed edges | Route-local directed trace / arrival / native geometry |
+Build commands, static-library hash and source provenance are in `docs/F8_M6_NATIVE_EXTRACTOR_BUILD_PROVENANCE.md`. A future legitimate rebuild must be independently reviewed and explicitly repinned. The SHA match is not a signing/release attestation.
+
+## Retained Italy Nord-Est ↔ Austria evidence (2026-11-04)
+
+Immutable regional routing packages `2026.10.13-1`, pinned Valhalla 3.6.3. Three original GPS proposal IDs per direction × Car and Motorcycle = **12 selected candidate/mode observations** in four reports. Their original intact streams contain **334,973** Italy→Austria and **323,372** Austria→Italy proposals; all unprobed alternatives remain unknown.
+
+| Direction | Mode | Replay A-last IDs | Replay B-first IDs | Result |
 | --- | --- | --- | --- | --- |
-| Italy→Austria | Car | `536441000506`, `1442471870473`, `576605655610` | `542514352698`, `404465516553`, `568921690682` | 3/3 matched |
-| Italy→Austria | Motorcycle | same three | same three | 3/3 matched |
-| Austria→Italy | Car | `536441000506`, `403425329161`, `576605655610` | `542514352698`, `1443512057865`, `568921690682` | 3/3 matched |
-| Austria→Italy | Motorcycle | same three | same three | 3/3 matched |
+| Italy→Austria | Car | 536441000506, 1442471870473, 576605655610 | 542514352698, 404465516553, 568921690682 | 3/3 selected edge-walk replays |
+| Italy→Austria | Motorcycle | same | same | 3/3 selected edge-walk replays |
+| Austria→Italy | Car | 536441000506, 403425329161, 576605655610 | 542514352698, 1443512057865, 568921690682 | 3/3 selected edge-walk replays |
+| Austria→Italy | Motorcycle | same | same | 3/3 selected edge-walk replays |
 
-For all 12, the actual A leg endpoint and actual B starting coordinate
-are co-located (recorded 0.0 m after polyline6 rounding); the B first
-traced edge matches the native GPS proposal, and actual A-last/B-first
-geometries are within 1 m of the handoff. Arrival is verified at the
-requested destination. These are **real F8 two-leg graph-local observations**,
-not new production crossings or proof that there is a cross-graph edge.
+All 12 newly requested routes reached their destinations with F8 endpoint normalization. The 12 **separately replayed** shapes in B began on the corresponding nominated GPS receiver edge. Replayed A/B native geometries are within one metre of the handoff, strictly a **co-location observation**. Exact original route-edge identities remain **NOT_VERIFIED**.
 
-### Important unresolved final-edge requirement
+### Critical final-road-edge gap
 
-The selected actual A-last edges were **not** proven to be the *final
-retained edge of their physical roads* inside the 25-km overlap:
+For these selected route shapes, the normalized A handoff lies **13.100 m, 27.097 m or 65.573 m** from the end of the **replayed** A directed edge; native `deadend=false`. This does not identify the **final retained physical-road edge inside the approved 25-km overlap**. Even accurate replay could only determine a leg's last edge, not the overall final retained edge. Every result explicitly retains `sourceRoadFinalEdgeIdentity=NOT_VERIFIED_BY_SELECTED_LEG`.
 
-- The actual route handoff point is **13.100 m**, **27.097 m** or
-  **65.573 m** before the end of the corresponding A directed edge.
-- Each of those native A edges reports `deadend=false`.
-- Accordingly all twelve reports explicitly retain
-  `sourceRoadFinalEdgeIdentity=NOT_VERIFIED_BY_SELECTED_LEG`.
+## Archived evidence and regression tests
 
-This is a **critical limitation**, not a newly proposed hard filter:
-the demonstrated route-local handoffs cannot be silently substituted
-for the owner's intended final-road-edge F8-native catalog. That next
-proof must identify authentic final retained road-edge termini, confirm
-25-km overlap coverage and verify a full journey using that same
-terminal, without reconstructing multiple candidate edges for the
-same physical road.
+Fresh, review-corrected raw JSON and checksums are kept **outside Git** at:
 
-## Reproduction
+`~/RoadPilotGraphStudio/diagnostics/m6/20261104/m6b-pr113-review-shape-replay-v4/`
 
-For one original Italy→Austria motorcycle GPS proposal:
+The directory has four direction/mode JSON reports, `SHA256SUMS` and `summary.json`. Earlier `m6b-actual-journeys-v2/` and
+`m6b-reviewed-shape-replay-v3/` raw reports are retained as historical
+evidence before the final `replayedEdgeGeometry` field-name correction;
+these older formats are not authoritative route-edge identity evidence.
 
-~~~bash
-P="$HOME/RoadPilotGraphStudio"
-ROOT="$P/f8-native/italy-nord-est__austria/e6a10d36f-ee7baac93-43d085-958523"
-PATH="$HOME/.cache/app.roadpilot.graphstudio/python-env/bin:$PATH" python \
-  tools/probe_native_f8_actual_journey.py \
-  --pair "$ROOT/pair.json" \
-  --proposal-dir "$ROOT/gps-proposals" \
-  --from-manifest "$P/builds/italy-nord-est/italy-nord-est-routing-2026.10.13-1-manifest.json" \
-  --to-manifest "$P/builds/austria/austria-routing-2026.10.13-1-manifest.json" \
-  --native-endpoints-binary "$P/diagnostics/m6/pr112-review/native-build-20261104/build/native_f8_directed_endpoints" \
-  --direction from-to --mode motorcycle \
-  --candidate-id nf8gps-787b30fb74b5ff363d16e61d \
-  --start-lat 46.501885 --start-lng 13.592668 \
-  --end-lat 46.592234 --end-lng 13.846448
-~~~
-
-Raw results and SHA256SUMS are **outside Git**, preserved at
-`~/RoadPilotGraphStudio/diagnostics/m6/20261104/m6b-actual-journeys-v2/`.
-M6b's Python test suite is also invoked by the F8 architecture-contract
-workflow. No native extractor modification was necessary after PR #112,
-which already built the pinned 3.6.3 executable and archived build hashes.
+Regressions now include: a mixed batch with recoverable native failure and successful continuation; malformed native geometry; fatal swapped/missing GraphIds; ambiguous edge-walk geometry; SHA pin enforcement even for a fake binary that reports the correct Valhalla version; existing access, direction and arrival controls. Exact-head CI and a fresh independent review remain required.
 
 ## Next gate
 
-**M6c: authentic F8 terminal source.** Identify the exact last
-retained road edge and its directed endpoint within the approved
-buffer/overlap architecture, then verify that the *actual* first graph
-leg ends on **that nominated final terminal edge** and the B leg
-continues legally at that handoff to the requested destination.
-Preserve every alternative road/crossing as distinct and all
-unknown/inconclusive evidence. Only after this scope is complete
-should Android JNI parity, completeness, precomputed publication,
-and Android #512 ingestion be considered.
+**M6c must establish the true final retained road edge**, and route-service-to-edge identity fidelity—including ambiguous/overlapping geometries—before treating any edge-walk ID as a definitive directed handoff. Preserve all alternatives, do not restore the retired OSM/connector-matrix pipeline and keep Android F8 unchanged.
+
+Android JNI parity, exhaustive discovery, physical/legal seam transfer, FASTEST/SHORTEST global optimality, multi-hop and production publication remain **NOT_VERIFIED/BLOCKED**. This diagnostic authorizes no merge or release.
