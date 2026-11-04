@@ -1,5 +1,14 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## F8-native full directed overlap census / Android parity gate (2026-11-04)
+
+- From verified merged main `d6f9514` (PR #117 merged), new **draft production-evidence branch** `feature/f8-full-native-terminal-census-20261104`. No PR merge or release authorized.
+- Read-only actual Legion GraphReader census validated 3,623 geometrically complete 25-km overlap windows, all **658,345** directed source GraphIds with exact end-node/shortcut/opposite-access adjacency, source SHA-256, and both immutable graph archive hashes. Per-graph mode-local endpoint counts: Italy 21,500 Car / 21,468 Motorcycle; Austria 22,439 Car / 22,407 Motorcycle. Detailed real evidence `~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/full-native-census-v3.json`, SHA-256 `2eddf560fe544724297794ece1e8b3e20fa54d2b10ab884b9b45ec38dd659a0b`. These are NOT globally unique physical-road terminals or claimed cross-region connections. No OSM/name/direction grouping, graph/Android modification or candidate suppression.
+- Eight new deterministic regression gates confirm exact topology coverage, pin-before-execution, no dedup, incomplete-adjacency failure, no mode nonroad/shortcut suppression, and honest uncertainty. See `docs/F8_FULL_NATIVE_TERMINAL_CENSUS_ANDROID_PARITY_GATE.md`.
+- Physical S25 device is NOT attached to the Legion: ADB has zero connected devices; therefore **real Android JNI parity NOT_RUN**. Existing Android 512-per-window cap and Kotlin `receiverRoadKey()` reduction remain known loss risks. Real physical-road lineage uniqueness, all original-route terminal proofs and Android F8 graph-edge parity are still NOT_VERIFIED. Publication BLOCKED.
+- **Next exact action:** independently review the draft PR with exact-head CI; complete native physical-road lineage and original Valhalla terminal proof for ALL legitimate paths without grouping/pruning; connect/authorize physical Android device and capture installed same-graph JNI raw/Kotlin results in both regions/modes; reconcile missing IDs before proposing any publication or merge.
+
+
 
 ## P4-C — archive the legacy validators and schemas behind wrappers (2026-11-03)
 
