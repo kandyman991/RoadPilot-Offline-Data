@@ -1,5 +1,38 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## ACTIVE MILESTONE — complete original archive tile and source-cut census (branch, not merged)
+
+New production branch `feature/f8-original-archive-tile-census-20261104`
+starts from main `02518c71677e0959de1d1790499f69cc86bb1435`.
+Read-only Valhalla 3.6.3 GraphReader `GetTileSet()` scanned **ALL 705 original
+source archive tiles, ALL 22,555,344 directed edge indices** on the immutable
+Italy Nord-Est/Austria 2026.10.13-1 artifacts. 20,486 directed source-buffer
+cut observations were retained, 19,606 not present in earlier windows;
+all **34/34** previously missing original native predecessor GraphIds were
+recovered and independently checked with immutable SHA-bound evidence.
+Six original zero-length geometry GraphIds were retained as unresolved.
+
+Evidence is in the Legion diagnostics folder dated 20261104:
+`original-archive-source-tile-cut-census-v1.json` SHA-256
+`dfd4fe70f75a01bc3c3c44eda0654f31739463daa0f90fbd0823213d525d3dfd`;
+`original-archive-versus-window-coverage-v1.json` SHA-256
+`43457a1d3a2df3d54c42a361ef106f91a015be23eb2c4c79db5ec5c1a6ac20fb`.
+Standalone native extractor was compiled against original Valhalla 3.6.3
+with SHA `a59516b38b247682bf90267959894d532a0474ae8d081fdfd5fbeab039b62eaf`;
+historical pinned original extractor CMake was NOT modified.
+Full local Python test suite **408/408 PASS**. Detailed report:
+`docs/F8_ORIGINAL_FULL_ARCHIVE_NATIVE_SOURCE_CENSUS.md`.
+
+**NEXT PRODUCTION GATE STILL OPEN:** identify *bilateral* source road/direction
+lineages from original core through complete original 25-km cut toward exactly
+ONE final retained original GraphId per physical road/travel direction,
+preserving ramps, branches, carriageways, modes, hierarchy alternatives
+and unresolved geometry. Original GraphReader archive-wide inventory is now
+verified; actual *physical road* uniqueness NOT_VERIFIED. Do NOT correlate B,
+perform A→X→B production matching, release Android or publish sidecars.
+Graph Studio #73/#82 and Android #512 remain OPEN. Old PR #119/#120 obsolete.
+
+
 ## LATEST completed merge — PR #122 reviewed source-only evidence (2026-11-04)
 
 Owner-authorized PR #122 was independently audited as a separate technical

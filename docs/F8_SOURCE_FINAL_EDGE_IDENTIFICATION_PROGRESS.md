@@ -155,3 +155,19 @@ Preserved evidence and precise regression gates:
 The next engineering milestone is whole-original-graph-tile directed-road
 coverage followed by branch-aware cut→one-last-edge reconciliation before
 any B graph correlation. No production sidecar or Android change.
+
+## 2026-11-04 — archived original GraphReader tile/edge census (after PR #122)
+
+Source-only full Valhalla 3.6.3 archive scan now enumerates **705** actual
+native original graph tiles and **22,555,344** directed GraphIds, outside
+and within the old common-overlap windows. Original 25-km source-cut
+geometry observations: Italy 9,190 (six unresolved zero-length native
+GraphIds retained), Austria 11,296. The 880 prior cut IDs are fully
+preserved; 19,606 additional directed cut IDs are retained and **all
+34** known omitted original predecessor GraphIds are explicitly recovered.
+This is not 20,486 physical roads or handoffs. The first worklist for
+physical road/direction lineage is now complete across source archive
+cut observations, but original bilateral border provenance and source
+road-to-final-GraphId mapping remain NOT_VERIFIED. See
+`F8_ORIGINAL_FULL_ARCHIVE_NATIVE_SOURCE_CENSUS.md`; no B matching or
+production publication was authorized.
