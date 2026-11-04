@@ -114,14 +114,28 @@ def pair_status(root: Path, pair: dict) -> dict:
                 report = read(file)
                 if report.get('pairId') != pair['pairId']:
                     continue
+                # The GUI's existing "validated" point buttons are for
+                # historical ranked diagnostics. Ordered proof batches have
+                # only a *separate B edge_walk replay*, not authoritative
+                # route-edge identity; never re-label these as validated
+                # handoff map pins.
+                ordered=(report.get('selectionMethod')=='ordered-native-ledger')
                 points = [dict(coordinate=row.get('coordinate'), graphId=row.get('receiverGraphId'),
                                durationSeconds=row.get('durationSeconds'), distanceKm=row.get('distanceKm'))
                           for row in report.get('results',[])[:32]
-                          if isinstance(row,dict) and row.get('status')=='VALIDATED_FOR_THIS_JOURNEY']
+                          if isinstance(row,dict) and row.get('status')=='VALIDATED_FOR_THIS_JOURNEY'
+                          and not ordered]
+                replayed=sum(
+                    1 for row in report.get('results',[]) if isinstance(row,dict)
+                    and row.get('status')==
+                    'TWO_GRAPH_LOCAL_LEGS_B_EDGE_WALK_REPLAY_MATCHED_ONLY')
                 reports.append({'mode':report.get('mode'),'direction':report.get('direction'),
                                 'sampledHandoffs':points,
                                 'attempted':report.get('probesAttempted'),
-                                'validated':report.get('successfulJourneyProbes'),
+                                'validated':(0 if ordered else report.get('successfulJourneyProbes')),
+                                'edgeWalkReplayMatchesOnly':replayed,
+                                'selectionMethod':report.get('selectionMethod','ranked-sample'),
+                                'nextOrderedStartOrdinal':report.get('nextOrderedStartOrdinal'),
                                 'unprobed':report.get('remainingUnprobed'),
                                 'bestOfProbedOnly':report.get('bestOfProbedOnly'),
                                 'file':str(file)})
@@ -218,7 +232,8 @@ def discovery(root: Path, pair: dict, from_manifest: Path, to_manifest: Path) ->
 
 
 def probe(root: Path, pair: dict, from_manifest: Path, to_manifest: Path,
-          direction: str, mode: str, start: dict, end: dict, max_probes: int) -> dict:
+          direction: str, mode: str, start: dict, end: dict, max_probes: int,
+          *, selection: str='ranked-sample', start_ordinal: int=0) -> dict:
     home = pair_workspace(root,pair)
     proposals = home/'gps-proposals'
     if not valid_existing_evidence(pair,proposals):
@@ -241,11 +256,13 @@ def probe(root: Path, pair: dict, from_manifest: Path, to_manifest: Path,
         verify_retained_graph_identity(pair,identity_a,identity_b)
         if direction=='to-from':
             config_a,config_b=config_b,config_a
-        emit(f'Routing up to {max_probes} candidates on {direction}, {mode} (does not establish optimality)')
+        emit(f'Routing up to {max_probes} {selection} candidates on {direction}, {mode} '
+             '(no completeness or optimality claim)')
         doc=inspect(pair,read(proposals/'manifest.json'),proposals,config_a,config_b,
                     start,end,mode,direction,max_probes,
                     on_progress=lambda index,total,outcome: emit(
-                        f"Valhalla proof {index}/{total}: {outcome['status']} (all untested alternatives retained)"))
+                        f"Valhalla proof {index}/{total}: {outcome['status']} (all untested alternatives retained)"),
+                    selection=selection,start_ordinal=start_ordinal)
     folder=home/'journey-probes'
     folder.mkdir(parents=True,exist_ok=True)
     timestamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
@@ -260,7 +277,8 @@ def probe(root: Path, pair: dict, from_manifest: Path, to_manifest: Path,
     finally:
         temporary.unlink(missing_ok=True)
     emit(f"Proof result: {doc['successfulJourneyProbes']}/{doc['probesAttempted']} sampled, "
-         f"{doc['remainingUnprobed']} unprobed; no publication")
+         f"{doc['remainingUnprobed']} unprobed; "
+         f"next ordered cursor={doc['nextOrderedStartOrdinal']}; no publication")
     return pair_status(root,pair)
 
 
@@ -273,6 +291,9 @@ def run(argv: list[str] | None = None) -> dict:
     parser.add_argument('--direction',choices=('from-to','to-from'))
     parser.add_argument('--mode',choices=('auto','motorcycle'))
     parser.add_argument('--max-probes',type=int,default=6)
+    parser.add_argument('--probe-selection',choices=('ranked-sample','ordered-native-ledger'),
+                        default='ranked-sample')
+    parser.add_argument('--start-ordinal',type=int,default=0)
     for field in ('start-lat','start-lng','end-lat','end-lng'):
         parser.add_argument('--'+field,type=float)
     args=parser.parse_args(argv)
@@ -300,8 +321,11 @@ def run(argv: list[str] | None = None) -> dict:
     for c in (start,end):
         if not -90<=c['lat']<=90 or not -180<=c['lng']<=180:
             raise ValueError('Journey coordinate out of range')
+    if (args.probe_selection=='ranked-sample' and args.start_ordinal!=0):
+        raise ValueError('--start-ordinal requires ordered-native-ledger')
     return probe(root,pair,args.from_manifest,args.to_manifest,
-                 args.direction,args.mode,start,end,args.max_probes)
+                 args.direction,args.mode,start,end,args.max_probes,
+                 selection=args.probe_selection,start_ordinal=args.start_ordinal)
 
 
 def main() -> int:
