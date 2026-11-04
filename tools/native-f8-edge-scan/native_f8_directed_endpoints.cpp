@@ -11,6 +11,8 @@
 #include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <deque>
+#include <utility>
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
@@ -38,10 +40,12 @@ int main(int argc, char** argv) {
     std::cout << ROADPILOT_VALHALLA_VERSION << '\n';
     return 0;
   }
-  const bool include_continuations = argc == 4 && std::string(argv[3]) == "--continuations";
+  const bool include_lineage = argc == 4 && std::string(argv[3]) == "--lineage";
+  const bool include_continuations =
+      (argc == 4 && std::string(argv[3]) == "--continuations") || include_lineage;
   const bool include_geometry = argc == 4 && std::string(argv[3]) == "--geometry";
   if (argc != 3 && !include_continuations && !include_geometry) {
-    std::cerr << "usage: native_f8_directed_endpoints <valhalla.json> <graph_ids.txt> [--continuations|--geometry]\n";
+    std::cerr << "usage: native_f8_directed_endpoints <valhalla.json> <graph_ids.txt> [--continuations|--geometry|--lineage]\n";
     return 64;
   }
   try {
@@ -136,6 +140,67 @@ int main(int argc, char** argv) {
                     << '}';
         }
         std::cout << ']';
+      }
+      if (include_lineage) {
+        // Native GraphReader hierarchy transitions are ZERO-LENGTH moves
+        // between levels at the SAME physical intersection. An original
+        // TripLeg may use a successor edge on another level; auditing only
+        // node->edge_count() would falsely declare that route disconnected.
+        // Expose every transition and every directed branch, including
+        // opposing reverse, shortcuts, nonroad and mode-inaccessible edges.
+        std::deque<std::pair<valhalla::baldr::GraphId, unsigned>> nodes;
+        std::unordered_set<uint64_t> visited;
+        nodes.emplace_back(end_id, 0);
+        visited.insert(end_id.value);
+        std::cout << ",\"nativeAllHierarchyContinuationNodes\":[";
+        bool first_node = true;
+        while (!nodes.empty()) {
+          const auto [node_id, depth] = nodes.front();
+          nodes.pop_front();
+          if (depth > 4 || visited.size() > 32)
+            throw std::runtime_error("Unexpected cyclic/oversized native hierarchy transition fanout");
+          const auto node_tile = reader.GetGraphTile(node_id);
+          if (!node_tile || node_id.id() >= node_tile->header()->nodecount())
+            throw std::runtime_error("Hierarchy transition node missing from immutable graph");
+          const auto* info = node_tile->node(node_id.id());
+          const auto position = node_tile->get_node_ll(node_id);
+          if (!std::isfinite(position.lat()) || !std::isfinite(position.lng()))
+            throw std::runtime_error("Nonfinite original hierarchy node position");
+          if (!first_node) std::cout << ',';
+          first_node = false;
+          std::cout << "{\"nodeGraphId\":" << node_id.value
+                    << ",\"transitionDepth\":" << depth
+                    << ",\"nodeLat\":" << position.lat()
+                    << ",\"nodeLon\":" << position.lng()
+                    << ",\"allOutgoingDirectedEdges\":[";
+          for (uint32_t n = 0; n < info->edge_count(); ++n) {
+            const valhalla::baldr::GraphId out_id(node_id.tileid(), node_id.level(),
+                                                  info->edge_index() + n);
+            const auto* out = node_tile->directededge(out_id);
+            if (n) std::cout << ',';
+            std::cout << "{\"graphId\":" << out_id.value
+                      << ",\"endNodeGraphId\":" << out->endnode().value
+                      << ",\"forwardAccess\":" << out->forwardaccess()
+                      << ",\"isRoad\":" << (out->is_road() ? "true" : "false")
+                      << ",\"isShortcut\":" << (out->is_shortcut() ? "true" : "false")
+                      << "}";
+          }
+          std::cout << "],\"nativeHierarchyTransitions\":[";
+          bool first_transition = true;
+          for (const auto& transition : node_tile->GetNodeTransitions(node_id)) {
+            if (!first_transition) std::cout << ',';
+            first_transition = false;
+            const auto peer = transition.endnode();
+            if (!peer.is_valid())
+              throw std::runtime_error("Invalid native hierarchy transition GraphId");
+            std::cout << "{\"nodeGraphId\":" << peer.value
+                      << ",\"up\":" << (transition.up() ? "true" : "false") << "}";
+            if (visited.insert(peer.value).second)
+              nodes.emplace_back(peer, depth + 1);
+          }
+          std::cout << "]}";
+        }
+        std::cout << "]";
       }
       std::cout << "}\n";
       if (!std::cout) throw std::runtime_error("Endpoint output write failed");

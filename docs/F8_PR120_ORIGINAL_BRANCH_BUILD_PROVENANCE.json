@@ -1,0 +1,42 @@
+{
+  "schema": "roadpilot.f8-native-branch-hierarchy-build-provenance",
+  "version": 1,
+  "builtAtUtc": "2026-11-04",
+  "host": "Legion Ubuntu 26.04.1 LTS",
+  "valhallaVersion": "3.6.3",
+  "reviewState": "LOCAL_BINARY_COMPILED_AND_REAL_GRAPH_TESTED_INDEPENDENT_REVIEW_PENDING",
+  "buildType": "Release",
+  "nativeSourcePath": "tools/native-f8-edge-scan/native_f8_directed_endpoints.cpp",
+  "nativeSourceSha256": "sha256:af7534f5555112978d950cd08a2caf99a5631660fe8dfef2edbe6d9dbae1f3e3",
+  "cmakePath": "tools/native-f8-edge-scan/CMakeLists.txt",
+  "cmakeSha256": "sha256:fa1747deef2d2e112aea0609c8708c25b232afd15fa89cf045dba4084ee3a67f",
+  "libvalhallaStaticArchiveSha256": "sha256:5f5d917229dcf79bd4bcf618e312e365892f5d47f6dfff88160a5085618c4bb9",
+  "pkgConfigSha256": "sha256:41f5a9359705ec09835ed331899d87fa69b8281e5740a2973adc80f88cbbf4b4",
+  "cmakeCacheSha256": "sha256:9e02d8b82e44fa3534788e1960dc672206c8221e1701725c45702b70121798a9",
+  "nativeExecutablePathOutsideGit": "~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/native-hierarchy-route-build/native_f8_directed_endpoints",
+  "nativeExecutableSha256": "sha256:74ed43ecff2cbffbffeb737381646561615d764c1468153f36c9ee8fc1f5f372",
+  "buildCommand": "export PKG_CONFIG_PATH=$HOME/.local/opt/valhalla-3.6.3-native/lib/pkgconfig:$PKG_CONFIG_PATH && cmake -S tools/native-f8-edge-scan -B $HOME/RoadPilotGraphStudio/diagnostics/f8-production/20261104/native-hierarchy-route-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$HOME/.local/opt/valhalla-3.6.3-native && cmake --build $HOME/RoadPilotGraphStudio/diagnostics/f8-production/20261104/native-hierarchy-route-build --target native_f8_directed_endpoints --parallel 2",
+  "originalRouteBinarySha256": "sha256:e955677e56278b53cee0d39ca6d94efa1557e1439da81859f330ffb4b8dbe776",
+  "graphArchivesSha256": {
+    "italy-nord-est": "sha256:e6a10d36f8622ac0e47dc3d17a8295f60b144f9a2ad478e1b5f6ef2dbea75953",
+    "austria": "sha256:ee7baac93b639d0c2fefab8f90540d26d03fd28a283c73bff516a1d8bdc2bc7b"
+  },
+  "originalCaseFile": "~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/original-core-to-core-eight-case-brenner-witnesses.json",
+  "realAcceptanceReport": "~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/original-branched-core-to-core-eight-brenner-v3.json",
+  "realAcceptanceReportSha256": "sha256:5a570d50cf31abf4d2a8c331529aa8e84b1b7fcaf2db5a7e30feae0be8e031c0",
+  "realCases": 8,
+  "originalRoutesWithBothRegionalLegs": 8,
+  "nativeTopologyHopCounts": {
+    "direct": 5404,
+    "hierarchyLevelTransitions": 52,
+    "missing": 0
+  },
+  "visitedModeAccessibleBranchNodes": 2484,
+  "directionallyAlignedHandoffs": 2,
+  "opposingOrUnprovenHandoffs": 6,
+  "physicalRoadGlobalUnique": "NOT_VERIFIED",
+  "crossGraphTurnLegality": "NOT_VERIFIED",
+  "androidE2E": "NOT_VERIFIED",
+  "productionPublication": "BLOCKED",
+  "ciBuildLimitation": "Hosted GitHub CI verifies source/build recipe hash and Python regression checks but does not compile against the exact Legion Valhalla 3.6.3 static library, which is retained on the Legion. No hosted native compile or phone parity claim."
+}

@@ -1,5 +1,40 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #120 follow-up native hierarchy path validation (2026-11-04)
+
+Corrected a topology validator gap: a real original successor GraphId found
+in a listed native level's outgoing inventory now also requires an actual
+reachable transition path from the incoming original edge endpoint, with
+shortest-depth and root outgoing access/identity verification. Two added
+negative regressions, 348/348 Python tests pass; replay of the original eight
+immutable real A/B journeys passes 5404 direct and 52 hierarchy hops. See
+docs/F8_PR120_TOPOLOGY_PATH_REVIEW.md. No graph, app, publication or original
+saved evidence changed. PR #120 remains stacked on draft PR #119;
+cross-graph legal handoff, global physical-road edge uniqueness, Android
+complete-journey parity NOT_VERIFIED, no merge/release authorization.
+
+## Exact original A-last and B-first directed GraphIds versus complete native Graph Studio scans (2026-11-04)
+
+Further review of original eight real core-to-core A→X→B routes exposed a critical scan GPS interpretation detail: **Graph Studio's native directed A-edge scan coordinate is often an interior source-edge point, not its directed terminal X**. In the scoped real cases its distance from the true original A last end was **3.5–160 metres** even though original source GraphId matched exactly. A 1-m match of the *source A scan GPS* to the terminal would falsely report valid roads missing. By contrast, the actual original B first directed edge's **receiver scanner GPS** must correspond to A's normalized handoff X; in all 8 scoped cases this was approximately 0.008–0.045 m from X.
+
+The new read-only `tools/audit_native_f8_original_receiver_source_coverage.py` uses PR #118's SHA-pinned complete native source scans (Italy 323,372 GraphIds, Austria 334,973), PR #120's *actual original TripLeg A-last and B-first* full core-to-core report, plus exact source pair+boundary fingerprints. It binds A **by original GraphId and mode**, B **by original first TripLeg GraphId, mode and GPS proximity**; no cross-graph numeric equality, OSM way/name or A interior-sample proximity elimination. **8/8 original A last and 8/8 B first IDs present in correct independent full GraphStudio directed scans**, all mode bits valid and B original first native candidate GPS within 1 m of normalized X. Missing IDs, wrong masks or stale native scans are reported or fail closed, never silently dropped. This is **scoped Graph Studio-native candidate reconciliation**, NOT Android JNI capture, full physical-road crossing legality, or completed published F8 handoff discovery.
+
+Correct final immutable report (old v1 with a false source GPS gate archived as superseded) on Legion: `~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/original-eight-leg-receiver-native-scan-parity-v2.json` SHA256 `2f32c24593691f089c66269935b7078b6a9aa7aa4855352ce5fb86cef4b29677`. This is appended to stacked draft Graph Studio PR #120, which remains UNMERGED; **five additional deterministic parity tests** check same numeric ID on independent graphs, arbitrary source edge interior GPS, B first absence, wrong access masks, duplicate/source schema corruption and stale graph versions.
+
+
+## F8 original native branch-aware complete local journeys — next production stage (2026-11-04)
+
+**Stacked work from D-018 draft Graph Studio PR #119**, in isolated branch `feature/f8-original-branch-and-complete-journeys-20261104` (planned draft PR #120). Exact prior PR #119 head `87fcab8b2adc3367a07f0f25ef13470b00840f32`, architecture-contract and validate GitHub CI PASS; Linux pending. No PR was merged by this phase.
+
+Extended original Valhalla 3.6.3 native GraphReader endpoint extractor **opt-in** `--lineage` to retain every original-directed outgoing at route end nodes, including reverse, ramps, mode-restricted, shortcuts and all graph hierarchy transition node alternatives. Pinned Legion C++ executable sha256 `74ed43ecff2cbffbffeb737381646561615d764c1468153f36c9ee8fc1f5f372`, source sha256 `af7534f5555112978d950cd08a2caf99a5631660fe8dfef2edbe6d9dbae1f3e3`. No change to prior `--continuations` or `--geometry` ABI. New `tools/prove_native_f8_original_core_journeys.py` proves exact original `TripLeg.node.edge.id` source-core → graph-local A final edge and independent B-first → destination-core for bounded explicit original Car/Motorcycle hypotheses in both directions. Validates original GraphIds for **EVERY native hop including graph hierarchy transitions**, stores ALL native branch alternatives, proves real original Valhalla costs and destination arrival; exact graph archive fingerprints/previous census ledger/core polygons/native executables hash-pinned, archives rechecked after execution. Actual source complete GPS stream untouched; geometry is ANNOTATION and never a hard candidate discard.
+
+On eight genuine Bolzano/Innsbruck Italy/Austria original graph route cases: **8/8** full two-graph local legs with original source A-last and actual receiver B-first TripLeg identities, **5404 exact direct native hops and 52 hierarchy-level transitions**, **zero missing directed adjacencies**, 2484 visited mode-accessible branch observations retained. All 8 handoff GPS gaps 0m and arrival within 25m. **2/8** (Car/Motorcycle Italy→Austria A final `364870918424`, B original first `229076132120`) are directed tangent ALIGNED +1.0; **6/8** are opposing −1.0 and are explicitly transfer UNPROVEN. Even the aligned pair is only a local tangent observation: last-20m A geometry is **not** fully on the selected first B segment, and global physical road continuity/cross-graph turn legality remain NOT_VERIFIED. Austrian GraphId `4636807666` which failed PR #119 short edge-local probe **succeeds** on genuine full origin-in-Austria-core route with original final GraphId for both vehicle modes: previous local failure must not disqualify it.
+
+**Immutable real evidence:** `~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/original-branched-core-to-core-eight-brenner-v3.json` (final v3 hash in `docs/F8_PR120_ORIGINAL_BRANCH_BUILD_PROVENANCE.json`). Reference guide: `docs/F8_NATIVE_ORIGINAL_BRANCH_AND_CORE_JOURNEYS.md`; native source/build SHA bound to archived `docs/F8_PR120_ORIGINAL_BRANCH_BUILD_PROVENANCE.json`. Host has full originals, not Android phone. All actual journeys are explicit bounded observations, NOT all physical roads/directions, NOT an Android integration, NOT legal cross-graph turn proof, NOT global FASTER/SHORTEST optimality. Keep Graph Studio #73/#82 and Android #512 OPEN; no production package or installed app modified.
+
+**NEXT:** independent review + exact-head CI for the stacked PR, then expand the full native graph road-direction equivalence coverage (including other legitimate branches, oneway, motorways, Germany and mode-stranded nondeadends) and B multiedge geometric continuity, followed by actual Android complete journey equivalence. Do not merge/release without owner authorization and proof closure.
+
+
 ## F8 native global physical-road terminal proof — production stage, 2026-11-04
 
 **Live baseline:** Graph Studio current main `038136bcbd3e5aaa667b0786d423cfa9c86c8bf8` includes reviewed PR #118. RoadPilot main has merged JNI lossless pagination PR #540 and receiver-directed identity retention PR #541; actual Android emulator JNI/Kotlin source-directed parity is verified on scoped Italy/Austria source windows (27, 829, 3747, and 938 IDs each), **not** complete route legality or a physical Android acceptance.
