@@ -246,7 +246,7 @@ def pair_connections(source: dict[int, dict], receiver: dict[int, dict],
         src_shape = directed_line(edge)
         modes = direct_modes[gid]
         candidates = nearby_receiver_ids(index,(point["lat"],point["lng"]))
-        forward, ambiguous = [], []
+        forward, ambiguous, deferred = [], [], []
         for receiver_gid in sorted(candidates):
             rec = receiver.get(receiver_gid)
             if rec is None:
@@ -254,6 +254,9 @@ def pair_connections(source: dict[int, dict], receiver: dict[int, dict],
             shape = native_lines_by_id[receiver_gid]
             match = physical_forward_continuation(src_shape,shape)
             if match is None:
+                # Not a proved mismatch: retain candidate for full source/receiver
+                # coverage. Never silently lose a separate physical branch.
+                deferred.append(receiver_gid)
                 continue
             if match["status"] != "FORWARD_CONTINUOUS":
                 ambiguous.append(receiver_gid)
@@ -278,6 +281,7 @@ def pair_connections(source: dict[int, dict], receiver: dict[int, dict],
                 ambiguous.append(receiver_gid)
         counters["sourceFinalEdgesConsidered"] += 1
         counters["geometricAmbiguousOrReverse"] += len(ambiguous)
+        counters["receiverCandidatesPendingIndependentProof"] += len(deferred) + len(ambiguous)
         if forward:
             if len(set(x["receiverFirstDirectedGraphId"] for x in forward)) != len(forward):
                 raise ValueError("Duplicate verified directed receiving edge")
@@ -288,6 +292,11 @@ def pair_connections(source: dict[int, dict], receiver: dict[int, dict],
                 "sourceFinalCoordinate": point,
                 "sourceValhallaProvedModes": sorted(modes),
                 "receiverOptions": forward,
+                # Unproved receiver possibilities are NOT discarded just because
+                # some other receiving edge had a successful Valhalla proof.
+                "unverifiedReceiverCandidateGraphIds": sorted(set(deferred + ambiguous)),
+                "receiverAnchorCandidatesInspected": len(candidates),
+                "receiverCandidateCensusComplete": False,
                 "physicalRoadDirectionIdentity": {
                     "sourceFinalDirectedGraphId": gid,
                     "notOsMNameOrProximityDeduplication": True,
@@ -306,6 +315,8 @@ def pair_connections(source: dict[int, dict], receiver: dict[int, dict],
                 "sourceValhallaProvedModes": sorted(modes),
                 "nearbyReceiverAnchorCount": len(candidates),
                 "reverseOrAmbiguousReceiverGraphIds": sorted(set(ambiguous)),
+                "unverifiedReceiverCandidateGraphIds": sorted(set(deferred + ambiguous)),
+                "receiverCandidateCensusComplete": False,
                 "status": "NO_VALHALLA_VERIFIED_FORWARD_RECEIVING_ROAD",
                 "mustNotCreateConnection": True,
             })

@@ -63,6 +63,10 @@ class F8FinalDirectedConnectionTest(TestCase):
         self.assertEqual(ok[0]["sourceFinalDirectedGraphId"],101)
         ids=[x["receiverFirstDirectedGraphId"] for x in ok[0]["receiverOptions"]]
         self.assertEqual(set(ids),{909,919})
+        # A valid B branch must not hide another unresolved/reverse candidate.
+        self.assertEqual(ok[0]["unverifiedReceiverCandidateGraphIds"],[808])
+        self.assertEqual(ok[0]["receiverAnchorCandidatesInspected"],3)
+        self.assertFalse(ok[0]["receiverCandidateCensusComplete"])
         self.assertEqual(stats["sourceWithBothModesVerifiedOnSamePeer"],1)
 
     def test_no_forward_edge_never_creates_fabricated_connection(self):
@@ -74,6 +78,7 @@ class F8FinalDirectedConnectionTest(TestCase):
         self.assertEqual(ok,[])
         self.assertEqual(not_ok[0]["sourceFinalDirectedGraphId"],101)
         self.assertEqual(not_ok[0]["status"],"NO_VALHALLA_VERIFIED_FORWARD_RECEIVING_ROAD")
+        self.assertEqual(not_ok[0]["unverifiedReceiverCandidateGraphIds"],[808])
 
     def test_car_and_motorcycle_cannot_be_counted_as_two_source_final_roads(self):
         scanner={"edges":[{"lat":47.233864,"lon":11.392306,"graphId":909}]}
