@@ -68,6 +68,21 @@ python tools/probe_native_f8_journey.py \
   --max-probes 6 --output /path/to/new-sample-journey-report.json
 ```
 
+**Original route-edge identity and selected final-edge checks (2026-11-04):**
+The new opt-in Valhalla 3.6.3 actor route-edge extractor reads GraphIds from
+the **original Trip protobuf** instead of inferring them via a separate
+`trace_attributes(edge_walk)` shape replay. Five selected native road ends
+and ten mode-local source terminal routes are now confirmed; four
+Car/Motorcycle and both-direction original two-leg tests distinguish the
+receiver GraphId actually used by B from an alternative GPS proposal that
+routes on a different B GraphId. These are bounded results, not global road
+coverage or cross-graph legality. Both current Android native JNI's 512 cap
+and Kotlin receiverRoadKey reduction remain unverified against full actual
+same-graph device captures. See
+`docs/F8_NATIVE_ORIGINAL_ROUTE_FINAL_EDGE_MILESTONE.md`. Production
+`publicationState=BLOCKED` and Android generalized F8 fallback remain
+unchanged.
+
 **Acceptance gates remain closed:** `F8_PARITY_VERIFIED=NO`, `DEVICE_VERIFIED=NO`, `PRODUCTION_READY=NO`. Do not wire these diagnostics into Android or auto-refresh as if they were complete connections. Track [Graph Studio #73](https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73), [#82](https://github.com/kandyman991/RoadPilot-Offline-Data/issues/82), [Android #512](https://github.com/kandyman991/SmartRide-Next/issues/512).
 
 ## PR #86 technical review hardening (2026-10-16)

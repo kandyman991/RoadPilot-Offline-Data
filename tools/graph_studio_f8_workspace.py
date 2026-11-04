@@ -129,11 +129,16 @@ def pair_status(root: Path, pair: dict) -> dict:
                     1 for row in report.get('results',[]) if isinstance(row,dict)
                     and row.get('status')==
                     'TWO_GRAPH_LOCAL_LEGS_B_EDGE_WALK_REPLAY_MATCHED_ONLY')
+                original=sum(
+                    1 for row in report.get('results',[]) if isinstance(row,dict)
+                    and row.get('status')==
+                    'TWO_GRAPH_LOCAL_LEGS_ORIGINAL_ROUTE_EDGE_MATCH_ONLY')
                 reports.append({'mode':report.get('mode'),'direction':report.get('direction'),
                                 'sampledHandoffs':points,
                                 'attempted':report.get('probesAttempted'),
                                 'validated':(0 if ordered else report.get('successfulJourneyProbes')),
                                 'edgeWalkReplayMatchesOnly':replayed,
+                                'originalNativeRouteEdgeMatchesOnly':original,
                                 'selectionMethod':report.get('selectionMethod','ranked-sample'),
                                 'nextOrderedStartOrdinal':report.get('nextOrderedStartOrdinal'),
                                 'unprobed':report.get('remainingUnprobed'),
@@ -233,7 +238,8 @@ def discovery(root: Path, pair: dict, from_manifest: Path, to_manifest: Path) ->
 
 def probe(root: Path, pair: dict, from_manifest: Path, to_manifest: Path,
           direction: str, mode: str, start: dict, end: dict, max_probes: int,
-          *, selection: str='ranked-sample', start_ordinal: int=0) -> dict:
+          *, selection: str='ranked-sample', start_ordinal: int=0,
+          native_route_edges_binary: Path | None = None) -> dict:
     home = pair_workspace(root,pair)
     proposals = home/'gps-proposals'
     if not valid_existing_evidence(pair,proposals):
@@ -256,13 +262,26 @@ def probe(root: Path, pair: dict, from_manifest: Path, to_manifest: Path,
         verify_retained_graph_identity(pair,identity_a,identity_b)
         if direction=='to-from':
             config_a,config_b=config_b,config_a
+        if native_route_edges_binary is not None:
+            from native_f8_original_route import (
+                verify_native_route_binary, route_with_original_ids)
+            from capture_native_f8_graph_windows import require_compatible_versions
+            require_compatible_versions(manifest_a,manifest_b,'3.6.3')
+            binary_sha=verify_native_route_binary(native_route_edges_binary)
+            bound_route=lambda cfg,src,dst,mode:route_with_original_ids(
+                cfg,src,dst,mode,native_route_edges_binary)
+        else:
+            binary_sha=None
+            from probe_native_f8_journey import route as bound_route
         emit(f'Routing up to {max_probes} {selection} candidates on {direction}, {mode} '
              '(no completeness or optimality claim)')
         doc=inspect(pair,read(proposals/'manifest.json'),proposals,config_a,config_b,
                     start,end,mode,direction,max_probes,
+                    route_fn=bound_route,
                     on_progress=lambda index,total,outcome: emit(
                         f"Valhalla proof {index}/{total}: {outcome['status']} (all untested alternatives retained)"),
                     selection=selection,start_ordinal=start_ordinal)
+        doc['originalNativeRouteBinarySha256']=binary_sha
     folder=home/'journey-probes'
     folder.mkdir(parents=True,exist_ok=True)
     timestamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
@@ -293,6 +312,8 @@ def run(argv: list[str] | None = None) -> dict:
     parser.add_argument('--max-probes',type=int,default=6)
     parser.add_argument('--probe-selection',choices=('ranked-sample','ordered-native-ledger'),
                         default='ranked-sample')
+    parser.add_argument('--native-route-edges-binary',type=Path,
+                        help='Explicit pinned original Valhalla 3.6.3 Trip protobuf route-edge extractor')
     parser.add_argument('--start-ordinal',type=int,default=0)
     for field in ('start-lat','start-lng','end-lat','end-lng'):
         parser.add_argument('--'+field,type=float)
@@ -325,7 +346,8 @@ def run(argv: list[str] | None = None) -> dict:
         raise ValueError('--start-ordinal requires ordered-native-ledger')
     return probe(root,pair,args.from_manifest,args.to_manifest,
                  args.direction,args.mode,start,end,args.max_probes,
-                 selection=args.probe_selection,start_ordinal=args.start_ordinal)
+                 selection=args.probe_selection,start_ordinal=args.start_ordinal,
+                 native_route_edges_binary=args.native_route_edges_binary)
 
 
 def main() -> int:

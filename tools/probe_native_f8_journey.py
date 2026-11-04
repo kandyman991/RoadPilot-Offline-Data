@@ -278,15 +278,37 @@ def check_one(candidate:dict,config_a:Path,config_b:Path,
                 handoff_gap>ARRIVAL_TOLERANCE_METERS):
             return {**base,'status':'UNPROVEN','reason':'Graph B snapped away or destination not reached',
                     'handoffGapMeters':round(handoff_gap,2),'firstLeg':first,'secondLeg':second}
-        actual=trace_fn(config_b,second['encodedShape'],mode,'START')
+        original=(first.get('originalRouteEdgeIdentity')==
+                  'ORIGINAL_VALHALLA_ROUTE_PROTOBUF' and
+                  second.get('originalRouteEdgeIdentity')==
+                  'ORIGINAL_VALHALLA_ROUTE_PROTOBUF')
+        if original:
+            # These IDs were captured during the SAME original Valhalla
+            # route, from native TripLeg::Node::Edge protobuf. Do not issue
+            # trace_attributes or geometry-based independent edge replay.
+            actual=second['firstDirectedGraphId']
+        else:
+            actual=trace_fn(config_b,second['encodedShape'],mode,'START')
         exact=actual==candidate['receiverGraphId']
-        return {**base,'status':'VALIDATED_FOR_THIS_JOURNEY' if exact else 'UNPROVEN',
+        status=('TWO_GRAPH_LOCAL_LEGS_ORIGINAL_ROUTE_EDGE_MATCH_ONLY'
+                if original and exact else
+                'VALIDATED_FOR_THIS_JOURNEY' if exact else 'UNPROVEN')
+        return {**base,'status':status,
                 'receiverTraceGraphId':actual,'receiverEdgeMatches':exact,
+                'receiverTraceOrigin':('ORIGINAL_VALHALLA_ROUTE_TRIP_PROTOBUF'
+                                        if original else
+                                        'SEPARATE_TRACE_ATTRIBUTES_EDGE_WALK_REPLAY'),
+                'originalRouteEdgeIdentity':('VERIFIED_FOR_THESE_TWO_GRAPH_LOCAL_LEGS'
+                                              if original else 'NOT_VERIFIED'),
+                'sourceOriginalLastDirectedGraphId':(
+                    first.get('lastDirectedGraphId') if original else None),
+                'receiverOriginalFirstDirectedGraphId':(
+                    second.get('firstDirectedGraphId') if original else None),
                 'handoffGapMeters':round(handoff_gap,2),
                 'durationSeconds':first['durationSeconds']+second['durationSeconds'],
                 'distanceKm':first['distanceKm']+second['distanceKm'],
                 'firstLeg':first,'secondLeg':second,
-                'reason':None if exact else 'Receiver graph edge mismatch or trace unavailable'}
+                'reason':None if exact else 'Receiver original route edge mismatch or trace unavailable'}
     except (OSError,subprocess.TimeoutExpired,ValueError) as exc:
         return {**base,'status':'INCONCLUSIVE','reason':str(exc)[:500]}
 
@@ -323,7 +345,11 @@ def inspect(pair:dict,manifest:dict,base:Path,config_a:Path,config_b:Path,
             on_progress(index+1,len(chosen),outcome)
     successes=[r for r in results if r['status'] in (
         'VALIDATED_FOR_THIS_JOURNEY',
-        'TWO_GRAPH_LOCAL_LEGS_B_EDGE_WALK_REPLAY_MATCHED_ONLY')]
+        'TWO_GRAPH_LOCAL_LEGS_B_EDGE_WALK_REPLAY_MATCHED_ONLY',
+        'TWO_GRAPH_LOCAL_LEGS_ORIGINAL_ROUTE_EDGE_MATCH_ONLY')]
+    native_proven=sum(1 for r in results
+                      if r.get('originalRouteEdgeIdentity')==
+                      'VERIFIED_FOR_THESE_TWO_GRAPH_LOCAL_LEGS')
     next_cursor=(start_ordinal+len(chosen) if selection=='ordered-native-ledger'
                  and start_ordinal+len(chosen)<total else None)
     return {'schema':'roadpilot.native-f8-journey-probe','version':1,
@@ -353,8 +379,13 @@ def inspect(pair:dict,manifest:dict,base:Path,config_a:Path,config_b:Path,
             'otherBatchCoverage':'NOT_VERIFIED_NO_CUMULATIVE_PROOF_LEDGER',
             'oneLastRetainedPhysicalRoadEdgePerRoad':'NOT_VERIFIED',
             'receiverProposalFiltering':'NONE_EXCEPT_EXPLICIT_BOUNDED_BATCH',
-            'successfulTraceOrigin':'SEPARATE_TRACE_ATTRIBUTES_EDGE_WALK_REPLAY',
-            'originalRouteEdgeIdentity':'NOT_VERIFIED',
+            'successfulTraceOrigin':(
+                'ORIGINAL_VALHALLA_TRIP_PROTOBUF_PER_SUCCESSFUL_SAMPLE'
+                if native_proven else 'SEPARATE_TRACE_ATTRIBUTES_EDGE_WALK_REPLAY'),
+            'originalNativeRouteProofCount':native_proven,
+            'originalRouteEdgeIdentity':(
+                'VERIFIED_FOR_SAMPLED_GRAPH_LOCAL_LEGS_ONLY'
+                if native_proven else 'NOT_VERIFIED'),
             'physicalLastRetainedRoadEdges':'NOT_VERIFIED',
             'crossGraphLegalTransfer':'NOT_VERIFIED',
             'androidF8Parity':'NOT_VERIFIED',
@@ -376,6 +407,8 @@ def main()->int:
                    default='ranked-sample')
     p.add_argument('--start-ordinal',type=int,default=0,
                    help='Exact unfiltered receiver-ledger cursor; only for ordered-native-ledger')
+    p.add_argument('--native-route-edges-binary',type=Path,
+                   help='Optional pinned Valhalla 3.6.3 original Trip protobuf route-edge extractor')
     p.add_argument('--output',required=True,type=Path)
     args=p.parse_args()
     pair=read(args.pair_manifest)
@@ -395,9 +428,23 @@ def main()->int:
                                                from_primary,pair['toBoundaryFingerprint'],root,'to')
         verify_retained_graph_identity(pair,identity_a,identity_b)
         if args.direction=='to-from':config_a,config_b=config_b,config_a
+        if args.native_route_edges_binary:
+            from native_f8_original_route import (
+                route_with_original_ids, verify_native_route_binary)
+            from capture_native_f8_graph_windows import require_compatible_versions
+            require_compatible_versions(
+                read(args.from_manifest),read(args.to_manifest),'3.6.3')
+            binary_sha=verify_native_route_binary(args.native_route_edges_binary)
+            bound_route=lambda config,src,dst,mode:route_with_original_ids(
+                config,src,dst,mode,args.native_route_edges_binary)
+        else:
+            binary_sha=None
+            bound_route=route
         result=inspect(pair,manifest,args.proposal_dir,config_a,config_b,
                        start,end,args.mode,args.direction,args.max_probes,
+                       route_fn=bound_route,
                        selection=args.selection,start_ordinal=args.start_ordinal)
+        result['originalNativeRouteBinarySha256']=binary_sha
     args.output.parent.mkdir(parents=True,exist_ok=True)
     if args.output.exists():p.error('Output exists; refusing to overwrite prior evidence')
     with tempfile.NamedTemporaryFile('w',dir=args.output.parent,prefix='.native-f8-proof-',
@@ -411,9 +458,11 @@ def main()->int:
         os.link(temp_file,args.output)
     finally:
         temp_file.unlink(missing_ok=True)
-    print('F8 journey probe:',result['successfulJourneyProbes'],'validated among',
-          result['probesAttempted'],'sampled of',result['totalNativeReceiverProposals'],
-          'source proposals; other alternatives UNPROBED, parity NOT_VERIFIED.')
+    print('F8 journey probe:',result['successfulJourneyProbes'],
+          'positive graph-local observations among',result['probesAttempted'],
+          'sampled of',result['totalNativeReceiverProposals'],
+          'source proposals; original route edge/terminal scope is explicit, '
+          'other alternatives UNPROBED, cross-graph and Android parity NOT_VERIFIED.')
     return 0
 
 if __name__=='__main__':raise SystemExit(main())

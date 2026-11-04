@@ -68,6 +68,15 @@ jobs:
       - name: Ordered native F8 receiver proof scheduling and no-first-success regression
         run: python -m unittest discover -s tests -p 'test_native_f8_ordered_proof_batch.py' -v
 
+      - name: Original Valhalla trip protobuf edge identity and no-replay F8 regressions
+        run: python -m unittest discover -s tests -p 'test_native_f8_original_route.py' -v
+
+      - name: Final native graph-local road-edge original-route proof regressions
+        run: python -m unittest discover -s tests -p 'test_native_f8_original_terminal.py' -v
+
+      - name: Android JNI scanner cap and Kotlin road-key parity gating regressions
+        run: python -m unittest discover -s tests -p 'test_native_f8_android_jni_parity.py' -v
+
       - name: Bounded native F8 journey Valhalla proof regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_journey_probe.py' -v
 
