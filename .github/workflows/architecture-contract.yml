@@ -90,6 +90,9 @@ jobs:
           python -m unittest discover -s tests -p 'test_native_f8_original_core_journeys.py' -v
           python -m unittest discover -s tests -p 'test_native_f8_original_hierarchy_provenance.py' -v
 
+      - name: Original TripLeg A-last B-first parity with complete native GraphStudio edge scans
+        run: python -m unittest discover -s tests -p 'test_native_f8_original_receiver_source_coverage.py' -v
+
       - name: Android JNI scanner cap and Kotlin road-key parity gating regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_android_jni_parity.py' -v
 

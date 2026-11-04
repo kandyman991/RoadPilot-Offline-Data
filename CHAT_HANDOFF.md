@@ -1,5 +1,14 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Exact original A-last and B-first directed GraphIds versus complete native Graph Studio scans (2026-11-04)
+
+Further review of original eight real core-to-core A→X→B routes exposed a critical scan GPS interpretation detail: **Graph Studio's native directed A-edge scan coordinate is often an interior source-edge point, not its directed terminal X**. In the scoped real cases its distance from the true original A last end was **3.5–160 metres** even though original source GraphId matched exactly. A 1-m match of the *source A scan GPS* to the terminal would falsely report valid roads missing. By contrast, the actual original B first directed edge's **receiver scanner GPS** must correspond to A's normalized handoff X; in all 8 scoped cases this was approximately 0.008–0.045 m from X.
+
+The new read-only `tools/audit_native_f8_original_receiver_source_coverage.py` uses PR #118's SHA-pinned complete native source scans (Italy 323,372 GraphIds, Austria 334,973), PR #120's *actual original TripLeg A-last and B-first* full core-to-core report, plus exact source pair+boundary fingerprints. It binds A **by original GraphId and mode**, B **by original first TripLeg GraphId, mode and GPS proximity**; no cross-graph numeric equality, OSM way/name or A interior-sample proximity elimination. **8/8 original A last and 8/8 B first IDs present in correct independent full GraphStudio directed scans**, all mode bits valid and B original first native candidate GPS within 1 m of normalized X. Missing IDs, wrong masks or stale native scans are reported or fail closed, never silently dropped. This is **scoped Graph Studio-native candidate reconciliation**, NOT Android JNI capture, full physical-road crossing legality, or completed published F8 handoff discovery.
+
+Correct final immutable report (old v1 with a false source GPS gate archived as superseded) on Legion: `~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/original-eight-leg-receiver-native-scan-parity-v2.json` SHA256 `2f32c24593691f089c66269935b7078b6a9aa7aa4855352ce5fb86cef4b29677`. This is appended to stacked draft Graph Studio PR #120, which remains UNMERGED; **five additional deterministic parity tests** check same numeric ID on independent graphs, arbitrary source edge interior GPS, B first absence, wrong access masks, duplicate/source schema corruption and stale graph versions.
+
+
 ## F8 original native branch-aware complete local journeys — next production stage (2026-11-04)
 
 **Stacked work from D-018 draft Graph Studio PR #119**, in isolated branch `feature/f8-original-branch-and-complete-journeys-20261104` (planned draft PR #120). Exact prior PR #119 head `87fcab8b2adc3367a07f0f25ef13470b00840f32`, architecture-contract and validate GitHub CI PASS; Linux pending. No PR was merged by this phase.
