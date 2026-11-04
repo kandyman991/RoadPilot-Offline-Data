@@ -98,6 +98,9 @@ jobs:
       - name: Source cut/full predecessor coverage reconciliation and missing-GraphId fail-closed gates
         run: python -m unittest discover -s tests -p 'test_native_f8_source_cut_coverage_reconciliation.py' -v
 
+      - name: Real final source GraphId to receiving forward physical edge contract
+        run: python -m unittest discover -s tests -p 'test_f8_final_edge_connections.py' -v
+
       - name: Android JNI scanner cap and Kotlin road-key parity gating regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_android_jni_parity.py' -v
 
