@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 import sys
@@ -81,6 +82,8 @@ class OriginalRouteEdgeTests(unittest.TestCase):
             ("crossGraphLegalTransfer","VERIFIED"),
             ("productionPublication","PUBLISHED"),
             ("firstDirectedGraphId",100),
+            ("nodeCount",4),
+            ("nodeCount",2),
             ("durationSeconds",0),
             ("distanceKm",float('nan')),
             ("directedEdges",[{"graphId":5,"wayId":0}]),
@@ -152,11 +155,42 @@ class OriginalRouteEdgeTests(unittest.TestCase):
             def version(cmd,**kwargs):
                 self.assertEqual(cmd,[str(binary),"--version"])
                 return SimpleNamespace(returncode=0,stdout="3.6.3\n")
-            self.assertTrue(verify_native_route_binary(binary,version).startswith("sha256:"))
+            pin="sha256:"+hashlib.sha256(binary.read_bytes()).hexdigest()
+            self.assertEqual(
+                verify_native_route_binary(
+                    binary,version,expected_sha256=pin),pin)
             def stale(*args,**kwargs):
                 return SimpleNamespace(returncode=0,stdout="3.7.0\n")
             with self.assertRaisesRegex(ValueError,"version mismatch"):
-                verify_native_route_binary(binary,stale)
+                verify_native_route_binary(binary,stale,expected_sha256=pin)
+
+    def test_binary_hash_pin_is_mandatory_before_any_native_code_runs(self):
+        with tempfile.TemporaryDirectory() as td:
+            binary=Path(td)/"native_f8_route_edges"
+            binary.write_bytes(b"known owner artifact")
+            verified="sha256:"+hashlib.sha256(binary.read_bytes()).hexdigest()
+            executed=[]
+            def fake_run(*args,**kwargs):
+                executed.append(args)
+                return SimpleNamespace(returncode=0,stdout="3.6.3\n")
+            with self.assertRaisesRegex(ValueError,"mandatory"):
+                verify_native_route_binary(binary,fake_run)
+            with self.assertRaisesRegex(ValueError,"SHA-256 does not match"):
+                verify_native_route_binary(
+                    binary,fake_run,expected_sha256="sha256:"+"0"*64)
+            with self.assertRaisesRegex(ValueError,"mandatory"):
+                verify_native_route_binary(
+                    binary,fake_run,expected_sha256="not-a-sha")
+            self.assertEqual(executed,[])
+            self.assertEqual(
+                verify_native_route_binary(
+                    binary,fake_run,expected_sha256=verified),verified)
+            self.assertEqual(len(executed),1)
+            binary.write_bytes(b"substituted executable")
+            with self.assertRaisesRegex(ValueError,"SHA-256 does not match"):
+                verify_native_route_binary(
+                    binary,fake_run,expected_sha256=verified)
+            self.assertEqual(len(executed),1)
 
 
 if __name__=="__main__":

@@ -107,6 +107,8 @@ def main() -> int:
                 "native-endpoints-binary", "native-route-edges-binary",
                 "output"):
         parser.add_argument("--" + key, required=True, type=Path)
+    parser.add_argument("--expected-native-route-sha256",required=True,
+                        help="Owner-reviewed sha256:<64-hex> for the exact native executable")
     parser.add_argument("--direction", choices=DIRECTIONS, required=True)
     parser.add_argument("--mode", choices=MODES, required=True)
     parser.add_argument("--source-graph-id", type=int, action="append",
@@ -125,7 +127,9 @@ def main() -> int:
     own = verified_buffer(args.from_buffer, from_manifest)
     peer = verified_buffer(args.to_buffer, to_manifest)
     version = verify_native_extractor(args.native_endpoints_binary)
-    route_sha = verify_native_route_binary(args.native_route_edges_binary)
+    route_sha = verify_native_route_binary(
+        args.native_route_edges_binary,
+        expected_sha256=args.expected_native_route_sha256)
     with tempfile.TemporaryDirectory(prefix="f8-true-original-terminal-") as folder:
         tmp = Path(folder)
         a, ac = graph_manifest_info(

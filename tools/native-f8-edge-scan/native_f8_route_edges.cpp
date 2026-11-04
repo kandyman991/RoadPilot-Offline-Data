@@ -7,11 +7,11 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
-#include <iterator>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -32,10 +32,17 @@ int main(int argc, char** argv) {
   }
   try {
     valhalla::midgard::logging::Configure({{"type", "std_err"}, {"color", "false"}});
-    const std::string req((std::istreambuf_iterator<char>(std::cin)),
-                          std::istreambuf_iterator<char>());
-    if (req.empty() || req.size() > 32768)
+    // Do not consume unbounded user-controlled stdin before checking its
+    // length; a forged huge request must not grow resident memory.
+    constexpr std::streamsize kMaxRouteRequestBytes = 32768;
+    std::array<char, kMaxRouteRequestBytes + 1> buffer{};
+    std::cin.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    const auto got = std::cin.gcount();
+    if (got == 0 || got > kMaxRouteRequestBytes)
       throw std::runtime_error("Native route request is empty or exceeds 32 KiB");
+    if (std::cin.bad())
+      throw std::runtime_error("Native route request input failure");
+    const std::string req(buffer.data(), static_cast<size_t>(got));
     boost::property_tree::ptree config;
     boost::property_tree::read_json(argv[1], config);
     valhalla::tyr::actor_t actor(config, true);
@@ -56,15 +63,22 @@ int main(int argc, char** argv) {
       throw std::runtime_error("Original TripLeg contains fewer than 2 native nodes");
     std::vector<std::pair<uint64_t, uint64_t>> edge_ids;
     edge_ids.reserve(leg.node_size());
-    for (const auto& node : leg.node()) {
-      if (!node.has_edge()) continue;
+    for (int i = 0; i < leg.node_size(); ++i) {
+      const auto& node = leg.node(i);
+      const bool terminal_node = i == leg.node_size() - 1;
+      // An omitted intermediate node edge would silently skip part of
+      // the actual route. Valhalla 3.6.3 represents one edge per
+      // nonterminal node; the final arrival node has no outgoing edge.
+      if (node.has_edge() == terminal_node)
+        throw std::runtime_error("Original TripLeg has missing or extra native node edge");
+      if (terminal_node) continue;
       const auto& edge = node.edge();
       if (edge.id() == 0 || edge.way_id() == 0)
         throw std::runtime_error("Original TripLeg has missing directed GraphId/wayId");
       edge_ids.emplace_back(edge.id(), edge.way_id());
     }
-    if (edge_ids.empty())
-      throw std::runtime_error("Original TripLeg contains no native routed edge IDs");
+    if (edge_ids.size() != static_cast<size_t>(leg.node_size() - 1))
+      throw std::runtime_error("Original TripLeg directed edge inventory incomplete");
     // TripLeg::summary is not populated by this Valhalla action. Odin
     // serializes actual metrics into trip.summary in the SAME route return.
     // Do not mistake protobuf defaults (0,0) for valid route costs.

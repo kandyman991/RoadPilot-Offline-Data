@@ -79,6 +79,34 @@ class JNIParityTests(unittest.TestCase):
         self.assertEqual(j["f8GraphEdgeParity"],"NOT_VERIFIED")
         self.assertEqual(j["perWindow"][0]["actualJNIHardCap"],512)
 
+    def test_window_index_preserves_exact_inclusive_boundaries_and_duplicates(self):
+        from audit_native_f8_android_jni_parity import (
+            prepare_native_latitude_index,window_native_ids)
+        nodes=[
+            edge(1,300,46.0,12.0),
+            edge(2,301,46.1,12.1),
+            edge(3,302,46.1,12.0),
+            edge(4,303,46.09999999,12.1000001),
+            edge(5,304,45.99,12.05),
+            edge(6,305,46.2,12.01),
+            edge(7,306,46.06,12.06),
+        ]
+        bounds={"minLat":46.0,"maxLat":46.1,
+                "minLon":12.0,"maxLon":12.1}
+        index=prepare_native_latitude_index(list(reversed(nodes)))
+        exact=window_native_ids(index,bounds)
+        brute={
+            x["graphId"] for x in nodes
+            if bounds["minLat"]<=x["lat"]<=bounds["maxLat"]
+            and bounds["minLon"]<=x["lon"]<=bounds["maxLon"]
+        }
+        self.assertEqual(exact,brute)
+        self.assertEqual(exact,{1,2,3,7})
+        self.assertEqual(
+            window_native_ids(index,
+                {"minLat":46.1,"maxLat":46.2,
+                 "minLon":12.0,"maxLon":12.1}),{2,3,6})
+
     def test_unknown_or_duplicate_android_graph_ids_fail_closed(self):
         with self.assertRaisesRegex(ValueError,"Duplicate"):
             inspect_window(self.native["edges"],example_capture(

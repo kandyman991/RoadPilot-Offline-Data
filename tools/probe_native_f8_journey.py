@@ -409,6 +409,8 @@ def main()->int:
                    help='Exact unfiltered receiver-ledger cursor; only for ordered-native-ledger')
     p.add_argument('--native-route-edges-binary',type=Path,
                    help='Optional pinned Valhalla 3.6.3 original Trip protobuf route-edge extractor')
+    p.add_argument('--expected-native-route-sha256',
+                   help='Owner-reviewed sha256:<64-hex> of the exact executable, required with --native-route-edges-binary')
     p.add_argument('--output',required=True,type=Path)
     args=p.parse_args()
     pair=read(args.pair_manifest)
@@ -428,13 +430,17 @@ def main()->int:
                                                from_primary,pair['toBoundaryFingerprint'],root,'to')
         verify_retained_graph_identity(pair,identity_a,identity_b)
         if args.direction=='to-from':config_a,config_b=config_b,config_a
+        if bool(args.native_route_edges_binary) != bool(args.expected_native_route_sha256):
+            p.error("--native-route-edges-binary requires its reviewed --expected-native-route-sha256 and vice versa")
         if args.native_route_edges_binary:
             from native_f8_original_route import (
                 route_with_original_ids, verify_native_route_binary)
             from capture_native_f8_graph_windows import require_compatible_versions
             require_compatible_versions(
                 read(args.from_manifest),read(args.to_manifest),'3.6.3')
-            binary_sha=verify_native_route_binary(args.native_route_edges_binary)
+            binary_sha=verify_native_route_binary(
+                args.native_route_edges_binary,
+                expected_sha256=args.expected_native_route_sha256)
             bound_route=lambda config,src,dst,mode:route_with_original_ids(
                 config,src,dst,mode,args.native_route_edges_binary)
         else:

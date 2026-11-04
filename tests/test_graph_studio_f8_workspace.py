@@ -139,6 +139,22 @@ class StudioF8EngineTests(unittest.TestCase):
         self.assertEqual(row['nextOrderedStartOrdinal'],218031)
         self.assertEqual(result['productionPublication'],'BLOCKED')
 
+    def test_original_route_executable_requires_reviewed_digest_before_graph_reads(self):
+        from graph_studio_f8_workspace import probe as f8_probe
+        for native, expected in (
+            (Path('/untrusted/native_f8_route_edges'), None),
+            (None,'sha256:'+'a'*64),
+        ):
+            with self.assertRaisesRegex(ValueError,'both must be supplied together'):
+                f8_probe(self.root,self.pair,
+                         Path('/nonexistent/source-manifest.json'),
+                         Path('/nonexistent/peer-manifest.json'),
+                         'from-to','auto',
+                         {'lat':46.5,'lng':13.5},
+                         {'lat':46.6,'lng':13.6},2,
+                         native_route_edges_binary=native,
+                         expected_native_route_sha256=expected)
+
     def test_original_native_route_proof_remains_evidence_not_a_gui_handoff_pin(self):
         folder=pair_workspace(self.root,self.pair)/'journey-probes'
         folder.mkdir(parents=True,exist_ok=True)

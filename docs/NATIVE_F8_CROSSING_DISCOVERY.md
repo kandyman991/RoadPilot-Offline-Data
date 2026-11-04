@@ -68,6 +68,16 @@ python tools/probe_native_f8_journey.py \
   --max-probes 6 --output /path/to/new-sample-journey-report.json
 ```
 
+**PR #117 reviewed binary trust gate (2026-11-04):** Original
+Valhalla route protobuf extraction must use BOTH an explicit native
+binary and the independently reviewed exact
+`--expected-native-route-sha256`; its digest is checked BEFORE
+the executable's version command. C++/Python node-edge completeness
+and bounded input are enforced, with exact Legion native build
+provenance at `docs/F8_PR117_ORIGINAL_NATIVE_BUILD_PROVENANCE.json`.
+Hosted CI checks source provenance, not a false claim that the native
+binary was compiled there. JNI parity remains NOT_VERIFIED.
+
 **Original route-edge identity and selected final-edge checks (2026-11-04):**
 The new opt-in Valhalla 3.6.3 actor route-edge extractor reads GraphIds from
 the **original Trip protobuf** instead of inferring them via a separate

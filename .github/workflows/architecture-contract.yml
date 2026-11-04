@@ -68,6 +68,9 @@ jobs:
       - name: Ordered native F8 receiver proof scheduling and no-first-success regression
         run: python -m unittest discover -s tests -p 'test_native_f8_ordered_proof_batch.py' -v
 
+      - name: Original native Valhalla build source and provenance integrity gate
+        run: python -m unittest discover -s tests -p 'test_native_f8_original_build_provenance.py' -v
+
       - name: Original Valhalla trip protobuf edge identity and no-replay F8 regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_original_route.py' -v
 

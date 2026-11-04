@@ -11,7 +11,7 @@ No crossing/road catalogue, no geometry filters, no Android mutation.
 from __future__ import annotations
 
 import argparse
-import hashlib
+from bisect import bisect_left, bisect_right
 import json
 import math
 from pathlib import Path
@@ -23,7 +23,30 @@ MAX_JNI_RESULTS = 512
 SCHEMA = "roadpilot.android-actual-f8-jni-scan-capture"
 
 
-def inspect_window(native_edges: list[dict], entry: dict) -> dict:
+def prepare_native_latitude_index(native_edges: list[dict]) -> tuple[list[float], list[dict]]:
+    """Index unfiltered source GraphReader start nodes once.
+
+    The reference JNI scanner selects nodes inside each exact scan rectangle.
+    This reduces a full 300k-edge × many-window scan from O(E*W) to
+    O(E log E + W log E + edges in each latitude strip). A window's
+    longitude test remains exact and inclusive; this is not a road
+    discovery filter or candidate reduction.
+    """
+    ordered = sorted(native_edges, key=lambda item: item["lat"])
+    return [item["lat"] for item in ordered], ordered
+
+
+def window_native_ids(index: tuple[list[float],list[dict]],
+                      bounds: dict) -> set[int]:
+    latitudes, edges = index
+    lo=bisect_left(latitudes,bounds["minLat"])
+    hi=bisect_right(latitudes,bounds["maxLat"])
+    return {item["graphId"] for item in edges[lo:hi]
+            if bounds["minLon"] <= item["lon"] <= bounds["maxLon"]}
+
+
+def inspect_window(native_edges: list[dict], entry: dict, *,
+                   native_index: tuple[list[float],list[dict]] | None = None) -> dict:
     bounds = entry.get("bounds")
     if (not isinstance(bounds, dict)
             or set(bounds) != {"minLat", "maxLat", "minLon", "maxLon"}):
@@ -53,12 +76,9 @@ def inspect_window(native_edges: list[dict], entry: dict) -> dict:
             or len(after)!=len(set(after))
             or not set(after).issubset(set(raw))):
         raise ValueError("Malformed Android Kotlin grouped edge IDs")
-    expected = {
-        row["graphId"]
-        for row in native_edges
-        if bounds["minLat"]<=row["lat"]<=bounds["maxLat"]
-        and bounds["minLon"]<=row["lon"]<=bounds["maxLon"]
-    }
+    if native_index is None:
+        native_index=prepare_native_latitude_index(native_edges)
+    expected=window_native_ids(native_index,bounds)
     seen=set(raw)
     missing=sorted(expected-seen)
     unknown=sorted(seen-expected)
@@ -104,10 +124,11 @@ def audit(pair:dict,native:dict,capture:dict,direction:str)->dict:
         raise ValueError("JNI capture window count beyond audit bound")
     seen_windows=set()
     examined=[]
+    native_index=prepare_native_latitude_index(native["edges"])
     for item in windows:
         if not isinstance(item,dict):
             raise ValueError("Malformed JNI capture window")
-        details=inspect_window(native["edges"],item)
+        details=inspect_window(native["edges"],item,native_index=native_index)
         key=tuple(details["windowIdentity"][f]
                   for f in ("minLat","maxLat","minLon","maxLon"))
         if key in seen_windows:

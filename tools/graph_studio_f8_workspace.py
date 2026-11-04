@@ -239,7 +239,12 @@ def discovery(root: Path, pair: dict, from_manifest: Path, to_manifest: Path) ->
 def probe(root: Path, pair: dict, from_manifest: Path, to_manifest: Path,
           direction: str, mode: str, start: dict, end: dict, max_probes: int,
           *, selection: str='ranked-sample', start_ordinal: int=0,
-          native_route_edges_binary: Path | None = None) -> dict:
+          native_route_edges_binary: Path | None = None,
+          expected_native_route_sha256: str | None = None) -> dict:
+    # Reject unpinned executable requests *before* expensive graph reads,
+    # and before potentially launching any user-provided native binary.
+    if (native_route_edges_binary is None) != (expected_native_route_sha256 is None):
+        raise ValueError("Native route executable requires a reviewed SHA-256; both must be supplied together")
     home = pair_workspace(root,pair)
     proposals = home/'gps-proposals'
     if not valid_existing_evidence(pair,proposals):
@@ -267,7 +272,9 @@ def probe(root: Path, pair: dict, from_manifest: Path, to_manifest: Path,
                 verify_native_route_binary, route_with_original_ids)
             from capture_native_f8_graph_windows import require_compatible_versions
             require_compatible_versions(manifest_a,manifest_b,'3.6.3')
-            binary_sha=verify_native_route_binary(native_route_edges_binary)
+            binary_sha=verify_native_route_binary(
+                native_route_edges_binary,
+                expected_sha256=expected_native_route_sha256)
             bound_route=lambda cfg,src,dst,mode:route_with_original_ids(
                 cfg,src,dst,mode,native_route_edges_binary)
         else:
@@ -314,6 +321,8 @@ def run(argv: list[str] | None = None) -> dict:
                         default='ranked-sample')
     parser.add_argument('--native-route-edges-binary',type=Path,
                         help='Explicit pinned original Valhalla 3.6.3 Trip protobuf route-edge extractor')
+    parser.add_argument('--expected-native-route-sha256',
+                        help='Reviewed sha256:<64-hex>; mandatory when a native route executable is supplied')
     parser.add_argument('--start-ordinal',type=int,default=0)
     for field in ('start-lat','start-lng','end-lat','end-lng'):
         parser.add_argument('--'+field,type=float)
@@ -347,7 +356,8 @@ def run(argv: list[str] | None = None) -> dict:
     return probe(root,pair,args.from_manifest,args.to_manifest,
                  args.direction,args.mode,start,end,args.max_probes,
                  selection=args.probe_selection,start_ordinal=args.start_ordinal,
-                 native_route_edges_binary=args.native_route_edges_binary)
+                 native_route_edges_binary=args.native_route_edges_binary,
+                 expected_native_route_sha256=args.expected_native_route_sha256)
 
 
 def main() -> int:

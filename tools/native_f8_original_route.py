@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import math
+import re
+import hashlib
 from pathlib import Path
 import subprocess
 
@@ -18,16 +20,28 @@ SCHEMA = "roadpilot.f8-original-valhalla-route-edges"
 VERSION = "3.6.3"
 
 
-def verify_native_route_binary(binary: Path, runner=subprocess.run) -> str:
-    if not binary.is_file():
-        raise ValueError("Pinned original Valhalla route-edge binary unavailable")
+def verify_native_route_binary(binary: Path, runner=subprocess.run, *,
+                               expected_sha256: str | None = None) -> str:
+    """Hash-pin executable BEFORE ever invoking its --version entrypoint.
+
+    --version is arbitrary native code execution and cannot be a trust
+    preflight for an unverified path. The pin is an independently reviewed
+    owner-selected artifact digest, not an untrusted self-reported version.
+    """
+    if not isinstance(expected_sha256, str) or not re.fullmatch(
+            r"sha256:[0-9a-f]{64}", expected_sha256):
+        raise ValueError("Expected exact reviewed native route executable SHA-256 is mandatory")
+    if binary.is_symlink() or not binary.is_file():
+        raise ValueError("Original Valhalla route-edge binary missing or symbolic link")
+    with binary.open("rb") as src:
+        digest = "sha256:" + hashlib.file_digest(src, "sha256").hexdigest()
+    if digest != expected_sha256:
+        raise ValueError("Native route executable SHA-256 does not match the reviewed artifact")
     proc = runner([str(binary), "--version"], capture_output=True,
                   text=True, timeout=10, check=False)
     if proc.returncode or proc.stdout.strip() != VERSION:
         raise ValueError("Original route-edge binary version mismatch: requires Valhalla 3.6.3")
-    import hashlib
-    with binary.open("rb") as src:
-        return "sha256:" + hashlib.file_digest(src, "sha256").hexdigest()
+    return digest
 
 
 def validate_original_route(response: dict, start: dict, end: dict) -> dict:
@@ -46,7 +60,7 @@ def validate_original_route(response: dict, start: dict, end: dict) -> dict:
     edges = response.get("directedEdges")
     if (not isinstance(edges, list) or not edges
             or type(response.get("nodeCount")) is not int
-            or not len(edges) <= response["nodeCount"] <= len(edges)+2):
+            or response["nodeCount"] != len(edges)+1):
         raise ValueError("Native original route has missing edge-node inventory")
     ids = []
     for edge in edges:

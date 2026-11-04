@@ -5,6 +5,61 @@
 legs. Selected native terminal paths: 10/10 real samples proved.
 Global road uniqueness, Android JNI parity and publication: NOT VERIFIED.**
 
+## PR #117 independent review corrections (same production architecture)
+
+The original PR head `9b507e3` received an independent security,
+data-integrity and architecture review. Findings were corrected in
+place on the PR branch, without changing native GPS discovery or
+production connectivity:
+
+1. **Native executable trust preflight — P1:** The opt-in
+   `--native-route-edges-binary` executed `--version` *before*
+   hashing the file. Arbitrary native code can run at that point.
+   Both the direct F8 CLI, the Graph Studio shared command engine,
+   and the native terminal verifier now **require** the matching
+   owner-reviewed `--expected-native-route-sha256`; invalid,
+   substituted or symlinked executables fail **before execution**.
+   Source/compiled binary/dependency and build recipe hashes are
+   recorded in
+   `docs/F8_PR117_ORIGINAL_NATIVE_BUILD_PROVENANCE.json`.
+2. **Route-edge completeness — P2:** The C++ extractor previously
+   skipped absent node-edge records, potentially converting a
+   corrupted/incomplete original TripLeg into plausible IDs.
+   Valhalla 3.6.3's terminal node must have no outgoing edge,
+   and every preceding native node must contain exactly its
+   original directed edge. The C++ and Python adapters now
+   fail closed on any missing/extra original edge. The native
+   stdin request also has an actual **32-KiB bounded read**,
+   not an unbounded allocation followed by a size check.
+3. **Android parity audit scaling — P2:** Repeatedly iterating
+   every native GraphReader edge for every window scales poorly
+   with hundreds of thousands of edges. The audit now indexes
+   all original native node latitudes **once** and uses a binary
+   interval search plus inclusive longitude bounds per window.
+   Exact boundary and same-way directed-edge regression tests
+   ensure it does not silently drop or coalesce alternatives.
+   The output still says **JNI_PARITY=NOT_VERIFIED**; no actual
+   Android capture or publication is authorized.
+4. **Review provenance gate — P2:** Hosted GitHub CI cannot claim
+   to compile the pinned C++ Valhalla 3.6.3 target when the retained
+   local static library is absent. The exact Legion binary, source,
+   CMake, libvalhalla static archive, pkg-config and CMakeCache
+   SHA-256s are now bound in a committed provenance record;
+   architecture CI verifies the source/build recipe checksums
+   against that record. Eight corrected real-graph reports with
+   `SHA256SUMS` were rerun using the reviewed binary at
+   `~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/pr117-independent-review-v3/`.
+   This is reproducible **Legion evidence**, not a hosted
+   native build or authenticated physical Android JNI proof.
+
+**Reviewed native executable pin:**
+`sha256:e955677e56278b53cee0d39ca6d94efa1557e1439da81859f330ffb4b8dbe776`.
+Pass it using
+`--expected-native-route-sha256 sha256:e955677e56278b53cee0d39ca6d94efa1557e1439da81859f330ffb4b8dbe776`
+alongside every explicit `--native-route-edges-binary`
+invocation. Older experimental reports remain archived but do
+not satisfy this reviewed pre-execution trust gate.
+
 ## Architecture contract
 
 Preserve independent Valhalla graphs, the 25-km overlap, and the original
