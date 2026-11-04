@@ -44,7 +44,11 @@ Missing previously verified direct-final cut GraphIds, duplicates,
 incorrect predecessor-path endpoints or mutated inputs are hard failures.
 The native original-graph predecessor topology itself is provided by the
 preexisting SHA-pinned branch-evidence report; this reconciliation does
-not claim independently to recompute native adjacency.
+not claim independently to recompute native adjacency. The corrected
+reconciler also validates all ordered original Valhalla TripLeg route IDs,
+every original cut predecessor/mode witness and the 3.4-m Austrian
+immediate-predecessor fallback without trusting a success status alone.
+See F8_PR122_TECHNICAL_REVIEW_20261104.md.
 
 Immutable evidence:
 `~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/source-cut-coverage-reconciliation-v1.json`;

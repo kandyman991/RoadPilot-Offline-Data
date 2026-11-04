@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 
 from shapely.geometry import LineString, Point
 
@@ -33,6 +34,17 @@ from probe_native_f8_journey import verify_retained_graph_identity
 SCHEMA = "roadpilot.f8-original-all-source-native-directed-cut-census"
 MODES = {"auto": 1, "motorcycle": 1024}
 MAX_VERTICES = 8192
+# Native GraphReader may be handed an untrusted or corrupt graph/archive.
+# Bound one serialized geometry record before JSON parsing and geometry allocation.
+MAX_NATIVE_JSON_LINE_CHARS = 1_000_000
+MAX_NATIVE_CUT_SCAN_SECONDS = 3600
+
+
+def read_native_json_line(stdout) -> dict:
+    raw = stdout.readline(MAX_NATIVE_JSON_LINE_CHARS + 1)
+    if len(raw) > MAX_NATIVE_JSON_LINE_CHARS or not raw.endswith("\n"):
+        raise ValueError("Original GraphReader geometry line oversized or truncated")
+    return json.loads(raw)
 
 
 def check_native_directed_shape(expected: dict, row: dict, source_buffer: dict) -> dict | None:
@@ -46,7 +58,9 @@ def check_native_directed_shape(expected: dict, row: dict, source_buffer: dict) 
     for source_name, native_name in (
             ("graphId", "sourceGraphId"), ("wayId", "wayId"),
             ("forwardAccess", "forwardAccess"), ("reverseAccess", "reverseAccess")):
-        if row.get(native_name) != expected.get(source_name):
+        original_id, native_id = expected.get(source_name), row.get(native_name)
+        if (type(original_id) is not int or type(native_id) is not int
+                or original_id < 0 or original_id != native_id):
             raise ValueError("Original source/native GraphReader identity or access changed")
     if type(row.get("forward")) is not bool or type(row.get("deadend")) is not bool:
         raise ValueError("Missing original native direction/terminal flags")
@@ -115,13 +129,16 @@ def audit_original_native_side(binary: Path, config: Path, edges: list,
         with subprocess.Popen(
                 [str(binary),str(config),str(file),"--geometry"],
                 stdout=subprocess.PIPE,stderr=err,text=True,bufsize=1024*1024) as native:
+            # A stalled GraphReader must not hold an audit forever. This
+            # watchdog includes stdout streaming/JSON parsing time; wait()
+            # alone cannot time out a blocked readline().
+            watchdog = threading.Timer(MAX_NATIVE_CUT_SCAN_SECONDS, native.kill)
+            watchdog.daemon = True
+            watchdog.start()
             try:
                 for i, expected in enumerate(sorted_edges):
-                    raw = native.stdout.readline()
-                    if not raw.endswith("\n"):
-                        raise ValueError("Original GraphReader directed geometry missing/truncated")
                     observation = check_native_directed_shape(
-                        expected, json.loads(raw), source_buffer)
+                        expected, read_native_json_line(native.stdout), source_buffer)
                     counts["originalSourceDirectedGraphIdsAudited"]+=1
                     if observation is not None:
                         hits.append(observation)
@@ -134,6 +151,8 @@ def audit_original_native_side(binary: Path, config: Path, edges: list,
                     raise ValueError("Original native geometry emitted extra GraphIds")
             except BaseException:
                 native.kill();native.wait();raise
+            finally:
+                watchdog.cancel()
             exitcode = native.wait(timeout=900)
         if exitcode:
             err.seek(0)

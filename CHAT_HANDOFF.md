@@ -2,6 +2,14 @@
 
 ## Active production continuation — PR #122 source-cut window coverage (2026-11-04)
 
+Dedicated PR #122 technical review corrected missing original Car/Motorcycle
+TripLeg sequence validation, short Austrian original final edge fallback
+reconciliation, source path proof counters and native JSON streaming limits.
+Re-ran actual immutable graph evidence with byte-identical SHA result and
+390/390 local tests PASS. Documented in
+docs/F8_PR122_TECHNICAL_REVIEW_20261104.md. Merge only after corrected
+exact-head GitHub CI; keep Graph Studio #73/#82 and RoadPilot #512 open.
+
 PR #121 merged, main d8fc29b then ea0afc0 handoff refresh. PR #122
 `feature/f8-physical-final-edge-id-20261104` is **DRAFT, unmerged**.
 The previous session left two uncommitted original SOURCE window-cut-census

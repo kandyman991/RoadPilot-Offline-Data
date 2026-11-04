@@ -20,6 +20,73 @@ CUT_SCHEMA = "roadpilot.f8-original-all-source-native-directed-cut-census"
 CUT_SCOPE = "ALL_RETAINED_SOURCE_SCAN_ORIGINAL_DIRECTED_GRAPHIDS"
 SIDES = ("from-to", "to-from")
 MODES = ("auto", "motorcycle")
+PROVED = "ORIGINAL_SOURCE_LAST_DIRECTED_TRIPLEG_GRAPHID_MATCHED"
+
+
+def _original_tripleg_matches(proof: object, final_id: int,
+                             required_suffix: list[int]) -> bool:
+    """Require the actual ordered original TripLeg IDs, not a status label."""
+    if not isinstance(proof, dict):
+        return False
+    trip = proof.get("originalNativeTripLegDirectedGraphIds")
+    return (
+        proof.get("sourceLastEdgeProof") == PROVED
+        and proof.get("originalNativeLastGraphId") == final_id
+        and isinstance(trip, list) and len(trip) >= len(required_suffix)
+        and all(type(g) is int and g > 0 for g in trip)
+        and trip[-len(required_suffix):] == required_suffix
+        and type(proof.get("startSnapMeters")) in (int, float)
+        and 0 <= proof["startSnapMeters"] <= 1
+        and type(proof.get("endSnapMeters")) in (int, float)
+        and 0 <= proof["endSnapMeters"] <= 1
+    )
+
+
+
+
+def _valid_original_one_hop(proof: dict, final_id: int, mode: str) -> bool:
+    """The 3.4-m original final edge needs an actual upstream TripLeg, not
+    invented missing top-level offsets or a successful route-status label."""
+    if (not isinstance(proof, dict)
+            or proof.get("originalRouteStatus") !=
+            "SUCCEEDED_WITH_ORIGINAL_SOURCE_IMMEDIATE_PREDECESSOR"
+            or proof.get("proofMethod") != "ORIGINAL_SOURCE_IMMEDIATE_PREDECESSOR_TRIPLEG"):
+        return False
+    ledger = proof.get("originalOneHopImmediateSourcePredecessorProof")
+    if (not isinstance(ledger, dict) or ledger.get("status") != PROVED
+            or ledger.get("allRootPredecessorAlternativesCaptured") is not True):
+        return False
+    probes = ledger.get("upstreamProbes")
+    if not isinstance(probes, list) or not probes:
+        return False
+    exact = []
+    for item in probes:
+        if not isinstance(item, dict) or item.get("mode") != mode:
+            return False
+        row = item.get("originalTripLegResult")
+        incoming = item.get("incomingOriginalDirectedGraphId")
+        if item.get("proof") == PROVED:
+            if (type(incoming) is not int or incoming <= 0
+                    or item.get("originalTripLegFirstIsExactPredecessor") is not True
+                    or not _original_tripleg_matches(row, final_id, [incoming, final_id])
+                    or row.get("originalRouteStatus") != "SUCCEEDED"):
+                return False
+            exact.append(row["originalNativeTripLegDirectedGraphIds"])
+        elif item.get("proof") != "NOT_VERIFIED":
+            return False
+    return (bool(exact)
+            and ledger.get("exactOriginalOneHopProofCount") == len(exact)
+            and ledger.get("firstExactOriginalNativeTripLegGraphIds") == exact[0]
+            and proof.get("originalNativeTripLegDirectedGraphIds") == exact[0]
+            and proof.get("originalNativeLastGraphId") == final_id)
+
+
+def _valid_direct_final_proof(proof: object, final_id: int, mode: str) -> bool:
+    if not isinstance(proof, dict):
+        return False
+    if proof.get("originalRouteStatus") == "SUCCEEDED":
+        return _original_tripleg_matches(proof, final_id, [final_id])
+    return _valid_original_one_hop(proof, final_id, mode)
 
 
 def _unique_ids(items: list, name: str, key: str) -> set[int]:
@@ -94,40 +161,107 @@ def reconcile(cut: dict, direct: dict, beyond: dict) -> dict:
         missing_direct = direct_ids - cut_ids
         if missing_direct:
             raise ValueError("Previously proved direct original final GraphId absent from cut inventory")
+        if (previous.get("originalSourceCutCandidateDirectedEdges") != len(direct_rows)
+                or previous.get("noOriginalCandidateSuppression") is not True):
+            raise ValueError("Original direct final inventory or preservation claim changed")
         for item in direct_rows:
             gid = item["originalNativeSourceDirectedGraphId"]
+            if (item.get("originalNativeSourceCutGeometryIntersects") is not True
+                    or item.get("candidateSuppressed") is not False):
+                raise ValueError("Original direct cut geometry or candidate preservation changed")
             for mode in MODES:
-                m = (item.get("vehicleModes") or {}).get(mode)
-                if (not isinstance(m, dict) or
-                        m.get("sourceLastEdgeProof") !=
-                        "ORIGINAL_SOURCE_LAST_DIRECTED_TRIPLEG_GRAPHID_MATCHED" or
-                        m.get("originalNativeLastGraphId") != gid):
+                proof = (item.get("vehicleModes") or {}).get(mode)
+                if not _valid_direct_final_proof(proof, gid, mode):
                     raise ValueError("Previously proved original TripLeg identity changed")
         beyond_rows = latter.get("beyondCutOriginalFinalEdgeProofs")
         beyond_ids = _unique_ids(beyond_rows, side+" beyond-cut final", "originalFinalDirectedGraphId")
         if direct_ids & beyond_ids:
             raise ValueError("Original final GraphId counted twice as direct and beyond-cut")
+        if (latter.get("originalDirectedFinalEdgesBeyondCutIdentified") != len(beyond_rows)
+                or latter.get("originalSourceCandidateSuppression") != "NONE"):
+            raise ValueError("Original beyond-cut candidate inventory or preservation changed")
         predecessor_ids: set[int] = set()
         unbounded: list[int] = []
         for item in beyond_rows:
             end = item["originalFinalDirectedGraphId"]
-            if item.get("originalFinalDirectedEdgeEntirelyBeyondOriginalSource25kmCut") is not True:
-                raise ValueError("False original beyond-cut source final claim")
+            if (item.get("originalFinalDirectedEdgeEntirelyBeyondOriginalSource25kmCut") is not True
+                    or item.get("noOriginalBranchesSuppressed") is not True
+                    or item.get("anyOriginalCutCrossingPredecessorLocated") is not True):
+                raise ValueError("False original beyond-cut source final or preservation claim")
             paths = item.get("originalDirectedCutCrossingPredecessorPaths")
             if not isinstance(paths, list) or not paths:
                 raise ValueError("Source beyond-cut candidate has no original cut predecessor")
-            if item.get("completeness") != "ALL_SAME_LEVEL_PREDECESSOR_BRANCHES_WITHIN_BOUND_VISITED":
+            bounded = item.get("completeness")
+            truncations = item.get("truncations")
+            if (bounded not in ("INCOMPLETE_BOUNDED",
+                                "ALL_SAME_LEVEL_PREDECESSOR_BRANCHES_WITHIN_BOUND_VISITED")
+                    or not isinstance(truncations, list)
+                    or bool(truncations) != (bounded == "INCOMPLETE_BOUNDED")):
+                raise ValueError("Invalid or concealed original predecessor traversal cap")
+            if bounded == "INCOMPLETE_BOUNDED":
                 unbounded.append(end)
-            for p in paths:
-                if not isinstance(p, dict) or p.get("intersectsOriginalSource25kmCut") is not True:
+            native_paths = {}
+            for path in paths:
+                if not isinstance(path, dict) or path.get("intersectsOriginalSource25kmCut") is not True:
                     raise ValueError("False original source cut predecessor claim")
-                gid = p.get("originalDirectedGraphId")
-                route = p.get("nativeForwardDirectedPathToFinal")
+                gid = path.get("originalDirectedGraphId")
+                route = path.get("nativeForwardDirectedPathToFinal")
                 if (type(gid) is not int or gid <= 0 or not isinstance(route, list) or
                         len(route) < 2 or route[0] != gid or route[-1] != end or
-                        any(type(x) is not int or x <= 0 for x in route)):
+                        any(type(x) is not int or x <= 0 for x in route)
+                        or len(set(route)) != len(route)):
                     raise ValueError("Invalid original directed predecessor-to-last path endpoints")
+                key = (gid, tuple(route))
+                if key in native_paths:
+                    raise ValueError("Repeated original source predecessor path")
+                native_paths[key] = route
                 predecessor_ids.add(gid)
+            route_report = item.get("originalSourceOriginalValhallaTripLeg")
+            if not isinstance(route_report, dict):
+                raise ValueError("Missing original Valhalla beyond-cut route evidence")
+            witnesses = route_report.get("originalSourceCutRouteProofs")
+            if (not isinstance(witnesses, list)
+                    or route_report.get("originalSourceCutCrossingPathCount") != len(paths)
+                    or len(witnesses) != len(paths)):
+                raise ValueError("Incomplete original source predecessor route witness coverage")
+            seen_witnesses: set[tuple] = set()
+            successful_modes: set[str] = set()
+            successful_checks = 0
+            for witness in witnesses:
+                if not isinstance(witness, dict):
+                    raise ValueError("Malformed original Valhalla source witness")
+                start = witness.get("originalDirectedCutEdge")
+                ordered = witness.get("nativeForwardDirectedPathToFinal")
+                if not isinstance(ordered, list):
+                    raise ValueError("Missing original source witness path")
+                key = (start, tuple(ordered))
+                if key not in native_paths or key in seen_witnesses:
+                    raise ValueError("Original source witness mismatches cut predecessor path")
+                seen_witnesses.add(key)
+                mode_proofs = witness.get("originalRouteModeProofs")
+                if not isinstance(mode_proofs, dict) or set(mode_proofs) != set(MODES):
+                    raise ValueError("Incomplete original source Valhalla witness modes")
+                for mode in MODES:
+                    proof = mode_proofs[mode]
+                    if not isinstance(proof, dict):
+                        raise ValueError("Malformed original source route witness")
+                    if proof.get("sourceLastEdgeProof") == PROVED:
+                        if (proof.get("originalRouteStatus") != "SUCCEEDED"
+                                or proof.get("originalSourceCutPathExactTripLegSequence") is not True
+                                or not _original_tripleg_matches(proof, end, ordered)
+                                or proof["originalNativeTripLegDirectedGraphIds"][0] != start):
+                            raise ValueError("False original Valhalla beyond-cut mode proof")
+                        successful_modes.add(mode)
+                        successful_checks += 1
+                    elif proof.get("sourceLastEdgeProof") != "NOT_VERIFIED":
+                        raise ValueError("Unrecognized original Valhalla source witness status")
+            if seen_witnesses != set(native_paths):
+                raise ValueError("Incomplete original source cut predecessor witness paths")
+            if successful_modes != set(MODES):
+                raise ValueError("Beyond-cut final has no exact original Valhalla proof for both modes")
+            if (not isinstance(route_report.get("routeModeCounts"), dict)
+                    or route_report["routeModeCounts"].get(PROVED, 0) != successful_checks):
+                raise ValueError("Original beyond-cut route proof count mismatch")
         covered = cut_ids & (direct_ids | predecessor_ids)
         uncertain = cut_ids - covered
         outward = {r["originalDirectedGraphId"] for r in rows

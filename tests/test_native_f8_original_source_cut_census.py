@@ -1,6 +1,7 @@
 """Source native original directed full cut-first completeness regression gates."""
 from __future__ import annotations
 
+import io
 import sys
 from pathlib import Path
 import unittest
@@ -9,7 +10,8 @@ from shapely.geometry import box
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"tools"))
 from probe_native_f8_clipped_terminal import CRS
-from census_native_f8_original_source_cut_edges import check_native_directed_shape
+from census_native_f8_original_source_cut_edges import (check_native_directed_shape,
+    read_native_json_line, MAX_NATIVE_JSON_LINE_CHARS)
 
 
 def original(gid=111, way=30):
@@ -61,6 +63,13 @@ class OriginalNativeSourceCutTests(unittest.TestCase):
         self.assertEqual(row["originalSourceBufferCutDirectedTravel"],
                          "BOTH_ENDPOINTS_OUTSIDE_BUFFER_CUT_INTERSECTION")
 
+    def test_json_line_size_fails_closed_before_parsing(self):
+        with self.assertRaisesRegex(ValueError, "oversized or truncated"):
+            read_native_json_line(io.StringIO("x" * (MAX_NATIVE_JSON_LINE_CHARS + 2)))
+        with self.assertRaisesRegex(ValueError, "oversized or truncated"):
+            read_native_json_line(io.StringIO("{}"))
+        self.assertEqual(read_native_json_line(io.StringIO("{}\n")), {})
+
     def test_no_crossing_is_none_not_claimed_retained_final(self):
         self.assertIsNone(check_native_directed_shape(
             original(),native(vertices=[[47.,11.],[47.,11.0001]]),own()))
@@ -74,6 +83,9 @@ class OriginalNativeSourceCutTests(unittest.TestCase):
     def test_invalid_geometry_identity_and_access_fail_closed(self):
         variants=(
             {**native(),"sourceGraphId":999},
+            {**native(),"sourceGraphId":True},
+            {**native(),"wayId":True},
+            {**native(),"forwardAccess":True},
             {**native(),"wayId":31},
             {**native(),"forwardAccess":1},
             {**native(),"reverseAccess":1025},

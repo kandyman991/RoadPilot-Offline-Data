@@ -12,10 +12,30 @@ from reconcile_native_f8_source_cut_coverage import reconcile
 SHA = "sha256:" + "a" * 64
 GRAPH = {"from": SHA, "to": "sha256:" + "b" * 64}
 INPUT = {"pair": SHA, "from-manifest": SHA, "to-manifest": SHA}
-MODES = {mode: {"sourceLastEdgeProof":
-                "ORIGINAL_SOURCE_LAST_DIRECTED_TRIPLEG_GRAPHID_MATCHED",
-                "originalNativeLastGraphId": 11}
+PROVED = "ORIGINAL_SOURCE_LAST_DIRECTED_TRIPLEG_GRAPHID_MATCHED"
+MODES = {mode: {"sourceLastEdgeProof": PROVED,
+                "originalRouteStatus": "SUCCEEDED",
+                "originalNativeLastGraphId": 11,
+                "originalNativeTripLegDirectedGraphIds": [11],
+                "startSnapMeters": 0.02, "endSnapMeters": 0.03}
          for mode in ("auto", "motorcycle")}
+
+
+def original_witness(path):
+    final = path[-1]
+    return {
+        "originalDirectedCutEdge": path[0],
+        "nativeForwardDirectedPathToFinal": path,
+        "originalRouteModeProofs": {
+            mode: {"sourceLastEdgeProof": PROVED,
+                   "originalRouteStatus": "SUCCEEDED",
+                   "originalSourceCutPathExactTripLegSequence": True,
+                   "originalNativeLastGraphId": final,
+                   "originalNativeTripLegDirectedGraphIds": path,
+                   "startSnapMeters": 0.01, "endSnapMeters": 0.05}
+            for mode in ("auto", "motorcycle")
+        },
+    }
 
 
 def reports():
@@ -32,13 +52,27 @@ def reports():
         "originalSourceDirectedCutShapeCount": 3,
         "originalSourceDirectedGraphIdsAudited": 9,
     }
-    direct_side = {"cutCandidateOriginalTripLegProof": [
-        {"originalNativeSourceDirectedGraphId": 11, "vehicleModes": MODES}
+    direct_side = {"originalSourceCutCandidateDirectedEdges": 1,
+                   "noOriginalCandidateSuppression": True,
+                   "cutCandidateOriginalTripLegProof": [
+        {"originalNativeSourceDirectedGraphId": 11, "vehicleModes": copy.deepcopy(MODES),
+         "originalNativeSourceCutGeometryIntersects": True, "candidateSuppressed": False}
     ]}
-    beyond_side = {"beyondCutOriginalFinalEdgeProofs": [
+    beyond_side = {"originalDirectedFinalEdgesBeyondCutIdentified": 1,
+                   "originalSourceCandidateSuppression": "NONE",
+                   "beyondCutOriginalFinalEdgeProofs": [
         {"originalFinalDirectedGraphId": 40,
          "originalFinalDirectedEdgeEntirelyBeyondOriginalSource25kmCut": True,
+         "noOriginalBranchesSuppressed": True,
+         "anyOriginalCutCrossingPredecessorLocated": True,
          "completeness": "INCOMPLETE_BOUNDED",
+         "truncations": [{"reason": "BOUNDED_HOP_DEPTH_REACHED"}],
+         "originalSourceOriginalValhallaTripLeg": {
+             "originalSourceCutCrossingPathCount": 2,
+             "originalSourceCutRouteProofs": [original_witness([12, 40]),
+                                              original_witness([14, 40])],
+             "routeModeCounts": {PROVED: 4},
+         },
          "originalDirectedCutCrossingPredecessorPaths": [
              {"originalDirectedGraphId": 12, "intersectsOriginalSource25kmCut": True,
               "nativeForwardDirectedPathToFinal": [12, 40]},
@@ -139,6 +173,113 @@ class SourceCutReconciliationTests(unittest.TestCase):
         source = reports()
         source[0]["sourceCutCompleteness"] = "ALL_GRAPH_ARCHIVE_EDGES"
         with self.assertRaisesRegex(ValueError, "window-scanned"):
+            reconcile(*source)
+
+
+    def test_valid_short_original_final_uses_proved_immediate_predecessor(self):
+        source = reports()
+        row = source[1]["directions"]["from-to"]["cutCandidateOriginalTripLegProof"][0]
+        upstream = {"sourceLastEdgeProof": PROVED, "originalRouteStatus": "SUCCEEDED",
+                    "originalNativeLastGraphId": 11,
+                    "originalNativeTripLegDirectedGraphIds": [10, 11],
+                    "startSnapMeters": 0.03, "endSnapMeters": 0.02}
+        fallback = {"sourceLastEdgeProof": PROVED,
+                    "originalRouteStatus":
+                        "SUCCEEDED_WITH_ORIGINAL_SOURCE_IMMEDIATE_PREDECESSOR",
+                    "proofMethod": "ORIGINAL_SOURCE_IMMEDIATE_PREDECESSOR_TRIPLEG",
+                    "originalNativeLastGraphId": 11,
+                    "originalNativeTripLegDirectedGraphIds": [10, 11],
+                    "originalOneHopImmediateSourcePredecessorProof": {
+                        "status": PROVED,
+                        "allRootPredecessorAlternativesCaptured": True,
+                        "exactOriginalOneHopProofCount": 1,
+                        "firstExactOriginalNativeTripLegGraphIds": [10, 11],
+                        "upstreamProbes": [{
+                            "mode": "auto",
+                            "incomingOriginalDirectedGraphId": 10,
+                            "originalTripLegFirstIsExactPredecessor": True,
+                            "originalTripLegResult": upstream,
+                            "proof": PROVED,
+                        }]
+                    }}
+        row["vehicleModes"]["auto"] = fallback
+        self.assertEqual(reconcile(*source)["productionPublication"], "BLOCKED")
+        fallback["originalOneHopImmediateSourcePredecessorProof"][
+            "upstreamProbes"][0]["originalTripLegFirstIsExactPredecessor"] = False
+        with self.assertRaisesRegex(ValueError, "TripLeg"):
+            reconcile(*source)
+
+    def test_forged_direct_success_without_actual_ordered_tripleg_is_rejected(self):
+        source = reports()
+        item = source[1]["directions"]["from-to"]["cutCandidateOriginalTripLegProof"][0]
+        item["vehicleModes"]["auto"]["originalNativeTripLegDirectedGraphIds"] = [99]
+        with self.assertRaisesRegex(ValueError, "TripLeg"):
+            reconcile(*source)
+
+    def test_beyond_original_valhalla_witness_requires_matching_actual_graphids(self):
+        source = reports()
+        witness = source[2]["directions"]["from-to"]["beyondCutOriginalFinalEdgeProofs"][0][
+            "originalSourceOriginalValhallaTripLeg"]["originalSourceCutRouteProofs"][0]
+        proof = witness["originalRouteModeProofs"]["auto"]
+        proof["originalNativeTripLegDirectedGraphIds"] = [11, 40]
+        with self.assertRaisesRegex(ValueError, "beyond-cut mode proof"):
+            reconcile(*source)
+
+    def test_beyond_original_witness_needs_both_modes(self):
+        source = reports()
+        item = source[2]["directions"]["from-to"]["beyondCutOriginalFinalEdgeProofs"][0]
+        for witness in item["originalSourceOriginalValhallaTripLeg"]["originalSourceCutRouteProofs"]:
+            witness["originalRouteModeProofs"]["motorcycle"]["sourceLastEdgeProof"] = "NOT_VERIFIED"
+        item["originalSourceOriginalValhallaTripLeg"]["routeModeCounts"][PROVED] = 2
+        with self.assertRaisesRegex(ValueError, "both modes"):
+            reconcile(*source)
+
+    def test_one_failed_branch_is_preserved_without_losing_other_valid_witness(self):
+        source = reports()
+        item = source[2]["directions"]["from-to"]["beyondCutOriginalFinalEdgeProofs"][0]
+        witness = item["originalSourceOriginalValhallaTripLeg"]["originalSourceCutRouteProofs"][0]
+        witness["originalRouteModeProofs"]["auto"] = {
+            "sourceLastEdgeProof": "NOT_VERIFIED", "reason": "LOCAL_ROUTE_FAILED"
+        }
+        item["originalSourceOriginalValhallaTripLeg"]["routeModeCounts"][PROVED] = 3
+        result = reconcile(*source)
+        self.assertEqual(result["directions"]["from-to"]["provedBeyondCutOriginalLastEdges"], 1)
+        self.assertEqual(result["directions"]["from-to"][
+            "beyondCutCandidatesWithBoundedUnresolvedBranches"], [40])
+
+    def test_cut_branch_missing_route_witness_fails_closed(self):
+        source = reports()
+        item = source[2]["directions"]["to-from"]["beyondCutOriginalFinalEdgeProofs"][0]
+        item["originalSourceOriginalValhallaTripLeg"]["originalSourceCutRouteProofs"].pop()
+        with self.assertRaisesRegex(ValueError, "witness coverage"):
+            reconcile(*source)
+
+    def test_fake_original_mode_proof_status_rejected(self):
+        source = reports()
+        item = source[2]["directions"]["from-to"]["beyondCutOriginalFinalEdgeProofs"][0]
+        witness = item["originalSourceOriginalValhallaTripLeg"]["originalSourceCutRouteProofs"][0]
+        witness["originalRouteModeProofs"]["motorcycle"]["sourceLastEdgeProof"] = "READY"
+        with self.assertRaisesRegex(ValueError, "witness status"):
+            reconcile(*source)
+
+    def test_cut_alternative_suppression_not_accepted(self):
+        source = reports()
+        item = source[2]["directions"]["from-to"]["beyondCutOriginalFinalEdgeProofs"][0]
+        item["noOriginalBranchesSuppressed"] = False
+        with self.assertRaisesRegex(ValueError, "preservation"):
+            reconcile(*source)
+
+    def test_predecessor_cap_must_not_be_concealed(self):
+        source = reports()
+        item = source[2]["directions"]["to-from"]["beyondCutOriginalFinalEdgeProofs"][0]
+        item["truncations"] = []
+        with self.assertRaisesRegex(ValueError, "traversal cap"):
+            reconcile(*source)
+
+    def test_cut_direct_coverage_counter_must_match_actual_records(self):
+        source = reports()
+        source[1]["directions"]["to-from"]["originalSourceCutCandidateDirectedEdges"] = 2
+        with self.assertRaisesRegex(ValueError, "inventory"):
             reconcile(*source)
 
 
