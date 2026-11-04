@@ -193,6 +193,16 @@ class ActualJourneyTests(unittest.TestCase):
         self.assertFalse(j["actualEdgeGeometry"]["receiverForwardModeAccess"])
         self.assertEqual(j["crossSeamTurnLegality"], "NOT_VERIFIED")
 
+    def test_source_native_mode_access_must_match_traced_direction(self):
+        j = case(native_fn=lambda a,b: (native_edge(a, mask=1), native_edge(b)),
+                 mode="motorcycle")
+        self.assertEqual(j["status"], "UNPROVEN_FOR_THIS_JOURNEY")
+        self.assertFalse(j["actualEdgeGeometry"]["sourceForwardModeAccess"])
+        self.assertTrue(j["actualEdgeGeometry"]["receiverForwardModeAccess"])
+        self.assertEqual(j["crossSeamTurnLegality"], "NOT_VERIFIED")
+        self.assertEqual(j["actualEdgeGeometry"]["sourceRoadFinalEdgeIdentity"],
+                         "NOT_VERIFIED_BY_SELECTED_LEG")
+
     def test_same_numeric_local_ids_are_not_cross_graph_equivalence(self):
         data={
             **trace_actual_legs(CANDIDATE, Path("A"),Path("B"),ORIGIN,DEST,"auto",
