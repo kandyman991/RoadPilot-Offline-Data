@@ -12,6 +12,17 @@ New atomic output (no overwrite): `manifest.json`, `from-to.jsonl.gz`, `to-from.
 
 `tools/probe_native_f8_journey.py` separately performs **bounded, journey-scoped** route proofs for Motorcycle or Car, Italy→Austria or reverse. It ranks a sampling budget of GPS proposals by straight-line journey lower-bound and spatial diversity, **without deleting or excluding** other proposals; it reports the unprobed count as incomplete. For each tested seed: normal Valhalla A origin→GPS; normalize GPS to the actual decoded Graph A end; normal Valhalla B normalized GPS→destination; check actual start/end deviations, real cross-graph seam geometry gap and receiver graph-local traced starting GraphId. It checks every sampled alternative rather than accepting the first and reports only `bestOfProbedOnly` for FASTER and SHORTER using the **full sum of both detailed Valhalla legs**. Hashed proposal stream record counts and per-direction provenance are rechecked before any route call; a shortened stream cannot silently suppress alternatives even if its new hash is written to a manifest. Rejection/error remains distinct from route success. Every result always says `INCOMPLETE_BOUNDED_JOURNEY_PROBES`; no claimed regional graph-pair completeness, global optimality, Android parity or production package.
 
+**M6c production boundary (2026-11-04):** Forensic A-terminal /
+B-incoming→outgoing road-continuity analysis is confined to
+`devtools/probe_native_f8_road_continuity.py`; it is not a new
+crossing-discovery producer or a condition for including a native
+receiver-directed GPS proposal. A positive geometry/adjacency match is
+a diagnostic observation only; a mismatch is not rejection. Do not
+import it into the shipped Graph Studio `pipeline/tools/` or treat its
+selected terminals as an exhaustive frontier. All original proposals,
+including distinct positions on the same road, remain eligible for
+Valhalla route proof. See the M6c boundary test and issue #82.
+
 This is *not* the finished offline preprocessing engine: remaining steps are native graph-wide frontier correlation and safe proof scheduling without repeatedly routing hundreds of thousands of interior points; native Android F8 reference scanner comparison on identical graphs; all mode/direction proofs and alternatives; multi-hop full-journey route choice; on-device packaging and rollback. First valid handoff is not a completeness argument.
 
 ## Real Italy Nord-Est ↔ Austria evidence

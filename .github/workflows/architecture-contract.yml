@@ -59,6 +59,9 @@ jobs:
       - name: Graph-native segmented receiving-chain geometry and Valhalla trace regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_directed_chain.py' -v
 
+      - name: Block M6c diagnostic promotion into F8 producer or shipped application
+        run: python -m unittest discover -s tests -p 'test_f8_diagnostic_production_boundary.py' -v
+
       - name: Native F8 M6c directional overlap and graph-B turn evidence regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_road_continuity.py' -v
 

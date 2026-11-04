@@ -5,7 +5,9 @@ from pathlib import Path
 import sys
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(ROOT / "devtools"))
 from probe_native_f8_clipped_terminal import SourceIntegrityError
 from probe_native_f8_road_continuity import (
     inspect_source_and_b_continuations,

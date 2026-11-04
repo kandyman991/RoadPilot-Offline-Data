@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""M6c Phase B — read-only native directed A-tail/B-incoming/B-outgoing witness.
+"""Development-only M6c A-terminal/B-road-continuity forensic diagnostic.
 
-This observes the final directed edge of a *graph-local* road and the
-receiving graph's native incoming→outgoing topology on exact immutable
-regional graphs. No OSM sampler, sidecar, matrix, publication, Android
-change or cross-graph GraphId match. A matched B-only trace_attributes
-edge_walk replay does NOT prove original route-service edge identity.
+NOT a producer of native F8 crossing proposals, final-road-edge records,
+connection catalogs, route candidates, or Android/installed Graph Studio
+artifacts. The authoritative source of F8 receiver-side candidates stays
+tools/discover_native_f8_crossings.py (uncapped native directed graph scan).
+A native A/B geometry match NEVER determines discovery eligibility.
+M6c observes selected graph-local evidence only. The script is deliberately
+outside the shipped pipeline/tools bundle and emits read-only stdout evidence.
 """
 from __future__ import annotations
 
@@ -16,6 +18,13 @@ import subprocess
 import sys
 import tempfile
 from typing import Callable
+
+# This is a devtools-only script. Import immutable helpers from the
+# repository's existing tools/ runtime without adding this experiment to
+# the shipped Graph Studio pipeline/tools/ resource bundle.
+TOOLS_DIR = Path(__file__).resolve().parents[1] / "tools"
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
 
 from build_native_f8_pair_evidence import pair_identity
 from native_f8_inputs import graph_manifest_info
@@ -260,6 +269,9 @@ def inspect_source_and_b_continuations(
         "originalValhallaRouteEdgeIdentity": "NOT_VERIFIED",
         "crossGraphDirectedTurnLegality": "NOT_VERIFIED",
         "sourceDiscoveryCoverage": "NOT_VERIFIED",
+        "artifactRole": "NON_SHIPPING_FORENSIC_DIAGNOSTIC_ONLY",
+        "crossingCandidateExport": "NONE",
+        "geometryCannotExcludeF8Proposals": True,
         "productionPublication": "BLOCKED",
     }
 
@@ -329,6 +341,9 @@ def inspect_one_source_with_recoverable_b_reads(
         "originalValhallaRouteEdgeIdentity": "NOT_VERIFIED",
         "crossGraphDirectedTurnLegality": "NOT_VERIFIED",
         "sourceDiscoveryCoverage": "NOT_VERIFIED",
+        "artifactRole": "NON_SHIPPING_FORENSIC_DIAGNOSTIC_ONLY",
+        "crossingCandidateExport": "NONE",
+        "geometryCannotExcludeF8Proposals": True,
         "productionPublication": "BLOCKED",
     }
 
@@ -398,6 +413,11 @@ def main() -> int:
     print(json.dumps({
         "schema": "roadpilot.f8-native-m6c-selected-road-overlap-continuity",
         "version": 0, "pairId": pair["pairId"],
+        "artifactRole": "NON_SHIPPING_FORENSIC_DIAGNOSTIC_ONLY",
+        "f8ReceiverProposalSource": "UNMODIFIED_NATIVE_F8_RECEIVER_SCAN",
+        "crossingCandidateExport": "NONE",
+        "geometryCannotExcludeF8Proposals": True,
+        "sourceSelection": "BOUNDED_EXPLICIT_GRAPH_A_TERMINALS_NOT_DISCOVERY",
         "direction": args.direction, "mode": args.mode,
         "fromGraphFingerprint": pair["fromGraphFingerprint"],
         "toGraphFingerprint": pair["toGraphFingerprint"],

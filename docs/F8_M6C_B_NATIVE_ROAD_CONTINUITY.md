@@ -1,6 +1,9 @@
 # M6c Phase B — Native A-terminal → B-incoming → B-outgoing continuity evidence
 
-**Status:** M6c continuation; deliberately read-only, **not** a production F8 handoff publisher.
+**Status:** M6c continuation; deliberately **development-only**, read-only
+forensic evidence. The script is in `devtools/`, outside Graph Studio's
+installed `pipeline/tools/` bundle. It is **not** a production F8 handoff
+publisher or candidate producer.
 
 The accepted architecture remains: independently built Valhalla graphs with
 25-km buffered overlap; discover one real **final retained road edge** as a
@@ -10,6 +13,47 @@ and endpoint evidence. This phase does not reintroduce the retired
 OSM correlation, arbitrary road portals, connector matrices or regional
 route planner. There are **no** graph, Android, routing-package, sidecar,
 publisher, or GUI changes.
+
+## Binding production boundary — no second discovery architecture
+
+The **only F8-native GPS proposal producer** remains
+`tools/discover_native_f8_crossings.py`, driven by the uncapped native
+GraphReader receiver-side directed-edge scan. It preserves separate
+directed edges, different positions on a named road, ramps, alternatives,
+both directions and unmatched physical peers until real Valhalla F8
+validation. Source terminal checks, geometry distance, B-incoming
+overlap, native B adjacency, and a positive B-only shape replay are
+**not eligibility criteria, not a new crossing inventory, and not a
+deduplication key**. The observation cannot reject or confirm a native
+GPS proposal, or freeze later discovery.
+
+This investigation has deliberately been moved from `tools/` into
+`devtools/` so it is **not shipped** with Graph Studio's
+`pipeline/tools/` package. Only explicitly selected source edges can
+be inspected and the CLI writes experimental JSON to stdout. Its
+output includes `artifactRole=NON_SHIPPING_FORENSIC_DIAGNOSTIC_ONLY`,
+`crossingCandidateExport=NONE`,
+`geometryCannotExcludeF8Proposals=true`, and
+`productionPublication=BLOCKED`. It contains no production
+`nf8gps-` handoff or Android-ingestion contract.
+
+A dedicated architecture-contract CI regression
+`tests/test_f8_diagnostic_production_boundary.py` fails if this
+experiment is moved back into `tools/`, packaged in Tauri's resources,
+or referenced by shipping Graph Studio application or production tools.
+It also ensures **two directed GPS proposals on the same OSM way**
+remain distinct, that no-peer edges remain candidates, and that a
+failed M6c overlap leaves the native discovery set unaffected.
+
+**Next production work is not another A↔B road-pair discovery system.**
+Return to the existing Graph Studio F8-native evidence chain:
+`native-f8-edge-scan` → `capture_native_f8_graph_windows.py` →
+`discover_native_f8_crossings.py` →
+`probe_native_f8_journey.py` → parity against Android's actual JNI
+scanner → type-safe package/consumer design **only after full acceptance**.
+Verify the physical last-retained-edge requirement within that chain
+without inventing repeated overlaps, per-road connector matrices or
+early road/geometry filters. The 25-km buffer remains unchanged.
 
 ## The specific new evidence
 
@@ -33,7 +77,7 @@ connected B outgoing inventory, and requests a **B-local** turn.
 
 ## Implementation
 
-`tools/probe_native_f8_road_continuity.py`:
+`devtools/probe_native_f8_road_continuity.py`:
 
 1. Verifies both exact archived regional graph fingerprints, neighbor
    boundary fingerprints and both **25.0-km buffer GeoJSON hashes** from
@@ -57,7 +101,9 @@ connected B outgoing inventory, and requests a **B-local** turn.
    sampled positions agree in directed order. **A full 20-m overlap
    is not required**; B may split the same physical road differently.
    Unmatched/partially observed candidates remain unknown, not rejected
-   or excluded from future F8 discovery.
+   or excluded from existing F8 discovery. The geometric match only
+   chooses which B-only *forensic* turn traces to spend the bounded
+   diagnostic budget on. It is not allowed to select F8 crossings.
 5. For nominated B-incoming edges, retrieves and validates the **full
    native B outgoing degree, all directed branch IDs, access masks,
    shortcuts, nonroad and opposing-reverse identities**, and their actual
@@ -122,14 +168,16 @@ incoming→outgoing topology matters.
 
 Raw JSONs and SHA256SUMS are stored **outside Git**:
 `~/RoadPilotGraphStudio/diagnostics/m6/20261104/m6c-native-continuity-v2/`.
-They include every B locate result and native outgoing branch.
+They include every B locate result and native outgoing branch; they
+are now marked as `NON_SHIPPING_FORENSIC_DIAGNOSTIC_ONLY`, never native
+F8 connection-catalog or Android-ingestion records.
 
 ## Reproduce one native observation
 
 ~~~bash
 P="$HOME/RoadPilotGraphStudio"
 PATH="$HOME/.cache/app.roadpilot.graphstudio/python-env/bin:$PATH" python \
-  tools/probe_native_f8_road_continuity.py \
+  devtools/probe_native_f8_road_continuity.py \
   --pair "$P/f8-native/italy-nord-est__austria/e6a10d36f-ee7baac93-43d085-958523/pair.json" \
   --from-manifest "$P/builds/italy-nord-est/italy-nord-est-routing-2026.10.13-1-manifest.json" \
   --to-manifest "$P/builds/austria/austria-routing-2026.10.13-1-manifest.json" \
