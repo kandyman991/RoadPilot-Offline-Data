@@ -171,3 +171,11 @@ cut observations, but original bilateral border provenance and source
 road-to-final-GraphId mapping remain NOT_VERIFIED. See
 `F8_ORIGINAL_FULL_ARCHIVE_NATIVE_SOURCE_CENSUS.md`; no B matching or
 production publication was authorized.
+
+The original full-archive source candidate-membership verifier also locates
+all **300/300** original TripLeg-final native GraphIds in their respective
+original tile ranges, with **114/114** known cut-predecessor route paths
+found in the complete new source-cut inventory. These remain a bounded
+subset of witnessed final candidates, **not physical-road equivalence**.
+Evidence: `original-archive-known-final-candidate-membership-v1.json`,
+SHA-256 `c6c276cd7859b0bcd642c2dd2292869366b65971773fd934d7cbc922afa8c733`.

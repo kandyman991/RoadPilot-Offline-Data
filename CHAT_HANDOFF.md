@@ -2,7 +2,8 @@
 
 ## ACTIVE MILESTONE — complete original archive tile and source-cut census (branch, not merged)
 
-New production branch `feature/f8-original-archive-tile-census-20261104`
+Draft PR #124, production branch
+`feature/f8-original-archive-tile-census-20261104`,
 starts from main `02518c71677e0959de1d1790499f69cc86bb1435`.
 Read-only Valhalla 3.6.3 GraphReader `GetTileSet()` scanned **ALL 705 original
 source archive tiles, ALL 22,555,344 directed edge indices** on the immutable
@@ -20,7 +21,12 @@ Evidence is in the Legion diagnostics folder dated 20261104:
 Standalone native extractor was compiled against original Valhalla 3.6.3
 with SHA `a59516b38b247682bf90267959894d532a0474ae8d081fdfd5fbeab039b62eaf`;
 historical pinned original extractor CMake was NOT modified.
-Full local Python test suite **408/408 PASS**. Detailed report:
+The full archive also independently contains all **300/300** previously
+proved source TripLeg final IDs and all **114/114** native predecessor paths,
+including 206 originally exact branch/mode route witnesses. Evidence:
+`original-archive-known-final-candidate-membership-v1.json` SHA
+`c6c276cd7859b0bcd642c2dd2292869366b65971773fd934d7cbc922afa8c733`.
+Full local Python test suite **418/418 PASS**. Detailed report:
 `docs/F8_ORIGINAL_FULL_ARCHIVE_NATIVE_SOURCE_CENSUS.md`.
 
 **NEXT PRODUCTION GATE STILL OPEN:** identify *bilateral* source road/direction

@@ -41,6 +41,29 @@ Directional source-cut classifications across all other neighbor boundaries, **N
 
 The 19,606 newly recorded original directed IDs are **not** handoffs or physical-road identities, and may include unrelated boundaries. This is proof that the previous windows were NOT a complete original archive cut inventory.
 
+### Existing source final-edge witnesses anchored into entire original graph
+
+The additional `reconcile_native_f8_archive_final_candidates.py` independently
+checks every one of the 300 previously original-Valhalla-TripLeg-proved final
+directed GraphIds against the correct source graph's complete native tile-ID
+range. It also verifies **all 114 beyond-cut original predecessor route paths**
+are present as exact directed source GraphIds in the full source cut census,
+with every originally recorded Car/Motorcycle witness preserved; 206
+individual route-mode checks remain exact original Valhalla success,
+with previous inconclusive/inaccessible alternatives retained unchanged.
+
+| Source | Existing last-original-GraphId candidates verified in archive | Exact original cut-to-final predecessor paths |
+|---|---:|---:|
+| Italy Nord-Est | 210 (177 direct + 33 beyond) | 78 |
+| Austria | 90 (74 direct + 16 beyond) | 36 |
+| **Both** | **300 / 300** | **114 / 114** |
+
+`original-archive-known-final-candidate-membership-v1.json` SHA-256
+**`c6c276cd7859b0bcd642c2dd2292869366b65971773fd934d7cbc922afa8c733`**.
+**This validates membership of the ALREADY KNOWN final-edge witnesses,
+not an exhaustive unique *physical road* mapping.** No new edge chosen by
+way ID, spatial clustering or first-success, and no receiver correlation.
+
 ### Immutable evidence on the authorized Legion
 
 Under `~/RoadPilotGraphStudio/diagnostics/f8-production/20261104/`:
@@ -54,7 +77,7 @@ The original graph SHA fingerprints and buffer polygons are checked at runtime f
 
 ## Test, safety and unfinished gates
 
-Full Legion Python regression: **408 / 408 PASS**. New unit gates reject missing/duplicated/malformed tile records, misindexed GraphIds, omitted source cut observations, forged fingerprints, incomplete source predecessor recovery, source mode suppression and false publication claims. Original CMake build-provenance regression remains green. The new Valhalla C++ native build succeeds in Release configuration locally; GitHub CI has no Valhalla 3.6.3 build environment, so GitHub validates Python invariants, not this native build's executable SHA.
+Full Legion Python regression: **418 / 418 PASS**. New unit gates reject missing/duplicated/malformed tile records, misindexed GraphIds, omitted source cut observations, forged fingerprints, incomplete source predecessor recovery, source mode suppression and false publication claims. Original CMake build-provenance regression remains green. The new Valhalla C++ native build succeeds in Release configuration locally; GitHub CI has no Valhalla 3.6.3 build environment, so GitHub validates Python invariants, not this native build's executable SHA.
 
 **Still NOT_VERIFIED (production blockers):**
 
