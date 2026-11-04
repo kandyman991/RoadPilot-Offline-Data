@@ -26,7 +26,16 @@ proved source TripLeg final IDs and all **114/114** native predecessor paths,
 including 206 originally exact branch/mode route witnesses. Evidence:
 `original-archive-known-final-candidate-membership-v1.json` SHA
 `c6c276cd7859b0bcd642c2dd2292869366b65971773fd934d7cbc922afa8c733`.
-Full local Python test suite **418/418 PASS**. Detailed report:
+The original nominal cores are now verified by exact byte-for-byte
+reproduction of BOTH original source 25km buffered GeoJSON files using the
+preserved build algorithm and the retained original .poly inputs. Both
+buffer SHA256 values match immutable original routing manifests. However,
+the two ORIGINAL Geofabrik region cores overlap by **711.801 km2** with
+**ZERO exact coincident boundary-line length**: never infer a single shared
+line/edge or exclude native roads by core-border matching. New immutable
+`original-core-buffer-byte-provenance-v1.json` SHA
+`73da4507e34a6d0a95e266f3d9b0da13880b9eb9e04b61a3df30a44bc419a769`.
+Full local Python test suite **425/425 PASS**. Detailed report:
 `docs/F8_ORIGINAL_FULL_ARCHIVE_NATIVE_SOURCE_CENSUS.md`.
 
 **NEXT PRODUCTION GATE STILL OPEN:** identify *bilateral* source road/direction

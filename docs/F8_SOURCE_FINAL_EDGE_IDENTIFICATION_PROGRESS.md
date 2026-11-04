@@ -179,3 +179,13 @@ found in the complete new source-cut inventory. These remain a bounded
 subset of witnessed final candidates, **not physical-road equivalence**.
 Evidence: `original-archive-known-final-candidate-membership-v1.json`,
 SHA-256 `c6c276cd7859b0bcd642c2dd2292869366b65971773fd934d7cbc922afa8c733`.
+
+The original Geofabrik nominal core .poly files are now byte-for-byte
+verified against the SHA-bound *original build buffers* through exact
+reproduction of the preserved build algorithm (no new graph builds).
+Italy and Austria cores overlap in **711.801 km2** (EPSG:3035) with no
+exact coincident boundary-line length. Do not treat the nominal core
+border as a single physically unique crossing path or an eligibility
+filter. Source graph-native road/direction lineage remains required.
+Evidence `original-core-buffer-byte-provenance-v1.json` SHA-256
+`73da4507e34a6d0a95e266f3d9b0da13880b9eb9e04b61a3df30a44bc419a769`.

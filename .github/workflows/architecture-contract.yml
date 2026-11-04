@@ -107,6 +107,9 @@ jobs:
       - name: Every known original final edge and all cut predecessor paths belong to full native archive
         run: python -m unittest discover -s tests -p 'test_native_f8_archive_final_candidates.py' -v
 
+      - name: Original Geofabrik core to source-build 25 km buffer byte-for-byte provenance
+        run: python -m unittest discover -s tests -p 'test_native_f8_original_core_provenance.py' -v
+
       - name: Android JNI scanner cap and Kotlin road-key parity gating regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_android_jni_parity.py' -v
 

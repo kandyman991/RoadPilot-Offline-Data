@@ -93,9 +93,44 @@ boundary segments, never a selection of a narrower F8 frontier or
 physical-road equivalence. Tracked gates: Graph Studio issues #73 and #82,
 RoadPilot issue #512, and separate prerelease safety issue #123.
 
+## Exact original source-core provenance — the bilateral border is not a coincident line
+
+The new `tools/prove_native_f8_original_core_provenance.py` deterministically
+reproduces Graph Studio's actual `build_routing_region.py` source-buffer
+recipe from the **retained Geofabrik nominal .poly core** for each original
+region. Its GeoJSON output is **byte-for-byte identical** to the exact
+25-km buffer that the immutable routing archive manifests SHA-bind:
+
+| Original source core | Nominal core .poly SHA-256 | Recomputed/retained original buffer SHA-256 |
+|---|---|---|
+| Italy Nord-Est | `a7fb592a32b68e07f34a6fc90f04ad3566f8e73e346acc76d1d6ef36faac5e13` | `e9d8a74d69dcaf4080ecd8a4c07a6b5988511f49fb27ca0e8e4e19a06c8d8a20` |
+| Austria | `88873792ab48a4cc1a85a9d74ca39ff12c73a0d941b4bf2705cf4be66f546634` | `848be9923f1f10cfd7cdda74aa67385aebfa7b1d5b3fc94cce3219284193c496` |
+
+Original pair and manifest source SHA-256s are validated as part of the
+new proof; altered cores, buffers or original manifest provenance fail.
+The source build used an azimuthal equidistant local projection for the
+25km expansion; the exact recipe reproduces both source-buffer files
+without approximation or polygon replacement.
+
+Important geography finding: the two **original nominal Geofabrik cores
+OVERLAP by 711.801 square kilometres** in EPSG:3035. Their exact
+coincident boundary LINE length is **0.0 km**. Therefore the original
+region boundaries are **NOT one shared/geometrically coincident line**.
+A naive border-intersection strategy would lose legitimate physical
+connections. The verified core provenance supplies source-side geographic
+truth but does **not** establish physical-road equivalence or a unique
+bilateral crossing point. Only graph-native directed branch/mode route
+lineage may prove which source roads reach their final original edge.
+
+Immutable Legion record:
+`original-core-buffer-byte-provenance-v1.json` SHA-256
+**`73da4507e34a6d0a95e266f3d9b0da13880b9eb9e04b61a3df30a44bc419a769`**.
+Its regeneration was byte-identical. This is an original source provenance
+validation, NOT a receiver-graph correlation or production crossing sidecar.
+
 ## Test, safety and unfinished gates
 
-Full Legion Python regression: **418 / 418 PASS**. New unit gates reject missing/duplicated/malformed tile records, misindexed GraphIds, omitted source cut observations, forged fingerprints, incomplete source predecessor recovery, source mode suppression and false publication claims. Original CMake build-provenance regression remains green. The new Valhalla C++ native build succeeds in Release configuration locally; GitHub CI has no Valhalla 3.6.3 build environment, so GitHub validates Python invariants, not this native build's executable SHA.
+Full Legion Python regression: **425 / 425 PASS**. New unit gates reject missing/duplicated/malformed tile records, misindexed GraphIds, omitted source cut observations, forged fingerprints, incomplete source predecessor recovery, source mode suppression and false publication claims. Original CMake build-provenance regression remains green. The new Valhalla C++ native build succeeds in Release configuration locally; GitHub CI has no Valhalla 3.6.3 build environment, so GitHub validates Python invariants, not this native build's executable SHA.
 
 **Still NOT_VERIFIED (production blockers):**
 
