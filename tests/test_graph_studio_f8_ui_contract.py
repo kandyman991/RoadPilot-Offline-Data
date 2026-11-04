@@ -15,6 +15,7 @@ class GraphStudioF8UiContractTests(unittest.TestCase):
         self.assertIn('"probe"',js)
         # Replayed B-local edges are not original Valhalla route edges.
         self.assertIn('edgeWalkReplayMatchesOnly',js)
+        self.assertIn('originalNativeRouteEdgeMatchesOnly',js)
         self.assertIn('original route edges NOT VERIFIED',js)
         self.assertIn('Next source ordinal:',js)
 

@@ -68,6 +68,31 @@ python tools/probe_native_f8_journey.py \
   --max-probes 6 --output /path/to/new-sample-journey-report.json
 ```
 
+**PR #117 reviewed binary trust gate (2026-11-04):** Original
+Valhalla route protobuf extraction must use BOTH an explicit native
+binary and the independently reviewed exact
+`--expected-native-route-sha256`; its digest is checked BEFORE
+the executable's version command. C++/Python node-edge completeness
+and bounded input are enforced, with exact Legion native build
+provenance at `docs/F8_PR117_ORIGINAL_NATIVE_BUILD_PROVENANCE.json`.
+Hosted CI checks source provenance, not a false claim that the native
+binary was compiled there. JNI parity remains NOT_VERIFIED.
+
+**Original route-edge identity and selected final-edge checks (2026-11-04):**
+The new opt-in Valhalla 3.6.3 actor route-edge extractor reads GraphIds from
+the **original Trip protobuf** instead of inferring them via a separate
+`trace_attributes(edge_walk)` shape replay. Five selected native road ends
+and ten mode-local source terminal routes are now confirmed; four
+Car/Motorcycle and both-direction original two-leg tests distinguish the
+receiver GraphId actually used by B from an alternative GPS proposal that
+routes on a different B GraphId. These are bounded results, not global road
+coverage or cross-graph legality. Both current Android native JNI's 512 cap
+and Kotlin receiverRoadKey reduction remain unverified against full actual
+same-graph device captures. See
+`docs/F8_NATIVE_ORIGINAL_ROUTE_FINAL_EDGE_MILESTONE.md`. Production
+`publicationState=BLOCKED` and Android generalized F8 fallback remain
+unchanged.
+
 **Acceptance gates remain closed:** `F8_PARITY_VERIFIED=NO`, `DEVICE_VERIFIED=NO`, `PRODUCTION_READY=NO`. Do not wire these diagnostics into Android or auto-refresh as if they were complete connections. Track [Graph Studio #73](https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73), [#82](https://github.com/kandyman991/RoadPilot-Offline-Data/issues/82), [Android #512](https://github.com/kandyman991/SmartRide-Next/issues/512).
 
 ## PR #86 technical review hardening (2026-10-16)

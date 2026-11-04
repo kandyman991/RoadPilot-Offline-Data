@@ -139,6 +139,47 @@ class StudioF8EngineTests(unittest.TestCase):
         self.assertEqual(row['nextOrderedStartOrdinal'],218031)
         self.assertEqual(result['productionPublication'],'BLOCKED')
 
+    def test_original_route_executable_requires_reviewed_digest_before_graph_reads(self):
+        from graph_studio_f8_workspace import probe as f8_probe
+        for native, expected in (
+            (Path('/untrusted/native_f8_route_edges'), None),
+            (None,'sha256:'+'a'*64),
+        ):
+            with self.assertRaisesRegex(ValueError,'both must be supplied together'):
+                f8_probe(self.root,self.pair,
+                         Path('/nonexistent/source-manifest.json'),
+                         Path('/nonexistent/peer-manifest.json'),
+                         'from-to','auto',
+                         {'lat':46.5,'lng':13.5},
+                         {'lat':46.6,'lng':13.6},2,
+                         native_route_edges_binary=native,
+                         expected_native_route_sha256=expected)
+
+    def test_original_native_route_proof_remains_evidence_not_a_gui_handoff_pin(self):
+        folder=pair_workspace(self.root,self.pair)/'journey-probes'
+        folder.mkdir(parents=True,exist_ok=True)
+        report={
+            'schema':'roadpilot.native-f8-journey-probe','version':1,
+            'pairId':self.pair['pairId'],'direction':'from-to','mode':'auto',
+            'selectionMethod':'ordered-native-ledger',
+            'nextOrderedStartOrdinal':88,
+            'probesAttempted':2,'successfulJourneyProbes':1,
+            'remainingUnprobed':1000,'bestOfProbedOnly':{'FASTER':'first','SHORTER':'first'},
+            'results':[
+                {'status':'TWO_GRAPH_LOCAL_LEGS_ORIGINAL_ROUTE_EDGE_MATCH_ONLY',
+                 'coordinate':{'lat':46.5,'lng':13.5},
+                 'receiverGraphId':223,'durationSeconds':50.0,'distanceKm':4.0,
+                 'originalRouteEdgeIdentity':'VERIFIED_FOR_THESE_TWO_GRAPH_LOCAL_LEGS'},
+                {'status':'UNPROVEN','receiverGraphId':224}
+            ]}
+        (folder/'original-route-native.json').write_text(json.dumps(report))
+        row=pair_status(self.root,self.pair)['recentProbes'][0]
+        self.assertEqual(row['originalNativeRouteEdgeMatchesOnly'],1)
+        self.assertEqual(row['edgeWalkReplayMatchesOnly'],0)
+        self.assertEqual(row['validated'],0)
+        self.assertEqual(row['sampledHandoffs'],[])
+        self.assertEqual(row['nextOrderedStartOrdinal'],88)
+
     def test_both_orderings_and_rebuilt_graphs_have_independent_evidence_paths(self):
         one=pair_workspace(self.root,self.pair)
         two=pair_workspace(self.root,build_pair(self.b,self.a))
