@@ -4,9 +4,10 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-from graph_studio_f8_workspace import run,pair_workspace,retained_sources
+from graph_studio_f8_workspace import run,pair_workspace,retained_sources,pair_status
 from build_connectivity_pair_manifest import build_pair
 from test_native_f8_pair_evidence import identity,edge,scan,A,B,C,D
 
@@ -89,6 +90,54 @@ class StudioF8EngineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'coordinate out of range'):
             run(['probe',*self.args,'--mode','auto','--direction','from-to',
                  '--start-lat','91','--start-lng','12','--end-lat','47','--end-lng','12'])
+
+    def test_production_ordered_cursor_forwarded_through_shared_command_engine(self):
+        with patch('graph_studio_f8_workspace.probe',
+                   return_value={'productionPublication':'BLOCKED'}) as simulate:
+            result=run([
+                'probe',*self.args,'--direction','from-to','--mode','auto',
+                '--start-lat','46.50','--start-lng','13.59',
+                '--end-lat','46.59','--end-lng','13.85',
+                '--probe-selection','ordered-native-ledger',
+                '--start-ordinal','218029','--max-probes','2'])
+            self.assertEqual(result['productionPublication'],'BLOCKED')
+            self.assertEqual(simulate.call_args.kwargs['selection'],
+                             'ordered-native-ledger')
+            self.assertEqual(simulate.call_args.kwargs['start_ordinal'],218029)
+        with self.assertRaisesRegex(ValueError,'requires ordered'):
+            run([
+                'probe',*self.args,'--direction','from-to','--mode','auto',
+                '--start-lat','46.50','--start-lng','13.59',
+                '--end-lat','46.59','--end-lng','13.85',
+                '--start-ordinal','218029'])
+
+    def test_ordered_replay_receipt_is_not_a_validated_gui_handoff_point(self):
+        path=pair_workspace(self.root,self.pair)
+        folder=path/'journey-probes'
+        folder.mkdir(parents=True)
+        (folder/'20261104-from-to-auto.json').write_text(json.dumps({
+            'schema':'roadpilot.native-f8-journey-probe','version':1,
+            'pairId':self.pair['pairId'],'direction':'from-to','mode':'auto',
+            'selectionMethod':'ordered-native-ledger',
+            'nextOrderedStartOrdinal':218031,
+            'probesAttempted':2,'successfulJourneyProbes':1,
+            'remainingUnprobed':334971,
+            'bestOfProbedOnly':{'FASTER':'nf8gps-test','SHORTER':'nf8gps-test'},
+            'results':[
+                {'status':'TWO_GRAPH_LOCAL_LEGS_B_EDGE_WALK_REPLAY_MATCHED_ONLY',
+                 'coordinate':{'lat':46.5,'lng':13.5},
+                 'receiverGraphId':223,'durationSeconds':25,'distanceKm':3.2},
+                {'status':'UNPROVEN','receiverGraphId':224}
+            ]}))
+        result=pair_status(self.root,self.pair)
+        self.assertEqual(len(result['recentProbes']),1)
+        row=result['recentProbes'][0]
+        self.assertEqual(row['selectionMethod'],'ordered-native-ledger')
+        self.assertEqual(row['validated'],0)
+        self.assertEqual(row['edgeWalkReplayMatchesOnly'],1)
+        self.assertEqual(row['sampledHandoffs'],[])
+        self.assertEqual(row['nextOrderedStartOrdinal'],218031)
+        self.assertEqual(result['productionPublication'],'BLOCKED')
 
     def test_both_orderings_and_rebuilt_graphs_have_independent_evidence_paths(self):
         one=pair_workspace(self.root,self.pair)

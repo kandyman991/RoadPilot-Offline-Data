@@ -12,7 +12,24 @@ New atomic output (no overwrite): `manifest.json`, `from-to.jsonl.gz`, `to-from.
 
 `tools/probe_native_f8_journey.py` separately performs **bounded, journey-scoped** route proofs for Motorcycle or Car, Italy→Austria or reverse. It ranks a sampling budget of GPS proposals by straight-line journey lower-bound and spatial diversity, **without deleting or excluding** other proposals; it reports the unprobed count as incomplete. For each tested seed: normal Valhalla A origin→GPS; normalize GPS to the actual decoded Graph A end; normal Valhalla B normalized GPS→destination; check actual start/end deviations, real cross-graph seam geometry gap and receiver graph-local traced starting GraphId. It checks every sampled alternative rather than accepting the first and reports only `bestOfProbedOnly` for FASTER and SHORTER using the **full sum of both detailed Valhalla legs**. Hashed proposal stream record counts and per-direction provenance are rechecked before any route call; a shortened stream cannot silently suppress alternatives even if its new hash is written to a manifest. Rejection/error remains distinct from route success. Every result always says `INCOMPLETE_BOUNDED_JOURNEY_PROBES`; no claimed regional graph-pair completeness, global optimality, Android parity or production package.
 
-This is *not* the finished offline preprocessing engine: remaining steps are native graph-wide frontier correlation and safe proof scheduling without repeatedly routing hundreds of thousands of interior points; native Android F8 reference scanner comparison on identical graphs; all mode/direction proofs and alternatives; multi-hop full-journey route choice; on-device packaging and rollback. First valid handoff is not a completeness argument.
+**Production scheduling increment (2026-11-04):** The real F8 journey
+prover and shared Graph Studio command engine now support an opt-in
+`ordered-native-ledger` mode: a deterministic, contiguous,
+source-SHA/fingerprint-bound page of the **unfiltered native receiver GPS
+stream**, with a next-cursor receipt. This allows successive calls to
+advance over different native directed edges without first-success
+lock-in, road-name deduplication or M6c geometric matching. The default
+ranked diagnostic remains unchanged. **This is not a production
+connection publisher** and is not an instruction to run 330k redundant
+interior road probes: next work must prove the owner's physical
+last-retained-road-edge constraint in a way that cannot silently remove
+real F8 alternatives. Every route-positive new batch is explicitly an
+independent `trace_attributes(edge_walk)` replay match, **not** a
+verified original route-edge GraphId. See
+`docs/F8_NATIVE_ORDERED_PROOF_BATCHES.md` for real Italy/Austria evidence,
+CLI/command engine options and exact unverified gates.
+
+This is *not* the finished offline preprocessing engine: remaining steps are native graph-wide frontier correlation and safe proof prioritization without repeatedly routing hundreds of thousands of interior points; physical final retained road-edge identification; native Android F8 reference scanner comparison on identical graphs; all mode/direction proofs and alternatives; multi-hop full-journey route choice; on-device packaging and rollback. First valid handoff is not a completeness argument.
 
 ## Real Italy Nord-Est ↔ Austria evidence
 

@@ -13,6 +13,10 @@ class GraphStudioF8UiContractTests(unittest.TestCase):
             self.assertIn(expected.lower(),js.lower())
         self.assertIn('"discover"',js)
         self.assertIn('"probe"',js)
+        # Replayed B-local edges are not original Valhalla route edges.
+        self.assertIn('edgeWalkReplayMatchesOnly',js)
+        self.assertIn('original route edges NOT VERIFIED',js)
+        self.assertIn('Next source ordinal:',js)
 
     def test_discovery_validation_tabs_keep_shared_pair_and_job_state(self):
         source=(ROOT/'graph-studio/src/main.ts').read_text()

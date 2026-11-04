@@ -65,6 +65,9 @@ jobs:
       - name: Actual F8 native A-last and B-first full-journey trace regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_actual_journey.py' -v
 
+      - name: Ordered native F8 receiver proof scheduling and no-first-success regression
+        run: python -m unittest discover -s tests -p 'test_native_f8_ordered_proof_batch.py' -v
+
       - name: Bounded native F8 journey Valhalla proof regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_journey_probe.py' -v
 

@@ -1257,7 +1257,8 @@ type F8PairOverview = {
   counts: Record<string, { receiverDirectedEdges: number; exactPhysicalPeerEvidence: number; noExactPhysicalPeer: number }> | null;
   recentProbes: Array<{mode:string;direction:string;attempted:number;validated:number;unprobed:number;file:string;
     sampledHandoffs:Array<{coordinate:{lat:number;lng:number};graphId:number;durationSeconds:number;distanceKm:number}>;
-    bestOfProbedOnly: Record<string,string|null>}>;
+    bestOfProbedOnly: Record<string,string|null>;
+    selectionMethod?:string;edgeWalkReplayMatchesOnly?:number;nextOrderedStartOrdinal?:number|null}>;
   androidParity:string; productionPublication:string;
 };
 type F8JobStatus = {running:boolean;stage:string;lastError:string|null;lastResult:F8PairOverview|null};
@@ -1411,8 +1412,11 @@ function renderF8Overview(report:F8PairOverview): void {
   }
   f8RecentProofs.innerHTML = report.recentProbes.length
     ? report.recentProbes.map(item=>`<div class="handoff-card"><strong>${escapeHtml(item.direction)} · ${escapeHtml(item.mode)}</strong>
-      <p>${item.validated} validated / ${item.attempted} sampled · ${item.unprobed.toLocaleString()} UNPROBED</p>
-      <small>Best of sampled: FASTER ${escapeHtml(item.bestOfProbedOnly?.FASTER ?? "none")} · SHORTER ${escapeHtml(item.bestOfProbedOnly?.SHORTER ?? "none")}</small>
+      <p>${item.selectionMethod === "ordered-native-ledger"
+        ? `${item.edgeWalkReplayMatchesOnly ?? 0} B edge-walk replay matches / ${item.attempted} ordered samples · original route edges NOT VERIFIED`
+        : `${item.validated} validated / ${item.attempted} sampled`} · ${item.unprobed.toLocaleString()} not evaluated in this report</p>
+      <small>Best of ${item.selectionMethod === "ordered-native-ledger" ? "current ordered batch only" : "sampled"}: FASTER ${escapeHtml(item.bestOfProbedOnly?.FASTER ?? "none")} · SHORTER ${escapeHtml(item.bestOfProbedOnly?.SHORTER ?? "none")}${item.selectionMethod === "ordered-native-ledger"
+        ? ` · Next source ordinal: ${item.nextOrderedStartOrdinal === null ? "end of this ledger" : Number(item.nextOrderedStartOrdinal).toLocaleString()} · parity NOT VERIFIED` : ""}</small>
       <div class="actions">${(item.sampledHandoffs??[]).map((point,index)=>
         `<button type="button" class="btn" data-f8-report="${report.recentProbes.indexOf(item)}" data-f8-point="${index}">
           View handoff ${index+1} (${Number(point.coordinate.lat).toFixed(5)}, ${Number(point.coordinate.lng).toFixed(5)})</button>`).join("")}</div>

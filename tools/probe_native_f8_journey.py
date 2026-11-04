@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import heapq
 import os
 import json
@@ -127,6 +128,73 @@ def proposal_order(file:Path,start:dict,end:dict,max_probes:int,
     return chosen,total
 
 
+def ordinal_proposal_page(file:Path,start_ordinal:int,max_probes:int,
+                          expected_direction:str,pair:dict)->tuple[list[dict],int]:
+    """Traverse the ENTIRE original receiver stream, select one contiguous page.
+
+    This is a repeatable *proof schedule* over the unfiltered native F8 GPS
+    inventory, not a physical road-connector producer or deduplication step.
+    Every ordinal can be reached in a later batch, even same-way/ramps or
+    entries with no physical peer. File SHA is verified by eligible_manifest
+    before this is called; count and identity are verified independently.
+    """
+    if (type(start_ordinal) is not int or start_ordinal<0
+            or type(max_probes) is not int or not 1<=max_probes<=PROBE_LIMIT
+            or expected_direction not in DIRECTIONS):
+        raise ValueError('Invalid ordered F8 proof cursor/batch')
+    pair_identity(pair)
+    selected=[]
+    total=0
+    ids=set()
+    receiver_ids=set()
+    with gzip.open(file,'rt',encoding='utf-8') as stream:
+        for line in stream:
+            record=json.loads(line)
+            if not isinstance(record,dict) or record.get('direction')!=expected_direction:
+                raise ValueError('Native GPS proposal direction is inconsistent')
+            key=record.get('id')
+            receiver_id=record.get('receiverGraphId')
+            if (not isinstance(key,str) or not key.startswith('nf8gps-')
+                    or key in ids or type(receiver_id) is not int
+                    or receiver_id<=0 or receiver_id in receiver_ids):
+                raise ValueError('Duplicate/invalid native directed receiver proposal identity')
+            expected_provenance=(
+                f"{pair['pairId']}|{pair['fromGraphFingerprint']}|"
+                f"{pair['toGraphFingerprint']}|{expected_direction}|{receiver_id}")
+            expected_id='nf8gps-'+hashlib.sha256(
+                expected_provenance.encode()).hexdigest()[:24]
+            if key!=expected_id:
+                raise ValueError('Native GPS proposal ID is not bound to its receiver graph and pair')
+            coordinate=record.get('coordinate')
+            edge_start=record.get('receiverEdgeStart')
+            for point in (coordinate,edge_start):
+                if (not isinstance(point,dict)
+                        or set(point)!={'lat','lng'}
+                        or any(type(point[k]) not in (int,float)
+                               or not math.isfinite(point[k])
+                               or abs(point[k])>(90 if k=='lat' else 180)
+                               for k in ('lat','lng'))):
+                    raise ValueError('Invalid native GPS receiver coordinate')
+            if (type(record.get('receiverWayId')) is not int
+                    or record['receiverWayId']<=0
+                    or any(type(record.get(field)) is not int
+                           or not 0<=record[field]<2**32
+                           for field in ('receiverForwardAccess',
+                                         'receiverReverseAccess'))
+                    or record.get('gpsProposalState')!='UNPROVEN'):
+                raise ValueError('Modified/invalid native receiver metadata')
+            ids.add(key)
+            receiver_ids.add(receiver_id)
+            if start_ordinal<=total<start_ordinal+max_probes:
+                selected.append(record)
+            total+=1
+    if start_ordinal>=total:
+        raise ValueError('F8 ordered proof cursor outside original proposal stream')
+    if len(selected)!=min(max_probes,total-start_ordinal):
+        raise ValueError('F8 ordinal batch source unexpectedly incomplete')
+    return selected,total
+
+
 def service_payload(stdout:str)->dict:
     """Reject extra data except the known installed launcher INFO tail."""
     data=stdout.lstrip()
@@ -191,7 +259,11 @@ def check_one(candidate:dict,config_a:Path,config_b:Path,
               route_fn=route,trace_fn=actual_edge)->dict:
     gps=candidate['coordinate']
     base={'candidateId':candidate['id'],'receiverGraphId':candidate['receiverGraphId'],
-          'mode':mode,'coordinate':gps}
+          'mode':mode,'coordinate':gps,
+          'receiverTraceOrigin':'SEPARATE_TRACE_ATTRIBUTES_EDGE_WALK_REPLAY',
+          'originalRouteEdgeIdentity':'NOT_VERIFIED',
+          'physicalLastRetainedRoadEdge':'NOT_VERIFIED',
+          'crossGraphLegalTransfer':'NOT_VERIFIED'}
     try:
         first=route_fn(config_a,start,gps,mode)
         if first['status']!='SUCCEEDED':return {**base,'status':'UNPROVEN','firstLeg':first}
@@ -222,20 +294,47 @@ def check_one(candidate:dict,config_a:Path,config_b:Path,
 def inspect(pair:dict,manifest:dict,base:Path,config_a:Path,config_b:Path,
             start:dict,end:dict,mode:str,direction:str,max_probes:int,
             route_fn=route,trace_fn=actual_edge,
-            on_progress:Callable[[int,int,dict],None]|None=None)->dict:
+            on_progress:Callable[[int,int,dict],None]|None=None,
+            *,selection:str='ranked-sample',start_ordinal:int=0)->dict:
     if mode not in MODES or direction not in DIRECTIONS:raise ValueError('Unsupported mode/direction')
     file=eligible_manifest(pair,manifest,direction,base)
-    chosen,total=proposal_order(file,start,end,max_probes,direction)
+    if selection=='ranked-sample':
+        if start_ordinal!=0:
+            raise ValueError('start_ordinal requires ordered-native-ledger selection')
+        chosen,total=proposal_order(file,start,end,max_probes,direction)
+    elif selection=='ordered-native-ledger':
+        chosen,total=ordinal_proposal_page(file,start_ordinal,max_probes,direction,pair)
+    else:
+        raise ValueError('Unknown native F8 proposal proof selection')
     if total!=manifest['files'][direction+'.jsonl.gz']['records']:
         raise ValueError('Native proposal count mismatch; incomplete source stream')
     results=[]
     for index, item in enumerate(chosen):
         outcome=check_one(item,config_a,config_b,start,end,mode,route_fn,trace_fn)
+        if (selection=='ordered-native-ledger'
+                and outcome['status']=='VALIDATED_FOR_THIS_JOURNEY'):
+            # A trace_attributes edge_walk performed *after* the route is
+            # a separate geometry re-match. It cannot certify the exact
+            # edge that original Valhalla routing traversed.
+            outcome={**outcome,
+                     'status':'TWO_GRAPH_LOCAL_LEGS_B_EDGE_WALK_REPLAY_MATCHED_ONLY'}
         results.append(outcome)
         if on_progress is not None:
             on_progress(index+1,len(chosen),outcome)
-    successes=[r for r in results if r['status']=='VALIDATED_FOR_THIS_JOURNEY']
+    successes=[r for r in results if r['status'] in (
+        'VALIDATED_FOR_THIS_JOURNEY',
+        'TWO_GRAPH_LOCAL_LEGS_B_EDGE_WALK_REPLAY_MATCHED_ONLY')]
+    next_cursor=(start_ordinal+len(chosen) if selection=='ordered-native-ledger'
+                 and start_ordinal+len(chosen)<total else None)
     return {'schema':'roadpilot.native-f8-journey-probe','version':1,
+            'selectionMethod':selection,
+            'orderedBatchStartOrdinal':(start_ordinal if selection=='ordered-native-ledger'
+                                        else None),
+            'orderedBatchEndExclusive':(start_ordinal+len(chosen)
+                                        if selection=='ordered-native-ledger' else None),
+            'nextOrderedStartOrdinal':next_cursor,
+            'orderedBatchIsContiguous':(selection=='ordered-native-ledger'),
+            'originalSourceCatalogSha256':manifest['files'][direction+'.jsonl.gz']['sha256'],
             'pairId':pair['pairId'],'direction':direction,'mode':mode,
             'fromGraphFingerprint':pair['fromGraphFingerprint'],
             'toGraphFingerprint':pair['toGraphFingerprint'],
@@ -250,6 +349,14 @@ def inspect(pair:dict,manifest:dict,base:Path,config_a:Path,config_b:Path,
                        if successes else None)
                 for style in ('FASTER','SHORTER')},
             'completeness':'INCOMPLETE_BOUNDED_JOURNEY_PROBES',
+            'batchProofScope':'SELECTED_CANDIDATES_ONLY_NOT_GLOBAL_ROAD_COVERAGE',
+            'otherBatchCoverage':'NOT_VERIFIED_NO_CUMULATIVE_PROOF_LEDGER',
+            'oneLastRetainedPhysicalRoadEdgePerRoad':'NOT_VERIFIED',
+            'receiverProposalFiltering':'NONE_EXCEPT_EXPLICIT_BOUNDED_BATCH',
+            'successfulTraceOrigin':'SEPARATE_TRACE_ATTRIBUTES_EDGE_WALK_REPLAY',
+            'originalRouteEdgeIdentity':'NOT_VERIFIED',
+            'physicalLastRetainedRoadEdges':'NOT_VERIFIED',
+            'crossGraphLegalTransfer':'NOT_VERIFIED',
             'androidF8Parity':'NOT_VERIFIED',
             'productionConnectivity':'BLOCKED'}
 
@@ -265,6 +372,10 @@ def main()->int:
     for f in ('start-lat','start-lng','end-lat','end-lng'):
         p.add_argument('--'+f,required=True,type=float)
     p.add_argument('--max-probes',type=int,default=8)
+    p.add_argument('--selection',choices=('ranked-sample','ordered-native-ledger'),
+                   default='ranked-sample')
+    p.add_argument('--start-ordinal',type=int,default=0,
+                   help='Exact unfiltered receiver-ledger cursor; only for ordered-native-ledger')
     p.add_argument('--output',required=True,type=Path)
     args=p.parse_args()
     pair=read(args.pair_manifest)
@@ -285,7 +396,8 @@ def main()->int:
         verify_retained_graph_identity(pair,identity_a,identity_b)
         if args.direction=='to-from':config_a,config_b=config_b,config_a
         result=inspect(pair,manifest,args.proposal_dir,config_a,config_b,
-                       start,end,args.mode,args.direction,args.max_probes)
+                       start,end,args.mode,args.direction,args.max_probes,
+                       selection=args.selection,start_ordinal=args.start_ordinal)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     if args.output.exists():p.error('Output exists; refusing to overwrite prior evidence')
     with tempfile.NamedTemporaryFile('w',dir=args.output.parent,prefix='.native-f8-proof-',
