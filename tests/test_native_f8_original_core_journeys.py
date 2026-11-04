@@ -126,6 +126,38 @@ class OriginalF8CoreTopologyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"changes physical node"):
             check_native_original_route_topology([101,102],rows,"auto")
 
+    def test_hierarchy_successor_must_be_reachable_from_actual_original_end_node(self):
+        rows=[graph_row(101,incoming_via_transition=102),graph_row(102)]
+        proven=check_native_original_route_topology([101,102],rows,"auto")
+        self.assertEqual(
+            proven["originalRouteDirectedHops"][0]["originalNativeTransitionNodePath"],
+            [101+10000,101+10001])
+        # Removing the root->peer arc must fail even though the original
+        # successor is still present inside a native outgoing inventory.
+        bad=copy.deepcopy(rows)
+        bad[0]["nativeAllHierarchyContinuationNodes"][0][
+            "nativeHierarchyTransitions"]=[]
+        with self.assertRaisesRegex(ValueError,"Disconnected native hierarchy"):
+            check_native_original_route_topology([101,102],bad,"auto")
+        bad=copy.deepcopy(rows)
+        bad[0]["nativeAllHierarchyContinuationNodes"][1]["transitionDepth"]=0
+        with self.assertRaisesRegex(ValueError,"depth does not match"):
+            check_native_original_route_topology([101,102],bad,"auto")
+
+    def test_root_outgoing_identity_access_and_endpoint_must_agree(self):
+        for key, value in (("forwardAccess",7),("endNodeGraphId", 999999),
+                           ("isShortcut",True)):
+            with self.subTest(key=key):
+                rows=[graph_row(101,incoming_direct=102),graph_row(102)]
+                bad=copy.deepcopy(rows)
+                # In synthetic fixtures, both native views intentionally
+                # alias one list; detach so only one view is corrupted.
+                bad[0]["outgoingDirectedEdges"] = copy.deepcopy(
+                    bad[0]["outgoingDirectedEdges"])
+                bad[0]["outgoingDirectedEdges"][-1][key]=value
+                with self.assertRaisesRegex(ValueError,"edge attributes disagree"):
+                    check_native_original_route_topology([101,102],bad,"auto")
+
     def test_tampered_source_native_terminal_or_missing_directed_edge_fails(self):
         record={"schema":"roadpilot.f8-original-terminal-lineage-ledger",
                 "version":1,"productionPublication":"BLOCKED",

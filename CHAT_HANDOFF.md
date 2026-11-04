@@ -1,5 +1,18 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #120 follow-up native hierarchy path validation (2026-11-04)
+
+Corrected a topology validator gap: a real original successor GraphId found
+in a listed native level's outgoing inventory now also requires an actual
+reachable transition path from the incoming original edge endpoint, with
+shortest-depth and root outgoing access/identity verification. Two added
+negative regressions, 348/348 Python tests pass; replay of the original eight
+immutable real A/B journeys passes 5404 direct and 52 hierarchy hops. See
+docs/F8_PR120_TOPOLOGY_PATH_REVIEW.md. No graph, app, publication or original
+saved evidence changed. PR #120 remains stacked on draft PR #119;
+cross-graph legal handoff, global physical-road edge uniqueness, Android
+complete-journey parity NOT_VERIFIED, no merge/release authorization.
+
 ## Exact original A-last and B-first directed GraphIds versus complete native Graph Studio scans (2026-11-04)
 
 Further review of original eight real core-to-core A→X→B routes exposed a critical scan GPS interpretation detail: **Graph Studio's native directed A-edge scan coordinate is often an interior source-edge point, not its directed terminal X**. In the scoped real cases its distance from the true original A last end was **3.5–160 metres** even though original source GraphId matched exactly. A 1-m match of the *source A scan GPS* to the terminal would falsely report valid roads missing. By contrast, the actual original B first directed edge's **receiver scanner GPS** must correspond to A's normalized handoff X; in all 8 scoped cases this was approximately 0.008–0.045 m from X.

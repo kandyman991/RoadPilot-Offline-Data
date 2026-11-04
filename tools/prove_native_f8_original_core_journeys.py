@@ -12,7 +12,7 @@ complete physical road classes, Android parity, or an optimal FASTER/SHORTER pat
 from __future__ import annotations
 
 import argparse
-from collections import Counter
+from collections import Counter, deque
 import hashlib
 import json
 import math
@@ -169,8 +169,9 @@ def check_native_original_route_topology(ordered: list[int], rows: list[dict],
                 x.get("graphId") for x in outgoing}:
             raise ValueError("Native direct outgoing edge and hierarchy inventory conflict")
         node_ids = [node.get("nodeGraphId") for node in hierarchy]
-        if len(node_ids) != len(set(node_ids)):
-            raise ValueError("Duplicate native transition node")
+        if (any(type(node_id) is not int or node_id <= 0 for node_id in node_ids)
+                or len(node_ids) != len(set(node_ids))):
+            raise ValueError("Duplicate or invalid native transition node")
         for node in hierarchy:
             node_pos = {"lat": node.get("nodeLat"), "lng": node.get("nodeLon")}
             valid_point(node_pos)
@@ -199,6 +200,38 @@ def check_native_original_route_topology(ordered: list[int], rows: list[dict],
                         or item["nodeGraphId"] not in node_ids
                         or type(item.get("up")) is not bool):
                     raise ValueError("Hierarchy transition not represented by original nodes")
+        # The mere appearance of an outgoing GraphId in an inventory cannot
+        # prove an original route hop. Its owning node must be connected to
+        # the *actual end node* by real Valhalla level transitions. Persist
+        # the shortest original-node transition path for independent review.
+        by_node = {node["nodeGraphId"]: node for node in hierarchy}
+        paths = {root: [root]}
+        pending = deque([root])
+        while pending:
+            node_id = pending.popleft()
+            for arc in by_node[node_id]["nativeHierarchyTransitions"]:
+                target = arc["nodeGraphId"]
+                if target not in paths:
+                    paths[target] = paths[node_id] + [target]
+                    pending.append(target)
+        if len(paths) != len(by_node):
+            raise ValueError("Disconnected native hierarchy branch cannot prove an original hop")
+        for node in hierarchy:
+            node_id = node["nodeGraphId"]
+            if node["transitionDepth"] != len(paths[node_id]) - 1:
+                raise ValueError("Native hierarchy transition depth does not match reachable path")
+        # Both C++ views describe the same root outgoing graph arcs. A change
+        # in identity, accessibility or endpoint cannot be hidden by equal IDs.
+        shared = ("graphId", "endNodeGraphId", "forwardAccess", "isRoad", "isShortcut")
+        root_edges = sorted(
+            (tuple(edge.get(k) for k in shared) for edge in outgoing),
+            key=lambda item: item[0])
+        hierarchy_root_edges = sorted(
+            (tuple(edge.get(k) for k in shared)
+             for edge in hierarchy[0]["allOutgoingDirectedEdges"]),
+            key=lambda item: item[0])
+        if root_edges != hierarchy_root_edges:
+            raise ValueError("Native root outgoing and hierarchy edge attributes disagree")
         if not (current["forwardAccess"] & MODES[mode]):
             counts["originalRouteEdgesWithDifferentModeAccessMask"] += 1
         branches = []
@@ -225,6 +258,8 @@ def check_native_original_route_topology(ordered: list[int], rows: list[dict],
         if idx + 1 < len(ordered):
             successor = ordered[idx+1]
             match = [branch for branch in branches if branch["graphId"] == successor]
+            transition_path = (paths[match[0]["nodeGraphId"]]
+                               if len(match) == 1 else None)
             if len(match) != 1:
                 counts["originalNextDirectedEdgesUnresolvedInNativeAdjacency"] += 1
                 relation = "ORIGINAL_ROUTE_SUCCESSOR_NOT_IN_NATIVE_NODE_INVENTORY"
@@ -238,7 +273,8 @@ def check_native_original_route_topology(ordered: list[int], rows: list[dict],
                 counts["originalRouteHierarchyTransitionHops"] += 1
                 relation = "EXACT_NATIVE_LEVEL_TRANSITION_HOP"
             hops.append({"sourceGraphId": gid, "nextOriginalGraphId": successor,
-                         "nativeContinuation": relation})
+                         "nativeContinuation": relation,
+                         "originalNativeTransitionNodePath": transition_path})
         all_branches.append({
             "incomingOriginalDirectedGraphId": gid,
             "sourceWayIdAnnotation": current.get("wayId"),
