@@ -111,6 +111,42 @@ class M6DirectedChainTests(unittest.TestCase):
         self.assertEqual([[e["graphId"] for e in b["allNativeOutgoingAlternatives"]]
                           for b in inv], [[901, 202], [902, 203], [903, 404]])
         self.assertEqual(inv[-1]["nativeOutgoingDegree"], 2)
+        self.assertEqual(
+            [entry["selectedNextIsOpposingReverse"] for entry in inv],
+            [False, False, None],
+        )
+        self.assertEqual(r["receiverTopology"]["selectedImmediateReverseLinks"], 0)
+
+    def test_immediate_opposing_reverse_is_explicit_not_a_proven_forward_turn(self):
+        # A nominated B successor may be the native opposing reverse even
+        # when it is a legitimate member of the outgoing native inventory.
+        # Observation must preserve it, never promote or filter the crossing.
+        reverse = [
+            edge(201, [[0, 0], [0, .00025]]),
+            edge(901, [[0, .00025], [0, 0]]),
+        ]
+        # The first B node has precisely one outgoing directed edge:
+        # the nominated immediate opposing reverse, as on the retained graphs.
+        # Retain that native branch instead of rejecting it as a filter.
+        adj = adjacency(reverse)
+        adj[0]["opposingGraphId"] = 901
+        adj[0]["outgoingDirectedEdges"] = [row(901)]
+        adj[0]["nativeOutgoingDegree"] = 1
+        observed = native_chain_observation(reverse, adj)
+        links = observed["allBranchInventories"]
+        self.assertEqual(links[0]["selectedNextIsOpposingReverse"], True)
+        self.assertIsNone(links[1]["selectedNextIsOpposingReverse"])
+        self.assertEqual(observed["selectedImmediateReverseLinks"], 1)
+        self.assertEqual(links[0]["nativeOutgoingDegree"], 1)
+        self.assertEqual([x["graphId"] for x in links[0][
+            "allNativeOutgoingAlternatives"]], [901])
+        self.assertEqual(observed["globalFrontierCoverage"], "NOT_VERIFIED")
+        result = probe(chain=reverse, adj=adj,
+                       trace_fn=lambda *_: [201, 901])
+        self.assertEqual(result["receiverTopology"][
+            "selectedImmediateReverseLinks"], 1)
+        self.assertEqual(result["crossSeamTurnLegality"], "NOT_VERIFIED")
+        self.assertEqual(result["productionPublication"], "BLOCKED")
 
     def test_native_cpp_extractor_reports_actual_node_degree(self):
         source = (Path(__file__).resolve().parents[1] /

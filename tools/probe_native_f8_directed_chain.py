@@ -105,6 +105,12 @@ def native_chain_observation(
             "endNodeGraphId": row["endNodeGraphId"],
             "nativeOutgoingDegree": degree,
             "selectedNextGraphId": selected_next,
+            # Native adjacency includes the immediate opposing reverse. Record
+            # it explicitly; adjacency alone does NOT mean forward continuity.
+            # None marks the terminal nominated B edge (no selected successor).
+            "selectedNextIsOpposingReverse": (
+                selected_next == opposing if selected_next is not None else None
+            ),
             "nativeOpposingGraphId": opposing,
             "allNativeOutgoingAlternatives": edges,
         })
@@ -114,6 +120,9 @@ def native_chain_observation(
         "graphBNativeAdjacency": "CONFIRMED_FOR_SELECTED_EDGES_ONLY",
         "selectedEdgeCount": len(ids),
         "allBranchInventories": observed,
+        "selectedImmediateReverseLinks": sum(
+            link["selectedNextIsOpposingReverse"] is True for link in observed
+        ),
         "allNativeOutgoingAlternativesRetained": True,
         "globalFrontierCoverage": "NOT_VERIFIED",
     }

@@ -11,7 +11,7 @@ M6a examines **one explicitly nominated A final directed edge and one explicitly
 ## Code and checks
 
 - `tools/probe_native_f8_directed_chain.py` checks exact retained routing archive, graph and neighbor-boundary fingerprints and requires pinned Valhalla 3.6.3.
-- The pinned native GraphReader extractor's `--continuations` mode now records `nativeOutgoingDegree`. The diagnostic verifies complete degrees, all outgoing native IDs and mode/access flags, matching successor identity and exact Graph B node adjacency **for every selected B edge, including its final edge**. It preserves all nonselected branches, reverse edges and mode-inaccessible edges as evidence. Malformed native input fails closed as a diagnostic error, never a global handoff rejection.
+- The pinned native GraphReader extractor's `--continuations` mode now records `nativeOutgoingDegree`. The diagnostic verifies complete degrees, all outgoing native IDs and mode/access flags, matching successor identity and exact Graph B node adjacency **for every selected B edge, including its final edge**. It preserves all nonselected branches, reverse edges and mode-inaccessible edges as evidence. Each selected successor now explicitly reports `selectedNextIsOpposingReverse` (true/false, or null for the terminal selected edge) and the report counts selected immediate reverse links. This is an observation, not an exclusion or a forward-turn proof. Malformed native input fails closed as a diagnostic error, never a global handoff rejection.
 - After graph-native adjacency verification, the selected directed B geometry is concatenated. The final 20 metres of Graph A's nominated directed source edge are compared against the full B chain, allowing different native road splits. One-metre sample alignment, opposed direction and ambiguity are **observations**, not cross-graph legal turn proofs or eligibility filters.
 - A separate real B-local Valhalla route is checked for the complete exact consecutive selected B directed GraphId sequence, plus snapped start/end within 2 metres. A matched path proves only **that B graph-local route**, not an A→B seam.
 - Output always includes `crossGraphPhysicalContinuity=NOT_VERIFIED`, `crossSeamTurnLegality=NOT_VERIFIED`, `androidF8Parity=NOT_VERIFIED`, `discoveryCoverage=NOT_VERIFIED`, `routeOptimality=NOT_VERIFIED` and `productionPublication=BLOCKED`.
@@ -48,6 +48,24 @@ Both exact retained regional graph packages: 2026.10.13-1. GraphIds are always i
 | Italy→Austria | Car | 1482679618 | 754343470402 → 670054737218 | confirmed | ambiguous | INCONCLUSIVE |
 | Austria→Italy | Car | 754343470402 | 1482679618 → 1012917570 | confirmed | ambiguous | INCONCLUSIVE |
 | Austria→Italy | Motorcycle | 754343470402 | 1482679618 → 1012917570 | confirmed | ambiguous | INCONCLUSIVE |
+
+**PR #112 independent review correction:** Three selected B links were
+actual native immediate opposing reverses: the Italy→Austria Car sample
+ending `670054737218`, and both Austria→Italy samples ending `1012917570`.
+The latter have only one B outgoing edge, namely that reverse. These
+are now explicitly identified in each output; the previous generic
+native-adjacency label alone did not distinguish them from a non-opposing
+continuation. No result is filtered or promoted because of this distinction.
+
+**Native build assurance:** The standalone C++ extractor was freshly compiled
+against pinned Valhalla 3.6.3, and the changed diagnostic was re-run on all
+seven exact graph-backed samples. See
+[`F8_M6_NATIVE_EXTRACTOR_BUILD_PROVENANCE.md`](F8_M6_NATIVE_EXTRACTOR_BUILD_PROVENANCE.md)
+for the actual compiler/CMake commands, linked library and binary SHA-256,
+compile commands, archive integrity and smoke records. Hosted Linux CI
+checks the app and Python regressions but does **not** compile this native
+tool; the SHA-bound Legion native build plus real-graph smoke is the
+review's accepted evidence alternative.
 
 None of these results proves a legal physical A→B crossing or an actual **completed** A-to-B journey. Positive evidence is strictly B-local. Negative/inconclusive observations do not disqualify alternative roads or chains.
 
