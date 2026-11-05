@@ -184,7 +184,7 @@ Reference: D-014, D-015; `docs/GRAPH_STUDIO_PHASE4C_ARCHIVE_LEGACY_VALIDATORS.md
 
 1. Identify the **final retained original directed GraphId** of each physical road and travel direction in the **source graph's 25-km outer-cutoff area**, reading only relevant compiled boundary tiles and immediate native references. Do not rely on the `deadend` or `is_road` bit as the sole qualifier.
 2. In the **receiving original graph**, correlate the same physical road and direction (the B edge can contain X at an interior point). Use real directed geometry/topology, not equal GraphIds, way/name proximity or a route chosen just for proof.
-3. Save **one source final-edge connection per physical road/direction**, with shared car/motorcycle access attributes and distinct B directed options for genuine branches. Use the existing Android consumption format and exact graph/buffer fingerprints.
+3. Save **one source final-edge connection per physical road/direction**, with shared car/motorcycle access attributes and distinct B directed options for genuine branches. X is one shared geographic handoff location: **do not introduce a separately selected/projected receiving Y coordinate**. Use the existing Android consumption format and exact graph/buffer fingerprints.
 4. **Test real RoadPilot Android A→X→B journeys** for both directions and supported modes, motorway/ramp/local/multi-hop and FASTER/SHORTER.
 
 No all-tile directed edge census in the production build stage; no separate Valhalla A-last/B-first TripLeg request per stored connection; no reintroduction of OSM-first, portal matrix, GPS probes, arbitrary full-road lineage, additional diagnostics or success-first shortcut.
@@ -194,3 +194,5 @@ Valhalla supplies the native directed GraphIds, endpoints, access and adjacency.
 This supersedes contrary earlier *producer-specific* proof/census requirements in D-002, D-012, D-014 and D-015, and the draft #125 all-tile source census work; it does not change the working Android runtime F8 fallback, Valhalla routing for actual user trips, immutable original graphs or publisher authorization. **PR #125 remains draft/unmerged; its source-census producer is not an approved final implementation.**
 
 **Normative implementation detail:** `docs/F8_BOUNDARY_FINAL_EDGE_IMPLEMENTATION_CONTRACT.md`.
+
+**2026-11-05 clarification (previous experiment recovered):** The owner correctly recalled earlier two-sided/coordinate-relay crossing attempts. Historical F8 successfully used A's normalized arrival X as B's route start. Nearby A/B road geometry or coordinates alone did **not** reliably identify corresponding directed edges. D-017 keeps one X and independent original GraphIds, rather than resurrecting a synthetic pair of X/Y endpoints. Real journey tests remain the acceptance gate.

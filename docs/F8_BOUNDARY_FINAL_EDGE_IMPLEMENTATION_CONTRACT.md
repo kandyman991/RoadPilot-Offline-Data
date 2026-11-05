@@ -59,8 +59,16 @@ road exists under step 2. Do not substitute a general network traversal.
 
 ### 2. Receiving graph B — correlate the same directed physical road
 
-For every source final `A.finalGraphId`, define X as its exact original
-directed terminal coordinate.
+For every source final `A.finalGraphId`, define **one physical handoff X**
+as its exact original directed terminal coordinate. **X is the single GPS
+location used by both regional route legs**, matching the previously working
+F8 normalized-handoff approach. Do **not** fabricate or independently select
+a second receiving-graph handoff Y: an older coordinate-relay / A-B nearby
+point correlation approach has already been tried and was not reliable.
+The receiving graph may segment or represent that physical road differently;
+this changes which B directed GraphId contains X, **not the intended handoff
+location**. Any native locator snapping of X in B must still remain on that
+same actual directed physical road, not an arbitrarily nearest road.
 
 1. Look up **only the relevant B graph tiles near X and the shared
    buffer overlap**. Use original compiled B directed geometries, node
@@ -74,7 +82,10 @@ directed terminal coordinate.
 3. Preserve all **genuinely separate** B roads/ramps/forward branches. Do not
    accept an opposing direction, unrelated nearby parallel road, or
    duplicate native hierarchy representation as the same connection.
-4. Read vehicle permissions **already stored by Valhalla**. The usable
+4. Determine which directed B segment contains or can represent the **same
+   physical handoff X** in its graph-local geometry. Do not treat a projection
+   onto a different nearby road as an equivalent second handoff point.
+5. Read vehicle permissions **already stored by Valhalla**. The usable
    modes on an option are the intersection of A and B access; if the
    intersection is empty it is not an option. These are fields used
    DURING matching, **not a later per-connection verification stage**.
@@ -94,8 +105,9 @@ Each record has:
 - exact original source-final directed GraphId and handoff X (lat/lon);
 - its car/motorcycle access set;
 - an array of distinct original **receiving directed GraphIds**, each with
-  its own car/motorcycle access subset and position of X on that directed
-  B edge (interior projection or exact endpoint).
+  its own car/motorcycle access subset. X is one shared geographic handoff
+  reference; **no independently generated B-side Y coordinate** or
+  coordinate-relay connection is stored.
 
 **Cardinality:** one final-source record per actual physical road/direction;
 one receiving option for each genuinely different valid directed branch;
@@ -131,8 +143,9 @@ route calculation inside Android remains the way each actual trip works.
   PR #125 is **superseded**; do not merge it as this producer.
 - **No separate per-connection Valhalla route / TripLeg A-last/B-first
   verification** during Graph Studio graph building.
-- No OSM-first sampler, portal matrix, GPS probe generator, all-path lineage
-  exploration or intermediate source-edge connector catalog.
+- No OSM-first sampler, portal matrix, GPS probe generator, separate A/B
+  coordinate-relay endpoints, all-path lineage exploration or intermediate
+  source-edge connector catalog.
 - No first-success/cached-success stopping rule; no arbitrary 512 cap.
 - No deduplication by road name, way ID, proximity, or mode.
 - No added diagnostic/audit pipeline to justify these four normal steps.
