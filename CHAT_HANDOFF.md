@@ -1,5 +1,50 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## CURRENT F8 PRODUCTION IMPLEMENTATION: one ORIGINAL A final directed edge to B
+
+The owner stopped the unrelated full archive census and ordered actual road
+connections. PR #124 was CLOSED WITHOUT MERGE. Branch
+feature/f8-final-edge-to-receiver-20261104 starts at main 02518c7.
+
+The real producer tools/build_f8_final_edge_connections.py now connects each
+previously found ORIGINAL last Valhalla TripLeg GraphId in A with an actual
+physically forward receiving B ORIGINAL FIRST TripLeg GraphId, both modes.
+There is no OSM road-name/way equivalence, cross-graph GraphId equality,
+intermediate connector matrix, reversed-road continuation, or suppression
+of genuine distinct receiving branches. Every unresolved A final edge remains
+visible; output is one record per exact source final directed GraphId.
+
+Italy->Austria: 210 old A final candidates, 86 strictly Valhalla-verified
+source connections, 90 independent B options, 124 unresolved.
+Austria->Italy: 90 old A final candidates, 49 verified connections,
+61 B options, 41 unresolved. Combined 135 verified source-final records
+and 165 unresolved, 151 receiving original directed options.
+
+Original immutable source connection catalog:
+diagnostics/f8-production/20261104/direct-final-edge-connections-v1.json
+SHA256 ed6ccf266627f66d2f5a7c62ae8b73e902a8c1a87c1d7b01f41404b35cc0c23e.
+
+Actual original Valhalla two-leg core A->X->B journeys:
+80 attempted from/into Italy and Austria for car/motorcycle,
+20 exact original A-last and B-first route journeys (12 Italy->Austria,
+8 Austria->Italy), all 0m actual physical seam gap.
+File direct-final-A-X-B-core-journey-test-v1.json
+SHA256 bbaacc49d99f769369c32c9318e25a7d78a788e0863b167679b0057286de5041.
+
+Android consumer branch on latest SmartRide-Next main is separate and
+must match BOTH original SHA identities; its generated install-metadata
+graphFingerprint is not the original archive SHA. The connected app
+must NOT suppress ordinary F8 while catalog incompleteness exists.
+A temporary emulator has the 2 original routing tile archives installed.
+
+Important: these 300 previous A candidates are NOT yet the exhaustive
+physical-road/direction set. The 165 unresolved remain source-side work.
+No original graph tile changed, no production artifact publication,
+no PR merge authorized. Next: completed emulator catalog loader and
+real Android native A->X->B route acceptance, then resolve the missing
+source-final roads without suppressing physical branches.
+
+
 ## LATEST completed merge — PR #122 reviewed source-only evidence (2026-11-04)
 
 Owner-authorized PR #122 was independently audited as a separate technical

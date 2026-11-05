@@ -534,7 +534,25 @@ fn pyvalhalla_native_bin_dir() -> Option<PathBuf> {
     None
 }
 
+// The AppImage runtime exports PYTHONHOME/PYTHONPATH pointing into its
+// mounted usr tree, which has no complete Python standard library. If
+// inherited by our host Python 3.14, venv creation, the routing pipeline,
+// and the pyvalhalla launchers all fail while the binaries still exist.
+// Clear only those AppImage-provided Python bootstrap overrides so host
+// Python uses its own stdlib and the cached Graph Studio venv.
+fn appimage_python_bootstrap_vars(appimage_running: bool) -> &'static [&'static str] {
+    if appimage_running {
+        &["PYTHONHOME", "PYTHONPATH"]
+    } else {
+        &[]
+    }
+}
+
 fn normalize_process_path() {
+    for name in appimage_python_bootstrap_vars(env::var_os("APPIMAGE").is_some()) {
+        env::remove_var(name);
+    }
+
     let home = env::var("HOME").unwrap_or_default();
     let current = env::var_os("PATH").unwrap_or_default();
     let mut paths: Vec<PathBuf> = env::split_paths(&current).collect();
@@ -1375,6 +1393,10 @@ fn stage_for_log(line: &str) -> Option<&'static str> {
         Some("Validating visual road coverage")
     } else if line.contains("retained visual build:") {
         Some("Retaining visual package")
+    } else if line.starts_with("F8_SOURCE_ALL_TILES_") {
+        Some("Scanning all original F8 source directed edges near actual overlap")
+    } else if line.starts_with("F8_POST_BUILD_") {
+        Some("Reconciling original F8 bilateral graph edges")
     } else if line.starts_with("built:") {
         Some("Finalizing package")
     } else {
@@ -1577,10 +1599,25 @@ fn run_build_queue(
         emit_log(&app, format!("✓ {region_id} build validated."));
     }
 
-    // Native F8 connectivity is deliberately NOT invoked until its independent
-    // directed-edge production and Android parity gates are implemented.
-    // Region builds and routing packs are complete without cross-region sidecars.
-    emit_log(&app, "✓ Regional builds complete. Native F8 cross-region discovery is not yet available.");
+    // Run the same fail-closed native final-directed-edge *bilateral stage*
+    // automatically after every relevant regional build queue. The stage
+    // pairs only reciprocal original boundary+graph SHA identities, and
+    // consumes only original A-LAST/B-FIRST proof ledgers for the exact
+    // retained graphs. When source-final evidence has not been generated for
+    // a new graph, it records PENDING rather than invoking the rejected old
+    // GPS-proposals/portal matrix or publishing an incomplete connection.
+    // Validated regional graph packages are retained even if F8 is pending.
+    set_stage(&app, &state, "Reconciling bilateral original F8 final edges");
+    let workspace = workspace_root(&app)?;
+    let mut f8 = Command::new(&python);
+    f8.arg(pipeline.join("tools/run_f8_bilateral_after_build.py"))
+        .arg("--workspace").arg(&workspace)
+        .arg("--package-version").arg(&package_version);
+    for region_id in &region_ids {
+        f8.arg("--built-region").arg(region_id);
+    }
+    run_process_streaming(&app, &state, f8)?;
+    emit_log(&app, "✓ Regional packages validated. Bilateral F8 proof status recorded; source census and Android release gates remain mandatory.");
 
     Ok(())
 }
@@ -4535,4 +4572,23 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running RoadPilot Graph Studio");
+}
+
+
+#[cfg(test)]
+mod appimage_python_environment_regression {
+    use super::appimage_python_bootstrap_vars;
+
+    #[test]
+    fn appimage_must_not_export_embedded_python_prefix_into_host_tools() {
+        assert_eq!(
+            appimage_python_bootstrap_vars(true),
+            &["PYTHONHOME", "PYTHONPATH"]
+        );
+    }
+
+    #[test]
+    fn non_appimage_installs_preserve_explicit_python_configuration() {
+        assert!(appimage_python_bootstrap_vars(false).is_empty());
+    }
 }

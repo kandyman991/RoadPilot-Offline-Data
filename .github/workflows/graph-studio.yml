@@ -107,6 +107,19 @@ jobs:
           echo "GRAPH_STUDIO_DEB=$DEB" >> "$GITHUB_ENV"
           ls -lh "$APPIMAGE" "$DEB"
 
+      # PR builds are installable on the owner's Legion for UI acceptance,
+      # but are never published as a production rolling release.
+      - name: Upload PR Linux installation packages for device acceptance
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphstudio-pr-linux-${{ github.event.pull_request.number }}
+          path: |
+            ${{ env.GRAPH_STUDIO_APPIMAGE }}
+            ${{ env.GRAPH_STUDIO_DEB }}
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Publish rolling Graph Studio Linux release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         shell: bash
