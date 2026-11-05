@@ -177,3 +177,20 @@ Reference: D-012, D-013, D-014; `docs/ARCHITECTURE_CONTRACT.md`; `docs/GRAPH_STU
 
 Reference: D-014, D-015; `docs/GRAPH_STUDIO_PHASE4C_ARCHIVE_LEGACY_VALIDATORS.md`.
 
+
+## D-017 — FINAL F8 build architecture: original boundary final edges only (2026-11-05)
+
+**Explicitly approved by the product owner** in the GraphStudio conversation on November 5, 2026, after rejecting redundant proof passes and exhaustive GraphReader directed-edge scans. The four approved steps are:
+
+1. Identify the **final retained original directed GraphId** of each physical road and travel direction in the **source graph's 25-km outer-cutoff area**, reading only relevant compiled boundary tiles and immediate native references. Do not rely on the `deadend` or `is_road` bit as the sole qualifier.
+2. In the **receiving original graph**, correlate the same physical road and direction (the B edge can contain X at an interior point). Use real directed geometry/topology, not equal GraphIds, way/name proximity or a route chosen just for proof.
+3. Save **one source final-edge connection per physical road/direction**, with shared car/motorcycle access attributes and distinct B directed options for genuine branches. Use the existing Android consumption format and exact graph/buffer fingerprints.
+4. **Test real RoadPilot Android A→X→B journeys** for both directions and supported modes, motorway/ramp/local/multi-hop and FASTER/SHORTER.
+
+No all-tile directed edge census in the production build stage; no separate Valhalla A-last/B-first TripLeg request per stored connection; no reintroduction of OSM-first, portal matrix, GPS probes, arbitrary full-road lineage, additional diagnostics or success-first shortcut.
+
+Valhalla supplies the native directed GraphIds, endpoints, access and adjacency. It does **not** directly export an authoritative special "last road edge at our custom 25-km cutoff" list; identifying that edge from the compiled boundary data is part of Step 1, **not** an independent proof calculation. Store unresolved physical ambiguity as an incomplete build state rather than guess or publish.
+
+This supersedes contrary earlier *producer-specific* proof/census requirements in D-002, D-012, D-014 and D-015, and the draft #125 all-tile source census work; it does not change the working Android runtime F8 fallback, Valhalla routing for actual user trips, immutable original graphs or publisher authorization. **PR #125 remains draft/unmerged; its source-census producer is not an approved final implementation.**
+
+**Normative implementation detail:** `docs/F8_BOUNDARY_FINAL_EDGE_IMPLEMENTATION_CONTRACT.md`.
