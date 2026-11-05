@@ -89,6 +89,12 @@ same actual directed physical road, not an arbitrarily nearest road.
 3. Preserve all **genuinely separate** B roads/ramps/forward branches. Do not
    accept an opposing direction, unrelated nearby parallel road, or
    duplicate native hierarchy representation as the same connection.
+   **When multiple receiving edges occupy the same GPS location, Graph Studio
+   uses Valhalla's native directed geometry, road topology, classification,
+   bridge/tunnel and layer information to identify the corresponding physical
+   road. It must not select a different road based only on GPS proximity.**
+   Classification and bridge/layer attributes aid disambiguation; they are not
+   hard equality requirements that discard a real corresponding road.
 4. Determine which directed B segment contains or can represent the **same
    physical handoff X** in its graph-local geometry. Do not treat a projection
    onto a different nearby road as an equivalent second handoff point.
