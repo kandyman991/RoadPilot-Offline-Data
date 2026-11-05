@@ -6,10 +6,17 @@
 new boundary-only build implementation and supersedes conflicting legacy
 requirements for a full-edge census and per-connection routing proofs.
 
-## The only production workflow
+## The only production workflow — owner reconfirmed 2026-11-06
 
-**Compiled graph A + compiled graph B → source final edges → matching
-receiving edges → saved connections → real RoadPilot cross-region tests.**
+1. **Graph A:** Identify the final retained directed GraphId for each physical road and travel direction.
+2. **GPS X:** Retrieve that edge's exact directed destination node coordinates from the original compiled Valhalla graph.
+3. **Graph B:** At the **same GPS location X**, identify the corresponding physical road and directed GraphId in the same travel direction.
+4. **Catalog:** Store `A final GraphId → X → B directed GraphId`, with native car/motorcycle permissions and genuine separate branches.
+5. **RoadPilot:** Test real cross-region A→X→B journeys in both directions and supported modes.
+
+**Keep the existing 25-km graph overlap.** Do not change its size without explicit owner approval. **No arbitrary crossing points, road-name matching, exhaustive graph scans, or redundant per-connection Valhalla routing verification.** No architectural change without explicit owner approval.
+
+The detailed rules below implement these five steps; they do not authorize additional producer stages.
 
 ### 0. Trigger and graph identity
 
@@ -77,8 +84,8 @@ same actual directed physical road, not an arbitrarily nearest road.
 2. Identify the B directed GraphId describing **the same physical road
    continuing in the same travel direction** through/after X. Compare
    directed local geometry and actual native road continuity, not cross-
-   region GraphId equality. An OSM way/name/ref may help distinguish
-   candidates but never decides identity by itself.
+   region GraphId equality. **Do not match by road name, OSM way ID, road
+   reference, or approximate GPS proximity.**
 3. Preserve all **genuinely separate** B roads/ramps/forward branches. Do not
    accept an opposing direction, unrelated nearby parallel road, or
    duplicate native hierarchy representation as the same connection.
