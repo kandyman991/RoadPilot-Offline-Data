@@ -11,7 +11,7 @@ This file is the stable behavioral contract for **what must be built**. It is no
 - app/src/main/java/com/kandyman991/smartridenext/routing/ManagedFrontierChainRoutingRuntime.kt
 - app/src/main/java/com/kandyman991/smartridenext/routing/FrontierMultiRegionChainPlanner.kt
 
-**A2 — Work moves, behavior stays.** Graph Studio moves expensive handoff discovery, directional Valhalla proofs and reusable connection inventory production onto the Legion during graph builds/refresh. It must not replace the F8 frontier scan with a narrower search unless *equivalence is demonstrated* using actual F8 graph-edge results.
+**A2 — Build-time final-edge production.** Under owner decision D-017, Graph Studio reads the final native directed road edges at each original 25-km graph cutoff, correlates the actual receiving graph's same physical road and direction, and precomputes a reusable connection catalog. It does **not** perform individual Valhalla route/TripLeg proof calls for each connection. F8 remains the Android runtime routing/fallback foundation; real Android A→X→B journeys validate the finished integration. Implementation is specified by [F8 boundary final-edge contract](F8_BOUNDARY_FINAL_EDGE_IMPLEMENTATION_CONTRACT.md).
 
 **A3 — Independent graphs.** Each region remains its own immutable, independently built Valhalla graph. No direct cross-graph sharing/comparison of GraphIds; never modify raw .gph files. RoadPilot composes region-local route legs with independently correlated, exact fingerprint-bound handoffs.
 
@@ -19,11 +19,11 @@ This file is the stable behavioral contract for **what must be built**. It is no
 
 **B1 — No first-success lock-in.** A successful handoff, cached route, learned section, or verified connection is NOT proof that all other connections are known. Continue discovery across every relevant frontier/overlap area. Preserve all valid alternatives (including separate highway carriageways, ramps, both travel directions, separate locations on the same named road, and multi-hop chains).
 
-**B2 — No unproven pre-Valhalla rejection.** Heading, geometry gap, road class, road name/ref, nearest distance, and a failed partial route are ranking/diagnostic evidence, not hard eligibility gates. Valhalla is authoritative for directional/mode-specific legality.
+**B2 — Direct compiled-graph matching, no invented filters.** Producer eligibility comes from actual native directed edges near the original source graph's 25-km cutoff, the same physical receiving road and direction, and the vehicle-access bits stored in each compiled Valhalla graph. Never suppress a genuine physical branch using name, way ID, road class, approximate proximity, arbitrary numeric caps or a first successful match. No separate Valhalla route is required merely to re-prove compiled final/receiving GraphIds.
 
-**B3 — Full source coverage must be demonstrated.** Report scanned windows/frontiers, candidate counts, unresolved/rejected/inconclusive/proven counts, modes, directions and graph fingerprints. If search is capped, cancelled, timed out, source data missing, or actual F8 graph-edge parity unverified, declare the corresponding scope **INCOMPLETE / NOT_VERIFIED**. An artifact may say VALIDATED when its generated candidates passed proof; that does not mean all F8 alternatives were found.
+**B3 — Only complete *boundary* coverage counts.** Graph Studio must account for all relevant original boundary-area tiles, final physical road/directions and actual receiving correlations; retain a simple unmatched/incomplete status, mode sets and graph fingerprints. A full original graph edge census, arbitrary off-boundary continuation traversal or per-entry route-proof ledger is **not** required. Missing/rebuilt graphs, ambiguous physical matching or truncated native boundary selection mean **INCOMPLETE**, not zero crossings or successful publication.
 
-**B4 — Graph-edge parity gate.** A release MAY claim that Graph Studio fully precomputes F8 handoffs only when it compares the actual RoadPilot F8 graph-edge scanner against Graph Studio's emitted candidates on the SAME exact regional graph versions, in representative real Italy–Austria, Austria–Germany, motorway, one-way, local-road and multi-hop cases. Every missing F8 candidate must be explained and recovered or reported as incomplete.
+**B4 — Real Android journey acceptance.** The producer's catalog is accepted only after RoadPilot consumes it with the **same exact original graph versions** and successfully navigates real A→X→B journeys in both directions and supported modes, including motorway, ramps, local roads and multi-hop cases. Confirm useful alternate crossings and FASTER/SHORTER behavior. Do not require a separate all-edge diagnostic parity scan or thousands of graph-build-time A-last/B-first Valhalla route calls.
 
 ## C. Route choice and caches
 
@@ -37,13 +37,13 @@ This file is the stable behavioral contract for **what must be built**. It is no
 
 **D1 — Each protected implementation PR must:** identify which contract IDs it preserves or implements; cite inspected F8 source; disclose architecture impact, known gaps, completion/proof state and tests; add regression tests for new routing behavior. If behavior differs from any accepted clause, STOP and request explicit user approval recorded in a linked decision before implementing or merging.
 
-**D2 — Automated regression minimum:** multiple same-name/disjoint crossing candidates retained; different correlated directed edges preserved; second faster crossing selected even when a first connection succeeds; both FASTER and SHORTER compare real full-route costs; graph fingerprint mismatch rejected; incomplete/ambiguous connection never claimed exhaustive; per-leg directed Valhalla and final destination proof not bypassed. Tests use synthetic fixtures for deterministic CI and real graph/device evidence for parity.
+**D2 — Minimal functional regression:** boundary-only native final-edge selection (including `deadend=false` and `is_road=false` cases), same-direction receiving physical correlation, genuine branch and both-mode preservation, graph/buffer fingerprint invalidation, no first-success lock-in and honest incomplete status. Android journey tests cover FASTER/SHORTER and final destination using Valhalla on the actual route legs. Do not add a separate producer diagnostic/proof pipeline.
 
 **D3 — Evidence tiers (NEVER interchangeable):**
 1. IMPLEMENTED: committed code exists.
 2. CI VERIFIED: unit/integration/regression checks passed on specified SHA.
-3. F8 PARITY VERIFIED: actual reference graph-edge comparison report attached.
-4. DEVICE VERIFIED: exact installed graphs, journey coordinates/mode and route diagnostics documented.
+3. BOUNDARY CATALOG VERIFIED: all relevant source final directed edges and receiving branches accounted for in the produced catalog on exact graph fingerprints.
+4. ANDROID JOURNEYS VERIFIED: exact installed graph versions, real A→X→B journeys, modes, direction and final destination recorded.
 5. PRODUCTION READY: explicitly approved after the above and Android ingestion/rollback validation.
 
 **D4 — Merge gate.** No discovery PR is declared architecture-complete or production-ready merely from green CI. Known gaps remain documented until factual comparison evidence closes them. A change that breaks an accepted invariant must not be merged without a *new user-approved* architectural decision and an updated test/evidence plan.
@@ -54,6 +54,12 @@ This file is the stable behavioral contract for **what must be built**. It is no
 - A new architecture must be proposed in a PR with the exact superseded clause, technical justification, a real comparison against F8, a tracked issue and a documented explicit approval by the user. Approval to work on a feature is NOT blanket approval to change this contract.
 - Update the permanent decision log when approved; never erase previous failures or architectural choices.
 - When the implementation diverges: **flag it immediately, stop modifying architecture, and describe the conflict before continuing**.
+
+## F. Owner-approved F8 production implementation (D-017, 2026-11-05)
+
+**Binding four-step specification:** [F8 boundary final-edge implementation contract](F8_BOUNDARY_FINAL_EDGE_IMPLEMENTATION_CONTRACT.md). The accepted implementation is **source final original directed edge → same physical receiving directed edge → one per-road/direction connection with mode union and distinct branches → real Android journeys**. Use boundary-related compiled graph tiles and immediate native edge references; do not enumerate millions of unrelated original edges. Valhalla's compiled `GraphId`, end node, geometry, access and topology are authoritative inputs, while `deadend` is a hint rather than an exact graph-buffer cutoff flag. **No automatic per-connection A-last/B-first TripLeg route proof.** In conflicts this specific D-017 implementation supersedes earlier Graph Studio *producer* requirements in D-002, D-012, D-014 and D-015; independent regional graphs, F8 Android fallback and actual trip routing remain unchanged.
+
+The all-tile build census and previously retained-ledger flow on draft PR #125 are **not compliant** with this owner-approved producer contract. Do not merge or release them as the new producer. This approval does not claim implementation, Android acceptance or catalog publication.
 
 ## Current known deviations
 

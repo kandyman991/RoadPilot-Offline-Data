@@ -16,6 +16,19 @@
 - Contract changes need a project-owner review under .github/CODEOWNERS, plus GitHub branch rulesets with architecture-contract as a required check.
 - Historical PR #75 merged but was superseded by the native-F8 retirement cleanup; do not restore its OSM-only generator or claim issue #73 complete on synthetic CI alone.
 
+## Owner-approved F8 build producer: D-017 (2026-11-05)
+
+**Before any Graph Studio F8 producer edit, read**
+`docs/F8_BOUNDARY_FINAL_EDGE_IMPLEMENTATION_CONTRACT.md`.
+This supersedes the older all-tiles/census and per-connection TripLeg-proof
+producer plan. Inspect only actual 25-km outer-cutoff boundary tiles and native
+incident edges, extract one final original directed GraphId per physical road
+and direction, match the corresponding receiving native directed road and
+record car/motorcycle access and distinct branches. Test actual A→X→B on
+RoadPilot Android. Do **not** add full-graph edge enumeration, per-connection
+A-LAST/B-FIRST route proofs or unrequested diagnostics. Draft PR #125's
+exhaustive source census is **not** the approved production implementation.
+
 ## Native F8 cleanup checkpoint (2026-10-16)
 - The OSM buffered-overlap frontier producer, legacy correlated crossing / proof / matrix pipeline and old multi-region planner are retired from executable Graph Studio paths. Do not call, recreate, or restore them to "fix" missing F8 handoffs. Git history preserves the code if forensic review is needed.
 - The independent read-only native GraphReader scanner remains the entry foundation; use the identity-only `--pair-manifest` path, not legacy `correlations.json`. Actual native Android F8 scan parity remains NOT_VERIFIED, and production sidecar publication stays disabled until all proof tiers pass.

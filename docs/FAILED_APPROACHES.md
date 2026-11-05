@@ -79,3 +79,9 @@ do not re-enable it or classify old VALIDATED sidecars as source-exhaustive F8.
 - **Root cause confidence:** high that this is architectural drift (the old format was reused for convenience because validators and an issue still cited it).
 - **Decision / replacement:** D-015 and `docs/RETIRED_ARCHITECTURE.md`. Build forward from the native evidence chain, keyed by receiver directed edge, using the existing manifest tier keys as the vocabulary.
 - **Reconsider only if:** the owner records a decision with a written compatibility justification for a specific field, and the result passes the contract tiers.
+
+## Earlier cross-graph coordinate relay / nearby point matching (2026-10)
+
+**Status: SUPERSEDED / unreliable as the independent edge-identity method.** Earlier cross-region routing attempted to bind A and B using paired snapped locations or nearby OSM/geometry coordinates; same-location or nearby-location observations were not sufficient to prove the correct directed physical road on both compiled graphs. Exact directed GraphIds differ between regional builds, and segmentation, access and direction can differ. F8's successful behavior instead normalized the actual A arrival X and used that **same geographic handoff** for Graph B's separate Valhalla route leg.
+
+**Decision (owner correction, 2026-11-05):** Do not reintroduce an independently projected/selected Y coordinate as a stored Graph Studio handoff. Use one X sourced from original A's actual final directed edge and correlate B's actual directed road from compiled native geometry/topology. RoadPilot Android end-to-end A→X→B tests, not speculative proximity matches, decide acceptance. Source: D-017 and `docs/F8_BOUNDARY_FINAL_EDGE_IMPLEMENTATION_CONTRACT.md`.

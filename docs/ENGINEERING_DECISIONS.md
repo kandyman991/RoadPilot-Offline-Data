@@ -177,3 +177,24 @@ Reference: D-012, D-013, D-014; `docs/ARCHITECTURE_CONTRACT.md`; `docs/GRAPH_STU
 
 Reference: D-014, D-015; `docs/GRAPH_STUDIO_PHASE4C_ARCHIVE_LEGACY_VALIDATORS.md`.
 
+
+## D-017 — FINAL F8 build architecture: original boundary final edges only (2026-11-05)
+
+**Explicitly approved by the product owner** in the GraphStudio conversation on November 5, 2026, after rejecting redundant proof passes and exhaustive GraphReader directed-edge scans. The four approved steps are:
+
+1. Identify the **final retained original directed GraphId** of each physical road and travel direction in the **source graph's 25-km outer-cutoff area**, reading only relevant compiled boundary tiles and immediate native references. Do not rely on the `deadend` or `is_road` bit as the sole qualifier.
+2. In the **receiving original graph**, correlate the same physical road and direction (the B edge can contain X at an interior point). Use real directed geometry/topology, not equal GraphIds, way/name proximity or a route chosen just for proof.
+3. Save **one source final-edge connection per physical road/direction**, with shared car/motorcycle access attributes and distinct B directed options for genuine branches. X is one shared geographic handoff location: **do not introduce a separately selected/projected receiving Y coordinate**. Use the existing Android consumption format and exact graph/buffer fingerprints.
+4. **Test real RoadPilot Android A→X→B journeys** for both directions and supported modes, motorway/ramp/local/multi-hop and FASTER/SHORTER.
+
+No all-tile directed edge census in the production build stage; no separate Valhalla A-last/B-first TripLeg request per stored connection; no reintroduction of OSM-first, portal matrix, GPS probes, arbitrary full-road lineage, additional diagnostics or success-first shortcut.
+
+Valhalla supplies the native directed GraphIds, endpoints, access and adjacency. It does **not** directly export an authoritative special "last road edge at our custom 25-km cutoff" list; identifying that edge from the compiled boundary data is part of Step 1, **not** an independent proof calculation. Store unresolved physical ambiguity as an incomplete build state rather than guess or publish.
+
+This supersedes contrary earlier *producer-specific* proof/census requirements in D-002, D-012, D-014 and D-015, and the draft #125 all-tile source census work; it does not change the working Android runtime F8 fallback, Valhalla routing for actual user trips, immutable original graphs or publisher authorization. **PR #125 remains draft/unmerged; its source-census producer is not an approved final implementation.**
+
+**Normative implementation detail:** `docs/F8_BOUNDARY_FINAL_EDGE_IMPLEMENTATION_CONTRACT.md`.
+
+**2026-11-05 clarification (previous experiment recovered):** The owner correctly recalled earlier two-sided/coordinate-relay crossing attempts. Historical F8 successfully used A's normalized arrival X as B's route start. Nearby A/B road geometry or coordinates alone did **not** reliably identify corresponding directed edges. D-017 keeps one X and independent original GraphIds, rather than resurrecting a synthetic pair of X/Y endpoints. Real journey tests remain the acceptance gate.
+
+**2026-11-06 owner reconfirmation (exact five-step procedure):** (1) source final original directed GraphId per physical road/direction, (2) destination node GPS X directly from native source Valhalla, (3) corresponding receiving original directed GraphId at **the same X** and travel direction, (4) catalog of `A → X → B` with modes and genuine branches, (5) real RoadPilot cross-region journey tests. **The existing 25-km overlap remains mandatory for this implementation.** No arbitrary crossing points, road-name matching, exhaustive all-graph directed scans or redundant per-connection Valhalla route proofs. Explicit product-owner approval required for any change. This clarifies D-017; no new architecture is authorized.

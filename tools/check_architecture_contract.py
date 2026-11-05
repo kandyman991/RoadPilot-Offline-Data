@@ -14,17 +14,19 @@ import re
 from pathlib import Path
 
 INVARIANTS = (
-    "F8 remains the reference algorithm; no unproven narrower replacement scanner",
+    "F8 remains the Android runtime foundation; Graph Studio producer uses boundary final edges only",
     "First successful or cached crossing never hides alternative crossings",
-    "No pre-Valhalla heading/road-class/separation rejection of potentially valid handoffs",
-    "Directed mode-specific Valhalla proof and exact graph fingerprints are preserved",
-    "Discovery/route completeness is reported truthfully, including budgets and unverified parity",
-    "CI regression evidence is supplied; real-device/F8 parity remains unverified until actually tested",
+    "Same physical road and direction are matched from native compiled graph geometry/topology",
+    "One original source final GraphId per physical road/direction with modes and distinct branches",
+    "Exact graph/buffer fingerprints and incomplete/ambiguous scope are retained honestly",
+    "No producer all-tile directed census or per-connection Valhalla route proof",
+    "Actual cross-region Android journeys are required before production release",
 )
 
 POLICY_FILES = {
     "AGENTS.md",
     "docs/ARCHITECTURE_CONTRACT.md",
+    "docs/F8_BOUNDARY_FINAL_EDGE_IMPLEMENTATION_CONTRACT.md",
     "docs/ARCHITECTURE_GAPS.md",
     "docs/ENGINEERING_DECISIONS.md",
     ".github/CODEOWNERS",
@@ -40,6 +42,7 @@ ROUTING_FILES = re.compile(
     r"|graph-studio/src/main[.]ts"
     r"|tests/test_(?:connectivity|graph_studio_multiregion|f8)[^/]*[.]py"
     r"|native/[^/]*(?:valhalla|routing|frontier)[^/]*"
+    r"|tools/native-f8[^/]*/[^/]*[.](?:cpp|h|txt)"
     r")$"
 )
 CHECKED = re.compile(r"^\s*-\s*\[[xX]\]\s*(.*?)\s*$", re.MULTILINE)
