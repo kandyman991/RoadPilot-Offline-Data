@@ -534,7 +534,25 @@ fn pyvalhalla_native_bin_dir() -> Option<PathBuf> {
     None
 }
 
+// The AppImage runtime exports PYTHONHOME/PYTHONPATH pointing into its
+// mounted usr tree, which has no complete Python standard library. If
+// inherited by our host Python 3.14, venv creation, the routing pipeline,
+// and the pyvalhalla launchers all fail while the binaries still exist.
+// Clear only those AppImage-provided Python bootstrap overrides so host
+// Python uses its own stdlib and the cached Graph Studio venv.
+fn appimage_python_bootstrap_vars(appimage_running: bool) -> &'static [&'static str] {
+    if appimage_running {
+        &["PYTHONHOME", "PYTHONPATH"]
+    } else {
+        &[]
+    }
+}
+
 fn normalize_process_path() {
+    for name in appimage_python_bootstrap_vars(env::var_os("APPIMAGE").is_some()) {
+        env::remove_var(name);
+    }
+
     let home = env::var("HOME").unwrap_or_default();
     let current = env::var_os("PATH").unwrap_or_default();
     let mut paths: Vec<PathBuf> = env::split_paths(&current).collect();
@@ -4535,4 +4553,23 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running RoadPilot Graph Studio");
+}
+
+
+#[cfg(test)]
+mod appimage_python_environment_regression {
+    use super::appimage_python_bootstrap_vars;
+
+    #[test]
+    fn appimage_must_not_export_embedded_python_prefix_into_host_tools() {
+        assert_eq!(
+            appimage_python_bootstrap_vars(true),
+            &["PYTHONHOME", "PYTHONPATH"]
+        );
+    }
+
+    #[test]
+    fn non_appimage_installs_preserve_explicit_python_configuration() {
+        assert!(appimage_python_bootstrap_vars(false).is_empty());
+    }
 }
