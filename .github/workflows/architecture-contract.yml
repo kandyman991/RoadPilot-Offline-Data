@@ -101,6 +101,11 @@ jobs:
       - name: Real final source GraphId to receiving forward physical edge contract
         run: python -m unittest discover -s tests -p 'test_f8_final_edge_connections.py' -v
 
+      - name: Original source native last-edge and branch lineage regression gates
+        run: |
+          python -m unittest discover -s tests -p 'test_f8_source_final_native_topology.py' -v
+          python -m unittest discover -s tests -p 'test_f8_native_last_edge_delivery.py' -v
+
       - name: Android JNI scanner cap and Kotlin road-key parity gating regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_android_jni_parity.py' -v
 
