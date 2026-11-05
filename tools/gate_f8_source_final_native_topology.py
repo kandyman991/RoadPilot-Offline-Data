@@ -53,7 +53,21 @@ def validate_mode(source,root,geometries,mode):
                 raise ValueError("Original source directed edge links to itself")
             if other in branches:continue
             shape=geometries[other]
-            geom=directed_line(shape)
+            try:
+                geom=directed_line(shape)
+            except ValueError:
+                # A true original zero-length directed edge can occur at a
+                # native junction/hierarchy seam. It has a GraphId but does
+                # not prove same-road forward continuity. Preserve it for
+                # separate native-route checking, never silently drop it or
+                # call the source edge terminal.
+                info={"graphId":other,"forwardAccess":mask,
+                      "isRoad":row["isRoad"],"isShortcut":row["isShortcut"],
+                      "physicalGeometry":None,
+                      "unresolvedOriginalZeroLengthEdge":True}
+                branches[other]=info
+                ambiguous.append(info)
+                continue
             m=physical_forward_continuation(src,geom)
             info={"graphId":other,"forwardAccess":mask,
                   "isRoad":row["isRoad"],"isShortcut":row["isShortcut"],

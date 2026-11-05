@@ -53,6 +53,16 @@ class NativeSourceFinalGateTest(TestCase):
             "nativeAllHierarchyContinuationNodes"][0]["allOutgoingDirectedEdges"][:1]
         self.assertEqual(validate_mode(self.a,root,{},"auto")["status"],FINAL)
 
+    def test_native_zero_length_outgoing_edge_is_retained_as_unresolved_branch(self):
+        root=copy.deepcopy(self.root)
+        root["nativeAllHierarchyContinuationNodes"][0]["allOutgoingDirectedEdges"][1:]=[
+            {"graphId":202,"forwardAccess":1025,"isRoad":True,"isShortcut":False}]
+        raw=edge(202,[[47.233864,11.392306],[47.233864,11.392306]])
+        result=validate_mode(self.a,root,{202:raw},"auto")
+        self.assertEqual(result["status"],AMBIGUOUS)
+        self.assertTrue(result["otherUnresolvedOriginalSourceBranches"][0][
+            "unresolvedOriginalZeroLengthEdge"])
+
     def test_invalid_missing_native_neighbor_fails_not_silently_accepts(self):
         with self.assertRaises(KeyError):
             validate_mode(self.a,self.root,{202:self.forward},"auto")
