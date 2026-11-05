@@ -112,6 +112,9 @@ jobs:
       - name: Real outward bilateral crossing-only scope and no-unrelated-roads regression
         run: python -m unittest discover -s tests -p 'test_f8_actual_bilateral_crossing_scope.py' -v
 
+      - name: Automatic build-time bilateral graph-SHA pairing and original F8 proof gates
+        run: python -m unittest discover -s tests -p 'test_f8_auto_bilateral_after_build.py' -v
+
       - name: Android JNI scanner cap and Kotlin road-key parity gating regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_android_jni_parity.py' -v
 

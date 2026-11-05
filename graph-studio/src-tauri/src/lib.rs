@@ -1393,6 +1393,8 @@ fn stage_for_log(line: &str) -> Option<&'static str> {
         Some("Validating visual road coverage")
     } else if line.contains("retained visual build:") {
         Some("Retaining visual package")
+    } else if line.starts_with("F8_POST_BUILD_") {
+        Some("Reconciling original F8 bilateral graph edges")
     } else if line.starts_with("built:") {
         Some("Finalizing package")
     } else {
@@ -1595,10 +1597,25 @@ fn run_build_queue(
         emit_log(&app, format!("✓ {region_id} build validated."));
     }
 
-    // Native F8 connectivity is deliberately NOT invoked until its independent
-    // directed-edge production and Android parity gates are implemented.
-    // Region builds and routing packs are complete without cross-region sidecars.
-    emit_log(&app, "✓ Regional builds complete. Native F8 cross-region discovery is not yet available.");
+    // Run the same fail-closed native final-directed-edge *bilateral stage*
+    // automatically after every relevant regional build queue. The stage
+    // pairs only reciprocal original boundary+graph SHA identities, and
+    // consumes only original A-LAST/B-FIRST proof ledgers for the exact
+    // retained graphs. When source-final evidence has not been generated for
+    // a new graph, it records PENDING rather than invoking the rejected old
+    // GPS-proposals/portal matrix or publishing an incomplete connection.
+    // Validated regional graph packages are retained even if F8 is pending.
+    set_stage(&app, &state, "Reconciling bilateral original F8 final edges");
+    let workspace = workspace_root(&app)?;
+    let mut f8 = Command::new(&python);
+    f8.arg(pipeline.join("tools/run_f8_bilateral_after_build.py"))
+        .arg("--workspace").arg(&workspace)
+        .arg("--package-version").arg(&package_version);
+    for region_id in &region_ids {
+        f8.arg("--built-region").arg(region_id);
+    }
+    run_process_streaming(&app, &state, f8)?;
+    emit_log(&app, "✓ Regional packages validated. Bilateral F8 proof status recorded; source census and Android release gates remain mandatory.");
 
     Ok(())
 }
