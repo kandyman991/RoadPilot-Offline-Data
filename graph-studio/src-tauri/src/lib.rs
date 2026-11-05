@@ -1393,6 +1393,8 @@ fn stage_for_log(line: &str) -> Option<&'static str> {
         Some("Validating visual road coverage")
     } else if line.contains("retained visual build:") {
         Some("Retaining visual package")
+    } else if line.starts_with("F8_SOURCE_ALL_TILES_") {
+        Some("Scanning all original F8 source directed edges near actual overlap")
     } else if line.starts_with("F8_POST_BUILD_") {
         Some("Reconciling original F8 bilateral graph edges")
     } else if line.starts_with("built:") {

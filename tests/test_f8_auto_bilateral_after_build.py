@@ -125,12 +125,39 @@ class AfterBuildBilateralF8Tests(unittest.TestCase):
         self.austria=create_region(self.workspace,"austria",self.version,
                                    "austria","italy-nord-est","italy/nord-est")
         self.manifests=listed_manifests(self.workspace/"builds")
+        # Core contract test: the NEW source census is an independent input,
+        # not derived from any previously successful source-final ledger.
+        # Stub only the native multi-million-edge external reader, never the
+        # exact graph/boundary pair or catalog verification logic.
+        def independent_native_census(work, source_path, receiver_path, pair, side):
+            source=json.loads(source_path.read_text())
+            return {"nativeTilesExhaustivelyRead":True,
+                "allOriginalDirectedIdsVisited":3,
+                "originalTileCount":1,
+                "allScopedRoadEndpoints":[{"originalDirectedGraphId":125,
+                    "nativeOriginalGraphDeadend":True,
+                    "outwardSourceCutClassification":
+                      "OUTWARD_CROSSING_OWN_SOURCE_25KM_CUT"}],
+                "sourceCensusArtifact":"fixture://new-native-source-scan/"+side,
+                "immutableOriginalSourceCensusInputs":{
+                    "sourceOriginalArchiveSHA256":source["graphFingerprint"]}}
+        p=patch("run_f8_bilateral_after_build.original_source_census",
+                side_effect=independent_native_census)
+        self.source_census_mock=p.start()
+        self.addCleanup(p.stop)
 
     def compatible_pair(self):
         pairs=select_compatible_pairs(
             self.manifests,{("italy-nord-est",self.version)})
         self.assertEqual(len(pairs),1)
         return pairs[0][2]
+
+    def test_reciprocal_nominal_original_boundary_pair_deterministic(self):
+        pair=self.compatible_pair()
+        self.assertEqual(pair["pairId"],"italy-nord-est__austria")
+        again=select_compatible_pairs(self.manifests,{("austria",self.version)})
+        self.assertEqual(again[0][2],pair)
+        self.assertEqual(len(pair_fingerprint_key(pair)),64)
 
     def test_tauri_queue_invokes_f8_after_regional_validation(self):
         code=(Path(__file__).resolve().parents[1]/"graph-studio"/"src-tauri"/
@@ -147,12 +174,6 @@ class AfterBuildBilateralF8Tests(unittest.TestCase):
         self.assertNotIn("tools/discover_native_f8_crossings.py",body)
         self.assertNotIn("tools/graph_studio_f8_workspace.py",body)
 
-
-        pair=self.compatible_pair()
-        self.assertEqual(pair["pairId"],"italy-nord-est__austria")
-        again=select_compatible_pairs(self.manifests,{("austria",self.version)})
-        self.assertEqual(again[0][2],pair)
-        self.assertEqual(len(pair_fingerprint_key(pair)),64)
 
     def test_no_crossing_pair_when_source_graphs_do_not_share_boundary(self):
         solo=create_region(self.workspace,"belgium",self.version,
@@ -177,7 +198,7 @@ class AfterBuildBilateralF8Tests(unittest.TestCase):
         write_json(ledger,raw)
         result=run_after_build(self.workspace,{("italy-nord-est",self.version)})
         self.assertEqual(result["pairs"][0]["stage"],
-                         "PENDING_ORIGINAL_SOURCE_FINAL_EDGE_DISCOVERY")
+                         "SOURCE_ALL_TILES_CENSUSED_A_LAST_B_FIRST_PENDING")
         self.assertEqual(result["pairs"][0]["verifiedReceivingDirectedOptions"],0)
 
     def test_one_sided_graph_overlap_must_not_silently_pass(self):
@@ -199,7 +220,11 @@ class AfterBuildBilateralF8Tests(unittest.TestCase):
             self.workspace,{("austria",self.version)})
         self.assertEqual(result["count"],1)
         row=result["pairs"][0]
-        self.assertEqual(row["stage"],"PENDING_ORIGINAL_SOURCE_FINAL_EDGE_DISCOVERY")
+        self.assertEqual(row["stage"],"SOURCE_ALL_TILES_CENSUSED_A_LAST_B_FIRST_PENDING")
+        self.assertEqual(row["originalSourceGraphFullTileCensus"]["from"]
+                         ["originalDirectedIdsAudited"],3)
+        self.assertEqual(row["originalSourceGraphFullTileCensus"]["to"]
+                         ["originalDirectedIdsAudited"],3)
         self.assertFalse(row["sourceDiscoveryComplete"])
         self.assertEqual(row["productionPublication"],"BLOCKED")
         self.assertFalse(row["oldGpsPortalDiscoveryInvoked"])
@@ -221,6 +246,9 @@ class AfterBuildBilateralF8Tests(unittest.TestCase):
         self.assertEqual(x["verifiedSourceFinalDirectedGraphIds"],1)
         self.assertEqual(x["verifiedReceivingDirectedOptions"],1)
         self.assertEqual(x["unresolvedOriginalCandidateIds"],1)
+        self.assertIn("originalSourceGraphFullTileCensus",x)
+        self.assertEqual(x["originalSourceGraphFullTileCensus"]["from"]
+                         ["nearCutCandidateDirectedGraphIds"],1)
         self.assertEqual(x["productionPublication"],"BLOCKED")
         self.assertFalse(x["sourceDiscoveryComplete"])
         self.assertFalse(x["originalSourceTripLegRerunDuringAutomaticStage"])
@@ -235,6 +263,29 @@ class AfterBuildBilateralF8Tests(unittest.TestCase):
         duplicate=run_after_build(
             self.workspace,{("austria",self.version)})
         self.assertEqual(duplicate["pairs"][0],x)
+
+    def test_independent_full_source_census_must_contain_old_proven_edges(self):
+        pair=self.compatible_pair()
+        ledger=self.workspace/"diagnostics"/"f8-production"/"test"/"f8-original-native-verified.json"
+        write_json(ledger,original_ledger(pair,self.workspace))
+        self.source_census_mock.side_effect=lambda work,s,r,p,side: {
+            "nativeTilesExhaustivelyRead":True,
+            "allOriginalDirectedIdsVisited":5,
+            "originalTileCount":1,
+            "allScopedRoadEndpoints":[],
+            "sourceCensusArtifact":"fixture://original-missing",
+            "immutableOriginalSourceCensusInputs":{
+                "sourceOriginalArchiveSHA256":json.loads(s.read_text())["graphFingerprint"]}}
+        with self.assertRaisesRegex(ValueError,"missed previously Valhalla-proven"):
+            run_after_build(self.workspace,{("italy-nord-est",self.version)})
+
+    def test_source_full_tile_reader_must_complete_before_any_legacy_ledger(self):
+        self.source_census_mock.side_effect=lambda work,s,r,p,side: {
+            "nativeTilesExhaustivelyRead":False,
+            "allOriginalDirectedIdsVisited":0,
+            "allScopedRoadEndpoints":[]}
+        with self.assertRaisesRegex(ValueError,"did not exhaust all tiles"):
+            run_after_build(self.workspace,{("italy-nord-est",self.version)})
 
     def test_wrong_graph_sha_rejects_reusing_old_pair(self):
         pair=self.compatible_pair()

@@ -26,6 +26,7 @@ from typing import Any
 
 from build_connectivity_pair_manifest import build_pair, load_object, boundary_fingerprints
 from emit_f8_verified_android_test_catalog import make_partial_cache
+from census_f8_original_source_after_build import original_source_census
 
 SOURCE_SCHEMA = "roadpilot.f8-final-directed-connections"
 RESULT_SCHEMA = "roadpilot.f8-auto-bilateral-after-build"
@@ -324,13 +325,42 @@ def build_automatic_pair_receipt(
     """Immutable automatic stage; partial proof never becomes production-ready."""
     dest=(workspace/"f8-production"/"auto-pairs"/pair["pairId"]/
           pair_fingerprint_key(pair))
-    ledger=find_best_native_ledger(workspace/"diagnostics"/"f8-production",pair)
-    # Before accepting *any* pair evidence, validate exact retained A/B graph
-    # archive sha, not only sidecar strings or an accidental same-version name.
+    # Verify both immutable ORIGINAL graph tarballs before running any native
+    # process. No old region-index / OSM-way fingerprint may replace this.
     verify_pair_archives(a_manifest,b_manifest,pair)
     immutable_json(dest/"pair.json",pair)
+
+    # Actual from-scratch ORIGINAL source GraphReader GetTileSet census in both
+    # directions. The old 247-ID proof ledger is an independent *comparison*,
+    # NOT the source of this inventory. The census enumerates every directed
+    # ID but records only true overlap/cut terminal candidates, never chases
+    # arbitrary road-name/OSM-way continuations around the network.
+    scans={}
+    for side,source,peer in (("from",a_manifest,b_manifest),
+                             ("to",b_manifest,a_manifest)):
+        scans[side]=original_source_census(workspace,source,peer,pair,side)
+        if (scans[side].get("nativeTilesExhaustivelyRead") is not True or
+            scans[side].get("allOriginalDirectedIdsVisited",0)<1):
+            raise ValueError("Native original source GraphReader did not exhaust all tiles")
+    census_summary={
+        side:{"originalDirectedIdsAudited":scan["allOriginalDirectedIdsVisited"],
+              "originalTilesAudited":scan["originalTileCount"],
+              "nearCutCandidateDirectedGraphIds":len(scan["allScopedRoadEndpoints"]),
+              "nativeGraphLocalDeadendCandidateDirectedGraphIds":sum(
+                  x["nativeOriginalGraphDeadend"]
+                  for x in scan["allScopedRoadEndpoints"]),
+              "outwardOrBeyondOriginal25kmCutCandidateDirectedGraphIds":sum(
+                  x["outwardSourceCutClassification"] in (
+                      "OUTWARD_CROSSING_OWN_SOURCE_25KM_CUT",
+                      "ALREADY_BEYOND_OWN_SOURCE_25KM_CUT")
+                  for x in scan["allScopedRoadEndpoints"]),
+              "originalGraphCutCensusArtifact":scan["sourceCensusArtifact"],
+              "graphArchiveSHA256":scan["immutableOriginalSourceCensusInputs"][
+                  "sourceOriginalArchiveSHA256"]}
+        for side,scan in scans.items()}
+    ledger=find_best_native_ledger(workspace/"diagnostics"/"f8-production",pair)
     base={
-        "schema":RESULT_SCHEMA,"version":1,
+        "schema":RESULT_SCHEMA,"version":2,
         "pairId":pair["pairId"],
         "fromGraphFingerprint":pair["fromGraphFingerprint"],
         "toGraphFingerprint":pair["toGraphFingerprint"],
@@ -341,25 +371,42 @@ def build_automatic_pair_receipt(
         "productionPublication":"BLOCKED",
         "fullAndroidAcceptance":"NOT_VERIFIED",
         "oldGpsPortalDiscoveryInvoked":False,
+        "originalSourceGraphFullTileCensus":census_summary,
+        "originalSourceCensusProofScope":
+            "EVERY_NATIVE_DIRECTED_GRAPHID_VISITED_ONLY_REAL_SEAM_CANDIDATES_RETAINED",
     }
     if ledger is None:
         receipt=dict(base,
-            stage="PENDING_ORIGINAL_SOURCE_FINAL_EDGE_DISCOVERY",
-            reason="No exact-graph original A-LAST/B-FIRST native F8 proof ledger. "
-                   "The final-edge source census and native matching must be "
-                   "completed for these specific graph SHA identities.",
+            stage="SOURCE_ALL_TILES_CENSUSED_A_LAST_B_FIRST_PENDING",
+            reason="Fresh original native source archive census completed in BOTH "
+                   "directions. Candidate terminal edges still require original "
+                   "A-LAST TripLeg/source-topology and original B-FIRST matching.",
             verifiedSourceFinalDirectedGraphIds=0,
             verifiedReceivingDirectedOptions=0)
-        immutable_json(dest/"pending-original-native-proof.json",receipt)
-        print("F8_POST_BUILD_PENDING",pair["pairId"],"no original source-final proof "
-              "for exact matching immutable graph fingerprints",flush=True)
+        immutable_json(dest/"pending-source-route-proof-v5.json",receipt)
+        print("F8_POST_BUILD_SOURCE_CENSUSED_PENDING",pair["pairId"],
+              "complete ORIGINAL source tile scans; A-LAST/B-FIRST pending",flush=True)
         return receipt
     path,source,source_sha=ledger
+    # The old proof set must be a subset of the NEW exhaustive original source
+    # graph census. It cannot 'teach' the census which GraphIds to discover.
+    for side,region in (("from",pair["fromRegionId"]),
+                        ("to",pair["toRegionId"])):
+        discovered={c["originalDirectedGraphId"]
+                    for c in scans[side]["allScopedRoadEndpoints"]}
+        proved={c["sourceFinalDirectedGraphId"] for c in source["connections"]
+                if c["sourceRegionId"]==region}
+        omitted=proved-discovered
+        if omitted:
+            raise ValueError(
+                "Fresh original source census missed previously Valhalla-proven "
+                f"directed GraphIds in {region}: count {len(omitted)}; "
+                "will not suppress legitimate road/direction branches")
     partial=make_partial_cache(source,source_sha[7:])
     counts=partial["counts"]
     # Android's bounded parser only accepts a compact <=3MB test cache.
     # Historical precompact files must never be overwritten or promoted.
-    proofdir=dest/"verified-only-android-v2"/source_sha[7:]
+    proofdir=dest/"verified-only-android-v5"/source_sha[7:]
     immutable_json(proofdir/"verified-native-test-only.json",partial,compact=True)
     receipt=dict(base,
         stage="PARTIAL_ORIGINAL_DIRECTED_ROAD_CONNECTIONS_VERIFIED_ONLY",
@@ -374,8 +421,9 @@ def build_automatic_pair_receipt(
         verifiedOnlyAndroidTestCache=str(
             proofdir/"verified-native-test-only.json"),
         mandatoryRemainingWork=(
-            "Finish original source-final road/direction crossing census, "
-            "then prove full Android production runtime journeys; "
+            "Classify exact outgoing cut candidate road/directions into one "
+            "true original source final per physical road/direction, then "
+            "A-LAST/B-FIRST prove all new candidates and run full Android; "
             "no automatic production catalog published."))
     immutable_json(proofdir/"receipt.json",receipt)
     print("F8_POST_BUILD_VERIFIED_PARTIAL",pair["pairId"],
@@ -402,7 +450,11 @@ def run_after_build(
           json.dumps({"checkedBuiltRegionVersions":sorted(changed),
                       "compatibleOriginalGraphPairs":len(pairs),
                       "verifiedPartialPairCount":sum(s["stage"].startswith("PARTIAL_") for s in statuses),
-                      "pendingOriginalNativeProofPairCount":sum(s["stage"].startswith("PENDING_") for s in statuses),
+                      "freshOriginalSourceFullTileCensusPairs":sum(
+                          bool(s.get("originalSourceGraphFullTileCensus")) for s in statuses),
+                      "pendingOriginalNativeProofPairCount":sum(
+                          s["stage"]=="SOURCE_ALL_TILES_CENSUSED_A_LAST_B_FIRST_PENDING"
+                          for s in statuses),
                       "allProductionPublicationBlocked":True},
                      separators=(",",":")),flush=True)
     return {"pairs":statuses,"count":len(pairs)}

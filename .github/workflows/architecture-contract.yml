@@ -112,6 +112,9 @@ jobs:
       - name: Real outward bilateral crossing-only scope and no-unrelated-roads regression
         run: python -m unittest discover -s tests -p 'test_f8_actual_bilateral_crossing_scope.py' -v
 
+      - name: Fresh ORIGINAL source GraphReader all-tile census and no-road-loss gates
+        run: python -m unittest discover -s tests -p 'test_f8_original_source_full_archive_after_build.py' -v
+
       - name: Automatic build-time bilateral graph-SHA pairing and original F8 proof gates
         run: python -m unittest discover -s tests -p 'test_f8_auto_bilateral_after_build.py' -v
 
