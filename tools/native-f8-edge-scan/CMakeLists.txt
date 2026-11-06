@@ -29,3 +29,10 @@ target_compile_features(native_f8_route_edges PRIVATE cxx_std_20)
 target_link_libraries(native_f8_route_edges PRIVATE PkgConfig::VALHALLA PkgConfig::LZ4)
 target_compile_definitions(native_f8_route_edges PRIVATE ROADPILOT_VALHALLA_VERSION="${VALHALLA_VERSION}")
 target_compile_options(native_f8_route_edges PRIVATE -Wall -Wextra -Wpedantic)
+
+# D-017 region-independent source cutoff: reads only preselected boundary tiles.
+add_executable(native_f8_boundary_final_edges native_f8_boundary_final_edges.cpp)
+target_compile_features(native_f8_boundary_final_edges PRIVATE cxx_std_20)
+target_link_libraries(native_f8_boundary_final_edges PRIVATE PkgConfig::VALHALLA)
+target_compile_definitions(native_f8_boundary_final_edges PRIVATE ROADPILOT_VALHALLA_VERSION="${VALHALLA_VERSION}")
+target_compile_options(native_f8_boundary_final_edges PRIVATE -Wall -Wextra -Wpedantic)
