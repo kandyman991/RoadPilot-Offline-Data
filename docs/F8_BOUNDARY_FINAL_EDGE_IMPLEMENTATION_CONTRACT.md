@@ -18,6 +18,24 @@ requirements for a full-edge census and per-connection routing proofs.
 
 The detailed rules below implement these five steps; they do not authorize additional producer stages.
 
+**All-region implementation invariant (owner clarification, 2026-11-06):** This is
+one reusable Graph Studio producer for **every configured region**, not an
+Italy Nord-Est producer. Region IDs, native graph tiles, graph versions, the
+actual 25-km buffered boundary and neighboring graph identity are always
+read from that region's existing build artifacts; no hardcoded geography,
+OSM road names or country-specific special cases. Italy Nord-Est and Austria
+are **real test inputs only**. A success on those regions alone does not
+prove production completeness for other regions.
+
+The first source-only increment (`tools/extract_f8_region_final_edges.py`)
+reads the indexed tiles along any region's original buffered cutoff and
+its immediate native neighbours, retaining native mode-terminal candidates
+and separately reporting unresolved junction-directed edges. It **does not
+claim complete final physical-road identification**, receiving correlation,
+Android compatibility or publication until the following stages actually
+implement those steps. This clarification does not authorize a new
+all-graph scan or diagnostic system.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer
