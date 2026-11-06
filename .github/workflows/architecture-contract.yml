@@ -30,6 +30,9 @@ jobs:
       - name: Enforce behavioral F8 architecture regressions
         run: python -m unittest discover -s tests -p 'test_f8_architecture_regressions.py' -v
 
+      - name: Region-independent original 25-km boundary source extraction
+        run: python -m unittest discover -s tests -p 'test_f8_region_final_edge_extractor.py' -v
+
       - name: Native F8 graph-backed physical peer and incomplete-evidence regressions
         run: python -m unittest discover -s tests -p 'test_native_f8_pair_evidence.py' -v
 

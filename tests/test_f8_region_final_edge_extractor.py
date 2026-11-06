@@ -1,0 +1,155 @@
+"""D-017 source stage: generic regional graph tile cut and immutable identities."""
+from __future__ import annotations
+
+import hashlib
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+from shapely.geometry import box, mapping
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+import extract_f8_region_final_edges as extractor
+
+
+def tile(level, number, west, south, size=.25):
+    return {"level": level, "tileIndex": number,
+            "bounds": {"minLng": west, "minLat": south,
+                       "maxLng": west + size, "maxLat": south + size}}
+
+
+class RegionIndependentBoundaryTests(unittest.TestCase):
+    def test_selects_only_boundary_and_immediately_neighboring_tiles(self):
+        tiles = [
+            tile(2, 100, 10, 44),
+            tile(2, 101, 10.25, 44),
+            tile(2, 102, 10.50, 44),
+            tile(2, 999999, 90, 10),
+        ]
+        polygon = mapping(box(10.01, 44.01, 10.24, 44.24))
+        actual = extractor.select_cut_tiles(
+            {"schema": "roadpilot-graph-index", "tiles": tiles},
+            {"type": "Feature", "geometry": polygon})
+        self.assertEqual({t["tileIndex"] for t in actual}, {100, 101})
+
+    def test_other_geography_uses_exact_same_algorithm(self):
+        actual = extractor.select_cut_tiles(
+            {"schema": "roadpilot-graph-index",
+             "tiles": [tile(2, 240, -70, -12), tile(2, 241, -69.75, -12),
+                       tile(2, 300, 35, 51)]},
+            {"type": "Feature", "geometry": mapping(box(-69.99, -11.99, -69.80, -11.80))})
+        self.assertEqual({t["tileIndex"] for t in actual}, {240, 241})
+
+    def test_native_terminal_modes_and_unresolved_edges_remain_separate(self):
+        terminal = {"kind": "edge", "graphId": 123, "access": 6,
+                    "nativeTerminalModes": 2, "isRoad": False,
+                    "deadend": False}
+        unresolved = {"kind": "edge", "graphId": 124, "access": 6,
+                      "nativeTerminalModes": 0}
+        marker = {"kind": "complete", "selectedTiles": 2,
+                  "valhallaVersion": "3.6.3", "edgesEmitted": 2,
+                  "directedExamined": 400}
+        lines = "\n".join(json.dumps(v) for v in (terminal, unresolved, marker))
+        finals, rest, complete = extractor.classify_native_rows(
+            lines, selected_count=2, version="3.6.3")
+        self.assertEqual([item["graphId"] for item in finals], [123])
+        self.assertEqual([item["graphId"] for item in rest], [124])
+        self.assertFalse(finals[0]["isRoad"])
+        self.assertFalse(finals[0]["deadend"])
+        self.assertEqual(complete["directedExamined"], 400)
+
+    def test_duplicate_missing_or_false_native_completion_fails(self):
+        row = '{"kind":"edge","graphId":1,"access":4,"nativeTerminalModes":4}'
+        marker = '{"kind":"complete","selectedTiles":1,"valhallaVersion":"3.6.3","edgesEmitted":1}'
+        for lines in (row, row + "\n" + row + "\n" + marker,
+                      row + "\n" + marker.replace('"selectedTiles":1', '"selectedTiles":2'),
+                      row + "\n" + marker.replace('"edgesEmitted":1', '"edgesEmitted":9')):
+            with self.subTest(lines=lines):
+                with self.assertRaises(ValueError):
+                    extractor.classify_native_rows(lines, selected_count=1, version="3.6.3")
+
+    def make_region(self, root: Path, region: str):
+        dist = root / region
+        dist.mkdir()
+        manifest = dist / "routing-manifest.json"
+        archive = dist / "tiles.tar"
+        archive.write_bytes(b"original Valhalla archive fixture")
+        idx = dist / "routing-graph-index.json"
+        idx.write_text(json.dumps({
+            "schema": "roadpilot-graph-index", "regionId": region,
+            "packageVersion": "v1", "tiles": [tile(2, 177, 10, 44)]
+        }))
+        buf = dist / "buffer.geojson"
+        buf.write_text(json.dumps({
+            "type": "Feature", "properties": {"borderBufferKm": 25},
+            "geometry": mapping(box(10.01, 44.01, 10.24, 44.24))
+        }))
+        sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+        m = {
+            "schema": "roadpilot-routing-pack",
+            "regionId": region, "packageVersion": "v1",
+            "valhallaVersion": "3.6.3",
+            "graphFingerprint": "sha256:" + sha(archive),
+            "artifact": {"fileName": "tiles.tar", "sha256": sha(archive)},
+            "source": {"borderBufferKm": 25,
+                       "bufferGeoJsonSha256": sha(buf)},
+            "graphIndex": {"sha256": sha(idx)}
+        }
+        manifest.write_text(json.dumps(m))
+        config = dist / "valhalla.json"
+        config.write_text(json.dumps({
+            "mjolnir": {"tile_extract": "/wrong/old/archive.tar",
+                        "tile_dir": "/wrong/old/tiles"}
+        }))
+        return manifest, idx, buf, config
+
+    def test_manifest_is_region_independent_and_checks_25km_and_sha(self):
+        with tempfile.TemporaryDirectory() as temp:
+            region = self.make_region(Path(temp), "arbitrary-region-xyz")
+            m, selected = extractor.region_input(*region[:3])
+            self.assertEqual(m["regionId"], "arbitrary-region-xyz")
+            self.assertEqual(len(selected), 1)
+            region[2].write_text(region[2].read_text() + " ")
+            with self.assertRaisesRegex(ValueError, "changed"):
+                extractor.region_input(*region[:3])
+
+    def test_native_reader_is_pinned_to_the_original_regional_archive(self):
+        with tempfile.TemporaryDirectory() as temp:
+            manifest, idx, buffer_file, config = self.make_region(Path(temp), "another-region")
+            observed = {}
+            old_run = extractor.subprocess.run
+            def fake_run(cmd, *, check, capture_output, text, timeout):
+                if "--version" in cmd:
+                    return subprocess.CompletedProcess(cmd, 0, "3.6.3\n")
+                observed["tileIds"] = Path(cmd[2]).read_text().strip()
+                observed["config"] = json.loads(Path(cmd[1]).read_text())
+                rows = [
+                    {"kind": "edge", "graphId": 77, "access": 4,
+                     "nativeTerminalModes": 4},
+                    {"kind": "complete", "selectedTiles": 1,
+                     "valhallaVersion": "3.6.3", "edgesEmitted": 1,
+                     "directedExamined": 56}
+                ]
+                return subprocess.CompletedProcess(cmd, 0, "\n".join(json.dumps(r) for r in rows))
+            try:
+                extractor.subprocess.run = fake_run
+                output = extractor.extract(
+                    manifest_path=manifest, index_path=idx, buffer_path=buffer_file,
+                    valhalla_config_path=config, binary=Path("/fake/native"))
+            finally:
+                extractor.subprocess.run = old_run
+            self.assertEqual(output["regionId"], "another-region")
+            self.assertEqual(output["selectedBoundaryTileCount"], 1)
+            self.assertEqual([x["graphId"] for x in output["nativeModeTerminalCandidates"]], [77])
+            self.assertEqual(output["sourcePhysicalRoadFinalIdentification"], "INCOMPLETE")
+            self.assertEqual(output["productionPublication"], "BLOCKED")
+            self.assertTrue(observed["config"]["mjolnir"]["tile_extract"].endswith("another-region/tiles.tar"))
+            self.assertEqual(observed["tileIds"], str((177 << 3) | 2))
+            self.assertIn("no-unpacked-tiles", observed["config"]["mjolnir"]["tile_dir"])
+
+
+if __name__ == "__main__":
+    unittest.main()
