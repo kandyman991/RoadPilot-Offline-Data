@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <deque>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -82,19 +83,43 @@ int main(int argc, char** argv) {
           if (edge->opp_index() >= end_node->edge_count())
             throw std::runtime_error("Broken opposing edge index");
 
-          // Do not call a genuine physical-road branch a final based on the
-          // native deadend flag. Include actual mode terminal edges and label
-          // the remaining local-junction cases unresolved for physical-road
-          // correlation; no guessed source final is made publishable.
+          // A terminal is not just "no more edges on the current hierarchy
+          // level". Valhalla may expose a continuation through an immediate
+          // zero-length hierarchy transition. Visit only transition-linked
+          // versions of THIS end node; never traverse the wider road graph.
+          // Count shortcuts as possible continuations (not candidate finals).
           uint32_t other_modes = 0;
-          for (uint32_t j = 0; j < end_node->edge_count(); ++j) {
-            if (j == edge->opp_index()) continue;
-            const baldr::GraphId out_id(end_id.tileid(), end_id.level(),
-                                        end_node->edge_index() + j);
-            const auto* next = end_tile->directededge(out_id);
-            if (!next->IsTransitLine() && !next->is_shortcut())
-              other_modes |= (next->forwardaccess() & kModes);
+          std::deque<baldr::GraphId> pending{end_id};
+          std::unordered_set<uint64_t> seen_nodes;
+          seen_nodes.insert(end_id.value);
+          while (!pending.empty()) {
+            const auto local_id = pending.front();
+            pending.pop_front();
+            const auto local_tile = reader.GetGraphTile(local_id);
+            if (!local_tile || local_id.id() >= local_tile->header()->nodecount())
+              throw std::runtime_error("Missing native transition-linked end node");
+            const auto* local_node = local_tile->node(local_id);
+            for (uint32_t j = 0; j < local_node->edge_count(); ++j) {
+              // Only the exact reverse on the original hierarchy is known
+              // to be the opposing directed edge. Other peer-level edges
+              // must remain unresolved until road correlation, not discarded.
+              if (local_id == end_id && j == edge->opp_index()) continue;
+              const baldr::GraphId out_id(local_id.tileid(), local_id.level(),
+                                          local_node->edge_index() + j);
+              const auto* next = local_tile->directededge(out_id);
+              if (!next->IsTransitLine())
+                other_modes |= (next->forwardaccess() & kModes);
+            }
+            for (const auto& transition : local_tile->GetNodeTransitions(local_id)) {
+              const auto peer = transition.endnode();
+              if (!peer.is_valid())
+                throw std::runtime_error("Invalid original hierarchy transition");
+              if (seen_nodes.insert(peer.value).second)
+                pending.push_back(peer);
+            }
           }
+          // A graph-local terminal candidate remains a candidate, NOT a
+          // confirmed last physical-road edge. Receiving correlation is later.
           const uint32_t terminal_modes = edge->forwardaccess() & kModes & ~other_modes;
           // Output only edges with at least one definitively mode-terminal
           // local end, OR an unresolved local continuation. The receiving
