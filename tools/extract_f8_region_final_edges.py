@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import math
 import shutil
 import hashlib
 import json
@@ -21,6 +22,7 @@ from pathlib import Path
 from shapely.geometry import box, shape
 
 SCHEMA = "roadpilot.f8-region-original-boundary-source"
+NATIVE_PROTOCOL = "roadpilot.f8-native-source-2"
 VALID_MODES = 0  # Native executable owns the exact Valhalla access bit masks.
 
 
@@ -135,6 +137,40 @@ def region_input(manifest: Path, graph_index: Path, buffer_geojson: Path) -> tup
     return m, selected
 
 
+def validate_directed_approach(entry: dict) -> None:
+    """The native tangent must point INTO the original terminal coordinate X.
+
+    Coordinates are evidence, not proof of the receiving physical road. A
+    missing/degenerate native geometry must never be silently fabricated.
+    """
+    if type(entry.get("hasNativeApproachTangent")) is not bool:
+        raise ValueError("Native edge missing directed-geometry capability")
+    end = (entry.get("endLat"), entry.get("endLon"))
+    if any(type(v) not in (float, int) or not math.isfinite(v) for v in end):
+        raise ValueError("Invalid original directed edge endpoint")
+    if not (-90 <= end[0] <= 90 and -180 <= end[1] <= 180):
+        raise ValueError("Out-of-range native endpoint")
+    tangent = (entry.get("approachLat"), entry.get("approachLon"))
+    if not entry["hasNativeApproachTangent"]:
+        if tangent != (None, None):
+            raise ValueError("Degenerate native shape must not invent a tangent")
+        return
+    if any(type(v) not in (float, int) or not math.isfinite(v) for v in tangent):
+        raise ValueError("Invalid native approach tangent")
+    if not (-90 <= tangent[0] <= 90 and -180 <= tangent[1] <= 180):
+        raise ValueError("Out-of-range native approach tangent")
+    if abs(tangent[0] - end[0]) <= 1e-8 and abs(tangent[1] - end[1]) <= 1e-8:
+        raise ValueError("Native approach tangent collapses to the terminal node")
+
+
+def require_native_protocol(binary: Path, version: str) -> None:
+    for flag, expected in (("--version", version), ("--protocol", NATIVE_PROTOCOL)):
+        result = subprocess.run([str(binary), flag], check=True, capture_output=True,
+                                text=True, timeout=30)
+        if result.stdout.strip() != expected:
+            raise ValueError(f"Native Valhalla/protocol mismatch: {flag}")
+
+
 def classify_native_rows(lines: str, *, selected_count: int, version: str) -> tuple[list[dict], list[dict], dict]:
     """Separate graph-local terminal modes from unresolved junction cases.
 
@@ -154,6 +190,7 @@ def classify_native_rows(lines: str, *, selected_count: int, version: str) -> tu
             continue
         if completion is not None or entry.get("kind") != "edge":
             raise ValueError("Invalid native boundary record sequence")
+        validate_directed_approach(entry)
         gid = entry["graphId"]
         if not isinstance(gid, int) or gid in seen:
             raise ValueError("Repeated or nonnumeric original directed GraphId")
@@ -175,10 +212,7 @@ def extract(*, manifest_path: Path, index_path: Path, buffer_path: Path,
             valhalla_config_path: Path, binary: Path) -> dict:
     manifest, selected = region_input(manifest_path, index_path, buffer_path)
     expected_version = str(manifest["valhallaVersion"])
-    actual = subprocess.run([str(binary), "--version"], check=True, capture_output=True,
-                            text=True, timeout=30).stdout.strip()
-    if actual != expected_version:
-        raise ValueError("Native Valhalla version does not match compiled graph")
+    require_native_protocol(binary, expected_version)
     # Keep exactly the validated original routing archive, and never read
     # a potentially stale unpacked tile directory from a previous build.
     config = load_json(valhalla_config_path)
@@ -202,7 +236,7 @@ def extract(*, manifest_path: Path, index_path: Path, buffer_path: Path,
         result.stdout, selected_count=len(selected), version=expected_version)
     return {
         "schema": SCHEMA,
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "regionId": manifest["regionId"],
         "packageVersion": manifest["packageVersion"],
         "graphFingerprint": manifest["graphFingerprint"],
@@ -233,10 +267,7 @@ def extract_to_file(*, manifest_path: Path, index_path: Path, buffer_path: Path,
         raise ValueError("Output already exists; refusing to overwrite original region evidence")
     manifest, selected = region_input(manifest_path, index_path, buffer_path)
     version = str(manifest["valhallaVersion"])
-    actual = subprocess.run([str(binary), "--version"], check=True,
-                            capture_output=True, text=True, timeout=30).stdout.strip()
-    if actual != version:
-        raise ValueError("Native Valhalla version does not match compiled graph")
+    require_native_protocol(binary, version)
     config = load_json(valhalla_config_path)
     if "mjolnir" not in config:
         raise ValueError("Not a Valhalla routing config")
@@ -274,6 +305,7 @@ def extract_to_file(*, manifest_path: Path, index_path: Path, buffer_path: Path,
                     continue
                 if completion is not None or entry.get("kind") != "edge":
                     raise ValueError("Invalid native boundary record sequence")
+                validate_directed_approach(entry)
                 gid = entry.get("graphId")
                 if not isinstance(gid, int) or gid in seen:
                     raise ValueError("Repeated or nonnumeric original directed GraphId")
@@ -293,7 +325,7 @@ def extract_to_file(*, manifest_path: Path, index_path: Path, buffer_path: Path,
         # Original compiled graph is the retained authority. This candidate
         # inventory explicitly does NOT assert final physical-road identity.
         header = {
-            "schema": SCHEMA, "schemaVersion": 1,
+            "schema": SCHEMA, "schemaVersion": 2,
             "regionId": manifest["regionId"],
             "packageVersion": manifest["packageVersion"],
             "graphFingerprint": manifest["graphFingerprint"],

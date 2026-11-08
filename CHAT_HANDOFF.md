@@ -1,5 +1,44 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Current working increment — draft PR #127 (2026-11-08)
+
+PR: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/127
+Branch: `feature/f8-region-independent-final-edge-source-20261106`.
+Building on the original region-independent, read-only 25-km compiled
+boundary-tile source extractor. This increment reads the *actual directed
+Valhalla edge shape* and emits the last nonidentical approach vertex
+into the original source endpoint X, retains road use and directed
+orientation, and requires `roadpilot.f8-native-source-2` binary protocol.
+Python fails closed on missing/nonfinite/collapsed approaches and stores
+an absent/degenerate geometry explicitly as null. No candidate is
+removed on polygon distance, name, OSM way, access mode or apparent
+forward continuation. This is native source geometry evidence, **not**
+proof of a unique last physical road edge or a receiver match.
+
+On the Legion with Valhalla 3.6.3, native release compilation PASSED;
+398 Python tests PASSED. Real original Italy Nord-Est archive read-only
+extraction v3 PASSED: 178 boundary tiles, 281,290 native terminal-mode
+candidates, 2,854,067 local continuation-unresolved edges, 54.59 seconds,
+774,272 KiB peak RSS. The v3 SHA-256 is
+`d7cafa9ebd261dfc5ec27c284413075a6daadd08d716421f6cac6835d724d5d1`.
+Read-only validation retained 177/177 historical Italy Nord-Est source
+cut directed GraphIds, each with its native approach tangent; 23 out of
+3,135,357 emitted directed edges had no nondegenerate approach tangent
+and were retained with explicit null. Prior v2 candidate counts unchanged. Source
+physical-road uniqueness INCOMPLETE; receiving-B correlation NOT_STARTED;
+Android full journeys NOT_RUN; producer publication BLOCKED. No graph
+packages, source geometry files, Android code, or installed GUI changed.
+
+**NEXT EXACT STEP:** determine each actual last retained source edge per
+physical road/travel direction from the native directed geometry/topology
+(including ambiguous continuations, ramps and hierarchy levels) using only
+the original boundary tiles and immediate native references; then identify
+the matching B directed geometry at the same X, preserve genuine branches
+and mode intersection, integrate the versioned catalog into the build, and
+run real RoadPilot Android A→X→B journeys. Italy/Austria remain test data,
+never code special cases. Do not merge this draft or publish an incomplete
+source inventory as completed connections.
+
 ## LATEST completed merge — PR #122 reviewed source-only evidence (2026-11-04)
 
 Owner-authorized PR #122 was independently audited as a separate technical

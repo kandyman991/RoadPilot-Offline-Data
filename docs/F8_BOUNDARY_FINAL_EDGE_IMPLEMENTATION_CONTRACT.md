@@ -36,6 +36,17 @@ Android compatibility or publication until the following stages actually
 implement those steps. This clarification does not authorize a new
 all-graph scan or diagnostic system.
 
+**November 8 source-stage geometry increment (draft PR #127, nonpublishing):**
+The native region-independent reader now includes the *directed approach
+vertex* from the same compiled source edge shape that ends at X, plus
+original road use and shape orientation. This is native source geometry,
+not an inferred second receiving coordinate Y, a cross-region name/way
+match, or authorization to declare physical-road identity. Its versioned
+protocol fails closed against older binaries, and absent/degenerate
+geometry is represented as unavailable instead of fabricated. Every
+native local continuation remains unresolved until the actual physical
+road and receiver are identified; the catalog remains blocked.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer

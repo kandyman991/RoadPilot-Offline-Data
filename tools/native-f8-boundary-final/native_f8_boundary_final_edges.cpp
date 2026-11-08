@@ -9,6 +9,7 @@
 #include <valhalla/midgard/logging.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <deque>
 #include <fstream>
@@ -34,6 +35,10 @@ uint64_t decimal_id(const std::string& line) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  if (argc == 2 && std::string(argv[1]) == "--protocol") {
+    std::cout << "roadpilot.f8-native-source-2\n";
+    return 0;
+  }
   if (argc == 2 && std::string(argv[1]) == "--version") {
     std::cout << ROADPILOT_VALHALLA_VERSION << '\n';
     return 0;
@@ -79,6 +84,32 @@ int main(int argc, char** argv) {
           if (!end_tile || end_id.id() >= end_tile->header()->nodecount())
             throw std::runtime_error("Broken native directed end-node reference");
           const auto end = end_tile->get_node_ll(end_id);
+          // An endpoint alone cannot identify the same physical directed
+          // road in the receiver. Record the last distinct point of the
+          // ORIGINAL edge shape as an approach tangent to X. Never invent a
+          // second handoff or select a receiving edge by GPS distance alone.
+          auto directed_shape = tile->edgeinfo(edge).shape();
+          if (!edge->forward())
+            std::reverse(directed_shape.begin(), directed_shape.end());
+          bool has_approach = false;
+          double approach_lat = 0.0, approach_lon = 0.0;
+          if (!directed_shape.empty()) {
+            const auto& x = directed_shape.back();
+            if (!std::isfinite(x.lat()) || !std::isfinite(x.lng()))
+              throw std::runtime_error("Invalid native directed geometry endpoint");
+            for (std::size_t i = directed_shape.size() - 1; i > 0; --i) {
+              const auto& previous = directed_shape[i - 1];
+              if (!std::isfinite(previous.lat()) || !std::isfinite(previous.lng()))
+                throw std::runtime_error("Invalid native directed geometry vertex");
+              if (std::abs(previous.lat() - x.lat()) > 1e-8 ||
+                  std::abs(previous.lng() - x.lng()) > 1e-8) {
+                has_approach = true;
+                approach_lat = previous.lat();
+                approach_lon = previous.lng();
+                break;
+              }
+            }
+          }
           const auto* end_node = end_tile->node(end_id);
           if (edge->opp_index() >= end_node->edge_count())
             throw std::runtime_error("Broken opposing edge index");
@@ -132,6 +163,16 @@ int main(int argc, char** argv) {
                     << ",\"startLon\":" << start.lng()
                     << ",\"endLat\":" << end.lat()
                     << ",\"endLon\":" << end.lng()
+                    << ",\"directedShapeForward\":" << (edge->forward() ? "true" : "false")
+                    << ",\"hasNativeApproachTangent\":" << (has_approach ? "true" : "false")
+                    << ",\"approachLat\":";
+          if (has_approach) std::cout << approach_lat;
+          else std::cout << "null";
+          std::cout << ",\"approachLon\":";
+          if (has_approach) std::cout << approach_lon;
+          else std::cout << "null";
+          std::cout
+                    << ",\"roadUse\":" << static_cast<uint32_t>(edge->use())
                     << ",\"access\":" << (edge->forwardaccess() & kModes)
                     << ",\"nativeTerminalModes\":" << terminal_modes
                     << ",\"localContinuingModes\":" << other_modes
