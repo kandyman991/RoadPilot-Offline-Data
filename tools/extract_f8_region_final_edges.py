@@ -10,6 +10,8 @@ ledger, named road, guessed GPS point, route probe, or full archive edge scan.
 from __future__ import annotations
 
 import argparse
+import gzip
+import shutil
 import hashlib
 import json
 import subprocess
@@ -217,6 +219,119 @@ def extract(*, manifest_path: Path, index_path: Path, buffer_path: Path,
     }
 
 
+
+def extract_to_file(*, manifest_path: Path, index_path: Path, buffer_path: Path,
+                    valhalla_config_path: Path, binary: Path, output_path: Path) -> dict:
+    """Stream the same complete, explicitly UNPROVEN boundary evidence to disk.
+
+    The original region graph is never modified. This is storage efficiency,
+    not an extra discovery algorithm or a change in candidate eligibility.
+    Large selected boundary tiles may contain millions of unrelated edges;
+    neither the native output nor its arrays may be materialized in memory.
+    """
+    if output_path.exists():
+        raise ValueError("Output already exists; refusing to overwrite original region evidence")
+    manifest, selected = region_input(manifest_path, index_path, buffer_path)
+    version = str(manifest["valhallaVersion"])
+    actual = subprocess.run([str(binary), "--version"], check=True,
+                            capture_output=True, text=True, timeout=30).stdout.strip()
+    if actual != version:
+        raise ValueError("Native Valhalla version does not match compiled graph")
+    config = load_json(valhalla_config_path)
+    if "mjolnir" not in config:
+        raise ValueError("Not a Valhalla routing config")
+    original_archive = manifest_path.parent / manifest["artifact"]["fileName"]
+    with tempfile.TemporaryDirectory(prefix="f8-boundary-stream-") as temp:
+        root = Path(temp)
+        params = dict(config)
+        params["mjolnir"] = dict(config["mjolnir"])
+        params["mjolnir"]["tile_extract"] = str(original_archive.resolve())
+        params["mjolnir"]["tile_dir"] = str(root / "no-unpacked-tiles")
+        cfg = root / "valhalla.json"
+        cfg.write_text(json.dumps(params), encoding="utf-8")
+        ids = root / "selected-original-tiles.txt"
+        ids.write_text("".join(f'{int(t["level"]) | int(t["tileIndex"]) << 3}\n'
+                               for t in selected), encoding="utf-8")
+        native_path = root / "native.jsonl"
+        with native_path.open("wb") as handle:
+            subprocess.run([str(binary), str(cfg), str(ids)], check=True,
+                           stdout=handle, stderr=subprocess.PIPE, timeout=600)
+        counts = {"terminal": 0, "unresolved": 0}
+        spool_paths = {category: root / (category + ".json-part")
+                       for category in counts}
+        seen = set()
+        completion = None
+        with (native_path.open("r", encoding="utf-8") as source,
+              spool_paths["terminal"].open("w", encoding="utf-8") as terminals,
+              spool_paths["unresolved"].open("w", encoding="utf-8") as unresolved):
+            targets = {"terminal": terminals, "unresolved": unresolved}
+            for line in source:
+                entry = json.loads(line)
+                if entry.get("kind") == "complete":
+                    if completion is not None:
+                        raise ValueError("Repeated native completion record")
+                    completion = entry
+                    continue
+                if completion is not None or entry.get("kind") != "edge":
+                    raise ValueError("Invalid native boundary record sequence")
+                gid = entry.get("graphId")
+                if not isinstance(gid, int) or gid in seen:
+                    raise ValueError("Repeated or nonnumeric original directed GraphId")
+                seen.add(gid)
+                if int(entry["nativeTerminalModes"]) & ~int(entry["access"]):
+                    raise ValueError("Native terminal mode exceeds original access")
+                category = "terminal" if entry["nativeTerminalModes"] else "unresolved"
+                target = targets[category]
+                if counts[category]:
+                    target.write(",")
+                target.write(line.rstrip("\r\n"))
+                counts[category] += 1
+        if (completion is None or completion.get("selectedTiles") != len(selected)
+                or completion.get("valhallaVersion") != version
+                or completion.get("edgesEmitted") != len(seen)):
+            raise ValueError("Original native boundary scan did not complete on exact inputs")
+        # Original compiled graph is the retained authority. This candidate
+        # inventory explicitly does NOT assert final physical-road identity.
+        header = {
+            "schema": SCHEMA, "schemaVersion": 1,
+            "regionId": manifest["regionId"],
+            "packageVersion": manifest["packageVersion"],
+            "graphFingerprint": manifest["graphFingerprint"],
+            "bufferFingerprint": "sha256:" + sha256(buffer_path),
+            "graphIndexFingerprint": "sha256:" + sha256(index_path),
+            "valhallaVersion": version,
+            "selectedBoundaryTileCount": len(selected),
+            "nativeDirectedEdgesInSelectedTiles": completion["directedExamined"],
+        }
+        footer = {
+            "sourcePhysicalRoadFinalIdentification": "INCOMPLETE",
+            "receiverCorrelation": "NOT_STARTED",
+            "productionPublication": "BLOCKED",
+        }
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=output_path.parent, delete=False) as tempfile_output:
+            staged = Path(tempfile_output.name)
+        try:
+            opener = gzip.open if output_path.suffix == ".gz" else open
+            with opener(staged, "wt", encoding="utf-8") as result:
+                result.write(json.dumps(header, separators=(",", ":"))[:-1])
+                for name, filename in (("nativeModeTerminalCandidates", spool_paths["terminal"]),
+                                       ("unresolvedJunctionDirectedEdges", spool_paths["unresolved"])):
+                    result.write(',"' + name + '":[')
+                    with filename.open("r", encoding="utf-8") as rows:
+                        shutil.copyfileobj(rows, result, length=1024 * 1024)
+                    result.write("]")
+                result.write("," + json.dumps(footer, separators=(",", ":"))[1:] + "\n")
+            if output_path.exists():
+                raise ValueError("Refusing to overwrite existing original region evidence")
+            staged.replace(output_path)
+        finally:
+            staged.unlink(missing_ok=True)
+        return {**header, **footer,
+                "nativeTerminalCandidateCount": counts["terminal"],
+                "unresolvedJunctionDirectedEdgeCount": counts["unresolved"]}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
@@ -226,20 +341,13 @@ def main() -> None:
     parser.add_argument("--native-binary", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    output = extract(manifest_path=args.manifest, index_path=args.graph_index,
-                     buffer_path=args.buffer_geojson,
-                     valhalla_config_path=args.valhalla_config, binary=args.native_binary)
-    if args.output.exists():
-        raise SystemExit("Output already exists; refusing to overwrite original region evidence")
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=args.output.parent,
-                                     delete=False) as tmp:
-        tmp.write(json.dumps(output, separators=(",", ":")) + "\n")
-        temporary = Path(tmp.name)
-    temporary.replace(args.output)
+    output = extract_to_file(manifest_path=args.manifest, index_path=args.graph_index,
+                             buffer_path=args.buffer_geojson,
+                             valhalla_config_path=args.valhalla_config,
+                             binary=args.native_binary, output_path=args.output)
     print(f'region={output["regionId"]} selectedTiles={output["selectedBoundaryTileCount"]} '
-          f'terminalCandidates={len(output["nativeModeTerminalCandidates"])} '
-          f'unresolved={len(output["unresolvedJunctionDirectedEdges"])} '
+          f'terminalCandidates={output["nativeTerminalCandidateCount"]} '
+          f'unresolved={output["unresolvedJunctionDirectedEdgeCount"]} '
           'publication=BLOCKED')
 
 

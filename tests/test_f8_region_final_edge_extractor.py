@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import gzip
 import json
 import subprocess
 import sys
@@ -115,6 +116,41 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
             region[2].write_text(region[2].read_text() + " ")
             with self.assertRaisesRegex(ValueError, "changed"):
                 extractor.region_input(*region[:3])
+
+    def test_streamed_json_gzip_preserves_all_candidates_and_incomplete_status(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest, index, boundary, config = self.make_region(root, "some-other-region")
+            binary = root / "fake-native.py"
+            binary.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json,sys\n"
+                "if '--version' in sys.argv: print('3.6.3')\n"
+                "else:\n"
+                " for item in [\n"
+                "  {'kind':'edge','graphId':77,'access':1025,'nativeTerminalModes':1025},\n"
+                "  {'kind':'edge','graphId':79,'access':1025,'nativeTerminalModes':0},\n"
+                "  {'kind':'complete','selectedTiles':1,'valhallaVersion':'3.6.3','edgesEmitted':2,'directedExamined':58}\n"
+                " ]: print(json.dumps(item))\n"
+            )
+            binary.chmod(0o755)
+            output = root / "f8-source.json.gz"
+            summary = extractor.extract_to_file(
+                manifest_path=manifest, index_path=index, buffer_path=boundary,
+                valhalla_config_path=config, binary=binary, output_path=output)
+            with gzip.open(output, "rt", encoding="utf-8") as stream:
+                data = json.load(stream)
+            self.assertEqual(summary["nativeTerminalCandidateCount"], 1)
+            self.assertEqual(summary["unresolvedJunctionDirectedEdgeCount"], 1)
+            self.assertEqual(data["regionId"], "some-other-region")
+            self.assertEqual([x["graphId"] for x in data["nativeModeTerminalCandidates"]], [77])
+            self.assertEqual([x["graphId"] for x in data["unresolvedJunctionDirectedEdges"]], [79])
+            self.assertEqual(data["sourcePhysicalRoadFinalIdentification"], "INCOMPLETE")
+            self.assertEqual(data["productionPublication"], "BLOCKED")
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                extractor.extract_to_file(
+                    manifest_path=manifest, index_path=index, buffer_path=boundary,
+                    valhalla_config_path=config, binary=binary, output_path=output)
 
     def test_native_reader_is_pinned_to_the_original_regional_archive(self):
         with tempfile.TemporaryDirectory() as temp:
