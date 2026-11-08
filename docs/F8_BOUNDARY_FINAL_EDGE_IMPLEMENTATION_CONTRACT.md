@@ -47,6 +47,18 @@ geometry is represented as unavailable instead of fabricated. Every
 native local continuation remains unresolved until the actual physical
 road and receiver are identified; the catalog remains blocked.
 
+**November 8 native cutoff/continuation increment (draft PR #127):**
+The same source stage now optionally filters original directed shapes to the
+exact original 25-km buffered polygon cutoff and traces only their local
+native physical-forward candidates, including immediate hierarchy peers,
+car/motorcycle modes and branch alternatives. It can group identical final
+source GraphIds without inferring equivalence between *different* GraphIds.
+This is NOT a certification of every physical road/direction: ambiguous
+forward cases remain unresolved, receiving matching has not started and no
+catalog is publishable. See
+`docs/F8_PR127_NATIVE_SOURCE_CUT_CONTINUATIONS_20261108.md` for actual
+Italy/Austria evidence and the retained near-cut geometry discrepancy.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer

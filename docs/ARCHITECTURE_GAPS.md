@@ -38,3 +38,16 @@ completeness remain **NOT_VERIFIED**. Original receiving B correlation
 `docs/F8_SOURCE_FINAL_EDGE_IDENTIFICATION_PROGRESS.md`. Not a license for
 way/name grouping, intermediate connectors, entire-core route requirements,
 retired producers or fallback removal.
+
+
+**2026-11-08 PR #127 source cutoff implementation (G-F8-06 STILL OPEN):**
+The new original compiled-geometry outer-cut filter ran on Italy Nord-Est
+and Austria using their exact SHA-bound original 25-km polygons and selected
+boundary tiles. Native immediate topology/hierarchy and geometry-following
+produced 1,663 and 2,062 distinct exact local-final candidate GraphIds,
+respectively, retaining all original directed branch evidence. 1,599 Italy
+and 2,178 Austrian outward/ambiguous source seeds remain unresolved; even the
+locally resolved GraphIds are NOT globally proved unique per physical road
+and travel direction. No receiving B correlation, Android parity or release.
+See `docs/F8_PR127_NATIVE_SOURCE_CUT_CONTINUATIONS_20261108.md`; do not
+close G-F8-06/G-F8-07 or present source candidates as real cross-graph links.

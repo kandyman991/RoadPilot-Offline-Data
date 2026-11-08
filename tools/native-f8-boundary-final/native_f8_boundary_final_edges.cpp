@@ -7,13 +7,16 @@
 #include <valhalla/baldr/graphreader.h>
 #include <valhalla/baldr/graphconstants.h>
 #include <valhalla/midgard/logging.h>
+#include "original_buffer_cut.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <deque>
+#include <vector>
 #include <fstream>
 #include <iomanip>
+#include <memory>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -32,19 +35,162 @@ uint64_t decimal_id(const std::string& line) {
     throw std::runtime_error("Tile input must contain unsigned decimal GraphIds");
   return std::stoull(line);
 }
+
+// A targeted continuation view for source edges at the cutoff. This is the
+// SAME original GraphReader source stage, not a second routing/discovery
+// pipeline: only each supplied edge and its immediate native incident and
+// hierarchy-transition edges are read. No OSM/road-name equivalence.
+void print_directed_edge(valhalla::baldr::GraphReader& reader,
+                         const baldr::GraphId& id) {
+  const auto tile = reader.GetGraphTile(id);
+  if (!tile || id.id() >= tile->header()->directededgecount())
+    throw std::runtime_error("Missing original directed edge for local continuation");
+  const auto* edge = tile->directededge(id);
+  const auto end_id = edge->endnode();
+  const auto end_tile = reader.GetGraphTile(end_id);
+  if (!end_tile || end_id.id() >= end_tile->header()->nodecount())
+    throw std::runtime_error("Missing original end node for local continuation");
+  auto shape = tile->edgeinfo(edge).shape();
+  if (!edge->forward()) std::reverse(shape.begin(), shape.end());
+  if (shape.empty()) throw std::runtime_error("Missing original directed edge shape");
+  const auto& end = shape.back();
+  const auto& start = shape.front();
+  if (!std::isfinite(end.lat()) || !std::isfinite(end.lng()) ||
+      !std::isfinite(start.lat()) || !std::isfinite(start.lng()))
+    throw std::runtime_error("Nonfinite original road shape");
+  std::cout << "{\"graphId\":" << id.value << ",\"access\":"
+            << (edge->forwardaccess() & kModes)
+            << ",\"endNodeGraphId\":" << end_id.value
+            << ",\"startLat\":" << start.lat()
+            << ",\"startLon\":" << start.lng()
+            << ",\"endLat\":" << end.lat()
+            << ",\"endLon\":" << end.lng()
+            << ",\"roadClass\":" << static_cast<uint32_t>(edge->classification())
+            << ",\"roadUse\":" << static_cast<uint32_t>(edge->use())
+            << ",\"layer\":" << static_cast<int>(tile->edgeinfo(edge).layer())
+            << ",\"bridge\":" << (edge->bridge() ? "true" : "false")
+            << ",\"tunnel\":" << (edge->tunnel() ? "true" : "false")
+            << ",\"shortcut\":" << (edge->is_shortcut() ? "true" : "false")
+            << ",\"transit\":" << (edge->IsTransitLine() ? "true" : "false")
+            << ",\"approach\":";
+  // Last distinct vertex points into X. The corresponding first distinct
+  // vertex points *out* of the node for a candidate continuation.
+  bool found = false;
+  for (std::size_t i = shape.size() - 1; i > 0; --i) {
+    const auto& prior = shape[i - 1];
+    if (!std::isfinite(prior.lat()) || !std::isfinite(prior.lng()))
+      throw std::runtime_error("Nonfinite original approach vertex");
+    if (std::abs(prior.lat() - end.lat()) > 1e-8 ||
+        std::abs(prior.lng() - end.lng()) > 1e-8) {
+      std::cout << '[' << prior.lat() << ',' << prior.lng() << ']';
+      found = true; break;
+    }
+  }
+  if (!found) std::cout << "null";
+  std::cout << ",\"departure\":";
+  found = false;
+  for (std::size_t i = 1; i < shape.size(); ++i) {
+    const auto& next = shape[i];
+    if (!std::isfinite(next.lat()) || !std::isfinite(next.lng()))
+      throw std::runtime_error("Nonfinite original departure vertex");
+    if (std::abs(next.lat() - start.lat()) > 1e-8 ||
+        std::abs(next.lng() - start.lng()) > 1e-8) {
+      std::cout << '[' << next.lat() << ',' << next.lng() << ']';
+      found = true; break;
+    }
+  }
+  if (!found) std::cout << "null";
+  std::cout << '}';
+}
+
+int inspect_local_continuations(int argc, char** argv) {
+  if (argc != 4) throw std::runtime_error("usage: --local-continuations <valhalla.json> <original_directed_ids.txt>");
+  boost::property_tree::ptree config;
+  boost::property_tree::read_json(argv[2], config);
+  baldr::GraphReader reader(config.get_child("mjolnir"));
+  std::ifstream source(argv[3]);
+  if (!source) throw std::runtime_error("Cannot open source directed edge IDs");
+  std::unordered_set<uint64_t> visited;
+  uint64_t inspected = 0;
+  std::cout << std::setprecision(12);
+  std::string line;
+  while (std::getline(source, line)) {
+    const baldr::GraphId input(decimal_id(line));
+    if (!input.is_valid() || !visited.insert(input.value).second)
+      throw std::runtime_error("Invalid or duplicate original source directed ID");
+    const auto tile = reader.GetGraphTile(input);
+    if (!tile || input.id() >= tile->header()->directededgecount())
+      throw std::runtime_error("Missing original source directed ID");
+    const auto* edge = tile->directededge(input);
+    if (edge->IsTransitLine() || edge->is_shortcut() || !(edge->forwardaccess() & kModes))
+      throw std::runtime_error("Selected source is not eligible original directed road");
+    std::cout << "{\"kind\":\"local-continuations\",\"source\":";
+    print_directed_edge(reader, input);
+    std::cout << ",\"options\":[";
+    const auto end_id = edge->endnode();
+    std::deque<baldr::GraphId> pending{end_id};
+    std::unordered_set<uint64_t> seen_nodes{end_id.value};
+    std::unordered_set<uint64_t> seen_options;
+    bool first = true;
+    while (!pending.empty()) {
+      const auto local = pending.front(); pending.pop_front();
+      const auto local_tile = reader.GetGraphTile(local);
+      if (!local_tile || local.id() >= local_tile->header()->nodecount())
+        throw std::runtime_error("Missing native hierarchy peer node");
+      const auto* node = local_tile->node(local);
+      for (uint32_t j = 0; j < node->edge_count(); ++j) {
+        if (local == end_id && j == edge->opp_index()) continue;
+        const baldr::GraphId out(local.tileid(), local.level(), node->edge_index() + j);
+        const auto* candidate = local_tile->directededge(out);
+        if ((candidate->forwardaccess() & kModes) == 0 || candidate->IsTransitLine())
+          continue;
+        if (!seen_options.insert(out.value).second) continue;
+        if (!first) std::cout << ',';
+        first = false;
+        std::cout << "{\"viaHierarchy\":" << (local == end_id ? "false" : "true")
+                  << ",\"edge\":";
+        print_directed_edge(reader, out);
+        std::cout << '}';
+      }
+      for (const auto& transition : local_tile->GetNodeTransitions(local)) {
+        const auto peer = transition.endnode();
+        if (!peer.is_valid()) throw std::runtime_error("Bad original hierarchy transition");
+        if (seen_nodes.insert(peer.value).second) pending.push_back(peer);
+      }
+      if (seen_nodes.size() > 32)
+        throw std::runtime_error("Original hierarchy fanout unexpectedly large");
+    }
+    std::cout << "]}\n";
+    ++inspected;
+  }
+  if (!source.eof() || inspected == 0) throw std::runtime_error("No complete original input edge ID set");
+  std::cout << "{\"kind\":\"complete\",\"edgesInspected\":" << inspected
+            << ",\"valhallaVersion\":\"" << ROADPILOT_VALHALLA_VERSION << "\"}\n";
+  return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--protocol") {
-    std::cout << "roadpilot.f8-native-source-2\n";
+    std::cout << "roadpilot.f8-native-source-4\n";
     return 0;
   }
   if (argc == 2 && std::string(argv[1]) == "--version") {
     std::cout << ROADPILOT_VALHALLA_VERSION << '\n';
     return 0;
   }
-  if (argc != 3) {
-    std::cerr << "usage: native_f8_boundary_final_edges <valhalla.json> <tile_ids.txt>\n";
+  if (argc > 1 && std::string(argv[1]) == "--local-continuations") {
+    try {
+      valhalla::midgard::logging::Configure({{"type", "std_err"}, {"color", "false"}});
+      return inspect_local_continuations(argc, argv);
+    } catch (const std::exception& e) {
+      std::cerr << "local_continuations: " << e.what() << "\nPARTIAL_OUTPUT_NOT_VALID\n";
+      return 2;
+    }
+  }
+  if (argc != 3 && argc != 4) {
+    std::cerr << "usage: native_f8_boundary_final_edges <valhalla.json> <tile_ids.txt> [original-25km-buffer.geojson]\n";
     return 64;
   }
   try {
@@ -52,6 +198,9 @@ int main(int argc, char** argv) {
     boost::property_tree::ptree config;
     boost::property_tree::read_json(argv[1], config);
     baldr::GraphReader reader(config.get_child("mjolnir"));
+    const bool cut_only = argc == 4;
+    std::unique_ptr<roadpilot_cut::OriginalCut> original_cut;
+    if (cut_only) original_cut = std::make_unique<roadpilot_cut::OriginalCut>(argv[3]);
     std::ifstream source(argv[2]);
     if (!source) throw std::runtime_error("Cannot open selected boundary tile IDs");
 
@@ -91,6 +240,8 @@ int main(int argc, char** argv) {
           auto directed_shape = tile->edgeinfo(edge).shape();
           if (!edge->forward())
             std::reverse(directed_shape.begin(), directed_shape.end());
+          if (cut_only && !original_cut->intersects(directed_shape)) continue;
+          const std::string cut_orientation = cut_only ? original_cut->direction(directed_shape) : "NOT_FILTERED";
           bool has_approach = false;
           double approach_lat = 0.0, approach_lon = 0.0;
           if (!directed_shape.empty()) {
@@ -173,6 +324,7 @@ int main(int argc, char** argv) {
           else std::cout << "null";
           std::cout
                     << ",\"roadUse\":" << static_cast<uint32_t>(edge->use())
+                    << ",\"originalCutOrientation\":\"" << cut_orientation << "\""
                     << ",\"access\":" << (edge->forwardaccess() & kModes)
                     << ",\"nativeTerminalModes\":" << terminal_modes
                     << ",\"localContinuingModes\":" << other_modes
@@ -193,7 +345,9 @@ int main(int argc, char** argv) {
               << ROADPILOT_VALHALLA_VERSION
               << "\",\"selectedTiles\":" << visited_tiles.size()
               << ",\"directedExamined\":" << directed_examined
-              << ",\"edgesEmitted\":" << edges_emitted << "}\n";
+              << ",\"edgesEmitted\":" << edges_emitted
+              << ",\"originalCutFilterApplied\":" << (cut_only ? "true" : "false")
+              << "}\n";
     if (!std::cout) throw std::runtime_error("Failed writing native boundary records");
     return 0;
   } catch (const std::exception& e) {

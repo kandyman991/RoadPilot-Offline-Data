@@ -1,5 +1,46 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## New PR #127 continuation milestone — native source-cut identification (2026-11-08)
+
+**Current draft head:** prior verified PR #127 source geometry commit `9046a68`;
+this local source-cut continuation increment adds the exact original 25-km
+buffer boundary filter and branch-preserving native continuation inspection.
+Region-independent C++ Valhalla 3.6.3 native reader and source Python stage
+remain read-only against the exact graph/index/buffer SHA.
+
+Real Legion test, original `2026.10.13-1` original graphs:
+Italy Nord-Est — 178 selected tiles, 6,180 original directed cut edges,
+2,920 outward / 2,909 inward / 351 ambiguous; 3,271 outward or ambiguous
+seeds traced, 1,672 locally resolved, 1,663 distinct GraphIds,
+1,599 incomplete. Austria — 227 selected tiles, 8,135 cut edges,
+3,891 outward / 3,885 inward / 359 ambiguous; 4,250 traced,
+2,072 locally resolved, 2,062 distinct GraphIds, 2,178 incomplete.
+Nine Italy and ten Austria duplicate exact final IDs preserve upstream paths.
+Local `GRAPH_LOCAL_TERMINAL` is not proof of global physical-road uniqueness.
+One historical projected-source-cut candidate is not a strict raw GeoJSON
+cut intersection; it remains present in the unresolved native-forward
+alternatives of two genuine cut seeds, NOT suppressed.
+
+The region-neutral `tools/extract_f8_region_final_edges.py --resolve-cut`
+command now integrates the entire original cutoff→local native continuation
+stage in one atomic, nonpublishing candidate output (not a historical ledger).
+Both original Italy and Austria archive executions PASS, with independent
+source-root accounting of every outward/ambiguous seed; integrated artifact
+SHA-256s are `6874f4b721ec211216de5a7d5910ebbc10645f10b84a8677446bda859f2edc15`
+and `1623ccf6e84f9b99962b93ab0a59900a330284d75385f531254a1bd1cf1fe886`.
+Native compiled against Valhalla 3.6.3; **404 Python tests PASS**.
+
+**Source physical-road/direction final completeness NOT_VERIFIED.** Native
+junction, hierarchy, mode, ramp and cyclic ambiguity retained; do not claim
+all originals are proven just from the locally resolved counts.
+Receiving original B correlation NOT_STARTED, Android full journeys NOT_RUN,
+publication BLOCKED, draft PR unmerged. No old architecture resurrected.
+See `docs/F8_PR127_NATIVE_SOURCE_CUT_CONTINUATIONS_20261108.md` with local
+SHA-bound evidence. **Next exact step:** resolve the 1,599/2,178 actual
+source-cut ambiguity cases on their original native directed topology and
+reconcile true last physical-road/direction edges. Only then match B at the
+same source node GPS X and run RoadPilot Android consumption.
+
 ## Current working increment — draft PR #127 (2026-11-08)
 
 PR: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/127
