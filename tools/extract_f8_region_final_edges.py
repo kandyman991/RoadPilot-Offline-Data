@@ -1333,6 +1333,155 @@ def correlate_verified_source_candidates(*, source_candidates: list[dict],
 
 
 
+
+
+def recover_missing_source_terminal_candidates(*, prior: dict,
+                                               read_local, source_cut_tile_ids: set[int],
+                                               receiver_footprint) -> dict:
+    """One strictly bounded extra A native hop for roots missing a final.
+
+    This is reconciliation inside the existing D-017 A→X→B producer, NOT a
+    second discovery system. The only seeds are the previous source-cut roots
+    having NO terminal candidate already recorded. Read immediate original
+    A successors, then their immediate incident edges, and STOP; no recursion
+    or outward network scan. Preserve all forks and uncertain modes.
+    """
+    originals = prior['terminalCandidatesByExactSourceGraphId']
+    existing = {c['sourceFinalCandidateGraphId']: c for c in originals}
+    linked = {gid for c in originals for gid in c['sourceCutGraphIds']}
+    unresolved = {r['sourceCutGraphId']: r for r in
+                  prior['unresolvedNonterminalSourceCutObservations']}
+    all_roots = {row['graphId'] for row in prior['originalPairedCutDirectedEvidence']
+                 if row['originalCutOrientation'] in ('OUTWARD', 'AMBIGUOUS')}
+    if (len(existing) != len(originals) or not linked <= all_roots or
+            len(unresolved) != prior['nonterminalSourceCutCount']):
+        raise ValueError('Cannot reconcile duplicate/missing original source root identities')
+    missing = sorted(all_roots - linked)
+    if any(root not in unresolved for root in missing):
+        raise ValueError('Source missing-root observation not in original native nonterminal evidence')
+
+    def allowed_modes(status: dict) -> int:
+        return ((1 if status.get('car') == 'ALLOWED_NATIVE_IMMEDIATE' else 0) |
+                (1024 if status.get('motorcycle') == 'ALLOWED_NATIVE_IMMEDIATE' else 0))
+
+    first_paths: dict[int, list[tuple[int, int, dict]]] = {}
+    for root_gid in missing:
+        for option in unresolved[root_gid]['immediateNativeOutgoing']:
+            vehicle_modes = (allowed_modes(option['nativeImmediateCosting']) &
+                             option['nativeVehicleModes'] &
+                             unresolved[root_gid]['nativeVehicleModes'])
+            if not (vehicle_modes and option['eligibleOriginalForward'] and
+                    option['inSelectedSourceTiles'] and not option['viaHierarchy']):
+                continue
+            first_paths.setdefault(option['graphId'], []).append(
+                (root_gid, vehicle_modes, option))
+    first_ids = sorted(first_paths)
+    first_records = read_local(first_ids) if first_ids else []
+    if len(first_records) != len(first_ids):
+        raise ValueError('Incomplete first immediate original A successor readback')
+
+    second_paths: dict[int, list[tuple[int, int, int]]] = {}
+    second_native_identity: dict[int, dict] = {}
+    for gid, observed in zip(first_ids, first_records):
+        validate_immediate_native_observation(observed)
+        native = observed['source']
+        if native['graphId'] != gid:
+            raise ValueError('Unexpected original first A successor identity')
+        for root_id, vehicle_modes, original_option in first_paths[gid]:
+            if ((native['access'] & unresolved[root_id]['nativeVehicleModes'] & 1025) !=
+                    original_option['nativeVehicleModes'] or
+                    native['endNodeGraphId'] != original_option['nativeEndNodeGraphId']):
+                raise ValueError('Previous A cutoff successor changed on original graph readback')
+            # Exactly one more original native edge from THIS immediate node;
+            # positive car/motorcycle costing is required at both transitions.
+            for option in observed['options']:
+                edge = option['edge']
+                modes = allowed_modes(option['nativeImmediateCosting']) & vehicle_modes & edge['access']
+                if (not modes or option['viaHierarchy'] or edge['shortcut'] or
+                        edge['transit'] or
+                        (edge['graphId'] & ((1 << 25) - 1)) not in source_cut_tile_ids):
+                    continue
+                if edge['graphId'] in second_native_identity:
+                    old = second_native_identity[edge['graphId']]
+                    if any(old[k] != edge[k] for k in ('endNodeGraphId', 'access',
+                             'endLat', 'endLon', 'roadClass', 'roadUse',
+                             'layer', 'bridge', 'tunnel')):
+                        raise ValueError('Conflicting original A second-hop GraphId identity')
+                else:
+                    second_native_identity[edge['graphId']] = edge
+                second_paths.setdefault(edge['graphId'], []).append((root_id, gid, modes))
+
+    second_ids = sorted(second_paths)
+    second_records = read_local(second_ids) if second_ids else []
+    if len(second_records) != len(second_ids):
+        raise ValueError('Incomplete bounded second original A successor readback')
+    newly_verified: dict[int, dict] = {}
+    links: list[dict] = []
+    for gid, observed in zip(second_ids, second_records):
+        validate_immediate_native_observation(observed)
+        source = observed['source']
+        if source['graphId'] != gid:
+            raise ValueError('Unexpected original second-hop A GraphId')
+        expected = second_native_identity[gid]
+        if any(source[k] != expected[k] for k in ('endNodeGraphId', 'access',
+                'endLat', 'endLon', 'roadClass', 'roadUse', 'layer', 'bridge', 'tunnel')):
+            raise ValueError('Original A second-hop directed edge changed on native readback')
+        terminal_modes = native_terminal_modes_from_adjacency(observed)
+        if (not terminal_modes or not receiver_footprint.covers(Point(
+                source['endLon'], source['endLat']))):
+            continue
+        proof = {"method": "INDEPENDENT_ORIGINAL_END_NODE_ADJACENCY",
+                 "endNodeGraphId": source['endNodeGraphId'],
+                 "outgoingOriginalDirectedGraphIds": [row['edge']['graphId']
+                     for row in observed['options']],
+                 "hierarchyPeersIncluded": True,
+                 "terminalModes": terminal_modes}
+        if gid in existing:
+            original = existing[gid]
+            if (original['endNodeGraphId'] != source['endNodeGraphId'] or
+                    original['access'] != source['access'] or
+                    original['endLat'] != source['endLat'] or
+                    original['endLon'] != source['endLon'] or
+                    original['originalNativeLocalProof'] != proof):
+                raise ValueError('Existing original A terminal candidate differs from exact native edge')
+        else:
+            newly_verified[gid] = {"sourceFinalCandidateGraphId": gid,
+                "terminalVehicleModes": 0, "access": source['access'],
+                "endLat": source['endLat'], "endLon": source['endLon'],
+                "endNodeGraphId": source['endNodeGraphId'],
+                "sourceCutGraphIds": [],
+                "selectionKinds": ["NATIVE_TERMINAL_TWO_BOUNDED_HOPS_UNPROVEN"],
+                "originalNativeLocalProof": proof,
+                "nativeGraphLocalTerminalProof": "VERIFIED",
+                "physicalRoadFinalCompleteness": "NOT_VERIFIED"}
+        for root_gid, via_gid, available in second_paths[gid]:
+            connected_modes = available & terminal_modes
+            if not connected_modes:
+                continue
+            links.append({"originalSourceCutGraphId": root_gid,
+                          "firstOriginalNativeSuccessorGraphId": via_gid,
+                          "terminalOriginalGraphId": gid,
+                          "staticallyAllowedVehicleModes": connected_modes,
+                          "sourcePhysicalRoadIdentity": "NOT_VERIFIED"})
+            if gid in newly_verified:
+                candidate = newly_verified[gid]
+                candidate['terminalVehicleModes'] |= connected_modes
+                if root_gid not in candidate['sourceCutGraphIds']:
+                    candidate['sourceCutGraphIds'].append(root_gid)
+
+    remaining = set(missing) - {link['originalSourceCutGraphId'] for link in links}
+    return {"priorMissingSourceRootCount": len(missing),
+            "firstOriginalNativeSuccessorsReopened": len(first_ids),
+            "secondOriginalNativeSuccessorsReopened": len(second_ids),
+            "newOriginalNativeTerminalCandidates": [newly_verified[gid]
+                                                      for gid in sorted(newly_verified)],
+            "boundedExistingAndNewTerminalLinks": links,
+            "rootsWithBoundedNativeTerminalLinks": len(set(missing) - remaining),
+            "rootsStillWithoutTerminalWithinTwoHops": len(remaining),
+            "sourceCoverageProven": False,
+            "additionalGraphExplorationAllowed": False}
+
+
 def match_original_receiver_to_file(*, source_evidence_path: Path,
                                    manifest_path: Path, index_path: Path,
                                    buffer_path: Path, valhalla_config_path: Path,
@@ -1340,7 +1489,8 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
                                    receiver_index_path: Path,
                                    receiver_buffer_path: Path,
                                    receiver_valhalla_config_path: Path,
-                                   binary: Path, output_path: Path) -> dict:
+                                   binary: Path, output_path: Path,
+                                   bounded_missing_source_recovery: bool = False) -> dict:
     """D-017 A final candidate → exact original X → compiled B directed edge.
 
     Match B at X without finding arbitrary Y, best-road selection or a graph
@@ -1373,9 +1523,34 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
     if (not isinstance(candidates, list) or len(candidates) == 0 or
             len({r['sourceFinalCandidateGraphId'] for r in candidates}) != len(candidates)):
         raise ValueError('Missing unique original A terminal candidates')
-    ids = [r['sourceFinalCandidateGraphId'] for r in candidates]
+    original_candidate_count = len(candidates)
     selected_ids = {int(row['level']) | int(row['tileIndex']) << 3
                     for row in pair['selectedSourceTiles']}
+    extra_source = None
+    if bounded_missing_source_recovery:
+        def read_targeted(gids):
+            return inspect_local_source_edges(manifest_path=manifest_path,
+                index_path=index_path, buffer_path=buffer_path,
+                valhalla_config_path=valhalla_config_path, binary=binary,
+                source_graph_ids=gids, allowed_tile_ids=selected_ids,
+                evaluate_native_costing=True)
+        extra_source = recover_missing_source_terminal_candidates(
+            prior=prior, read_local=read_targeted,
+            source_cut_tile_ids=selected_ids,
+            receiver_footprint=shape(load_json(receiver_buffer_path)['geometry']))
+        # Original source records remain immutable; only add justified
+        # potential root link IDs in the in-memory native correlation stage.
+        candidates = [{**c, 'sourceCutGraphIds': list(c['sourceCutGraphIds'])}
+                      for c in candidates]
+        candidate_by_gid = {c['sourceFinalCandidateGraphId']:c for c in candidates}
+        for link in extra_source['boundedExistingAndNewTerminalLinks']:
+            original = candidate_by_gid.get(link['terminalOriginalGraphId'])
+            if original is not None and link['originalSourceCutGraphId'] not in original['sourceCutGraphIds']:
+                original['sourceCutGraphIds'].append(link['originalSourceCutGraphId'])
+        candidates += extra_source['newOriginalNativeTerminalCandidates']
+    ids = [r['sourceFinalCandidateGraphId'] for r in candidates]
+    if len(ids) != len(set(ids)):
+        raise ValueError('Duplicate original source final GraphIds after bounded recovery')
     if any((gid & ((1 << 25) - 1)) not in selected_ids for gid in ids):
         raise ValueError('A terminal candidate outside verified source cutoff tiles')
     # Always re-open A candidate originals before comparing any receiving B
@@ -1410,6 +1585,9 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
         source_observations=source_native, receiver_observations=b_native,
         receiver_predecessor_observations=b_local)
     result['originalBPredecessorsIndependentlyReadBackAtX'] = len(b_local)
+    result['originalVerifiedSourceTerminalCandidateCount'] = original_candidate_count
+    if extra_source is not None:
+        result['boundedMissingSourceRecovery'] = extra_source
     # No new source search: exact original A cutoff-root coverage accounting
     # from the retained root IDs on every already verified terminal candidate.
     # A B option does NOT prove source physical-road completeness.
@@ -1430,7 +1608,9 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
         elif related:
             state = 'ROOT_TERMINAL_CANDIDATE_NO_CONFIRMED_RECEIVER'
         else:
-            state = 'ROOT_NO_TERMINAL_CANDIDATE_WITHIN_ONE_NATIVE_HOP'
+            state = ('ROOT_NO_TERMINAL_CANDIDATE_WITHIN_TWO_BOUNDED_HOPS'
+                     if bounded_missing_source_recovery else
+                     'ROOT_NO_TERMINAL_CANDIDATE_WITHIN_ONE_NATIVE_HOP')
         counts[state] = counts.get(state, 0) + 1
         coverage.append({'originalSourceCutGraphId': gid,
             'originalNativeTerminalModes': cut_row['nativeTerminalModes'],
@@ -1511,7 +1691,11 @@ def main() -> None:
                         help="Previously completed --resolve-cut original A terminal candidate evidence")
     parser.add_argument("--receiver-valhalla-config", type=Path,
                         help="Compiled Valhalla B routing configuration for its exact original archive")
+    parser.add_argument("--bounded-missing-source-recovery", action="store_true",
+                        help="With --match-receiver only: reopen up to one additional native source hop for previously unmatched source cutoff roots; never a general graph walk")
     args = parser.parse_args()
+    if args.bounded_missing_source_recovery and not args.match_receiver:
+        parser.error("--bounded-missing-source-recovery requires --match-receiver")
     if sum((args.cut_only, args.resolve_cut, args.match_receiver)) > 1:
         parser.error("Select only one source/receiving inspection action")
     if args.match_receiver:
@@ -1526,7 +1710,8 @@ def main() -> None:
             receiver_manifest_path=args.receiver_manifest,
             receiver_index_path=args.receiver_graph_index,
             receiver_buffer_path=args.receiver_buffer_geojson,
-            receiver_valhalla_config_path=args.receiver_valhalla_config)
+            receiver_valhalla_config_path=args.receiver_valhalla_config,
+            bounded_missing_source_recovery=args.bounded_missing_source_recovery)
         print(f'originalSourceFinalCandidates={output["sourceFinalCandidateCount"]} '
               f'unresolvedSourceRoots={output["sourceUnresolvedNonterminalRootCount"]} '
               f'receiverStatusCounts={output["nativeReceiverStatusCounts"]} '

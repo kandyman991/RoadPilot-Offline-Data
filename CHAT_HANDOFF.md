@@ -1,5 +1,44 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #127 bounded missing-source Step 1 (2026-11-09)
+
+Owner ordered targeted work on exactly the **392** original A cutoff source
+observations without a local native terminal A candidate (263 Italy NE→AT,
+129 AT→NE); no new discovery architecture. Optional
+`--match-receiver --bounded-missing-source-recovery` in the EXISTING D-017
+A→exact X→B command reopens only those roots' **native immediate statically
+permitted** original directed successors plus ONE more native incident edge
+and stops. Shortcut/hierarchy/conditional/complex unknowns and all genuinely
+distinct branches stay unresolved, never suppressed; no global scan/route,
+road name/OSM/angle, extra GPS Y or Android package change. It validates
+both original native A directed identities/end-node X, true local terminal
+mode access and footprint, reuses previously verified A candidate identities
+without duplicate final records, and runs the SAME original B edge
+correlation on any newly proven A terminal candidate. All original source
+root-to-terminal relationships are explicitly physical-road UNVERIFIED.
+
+Original archived Valhalla 3.6.3 Italy NE→Austria: 210 first-hop and 298
+second-hop exact native GraphIds reopened; **43 additional A native
+terminal GraphIds**, 72/263 previously missing roots now have a bounded
+candidate link, **191 remain**, 2 new A candidate endpoints have a B native
+permitted outgoing connection (4 distinct B options); total 548 distinct A
+terminal candidates, 259 with B native outgoing options. Reverse AT→NE:
+103 first-hop/152 second-hop, **16 new A local terminal GraphIds**, 35/129
+roots gain candidate link, **94 remain**, 4 new A endpoints with B native
+permitted successors (6 B options); total 285 A candidates, 159 with B.
+All 774 previous A candidate IDs/X/vehicle permissions/receiver options
+unchanged. **285 original roots unresolved** does not imply 285 physical
+roads. SourcePhysicalRoadDirectionCompleteness NOT_VERIFIED, Android NOT_RUN,
+ProductionPublication BLOCKED.
+
+Read-only graph outputs and exact SHA-256 in
+`docs/F8_PR127_BOUNDED_MISSING_SOURCE_RECOVERY_20261109.md` (source A/B
+original fingerprints unchanged). Same PR #127 DRAFT and UNMERGED, needs
+independent review/exact-head CI and owner authorization; next step is
+resolve specific real missing A→X→B physical handoffs, NOT broaden into
+graph-wide road lineage/tracing, then run Android acceptance before publish.
+
+
 ## PR #127 owner-directed native A → exact X → B correlation, 2026-11-09
 
 **Current latest draft head pending commit/CI.** Owner explicitly authorized

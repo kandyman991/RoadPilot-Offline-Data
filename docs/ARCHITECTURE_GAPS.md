@@ -128,3 +128,20 @@ options are native candidate handoffs, NOT an Android-verified catalog.**
 Original A per-physical-road completeness NOT_VERIFIED, Android NOT_RUN,
 publication BLOCKED. Evidence and exact original SHA fingerprints in
 `docs/F8_PR127_NATIVE_A_X_B_MATCHING_20261109.md`.
+
+
+**2026-11-09 PR #127 bounded missing-source source-final recovery
+(G-F8-06 OPEN):** Owner-directed one extra original source native hop ONLY
+for 392 A cutoff roots lacking a terminal source edge in the previous
+one-hop register; same D-017 A→X→B command, no new graph walker. Italy
+NE→Austria: 43 additional verified original graph-local A terminal GraphIds,
+72/263 root observations now associated with a terminal candidate, 191
+without candidate; 2 new A candidates with original B permitted outgoing
+connections. Austria→Italy NE: 16 additional A graph-local terminal GraphIds,
+35/129 now linked, 94 still without; 4 new A candidate B positives. Total
+A terminal candidates now 833, 418 with some B native legal successor;
+original 774 A final IDs/options all preserved. New 59 local A terminal
+candidates and their 10 B successor options are **NOT** proven complete
+physical-road handoffs. Full source completeness NOT_VERIFIED, Android
+NOT_RUN, publication BLOCKED. Exact original SHA-bound evidence in
+`docs/F8_PR127_BOUNDED_MISSING_SOURCE_RECOVERY_20261109.md`.

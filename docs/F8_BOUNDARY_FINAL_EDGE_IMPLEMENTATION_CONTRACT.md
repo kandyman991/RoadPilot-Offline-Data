@@ -131,6 +131,24 @@ identities, graph-wide scans, prefer-the-best-route logic, source graph
 rebuild, or release is authorized. These are D-017 steps 2–3, not a new
 architecture. See `docs/F8_PR127_NATIVE_A_X_B_MATCHING_20261109.md`.
 
+**November 9 narrowly bounded source-missing Step 1:**
+The owner directed recovery of actual missing source A final edges from the
+392 existing original cutoff observations not represented by a final within
+one hop, before any broader discovery. In the SAME original D-017 A→X→B
+producer, an **optional** targeted mode reopens only those missing roots'
+original native statically permitted immediate successors and at most ONE
+additional original incident edge. Original A terminal and directed identity
+are independently verified and corresponding B native candidates checked
+at the SAME X, with all legitimate alternatives preserved. No recursive
+road walk, new architecture, global census, heading/OSM/name/proximity
+identity, or catalog publication is authorized. Existing 774 original A
+candidates remain identical; 59 further A graph-local terminals were found,
+6 having B native permitted options, and 285 cutoff observations still lack
+a proven native terminal within the strictly bounded scope. These do not
+prove distinct physical-road identity or full coverage; D-017 acceptance,
+RoadPilot Android real routing and publication remain BLOCKED. See
+`docs/F8_PR127_BOUNDED_MISSING_SOURCE_RECOVERY_20261109.md`.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer

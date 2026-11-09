@@ -600,6 +600,118 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 source_candidates=[candidate],source_observations=[a],
                 receiver_observations=[b])
 
+    def test_only_missing_source_roots_get_one_more_bounded_original_native_hop(self):
+        # GraphId 22 has already been independently discovered as a final A
+        # native road; 23 is newly found through the legal split at 21.
+        def native_edge(gid, end, lat=45., lon=10., *, access=1025):
+            return {'graphId':gid,'endNodeGraphId':end,'access':access,
+                    'startLat':45.,'startLon':10.,'endLat':lat,'endLon':lon,
+                    'shortcut':False,'transit':False,'roadClass':6,
+                    'roadUse':0,'layer':0,'bridge':False,'tunnel':False}
+        def option(edge, node, *, costing='ALLOWED_NATIVE_IMMEDIATE'):
+            return {'edge':edge,'fromNodeGraphId':node,'viaHierarchy':False,
+                    'nativeImmediateCosting':{'car':costing,'motorcycle':costing}}
+        def original_cut(gid, mode):
+            return {'graphId':gid,'nativeTerminalModes':mode,
+                    'originalCutOrientation':'OUTWARD'}
+        first = {'kind':'local-continuations','source':native_edge(21,121),
+                 'options':[option(native_edge(22,122,45.,10.01),121),
+                            option(native_edge(23,123,45.,10.02),121)]}
+        second = [
+            {'kind':'local-continuations',
+             'source':native_edge(22,122,45.,10.01),'options':[]},
+            {'kind':'local-continuations',
+             'source':native_edge(23,123,45.,10.02),'options':[]}]
+        proof={'method':'INDEPENDENT_ORIGINAL_END_NODE_ADJACENCY',
+               'endNodeGraphId':122,'outgoingOriginalDirectedGraphIds':[],
+               'hierarchyPeersIncluded':True,'terminalModes':1025}
+        prior = {'terminalCandidatesByExactSourceGraphId':[{
+              'sourceFinalCandidateGraphId':22,'terminalVehicleModes':1025,
+              'access':1025,'endLat':45.,'endLon':10.01,'endNodeGraphId':122,
+              'sourceCutGraphIds':[22], 'originalNativeLocalProof':proof}],
+              'originalPairedCutDirectedEvidence':[original_cut(20,0),
+                  original_cut(22,1025),original_cut(30,0)],
+              'unresolvedNonterminalSourceCutObservations':[{
+                  'sourceCutGraphId':20,'nativeVehicleModes':1025,
+                  'immediateNativeOutgoing':[{
+                      'graphId':21,'nativeVehicleModes':1025,
+                      'nativeEndNodeGraphId':121,
+                      'eligibleOriginalForward':True,
+                      'inSelectedSourceTiles':True,'viaHierarchy':False,
+                      'nativeImmediateCosting':{
+                          'car':'ALLOWED_NATIVE_IMMEDIATE',
+                          'motorcycle':'ALLOWED_NATIVE_IMMEDIATE'}}]}, {
+                  'sourceCutGraphId':30,'nativeVehicleModes':1025,
+                  'immediateNativeOutgoing':[{
+                      'graphId':31,'nativeVehicleModes':1025,
+                      'nativeEndNodeGraphId':131,'eligibleOriginalForward':False,
+                      'inSelectedSourceTiles':True,'viaHierarchy':False,
+                      'nativeImmediateCosting':{'car':'UNRESOLVED_SHORTCUT',
+                                                'motorcycle':'UNRESOLVED_SHORTCUT'}}]}],
+              'nonterminalSourceCutCount':2}
+        calls=[]
+        def read(ids):
+            calls.append(ids)
+            return [[first],second][len(calls)-1]
+        result=extractor.recover_missing_source_terminal_candidates(prior=prior,
+            read_local=read,source_cut_tile_ids={21,22,23},
+            receiver_footprint=box(9,44,11,46))
+        self.assertEqual(calls,[[21],[22,23]])
+        self.assertEqual(result['priorMissingSourceRootCount'],2)
+        self.assertEqual(result['rootsWithBoundedNativeTerminalLinks'],1)
+        self.assertEqual(result['rootsStillWithoutTerminalWithinTwoHops'],1)
+        self.assertEqual([x['sourceFinalCandidateGraphId'] for x in
+            result['newOriginalNativeTerminalCandidates']],[23])
+        self.assertEqual(result['newOriginalNativeTerminalCandidates'][0]
+                         ['terminalVehicleModes'],1025)
+        self.assertEqual({x['terminalOriginalGraphId'] for x in
+            result['boundedExistingAndNewTerminalLinks']},{22,23})
+        self.assertFalse(result['sourceCoverageProven'])
+        self.assertFalse(result['additionalGraphExplorationAllowed'])
+        # A corrupted original A edge cannot be treated as a missing final.
+        first['source']['endNodeGraphId']=999
+        with self.assertRaisesRegex(ValueError,'(successor changed|wrong native from-node)'):
+            extractor.recover_missing_source_terminal_candidates(prior=prior,
+                read_local=lambda ids: [first] if ids==[21] else second,
+                source_cut_tile_ids={21,22,23},receiver_footprint=box(9,44,11,46))
+
+    def test_missing_source_recovery_requires_native_allowed_modes_at_both_steps(self):
+        def source(gid):
+            return {'graphId':gid,'endNodeGraphId':gid+100,'access':1025,
+                    'endLat':45.,'endLon':10.,'startLat':45.,'startLon':10.,
+                    'transit':False,'shortcut':False,'roadClass':6,
+                    'roadUse':0,'layer':0,'bridge':False,'tunnel':False}
+        modes=lambda car,bike: {'car':car,'motorcycle':bike}
+        prior={'terminalCandidatesByExactSourceGraphId':[{
+             'sourceFinalCandidateGraphId':1000,'sourceCutGraphIds':[1000]}],
+             'originalPairedCutDirectedEvidence':[
+                 {'graphId':20,'originalCutOrientation':'OUTWARD'},
+                 {'graphId':1000,'originalCutOrientation':'OUTWARD'}],
+             'nonterminalSourceCutCount':1,
+             'unresolvedNonterminalSourceCutObservations':[{
+                 'sourceCutGraphId':20,'nativeVehicleModes':1025,
+                 'immediateNativeOutgoing':[{
+                     'graphId':21,'nativeVehicleModes':1025,
+                     'nativeEndNodeGraphId':121,
+                     'eligibleOriginalForward':True,
+                     'inSelectedSourceTiles':True,'viaHierarchy':False,
+                     'nativeImmediateCosting':modes('NO_MODE_ACCESS',
+                        'ALLOWED_NATIVE_IMMEDIATE')}]}]}
+        first={'kind':'local-continuations','source':source(21),
+               'options':[{'viaHierarchy':False,'fromNodeGraphId':121,
+                           'edge':source(22),
+                           'nativeImmediateCosting':modes(
+                               'ALLOWED_NATIVE_IMMEDIATE','ALLOWED_NATIVE_IMMEDIATE')}]}
+        second={'kind':'local-continuations','source':source(22),'options':[]}
+        result=extractor.recover_missing_source_terminal_candidates(prior=prior,
+            read_local=lambda ids: [first] if ids==[21] else [second],
+            source_cut_tile_ids={21,22,23},receiver_footprint=box(9,44,11,46))
+        self.assertEqual(result['newOriginalNativeTerminalCandidates'][0]
+                         ['terminalVehicleModes'],1024)
+        self.assertEqual(result['boundedExistingAndNewTerminalLinks'][0]
+                         ['staticallyAllowedVehicleModes'],1024)
+        self.assertFalse(result['sourceCoverageProven'])
+
     def test_original_graph_local_terminal_proof_rejects_stale_masks_ids_and_x(self):
         row = {"graphId":7,"endNodeGraphId":42,"access":1025,
                "nativeTerminalModes":1,"endLat":45.0,"endLon":10.0}
