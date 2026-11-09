@@ -390,6 +390,17 @@
           }
         ]
       }
-    ]
+    ],
+    "approvedBoundaryExteriorTerminalInventory": {
+      "allPairBoundaryOuterTerminalGraphIds": [
+        6307642,
+        442515258
+      ],
+      "originalSourceTerminalEdgesOutsideAWithinB": 2,
+      "nativeIncomingOriginOutsideSelectedPairTilesCount": 0,
+      "terminalEndpointDomainTileCoverage": "COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS",
+      "sourceTerminalInventoryScope": "PAIR_SHARED_OUTER_CUTOFF_TILES_ONLY",
+      "wholeGraphCensusPerformed": false
+    }
   }
 }

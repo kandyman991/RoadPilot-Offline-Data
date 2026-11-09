@@ -60,6 +60,19 @@ class OriginalNativePhysicalRoadAuditTests(unittest.TestCase):
         self.catalog['unresolvedSourceFinalEdges'][0]['sourceOriginalNativeEndNodeGraphId'] += 1
         self.reject()
 
+    def test_rejects_self_consistent_catalog_with_missing_native_inventory_source(self):
+        # Self-consistent catalog counts are NOT an independently proved census.
+        # The original Valhalla bounded native inventory remains authoritative.
+        self.catalog['unresolvedSourceFinalEdges'].clear()
+        self.catalog['counts']['unresolvedEligibleSourceFinals'] = 0
+        self.catalog['counts']['eligibleSourceFinals'] = 1
+        self.reject()
+
+    def test_rejects_forged_native_terminal_inventory_or_extra_source(self):
+        self.evidence['approvedBoundaryExteriorTerminalInventory'][
+            'allPairBoundaryOuterTerminalGraphIds'].append(999999)
+        self.reject()
+
     def test_rejects_corrupted_native_option_mode_category_count(self):
         self.catalog['counts']['branchAttributeEvidenceCounts'].clear()
         self.reject()

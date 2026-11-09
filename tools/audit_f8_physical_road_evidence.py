@@ -158,6 +158,25 @@ def audit(catalog: dict, evidence: dict) -> dict:
                 original['correspondingBPredecessorAtXGraphIds']):
             fail("Unresolved original B predecessor identities were altered")
         source_ids.add(sid)
+    # Independent original source inventory: catalog self-counts alone cannot
+    # prove that a missing A final edge was not silently omitted from BOTH the
+    # records and their own counts.
+    native_inventory = evidence.get('approvedBoundaryExteriorTerminalInventory')
+    if not isinstance(native_inventory, dict):
+        fail("Missing independent original Valhalla terminal source inventory")
+    authoritative_ids = native_inventory.get('allPairBoundaryOuterTerminalGraphIds')
+    if (not isinstance(authoritative_ids, list) or
+            len(authoritative_ids) != len(set(authoritative_ids)) or
+            any(type(x) is not int or x <= 0 for x in authoritative_ids) or
+            source_ids != set(authoritative_ids) or
+            native_inventory.get('originalSourceTerminalEdgesOutsideAWithinB') != len(source_ids) or
+            native_inventory.get('nativeIncomingOriginOutsideSelectedPairTilesCount') != 0 or
+            native_inventory.get('terminalEndpointDomainTileCoverage') !=
+                'COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS' or
+            native_inventory.get('sourceTerminalInventoryScope') !=
+                'PAIR_SHARED_OUTER_CUTOFF_TILES_ONLY' or
+            native_inventory.get('wholeGraphCensusPerformed') is not False):
+        fail("Catalog source IDs do not exactly match independent bounded native A terminal census")
     counts = catalog['counts']
     if (len(source_ids) != counts['eligibleSourceFinals']
             or len(catalog['connectionCandidates']) != counts['candidateSourcesWithBOptions']
@@ -176,6 +195,7 @@ def audit(catalog: dict, evidence: dict) -> dict:
         'preservedDirectedBOptions': len(options_by_evidence),
         'originalNativeBBranchEvidenceCategories': dict(sorted(class_counts.items())),
         'modesForOriginalBOptions': {'+'.join(k): n for k, n in status_counts.items()},
+        'originalSourceFinalIdsCheckedAgainstIndependentNativeInventory': True,
         'originalBIncomingApproachReadbackVerified': True,
         'originalBOutgoingAtXNativeAdjacencyVerified': True,
         'fullPhysicalRoadIdentityApproval': 'NOT_VERIFIED',

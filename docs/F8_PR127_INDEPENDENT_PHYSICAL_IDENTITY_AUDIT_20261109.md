@@ -9,8 +9,8 @@ The new tool **tools/audit_f8_physical_road_evidence.py** independently rereads 
 - Original directed source GraphId, native source end-node identity and exact X unchanged.
 - Original B incoming directed predecessor has geometry overlapping A's directed approach at X, with native structure/layer agreement and <=0.75 m approach difference.
 - EVERY permitted original B outgoing directed branch belongs to an independently matched predecessor and starts at X, preserves its native Valhalla legal-turn status, original B GraphId, mode access bits, class/use/bridge/tunnel/layer and its descriptive ambiguity category.
-- Every eligible original A final edge has exactly one candidate or unresolved exception and no B alternative is dropped, invented, duplicated, or promoted.
-- Original B branch evidence category totals match independently read native alternatives exactly; 10 mutation tests fail closed on changed X, dropped options, fake physical-road approvals, wrong fingerprints, altered attributes, etc.
+- Every eligible original A final edge has exactly one candidate or unresolved exception **and the full set of original final GraphIds is compared with the independent original native bounded tile inventory**, not just self-reported candidate counts. No B alternative is dropped, invented, duplicated, or promoted.
+- Original B branch evidence category totals match independently read native alternatives exactly; 12 mutation tests fail closed on changed X, dropped options, fake physical-road approvals, wrong fingerprints, altered attributes, etc.
 
 This tool independently verifies original native evidence previously produced from the **actual compiled Valhalla 3.6.3 graphs**; it does NOT claim to replace that native traversal with a new implementation or to infer roads from GPS proximity.
 
@@ -38,6 +38,8 @@ Original native audit output (local, NONPUBLISHING):
 The same original B incoming geometry as A's approach plus a legal original B outgoing turn demonstrates physical junction adjacency, NOT necessarily that each outgoing edge is the *same physical road*. Actual road branches include real ramps and junctions and must remain distinct. Even equal class/use/structure is not by itself a proof of every physical-road identity. **None of 646 options may be promoted merely by this audit**, and none is suppressed.
 
 Before producer physical-road identity can be ACCEPTED, independent evidence must resolve original-source physical-road lineage/completeness across all eligible source road/directions and genuine source/receiver branch relationships (including the 195 changed-attribute options), native/Android acceptance of real cross-region journeys on the same installed archives, and unresolved exception handling. This remains a finite review of the existing D-017 catalog; not an invitation to create a different discovery architecture.
+
+Full independent source native-inventory comparison detects an otherwise self-consistent but incomplete candidate ledger; the exact original source GraphIds in the bounded native census are authoritative.
 
 The PR #127 architecture contract must remain unsatisfied until its remaining real acceptance conditions are proven. Catalog v1 still has physicalRoadIdentityAcceptance=NOT_VERIFIED, productionPublication=BLOCKED, sourceDiscoveryComplete=false, and receiverMatchingComplete=false. Never change these fields or CI to green prematurely.
 
