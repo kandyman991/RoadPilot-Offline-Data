@@ -99,6 +99,22 @@ alternatives remain preserved without choosing the best route. No receiving B
 native road, extra coordinate or multi-step Valhalla route is involved.
 See `docs/F8_PR127_NATIVE_IMMEDIATE_COSTING_20261109.md`.
 
+**November 9 exact original source native branch evidence:**
+Only already selected original A source cut junctions are inspected. The
+reader exposes each immediate outgoing edge's **actual native owning
+from-node GraphId**, original directed departure geometry, end-node and
+class/use/layer, alongside per-vehicle Valhalla 3.6.3 one-step legality.
+Where multiple statically legal outgoing original edges have different
+native end nodes and divergent original shape departure points, record
+DISTINCT native geometric branches, preserving ALL alternatives. A single
+legal next edge is only a legal immediate continuation; neither outcome
+identifies the same physical road or proves complete final-edge coverage.
+Unknown shortcut, hierarchy, timed/complex and physical-road identities
+remain unresolved, not discarded. No road-name/way/heading heuristics,
+Graph B native matching, new coordinate or production publication are
+allowed by this evidence. See
+`docs/F8_PR127_EXACT_NATIVE_SOURCE_BRANCH_TOPOLOGY_20261109.md`.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer

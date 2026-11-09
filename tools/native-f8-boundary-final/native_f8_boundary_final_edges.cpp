@@ -202,6 +202,7 @@ int inspect_local_continuations(int argc, char** argv) {
         if (!first) std::cout << ',';
         first = false;
         std::cout << "{\"viaHierarchy\":" << (local == end_id ? "false" : "true")
+                  << ",\"fromNodeGraphId\":" << local.value
                   << ",\"edge\":";
         print_directed_edge(reader, out);
         if (evaluate_costing) {
@@ -238,7 +239,7 @@ int inspect_local_continuations(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--protocol") {
-    std::cout << "roadpilot.f8-native-source-6\n";
+    std::cout << "roadpilot.f8-native-source-7\n";
     return 0;
   }
   if (argc == 2 && std::string(argv[1]) == "--version") {

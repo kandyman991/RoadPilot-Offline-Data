@@ -1,5 +1,44 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #127 native exact source branch evidence — 2026-11-09
+
+**Current latest draft head pending commit/CI.** Owner directed to use
+Valhalla 3.6.3 one-step costing **plus original A directed native geometry
+and exact node topology**. Without a new discovery/route algorithm, native
+reader protocol v7 now exposes the *exact owner from-node GraphId* of each
+original immediate outgoing edge; Python verifies that a direct edge comes
+from the incoming directed original A end-node, retains the original
+oriented first distinct departure shape, native end-node, class/use,
+bridge/tunnel/layer and car/motorcycle legality.
+
+Bounded source branch results on immutable original Italy NE→Austria A graph:
+439 original nonterminal source roots, 121 single static legal successors,
+25 single positive plus unknown alternatives, **188 with 2+ genuinely
+divergent native directed branches**, 105 with unknown/no confirmed positive;
+21 branched junctions had different original road use, 19 had different
+native classification. Reverse Austria→Italy NE: 211 source roots; 71
+single static legal, 8 positive+unknown, **84 distinct divergent branches**,
+48 unknown/no positive; 16 different road use/class. The car and motorcycle
+counts coincide in these original archives but are classified independently.
+The original 505/269 local native terminal candidate GraphIds and ALL
+original immediate branches, permits and modes are unchanged; no Graph B
+native road read. A unique statically legal successor is NOT proof of same
+physical road; a local divergent branch is NOT a proved second handoff.
+No angle/straightest, road-name, OSM way, proximity or route preference rule
+was used. **PhysicalRoadDirectionCompleteness=NOT_VERIFIED,
+ReceiverCorrelation=NOT_STARTED, Android=NOT_RUN, Publication=BLOCKED**.
+
+Tests: Valhalla original C++ Release build PASS, 411 Python unit tests PASS;
+bilateral real original A archive comparisons PASS. Full evidence and
+read-only local gzip SHA checksums in
+`docs/F8_PR127_EXACT_NATIVE_SOURCE_BRANCH_TOPOLOGY_20261109.md`.
+**Next exact gate:** determine actual physical-road continuation identity
+and source-road coverage at unresolved original source fork/edge lineages;
+NEVER select a winner from multiple divergent legal branches based on
+straightness or costing. If native information cannot distinguish, preserve
+source as explicitly unresolved. No B road matching or publication yet.
+
+
 ## PR #127 native immediate Valhalla legality increment (2026-11-09)
 
 Owner directed resumption using Valhalla's own immediate transition rules,

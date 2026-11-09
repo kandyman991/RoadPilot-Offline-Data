@@ -94,3 +94,19 @@ Only graph-LOCAL immediate cost legality proven, not full historical route,
 unique physical-road identity or complete source coverage. No B original
 road matched, no A→X→B Android trip, no catalog. See
 `docs/F8_PR127_NATIVE_IMMEDIATE_COSTING_20261109.md`.
+
+
+**2026-11-09 PR #127 exact original native branch evidence (G-F8-06 OPEN):**
+Same pair-bound 25-km original A shared-cut stage, native reader protocol v7
+records authoritative outgoing from-node GraphId, original directed departure
+geometry/end-node, class/use/layer and mode-specific Valhalla immediate
+legality. Italy NE→Austria: of 439 nonterminal source roots, 121 have one
+static permitted next edge without unknowns; 25 have one permitted plus
+unknown options; 188 have 2+ distinct outgoing native end nodes and diverging
+geometry; 105 require further context. Austria→Italy NE: 71/8/84/48 of 211.
+**No same physical-road identification follows automatically** from a
+legal turn, class/use or shape; preserve every true branch and any unknown.
+The 505/269 terminal-candidate original GraphIds and original branches
+remain intact, no Graph B directed edge match and no Android trip. Physical
+road/direction uniqueness/completeness NOT_VERIFIED, catalog BLOCKED. See
+`docs/F8_PR127_EXACT_NATIVE_SOURCE_BRANCH_TOPOLOGY_20261109.md`.

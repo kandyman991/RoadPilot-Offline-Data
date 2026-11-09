@@ -22,7 +22,7 @@ from pathlib import Path
 from shapely.geometry import box, shape, mapping, MultiLineString, Point
 
 SCHEMA = "roadpilot.f8-region-original-boundary-source"
-NATIVE_PROTOCOL = "roadpilot.f8-native-source-6"
+NATIVE_PROTOCOL = "roadpilot.f8-native-source-7"
 
 
 def sha256(path: Path) -> str:
@@ -272,12 +272,98 @@ def validate_immediate_native_observation(record: dict) -> None:
             value = edge.get(field)
             if type(value) not in (int, float) or not math.isfinite(value):
                 raise ValueError("Invalid original native outgoing geometry")
+        # fromNodeGraphId is the native node that actually owns this edge;
+        # matching GPS or a heading must never establish a node transition.
+        from_id = row.get("fromNodeGraphId")
+        if from_id is not None:
+            if type(from_id) is not int or from_id < 0:
+                raise ValueError("Invalid original outgoing native from-node GraphId")
+            if (not row["viaHierarchy"] and
+                    from_id != source.get("endNodeGraphId")):
+                raise ValueError("Original direct incident edge has wrong native from-node")
+        departure = edge.get("departure")
+        if departure is not None and (not isinstance(departure, list) or
+                len(departure) != 2 or
+                any(type(x) not in (float, int) or not math.isfinite(x)
+                    for x in departure)):
+            raise ValueError("Invalid original native shape departure")
         costing = row.get("nativeImmediateCosting")
         if costing is not None:
             if (not isinstance(costing, dict) or
                     set(costing) != {"car", "motorcycle"} or
                     any(x not in NATIVE_COSTING_STATUSES for x in costing.values())):
                 raise ValueError("Invalid native vehicle-specific one-step costing evidence")
+
+
+def classify_source_native_branch_topology(options: list[dict],
+                                         source_end_node_id: int) -> dict:
+    """Bounded original A junction classification, not physical-road identity.
+
+    Identical native FROM-node IDs establish true directed topology, while
+    Valhalla's directed shape departure and end-node identity establish
+    geometric divergence between different positive original branches.
+    No angle, road-name, way-ID, proximity, preferred-turn or multi-hop rule.
+    All other plausible alternatives are retained as unverified possibilities.
+    """
+    if type(source_end_node_id) is not int or source_end_node_id < 0:
+        raise ValueError("Missing original source end-node for branch verification")
+    vehicle = {}
+    for mode, bit in (("car", 1), ("motorcycle", 1024)):
+        allowed = []
+        unknown = []
+        denied = []
+        for opt in options:
+            gid = opt["graphId"]
+            result = opt["nativeImmediateCosting"][mode]
+            if result == "NOT_EVALUATED":
+                continue
+            if result == "ALLOWED_NATIVE_IMMEDIATE":
+                if not (opt["nativeVehicleModes"] & bit):
+                    raise ValueError("Native costing allowed a vehicle without original access")
+                if opt["viaHierarchy"] or opt.get("nativeFromNodeGraphId") != source_end_node_id:
+                    raise ValueError("Native immediate legal edge is not from the exact A end node")
+                allowed.append(opt)
+            elif result.startswith("UNRESOLVED_"):
+                unknown.append(gid)
+            else:
+                denied.append(gid)
+        allowed_ids = [x["graphId"] for x in allowed]
+        if len(allowed_ids) != len(set(allowed_ids)):
+            raise ValueError("Repeated original legal outgoing directed GraphId")
+        if all(x["nativeImmediateCosting"][mode] == "NOT_EVALUATED" for x in options):
+            status = "NOT_EVALUATED"
+        elif len(allowed) >= 2:
+            valid_departures = all(
+                isinstance(x.get("nativeDirectedDeparture"), list) and
+                len(x["nativeDirectedDeparture"]) == 2 and
+                all(type(c) in (int, float) and math.isfinite(c)
+                    for c in x["nativeDirectedDeparture"])
+                for x in allowed)
+            end_nodes = [x.get("nativeEndNodeGraphId") for x in allowed]
+            departures = [tuple(x["nativeDirectedDeparture"])
+                          for x in allowed] if valid_departures else []
+            if (valid_departures and
+                    all(type(n) is int and n >= 0 for n in end_nodes) and
+                    len(set(end_nodes)) == len(allowed) and
+                    len(set(departures)) == len(allowed)):
+                status = "DISTINCT_NATIVE_GEOMETRIC_BRANCHES"
+            else:
+                status = "MULTIPLE_ALLOWED_OVERLAPPING_OR_UNKNOWN_GEOMETRY"
+        elif len(allowed) == 1:
+            status = ("SINGLE_ALLOWED_WITH_UNKNOWN_ALTERNATIVES" if unknown
+                      else "SINGLE_STATIC_LEGAL_CONTINUATION")
+        else:
+            status = ("NO_CONFIRMED_WITH_UNKNOWN_ALTERNATIVES" if unknown
+                      else "NO_CONFIRMED_STATIC_CONTINUATION")
+        vehicle[mode] = {
+            "nativeTopologyStatus": status,
+            "staticallyAllowedDirectedGraphIds": allowed_ids,
+            "unresolvedDirectedGraphIds": unknown,
+            "nativeDeniedOrUnavailableGraphIds": denied,
+            "hasUnresolvedAlternatives": bool(unknown),
+            "physicalRoadIdentity": "NOT_VERIFIED",
+        }
+    return vehicle
 
 
 def native_terminal_modes_from_adjacency(native_observation: dict) -> int:
@@ -378,8 +464,11 @@ def inspect_local_source_edges(*, manifest_path: Path, index_path: Path,
     for record in observations:
         validate_immediate_native_observation(record)
         if evaluate_native_costing and any(
-                "nativeImmediateCosting" not in x for x in record["options"]):
-            raise ValueError("Native one-step Valhalla costing not acknowledged")
+                "nativeImmediateCosting" not in x or
+                type(x.get("fromNodeGraphId")) is not int or
+                type(x["edge"].get("endNodeGraphId")) is not int
+                for x in record["options"]):
+            raise ValueError("Native one-step Valhalla costing/topology not acknowledged")
     return observations
 
 
@@ -702,14 +791,26 @@ def select_pair_terminal_candidates(cut_rows: list[dict], read_local,
                 "shortcut": edge["shortcut"], "transit": edge["transit"],
                 "eligibleOriginalForward": eligible,
                 "inSelectedSourceTiles": in_scope,
+                "nativeFromNodeGraphId": opt.get("fromNodeGraphId"),
+                "nativeEndNodeGraphId": edge.get("endNodeGraphId"),
+                "nativeDirectedDeparture": edge.get("departure"),
+                "nativeOriginalRoadClass": edge.get("roadClass"),
+                "nativeOriginalRoadUse": edge.get("roadUse"),
+                "nativeOriginalLayer": edge.get("layer"),
+                "nativeOriginalBridge": edge.get("bridge"),
+                "nativeOriginalTunnel": edge.get("tunnel"),
                 "nativeImmediateCosting": opt.get("nativeImmediateCosting",
                                                   {"car": "NOT_EVALUATED",
                                                    "motorcycle": "NOT_EVALUATED"})})
             if eligible and in_scope:
                 pending.setdefault(edge["graphId"], []).append(root["graphId"])
         unresolved.append({"sourceCutGraphId": root["graphId"],
+            "sourceOriginalEndNodeGraphId": native["source"].get("endNodeGraphId"),
+            "sourceOriginalNativeApproach": native["source"].get("approach"),
             "nativeVehicleModes": root["access"],
             "immediateNativeOutgoing": options,
+            "modeSpecificNativeBranchTopology": classify_source_native_branch_topology(
+                options, native["source"]["endNodeGraphId"]),
             "status": "NONTERMINAL_LOCAL_RELATION_UNRESOLVED",
             "physicalRoadIdentity": "NOT_VERIFIED"})
     # Inspect only IMMEDIATE successors, then STOP. In particular, the
@@ -786,7 +887,14 @@ def select_pair_terminal_candidates(cut_rows: list[dict], read_local,
     repeated_x = [sorted(ids) for ids in by_exact_x.values() if len(ids) > 1]
     repeated_nodes.sort()
     repeated_x.sort()
+    branching_counts = {mode: {} for mode in ("car", "motorcycle")}
+    for source_row in unresolved:
+        for mode, result in source_row["modeSpecificNativeBranchTopology"].items():
+            status = result["nativeTopologyStatus"]
+            branching_counts[mode][status] = branching_counts[mode].get(status, 0) + 1
     return {
+        "modeSpecificNativeBranchTopologyCounts": branching_counts,
+        "sourceNativeBranchClassification": "EXACT_NODE_AND_DIRECTED_DEPARTURE_ONLY",
         "originalPairedCutDirectedEvidence": cut_rows,
         "outwardOrAmbiguousSourceCutCount": len(roots),
         "directNativeTerminalRootCount": len(direct),
@@ -856,7 +964,7 @@ def resolve_original_cut_to_file(*, manifest_path: Path, index_path: Path,
         require_fingerprint(path, sha)
     output = {
         "schema": "roadpilot.f8-paired-source-local-terminal-candidates",
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "fromRegionId": pair["source"]["regionId"],
         "toRegionId": pair["receiver"]["regionId"],
         "fromGraphFingerprint": pair["source"]["graphFingerprint"],

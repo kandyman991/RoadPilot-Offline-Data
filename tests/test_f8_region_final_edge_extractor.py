@@ -164,7 +164,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-6')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-7')\n"
                 "else:\n"
                 " for item in [\n"
                 "  {'kind':'edge','graphId':77,'access':1025,'nativeTerminalModes':1025,'endLat':44,'endLon':10,'hasNativeApproachTangent':True,'approachLat':43.999,'approachLon':10},\n"
@@ -219,7 +219,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "import json,sys\n"
                 f"gid={gid}\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-6')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-7')\n"
                 "elif '--local-continuations' in sys.argv:\n"
                 " assert sys.argv[4]=='--evaluate-native-costing'\n"
                 " for line in open(sys.argv[3]):\n"
@@ -243,7 +243,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
             self.assertEqual(summary["nonterminalSourceCutCount"], 0)
             with gzip.open(out, "rt") as stream:
                 result = json.load(stream)
-            self.assertEqual(result["schemaVersion"], 4)
+            self.assertEqual(result["schemaVersion"], 5)
             self.assertEqual(result["fromRegionId"], "fictional-a")
             self.assertEqual(result["toRegionId"], "fictional-b")
             self.assertEqual(result["originalPairedCutDirectedEvidence"][0]["graphId"], gid)
@@ -377,6 +377,114 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,"costing"):
                     extractor.validate_immediate_native_observation(broken)
 
+    def test_native_node_geometry_proves_distinct_branches_not_same_physical_road(self):
+        def option(gid, endpoint, departure, *, car="ALLOWED_NATIVE_IMMEDIATE",
+                   motorcycle="ALLOWED_NATIVE_IMMEDIATE", fromnode=500):
+            return {"graphId":gid,"viaHierarchy":False,
+                    "nativeVehicleModes":1025,"nativeFromNodeGraphId":fromnode,
+                    "nativeEndNodeGraphId":endpoint,
+                    "nativeDirectedDeparture":departure,
+                    "nativeImmediateCosting":{"car":car,"motorcycle":motorcycle}}
+        options=[option(10,600,[45.0001,10.0001]),
+                 option(11,601,[44.9999,10.0002])]
+        proof=extractor.classify_source_native_branch_topology(options,500)
+        for mode in ("car","motorcycle"):
+            self.assertEqual(proof[mode]["nativeTopologyStatus"],
+                             "DISTINCT_NATIVE_GEOMETRIC_BRANCHES")
+            self.assertEqual(proof[mode]["staticallyAllowedDirectedGraphIds"],[10,11])
+            self.assertEqual(proof[mode]["physicalRoadIdentity"],"NOT_VERIFIED")
+        # The same first native shape departure is NOT proof of two distinct
+        # physical branches. Preserve both directed GraphIds as ambiguous.
+        overlapping=[options[0],option(11,601,[45.0001,10.0001])]
+        verdict=extractor.classify_source_native_branch_topology(overlapping,500)
+        self.assertEqual(verdict["car"]["nativeTopologyStatus"],
+                         "MULTIPLE_ALLOWED_OVERLAPPING_OR_UNKNOWN_GEOMETRY")
+        # Access can differ by vehicle mode; one positive plus a possible
+        # restricted branch is NOT a certified unique physical continuation.
+        mode_specific=[options[0],option(11,601,[44.9999,10.0002],
+                     motorcycle="UNRESOLVED_PATH_OR_TIME_CONTEXT")]
+        verdict=extractor.classify_source_native_branch_topology(mode_specific,500)
+        self.assertEqual(verdict["car"]["nativeTopologyStatus"],
+                         "DISTINCT_NATIVE_GEOMETRIC_BRANCHES")
+        self.assertEqual(verdict["motorcycle"]["nativeTopologyStatus"],
+                         "SINGLE_ALLOWED_WITH_UNKNOWN_ALTERNATIVES")
+        self.assertTrue(verdict["motorcycle"]["hasUnresolvedAlternatives"])
+        self.assertEqual(verdict["motorcycle"]["unresolvedDirectedGraphIds"],[11])
+        # Native graph ID, not near GPS, establishes the incident node.
+        for bad in (option(11,601,[44.9999,10.0002],fromnode=501),
+                    option(11,601,[44.9999,10.0002],fromnode=None)):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(ValueError,"exact A end node"):
+                    extractor.classify_source_native_branch_topology([options[0],bad],500)
+        # Native GraphId zero is permitted by Valhalla in some regional tiles;
+        # never impose a geography-specific positive-index assumption.
+        zero_node=[{**options[0],"nativeFromNodeGraphId":0,
+                    "nativeEndNodeGraphId":0}]
+        self.assertEqual(extractor.classify_source_native_branch_topology(
+            zero_node,0)["car"]["nativeTopologyStatus"],
+            "SINGLE_STATIC_LEGAL_CONTINUATION")
+        with self.assertRaisesRegex(ValueError,"without original access"):
+            extractor.classify_source_native_branch_topology([
+                {**options[0],"nativeVehicleModes":1024}],500)
+
+    def test_root_with_two_native_terminal_branches_preserves_both_and_unresolved_root(self):
+        cut=[{"graphId":20,"endNodeGraphId":520,"access":1025,
+              "nativeTerminalModes":0,"originalCutOrientation":"OUTWARD",
+              "endLat":45.0,"endLon":10.0}]
+        def source(gid, end_node, end_lon):
+            return {"graphId":gid,"endNodeGraphId":end_node,
+                    "access":1025,"shortcut":False,"transit":False,
+                    "startLat":45.,"startLon":10.,"endLat":45.,"endLon":end_lon}
+        def option(gid, end_node, departure):
+            return {"viaHierarchy":False,"fromNodeGraphId":520,
+                    "edge":{**source(gid,end_node,10.01),"departure":departure},
+                    "nativeImmediateCosting":{
+                        "car":"ALLOWED_NATIVE_IMMEDIATE",
+                        "motorcycle":"ALLOWED_NATIVE_IMMEDIATE"}}
+        first={"kind":"local-continuations","source":source(20,520,10.0),
+               "options":[option(21,521,[45.001,10.001]),
+                          option(22,522,[44.999,10.001])]}
+        next_two=[{"kind":"local-continuations","source":source(gid,520+gid-20,10.01),
+                   "options":[]} for gid in (21,22)]
+        calls=[]
+        def read(ids):
+            calls.append(ids)
+            return [[first],next_two][len(calls)-1]
+        data=extractor.select_pair_terminal_candidates(cut,read,
+            source_cut_tile_ids={20,21,22},receiver_footprint=box(9,44,11,46))
+        self.assertEqual(calls,[[20],[21,22]])
+        self.assertEqual({x["sourceFinalCandidateGraphId"] for x in
+            data["terminalCandidatesByExactSourceGraphId"]},{21,22})
+        self.assertEqual(data["nonterminalSourceCutCount"],1)
+        self.assertEqual(data["singleNativeOneHopTerminalRootCount"],0)
+        root=data["unresolvedNonterminalSourceCutObservations"][0]
+        self.assertEqual(root["modeSpecificNativeBranchTopology"]["car"]
+                         ["nativeTopologyStatus"],"DISTINCT_NATIVE_GEOMETRIC_BRANCHES")
+        self.assertEqual(root["localStructuralStatus"],
+                         "MULTIPLE_NATIVE_OUTGOING_UNRESOLVED")
+        self.assertEqual(root["physicalRoadIdentity"],"NOT_VERIFIED")
+        self.assertEqual(data["sourcePhysicalRoadDirectionCompleteness"],"NOT_VERIFIED")
+        self.assertEqual(data["receiverCorrelation"],"NOT_STARTED")
+        self.assertEqual(data["productionPublication"],"BLOCKED")
+
+    def test_direct_incident_native_from_node_and_departure_fail_closed(self):
+        row={"kind":"local-continuations",
+             "source":{"graphId":30,"endNodeGraphId":230},
+             "options":[{"viaHierarchy":False,"fromNodeGraphId":231,
+                         "edge":{"graphId":31,"access":1025,
+                                 "shortcut":False,"transit":False,
+                                 "startLat":45.,"startLon":10.,
+                                 "endLat":45.,"endLon":10.01,
+                                 "departure":[45.001,10.001]}}]}
+        with self.assertRaisesRegex(ValueError,"wrong native from-node"):
+            extractor.validate_immediate_native_observation(row)
+        row["options"][0]["fromNodeGraphId"]=230
+        row["options"][0]["edge"]["departure"]=[float("nan"),10.001]
+        with self.assertRaisesRegex(ValueError,"shape departure"):
+            extractor.validate_immediate_native_observation(row)
+        row["options"][0]["edge"]["departure"]=[45.001,10.001]
+        extractor.validate_immediate_native_observation(row)
+
     def test_original_graph_local_terminal_proof_rejects_stale_masks_ids_and_x(self):
         row = {"graphId":7,"endNodeGraphId":42,"access":1025,
                "nativeTerminalModes":1,"endLat":45.0,"endLon":10.0}
@@ -457,7 +565,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-6')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-7')\n"
                 "else:\n"
                 " assert len(sys.argv) == 4\n"
                 " assert 'buffer.geojson' in sys.argv[3]\n"
