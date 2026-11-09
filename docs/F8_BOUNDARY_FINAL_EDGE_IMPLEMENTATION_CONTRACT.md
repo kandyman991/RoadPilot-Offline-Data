@@ -88,6 +88,17 @@ identity evidence and do not authorize B road matching, route probes,
 catalog publication or a `COMPLETE` status. See
 `docs/F8_PR127_BOUNDED_SOURCE_LOCAL_PROOF_20261109.md`.
 
+**November 9 native immediate-costing experiment, source-only:**
+The source stage can call Valhalla's original 3.6.3 car/motorcycle
+`Allowed` costing on exactly the immediately incident A-directed edges at
+already identified shared-cut source end nodes. With no preceding route
+history or requested date/time, hierarchy/shortcut/conditional restrictions
+are flagged `UNRESOLVED`, never guessed. A legal immediate turn does **not**
+prove same physical road or final-edge completeness, and all original native
+alternatives remain preserved without choosing the best route. No receiving B
+native road, extra coordinate or multi-step Valhalla route is involved.
+See `docs/F8_PR127_NATIVE_IMMEDIATE_COSTING_20261109.md`.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer

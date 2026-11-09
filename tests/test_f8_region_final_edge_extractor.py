@@ -164,7 +164,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-5')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-6')\n"
                 "else:\n"
                 " for item in [\n"
                 "  {'kind':'edge','graphId':77,'access':1025,'nativeTerminalModes':1025,'endLat':44,'endLon':10,'hasNativeApproachTangent':True,'approachLat':43.999,'approachLon':10},\n"
@@ -219,8 +219,9 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "import json,sys\n"
                 f"gid={gid}\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-5')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-6')\n"
                 "elif '--local-continuations' in sys.argv:\n"
+                " assert sys.argv[4]=='--evaluate-native-costing'\n"
                 " for line in open(sys.argv[3]):\n"
                 "  rowid=int(line)\n"
                 "  print(json.dumps({'kind':'local-continuations','source':{'graphId':rowid,'endNodeGraphId':999,'access':1025,'endLat':45,'endLon':10.01},'options':[]}))\n"
@@ -242,7 +243,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
             self.assertEqual(summary["nonterminalSourceCutCount"], 0)
             with gzip.open(out, "rt") as stream:
                 result = json.load(stream)
-            self.assertEqual(result["schemaVersion"], 3)
+            self.assertEqual(result["schemaVersion"], 4)
             self.assertEqual(result["fromRegionId"], "fictional-a")
             self.assertEqual(result["toRegionId"], "fictional-b")
             self.assertEqual(result["originalPairedCutDirectedEvidence"][0]["graphId"], gid)
@@ -354,6 +355,28 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
         self.assertEqual(len(result["unresolvedNonterminalSourceCutObservations"]),1)
         self.assertEqual(result["sourcePhysicalRoadDirectionCompleteness"],"NOT_VERIFIED")
 
+    def test_native_valhalla_immediate_costing_keeps_both_forks_and_unknowns(self):
+        def option(gid, car, motorcycle):
+            return {"viaHierarchy":False,
+                    "edge":{"graphId":gid,"access":1025,"shortcut":False,
+                            "transit":False,"startLat":45.,"startLon":10.,
+                            "endLat":45.,"endLon":10.01},
+                    "nativeImmediateCosting":{"car":car,"motorcycle":motorcycle}}
+        legal = option(90,"ALLOWED_NATIVE_IMMEDIATE","ALLOWED_NATIVE_IMMEDIATE")
+        unknown = option(91,"UNRESOLVED_PATH_OR_TIME_CONTEXT",
+                         "UNRESOLVED_HIERARCHY_CONTEXT")
+        denied = option(92,"DENIED_NATIVE_IMMEDIATE","NO_MODE_ACCESS")
+        a = {"kind":"local-continuations","source":{"graphId":89},
+             "options":[legal,unknown,denied]}
+        extractor.validate_immediate_native_observation(a)
+        self.assertEqual([o["edge"]["graphId"] for o in a["options"]],[90,91,92])
+        for bad in ({"car":"ALLOWED_NATIVE_IMMEDIATE"},
+                    {"car":"ACCEPTED_BY_GPS","motorcycle":"NO_MODE_ACCESS"}):
+            with self.subTest(bad=bad):
+                broken={**a,"options":[{**legal,"nativeImmediateCosting":bad}]}
+                with self.assertRaisesRegex(ValueError,"costing"):
+                    extractor.validate_immediate_native_observation(broken)
+
     def test_original_graph_local_terminal_proof_rejects_stale_masks_ids_and_x(self):
         row = {"graphId":7,"endNodeGraphId":42,"access":1025,
                "nativeTerminalModes":1,"endLat":45.0,"endLon":10.0}
@@ -434,7 +457,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-5')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-6')\n"
                 "else:\n"
                 " assert len(sys.argv) == 4\n"
                 " assert 'buffer.geojson' in sys.argv[3]\n"

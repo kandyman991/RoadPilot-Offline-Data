@@ -7,6 +7,11 @@
 #include <valhalla/baldr/graphreader.h>
 #include <valhalla/baldr/graphconstants.h>
 #include <valhalla/midgard/logging.h>
+#include <valhalla/sif/autocost.h>
+#include <valhalla/sif/motorcyclecost.h>
+#include <valhalla/sif/edgelabel.h>
+#include <valhalla/sif/costconstants.h>
+#include <valhalla/proto/options.pb.h>
 #include "original_buffer_cut.h"
 
 #include <algorithm>
@@ -103,8 +108,57 @@ void print_directed_edge(valhalla::baldr::GraphReader& reader,
   std::cout << '}';
 }
 
+// Evaluate exactly one native transition using Valhalla 3.6.3's OWN
+// AutoCost/MotorcycleCost Allowed() rules, never a shortest-route search.
+// Without a full historical route, date/time, or hierarchy traversal state,
+// do not invent an ALLOWED verdict for complex/conditional cases.
+std::string one_step_costing_status(const valhalla::sif::DynamicCost& costing,
+                                   uint32_t mode, const baldr::GraphId& source_id,
+                                   const baldr::DirectedEdge* source_edge,
+                                   const baldr::GraphId& next_id,
+                                   const baldr::DirectedEdge* next,
+                                   const baldr::graph_tile_ptr& next_tile,
+                                   bool via_hierarchy) {
+  if (!(source_edge->forwardaccess() & mode) || !(next->forwardaccess() & mode))
+    return "NO_MODE_ACCESS";
+  if (source_edge->is_shortcut() || next->is_shortcut())
+    return "UNRESOLVED_SHORTCUT";
+  if (via_hierarchy)
+    return "UNRESOLVED_HIERARCHY_CONTEXT";
+  if (source_edge->part_of_complex_restriction() ||
+      source_edge->start_restriction() || source_edge->end_restriction() ||
+      next->part_of_complex_restriction() || next->start_restriction() ||
+      next->end_restriction() || (next->access_restriction() & mode) ||
+      (source_edge->access_restriction() & mode) ||
+      source_edge->destonly() || next->destonly())
+    return "UNRESOLVED_PATH_OR_TIME_CONTEXT";
+  // Only the immediately preceding ORIGINAL directed source edge exists in
+  // this bounded query. A true route search could have path-dependent flags.
+  valhalla::sif::EdgeLabel pred(baldr::kInvalidLabel, source_id,
+       source_edge, valhalla::sif::Cost(0.0f, 0.0f), 0.0f,
+       costing.travel_mode(), 0, 255, false,
+       false, valhalla::sif::InternalTurn::kNoTurn);
+  uint8_t restriction_idx = 255;
+  uint8_t destonly_mask = 0;
+  const bool allowed = costing.Allowed(next, false, pred, next_tile, next_id,
+                                       0, 0, restriction_idx, destonly_mask);
+  return allowed ? "ALLOWED_NATIVE_IMMEDIATE" : "DENIED_NATIVE_IMMEDIATE";
+}
+
 int inspect_local_continuations(int argc, char** argv) {
-  if (argc != 4) throw std::runtime_error("usage: --local-continuations <valhalla.json> <original_directed_ids.txt>");
+  if (argc != 4 && argc != 5)
+    throw std::runtime_error("usage: --local-continuations <valhalla.json> <original_directed_ids.txt> [--evaluate-native-costing]");
+  const bool evaluate_costing = argc == 5;
+  if (evaluate_costing && std::string(argv[4]) != "--evaluate-native-costing")
+    throw std::runtime_error("Unknown local costing inspection option");
+  valhalla::Costing auto_options;
+  auto_options.set_type(valhalla::Costing::auto_);
+  valhalla::Costing motorcycle_options;
+  motorcycle_options.set_type(valhalla::Costing::motorcycle);
+  const auto auto_cost = evaluate_costing ?
+      valhalla::sif::CreateAutoCost(auto_options) : nullptr;
+  const auto motorcycle_cost = evaluate_costing ?
+      valhalla::sif::CreateMotorcycleCost(motorcycle_options) : nullptr;
   boost::property_tree::ptree config;
   boost::property_tree::read_json(argv[2], config);
   baldr::GraphReader reader(config.get_child("mjolnir"));
@@ -150,6 +204,17 @@ int inspect_local_continuations(int argc, char** argv) {
         std::cout << "{\"viaHierarchy\":" << (local == end_id ? "false" : "true")
                   << ",\"edge\":";
         print_directed_edge(reader, out);
+        if (evaluate_costing) {
+          std::cout << ",\"nativeImmediateCosting\":{";
+          std::cout << "\"car\":\""
+                    << one_step_costing_status(*auto_cost, baldr::kAutoAccess,
+                         input, edge, out, candidate, local_tile, local != end_id)
+                    << "\",\"motorcycle\":\""
+                    << one_step_costing_status(*motorcycle_cost,
+                         baldr::kMotorcycleAccess, input, edge, out,
+                         candidate, local_tile, local != end_id)
+                    << "\"}";
+        }
         std::cout << '}';
       }
       for (const auto& transition : local_tile->GetNodeTransitions(local)) {
@@ -173,7 +238,7 @@ int inspect_local_continuations(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--protocol") {
-    std::cout << "roadpilot.f8-native-source-5\n";
+    std::cout << "roadpilot.f8-native-source-6\n";
     return 0;
   }
   if (argc == 2 && std::string(argv[1]) == "--version") {

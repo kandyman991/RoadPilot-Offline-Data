@@ -22,7 +22,7 @@ from pathlib import Path
 from shapely.geometry import box, shape, mapping, MultiLineString, Point
 
 SCHEMA = "roadpilot.f8-region-original-boundary-source"
-NATIVE_PROTOCOL = "roadpilot.f8-native-source-5"
+NATIVE_PROTOCOL = "roadpilot.f8-native-source-6"
 
 
 def sha256(path: Path) -> str:
@@ -234,6 +234,13 @@ def require_native_protocol(binary: Path, version: str) -> None:
             raise ValueError(f"Native Valhalla/protocol mismatch: {flag}")
 
 
+NATIVE_COSTING_STATUSES = frozenset({
+    "ALLOWED_NATIVE_IMMEDIATE", "DENIED_NATIVE_IMMEDIATE",
+    "NO_MODE_ACCESS", "UNRESOLVED_SHORTCUT",
+    "UNRESOLVED_HIERARCHY_CONTEXT", "UNRESOLVED_PATH_OR_TIME_CONTEXT",
+})
+
+
 def validate_immediate_native_observation(record: dict) -> None:
     """Validate one native node/hierarchy lookup; NEVER infer road identity.
 
@@ -265,6 +272,12 @@ def validate_immediate_native_observation(record: dict) -> None:
             value = edge.get(field)
             if type(value) not in (int, float) or not math.isfinite(value):
                 raise ValueError("Invalid original native outgoing geometry")
+        costing = row.get("nativeImmediateCosting")
+        if costing is not None:
+            if (not isinstance(costing, dict) or
+                    set(costing) != {"car", "motorcycle"} or
+                    any(x not in NATIVE_COSTING_STATUSES for x in costing.values())):
+                raise ValueError("Invalid native vehicle-specific one-step costing evidence")
 
 
 def native_terminal_modes_from_adjacency(native_observation: dict) -> int:
@@ -312,7 +325,8 @@ def verify_cut_root_native_identity(cut_row: dict, native_observation: dict) -> 
 def inspect_local_source_edges(*, manifest_path: Path, index_path: Path,
                                buffer_path: Path, valhalla_config_path: Path,
                                binary: Path, source_graph_ids: list[int],
-                               allowed_tile_ids: set[int] | None = None) -> list[dict]:
+                               allowed_tile_ids: set[int] | None = None,
+                               evaluate_native_costing: bool = False) -> list[dict]:
     """Read immediate Valhalla incident edges for explicitly selected sources.
 
     Uses the same SHA-pinned original graph as the streaming source stage.
@@ -346,8 +360,11 @@ def inspect_local_source_edges(*, manifest_path: Path, index_path: Path,
         cfg.write_text(json.dumps(params), encoding="utf-8")
         ids = root / "original-source-directed-ids.txt"
         ids.write_text("".join(f"{gid}\n" for gid in source_graph_ids), encoding="utf-8")
-        run = subprocess.run([str(binary), "--local-continuations", str(cfg), str(ids)],
-                             capture_output=True, text=True, check=True, timeout=600)
+        command = [str(binary), "--local-continuations", str(cfg), str(ids)]
+        if evaluate_native_costing:
+            command.append("--evaluate-native-costing")
+        run = subprocess.run(command, capture_output=True, text=True,
+                             check=True, timeout=600)
     lines = run.stdout.splitlines()
     records = [json.loads(line) for line in lines]
     if (not records or records[-1].get("kind") != "complete" or
@@ -360,6 +377,9 @@ def inspect_local_source_edges(*, manifest_path: Path, index_path: Path,
         raise ValueError("Native local continuation output differs from requested source IDs")
     for record in observations:
         validate_immediate_native_observation(record)
+        if evaluate_native_costing and any(
+                "nativeImmediateCosting" not in x for x in record["options"]):
+            raise ValueError("Native one-step Valhalla costing not acknowledged")
     return observations
 
 
@@ -681,7 +701,10 @@ def select_pair_terminal_candidates(cut_rows: list[dict], read_local,
                 "nativeVehicleModes": edge["access"] & root["access"],
                 "shortcut": edge["shortcut"], "transit": edge["transit"],
                 "eligibleOriginalForward": eligible,
-                "inSelectedSourceTiles": in_scope})
+                "inSelectedSourceTiles": in_scope,
+                "nativeImmediateCosting": opt.get("nativeImmediateCosting",
+                                                  {"car": "NOT_EVALUATED",
+                                                   "motorcycle": "NOT_EVALUATED"})})
             if eligible and in_scope:
                 pending.setdefault(edge["graphId"], []).append(root["graphId"])
         unresolved.append({"sourceCutGraphId": root["graphId"],
@@ -774,6 +797,8 @@ def select_pair_terminal_candidates(cut_rows: list[dict], read_local,
         "oneHopInspectedGraphIdCount": len(successor_ids),
         "oneHopReceiverFootprintGraphIdCount": len(observed_one_hop),
         "nativeGraphLocalTerminalCandidateCount": len(terminal),
+        "nativeImmediateCostingAssessment": "ONE_STEP_NO_PATH_HISTORY",
+        "nativeImmediateCostingMayResolvePhysicalRoad": False,
         "exactEndNodeCoincidenceGroups": repeated_nodes,
         "exactTerminalGpsCoincidenceGroups": repeated_x,
         "terminalCandidatesByExactSourceGraphId": [terminal[gid] for gid in sorted(terminal)],
@@ -810,7 +835,8 @@ def resolve_original_cut_to_file(*, manifest_path: Path, index_path: Path,
         return inspect_local_source_edges(manifest_path=manifest_path,
             index_path=index_path, buffer_path=buffer_path,
             valhalla_config_path=valhalla_config_path, binary=binary,
-            source_graph_ids=gids, allowed_tile_ids=selected_ids)
+            source_graph_ids=gids, allowed_tile_ids=selected_ids,
+            evaluate_native_costing=True)
     observed = select_pair_terminal_candidates(cut_rows, inspect,
         source_cut_tile_ids=selected_ids,
         receiver_footprint=shape(load_json(receiver_buffer_path)["geometry"]))
@@ -830,7 +856,7 @@ def resolve_original_cut_to_file(*, manifest_path: Path, index_path: Path,
         require_fingerprint(path, sha)
     output = {
         "schema": "roadpilot.f8-paired-source-local-terminal-candidates",
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "fromRegionId": pair["source"]["regionId"],
         "toRegionId": pair["receiver"]["regionId"],
         "fromGraphFingerprint": pair["source"]["graphFingerprint"],

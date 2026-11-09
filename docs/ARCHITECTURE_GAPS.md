@@ -80,3 +80,17 @@ archives. This is graph-local topology, **NOT proven full one-per-physical-
 road/direction or all-region completeness**; no Graph B road read, matching,
 Android acceptance, merge, or catalog publication. See
 `docs/F8_PR127_BOUNDED_SOURCE_LOCAL_PROOF_20261109.md`.
+
+
+**2026-11-09 PR #127 real original-native one-step costing (G-F8-06 OPEN):**
+Default Valhalla 3.6.3 `AutoCost::Allowed` and `MotorcycleCost::Allowed`
+called directly on each already selected source A immediate original edge,
+with predecessor EdgeLabel; shortcuts, hierarchy and conditional restrictions
+remain explicitly unknown rather than guessed. Italy NE→Austria: 706
+original outgoing alternatives, 527 native immediate ALLOWED per mode,
+188 source roots have 2+ allowed options. Austria→Italy NE: 327 outgoing
+alternatives, 251 allowed per mode, 84 source roots have 2+ allowed options.
+Only graph-LOCAL immediate cost legality proven, not full historical route,
+unique physical-road identity or complete source coverage. No B original
+road matched, no A→X→B Android trip, no catalog. See
+`docs/F8_PR127_NATIVE_IMMEDIATE_COSTING_20261109.md`.

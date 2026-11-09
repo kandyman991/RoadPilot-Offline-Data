@@ -1,5 +1,37 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #127 native immediate Valhalla legality increment (2026-11-09)
+
+Owner directed resumption using Valhalla's own immediate transition rules,
+without full route searches, full-graph walks, a new discovery system or
+Graph B road matching. Existing original pair-bounded A source reader now
+supports v6 `--evaluate-native-costing`: calls native Valhalla 3.6.3
+`AutoCost::Allowed` and `MotorcycleCost::Allowed` with original incoming
+EdgeLabel and exact immediate outgoing directed GraphId. Explicitly marks
+shortcut, hierarchy, complex restriction and conditional/time/path-history
+cases as unknown, never converts unknown to allowed/dead-end. Per-edge car
+and motorcycle statuses retained under every original native option; no
+edge/ramp/fork filtered or grouped by GPS/road name.
+
+Legion actual original A archive runs: Italy NE→Austria 439 roots/706
+immediate options: 527 ALLOWED, 71 hierarchy-unknown, 47 shortcut-unknown,
+61 context-unknown per mode, 188 roots with 2+ positive immediate options.
+Austria→Italy NE 211 roots/327 options: 251 ALLOWED, 33 hierarchy-unknown,
+33 shortcut-unknown, 10 context-unknown per mode, 84 roots with 2+ positive
+options. 505/269 original local terminal GraphIds remain; native end-node
+and one-hop proof unchanged; graph-local terminal != unique physical road.
+See `docs/F8_PR127_NATIVE_IMMEDIATE_COSTING_20261109.md` and SHA-bound
+nonpublishing original outputs under
+`~/RoadPilotGraphStudio/diagnostics/f8-production/20261109/`.
+
+**Next exact step:** classify remaining source junctions using these default
+one-step legal-turn statuses and original directed physical-road topology;
+do not select a single best route or suppress genuine branches. Full source
+physical-road/direction completeness NOT_VERIFIED, Graph B matching
+NOT_STARTED, Android acceptance NOT_RUN, publication BLOCKED. PR #127
+stays DRAFT, UNMERGED pending review/CI and owner authorization.
+
+
 ## Bounded SOURCE-only final GraphId verification — PR #127, 2026-11-09
 
 **Current engineering gate, pending exact-head CI and review.** Without
