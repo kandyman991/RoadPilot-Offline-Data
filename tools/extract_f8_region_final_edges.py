@@ -19,11 +19,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from shapely.geometry import box, shape
+from shapely.geometry import box, shape, mapping, MultiLineString, Point
 
 SCHEMA = "roadpilot.f8-region-original-boundary-source"
-NATIVE_PROTOCOL = "roadpilot.f8-native-source-4"
-VALID_MODES = 0  # Native executable owns the exact Valhalla access bit masks.
+NATIVE_PROTOCOL = "roadpilot.f8-native-source-5"
 
 
 def sha256(path: Path) -> str:
@@ -53,7 +52,7 @@ def require_fingerprint(path: Path, claimed: str) -> None:
         raise ValueError(f"Immutable build input changed: {path.name}")
 
 
-def select_cut_tiles(graph_index: dict, buffered: dict) -> list[dict]:
+def select_cut_tiles(graph_index: dict, buffered: dict, *, shared_cut=None) -> list[dict]:
     """Pick tile-index entries intersecting the actual outer 25km cutoff.
 
     Include one immediate native neighbour ring at each hierarchy level so
@@ -65,7 +64,9 @@ def select_cut_tiles(graph_index: dict, buffered: dict) -> list[dict]:
     geo = shape(buffered.get("geometry") if buffered.get("type") == "Feature" else buffered)
     if geo.is_empty or not geo.is_valid or geo.geom_type not in {"Polygon", "MultiPolygon"}:
         raise ValueError("Invalid original buffered footprint")
-    outline = geo.boundary
+    outline = geo.boundary if shared_cut is None else shared_cut
+    if outline.is_empty or not outline.is_valid:
+        raise ValueError("No valid shared original 25-km cutoff geometry")
     indexed: dict[tuple[int, int], dict] = {}
     selected: set[tuple[int, int]] = set()
     widths: dict[int, int] = {}
@@ -137,6 +138,68 @@ def region_input(manifest: Path, graph_index: Path, buffer_geojson: Path) -> tup
     return m, selected
 
 
+
+def verified_shared_cut(*, source_manifest: Path, source_index: Path,
+                        source_buffer: Path, receiver_manifest: Path,
+                        receiver_index: Path, receiver_buffer: Path):
+    """Identify ONLY A's actual outer cutoff inside B's retained footprint.
+
+    Both graph archives, indexes and original 25-km GeoJSON footprints are
+    SHA-verified. Reciprocal boundary entries must identify the same neighbor
+    pair. This is a *pair-scoped source selector*, not a receiving road match:
+    only B's compiled directed geometry at X can prove the same physical road.
+    """
+    a, _ = region_input(source_manifest, source_index, source_buffer)
+    b, _ = region_input(receiver_manifest, receiver_index, receiver_buffer)
+    if a["regionId"] == b["regionId"]:
+        raise ValueError("Source/receiving region must be different")
+    a_primary = a.get("source", {}).get("primaryGeofabrikId")
+    b_primary = b.get("source", {}).get("primaryGeofabrikId")
+    if not a_primary or not b_primary or a_primary == b_primary:
+        raise ValueError("Missing distinct regional source identities")
+    a_index = load_json(source_index)
+    b_index = load_json(receiver_index)
+    def reciprocal(index, other_primary):
+        rows = [x for x in index.get("boundaries", [])
+                if x.get("sourceId") == other_primary]
+        if (len(rows) != 1 or not isinstance(rows[0].get("fingerprint"), str)
+                or not rows[0]["fingerprint"].startswith("sha256:")
+                or len(expected_sha256(rows[0]["fingerprint"])) != 64):
+            raise ValueError("Missing reciprocal original compiled boundary identity")
+        return rows[0]["fingerprint"]
+    a_peer = reciprocal(a_index, b_primary)
+    b_peer = reciprocal(b_index, a_primary)
+    from_poly = shape(load_json(source_buffer)["geometry"])
+    to_poly = shape(load_json(receiver_buffer)["geometry"])
+    raw = from_poly.boundary.intersection(to_poly)
+    def nonempty_lines(geom):
+        if geom.geom_type == "LineString":
+            return [geom] if geom.length > 0 else []
+        if geom.geom_type in ("MultiLineString", "GeometryCollection"):
+            return [segment for part in geom.geoms for segment in nonempty_lines(part)]
+        return []
+    lines = nonempty_lines(raw)
+    if not lines:
+        raise ValueError("Original neighboring region buffers have no shared source cutoff")
+    shared = MultiLineString([list(line.coords) for line in lines])
+    # A line entering B's recorded buffered geometry indicates potential B
+    # graph coverage, NOT the presence of an actual B road; this remains
+    # an explicit physical-match acceptance gate.
+    return {
+        "geometry": shared,
+        "source": a,
+        "receiver": b,
+        "reciprocalBoundaryFingerprints": {"from": a_peer, "to": b_peer},
+        "sourceBufferFingerprint": "sha256:" + sha256(source_buffer),
+        "receiverBufferFingerprint": "sha256:" + sha256(receiver_buffer),
+        "sourceIndexFingerprint": "sha256:" + sha256(source_index),
+        "receiverIndexFingerprint": "sha256:" + sha256(receiver_index),
+        "selectedSourceTiles": select_cut_tiles(a_index,
+            load_json(source_buffer), shared_cut=shared),
+        "receiverTilesTouchingSharedCut": select_cut_tiles(b_index,
+            load_json(receiver_buffer), shared_cut=shared),
+    }
+
 def validate_directed_approach(entry: dict) -> None:
     """The native tangent must point INTO the original terminal coordinate X.
 
@@ -171,97 +234,43 @@ def require_native_protocol(binary: Path, version: str) -> None:
             raise ValueError(f"Native Valhalla/protocol mismatch: {flag}")
 
 
-def _direction_delta(source: dict, target: dict) -> float | None:
-    """Angular bend between two *original directed* native road shapes.
+def validate_immediate_native_observation(record: dict) -> None:
+    """Validate one native node/hierarchy lookup; NEVER infer road identity.
 
-    Does not establish road identity by itself, and is never used to discard
-    a different native branch from the candidate's evidence.
+    No heading thresholds, straightest-road selection, recursive traversal
+    or route probes. Every outgoing branch identity remains visible.
     """
-    a = source.get("approach")
-    b = target.get("departure")
-    if not isinstance(a, list) or not isinstance(b, list) or len(a) != 2 or len(b) != 2:
-        return None
-    x = (source["endLat"], source["endLon"])
-    y = (target["startLat"], target["startLon"])
-    if any(not isinstance(z, (float, int)) or not math.isfinite(z)
-           for z in (*a, *b, *x, *y)):
-        raise ValueError("Invalid native continuation direction")
-    if abs(x[0] - y[0]) > 0.00001 or abs(x[1] - y[1]) > 0.00001:
-        # Source/receiver X must never be replaced by a nearby GPS point;
-        # local hierarchy peers may have different endpoints: unresolved.
-        return None
-    lat = math.radians(x[0])
-    east_scale = math.cos(lat)
-    v1 = ((x[1] - a[1]) * east_scale, x[0] - a[0])
-    v2 = ((b[1] - y[1]) * east_scale, b[0] - y[0])
-    mag = math.hypot(*v1) * math.hypot(*v2)
-    if mag < 1e-16:
-        return None
-    cos_a = max(-1.0, min(1.0, (v1[0] * v2[0] + v1[1] * v2[1]) / mag))
-    return math.degrees(math.acos(cos_a))
-
-
-def classify_local_continuations(observation: dict, mode: int) -> dict:
-    """Classify one-step original topology without ever dropping branch IDs.
-
-    A sole straight, structurally consistent outgoing native edge is locally
-    continuous. Multiple forward choices retain all branches even when one
-    is uniquely aligned; that alignment is NOT a global road identity proof.
-    This never makes a receiver match or declares a catalog complete.
-    """
-    if mode not in (1, 1024):
-        raise ValueError("Only native Valhalla auto/motorcycle mode bits supported")
-    if observation.get("kind") != "local-continuations":
-        raise ValueError("Missing native local-continuation evidence")
-    source = observation["source"]
-    if not source["access"] & mode:
-        return {"status": "MODE_NOT_ALLOWED", "nextGraphId": None, "allForwardGraphIds": []}
-    candidates = []
-    seen = set()
-    for row in observation["options"]:
-        peer = row["edge"]
-        gid = peer["graphId"]
-        if gid in seen:
-            raise ValueError("Invalid or duplicate native local continuation")
-        seen.add(gid)
-        if peer["access"] & mode:
-            candidates.append((peer, _direction_delta(source, peer)))
-    ids = sorted(p["graphId"] for p, _ in candidates)
-    result = {"status": "UNRESOLVED", "nextGraphId": None,
-              "allForwardGraphIds": ids}
-    if not candidates:
-        return {**result, "status": "NATIVE_GRAPH_TERMINAL"}
-    # In native hierarchy, a shortcut or mismatched-layer edge might be a
-    # shadow representation; do not treat it as a proved continuation or
-    # eliminate it silently.
-    if any(peer["shortcut"] or angle is None for peer, angle in candidates):
-        return result
-    same_structure = lambda peer: (peer["roadClass"] == source["roadClass"]
-                                   and peer["roadUse"] == source["roadUse"]
-                                   and peer["layer"] == source["layer"]
-                                   and peer["bridge"] == source["bridge"]
-                                   and peer["tunnel"] == source["tunnel"])
-    # A hairpin, class change, grade separation or fork is not automatically
-    # the same physical road. No name/way ID or arbitrary GPS snapping.
-    if len(candidates) == 1:
-        peer, angle = candidates[0]
-        if same_structure(peer) and angle <= 55.0:
-            return {**result, "status": "UNIQUE_LOCAL_FORWARD",
-                    "nextGraphId": peer["graphId"]}
-        return result
-    aligned = [(peer, angle) for peer, angle in candidates
-               if same_structure(peer) and angle <= 20.0]
-    if len(aligned) == 1 and all(
-            other["graphId"] == aligned[0][0]["graphId"] or angle >= 65.0
-            for other, angle in candidates):
-        return {**result, "status": "BRANCH_ALIGNED_FORWARD_UNPROVEN",
-                "nextGraphId": aligned[0][0]["graphId"]}
-    return result
+    if record.get("kind") != "local-continuations":
+        raise ValueError("Missing original local native node evidence")
+    source = record.get("source")
+    if not isinstance(source, dict) or type(source.get("graphId")) is not int:
+        raise ValueError("Invalid original local source directed GraphId")
+    seen: set[int] = set()
+    options = record.get("options")
+    if not isinstance(options, list):
+        raise ValueError("Missing original native node adjacency")
+    for row in options:
+        if not isinstance(row, dict) or type(row.get("viaHierarchy")) is not bool:
+            raise ValueError("Invalid native hierarchy transition evidence")
+        edge = row.get("edge")
+        if not isinstance(edge, dict) or type(edge.get("graphId")) is not int:
+            raise ValueError("Invalid original outgoing directed GraphId")
+        if edge["graphId"] in seen:
+            raise ValueError("Duplicate original outgoing directed GraphId")
+        seen.add(edge["graphId"])
+        if (type(edge.get("access")) is not int or type(edge.get("shortcut")) is not bool
+                or type(edge.get("transit")) is not bool):
+            raise ValueError("Missing native outgoing access/representation evidence")
+        for field in ("startLat", "startLon", "endLat", "endLon"):
+            value = edge.get(field)
+            if type(value) not in (int, float) or not math.isfinite(value):
+                raise ValueError("Invalid original native outgoing geometry")
 
 
 def inspect_local_source_edges(*, manifest_path: Path, index_path: Path,
                                buffer_path: Path, valhalla_config_path: Path,
-                               binary: Path, source_graph_ids: list[int]) -> list[dict]:
+                               binary: Path, source_graph_ids: list[int],
+                               allowed_tile_ids: set[int] | None = None) -> list[dict]:
     """Read immediate Valhalla incident edges for explicitly selected sources.
 
     Uses the same SHA-pinned original graph as the streaming source stage.
@@ -273,8 +282,11 @@ def inspect_local_source_edges(*, manifest_path: Path, index_path: Path,
     require_native_protocol(binary, str(manifest["valhallaVersion"]))
     original_tiles = {int(x["level"]) | (int(x["tileIndex"]) << 3)
                       for x in selected}
+    permissible = original_tiles if allowed_tile_ids is None else allowed_tile_ids
+    if not permissible.issubset(original_tiles):
+        raise ValueError("Local source node inspection exceeds native boundary tiles")
     if not source_graph_ids or any(type(gid) is not int or gid <= 0 or
-                                   (gid & ((1 << 25) - 1)) not in original_tiles
+                                   (gid & ((1 << 25) - 1)) not in permissible
                                    for gid in source_graph_ids):
         raise ValueError("Input source directed IDs must belong to selected original cutoff tiles")
     if len(set(source_graph_ids)) != len(source_graph_ids):
@@ -305,140 +317,8 @@ def inspect_local_source_edges(*, manifest_path: Path, index_path: Path,
         or [x["source"]["graphId"] for x in observations] != source_graph_ids):
         raise ValueError("Native local continuation output differs from requested source IDs")
     for record in observations:
-        for mode in (1, 1024):
-            classify_local_continuations(record, mode)
+        validate_immediate_native_observation(record)
     return observations
-
-
-def resolve_local_source_chains(source_graph_ids: list[int], read_native,
-                                selected_tile_graph_ids: set[int]) -> list[dict]:
-    """Follow only unambiguous local physical-forward *original* graph links.
-
-    read_native(ids) supplies the same SHA-validated native immediate node
-    observations as inspect_local_source_edges. This procedure has no road-name
-    or way-id lookup, network route probe, arbitrary cap, or full-network walk.
-    A branch is explicitly recorded but is not silently suppressed. Leaving
-    the selected 25-km cut tile ring, a loop, or a junction leaves the source
-    final INCOMPLETE; it must never be mistaken for a retained final.
-    """
-    if not source_graph_ids or len(source_graph_ids) != len(set(source_graph_ids)):
-        raise ValueError("Need unique original source-cut directed GraphIds")
-    mask = (1 << 25) - 1
-    def in_cut_scope(gid):
-        return type(gid) is int and (gid & mask) in selected_tile_graph_ids
-    if any(not in_cut_scope(g) for g in source_graph_ids):
-        raise ValueError("Source edge lies outside selected original cutoff tiles")
-    cache: dict[int, dict] = {}
-    initial = read_native(source_graph_ids)
-    if len(initial) != len(source_graph_ids):
-        raise ValueError("Incomplete original source continuation observations")
-    for gid, row in zip(source_graph_ids, initial):
-        if row.get("kind") != "local-continuations" or row["source"]["graphId"] != gid:
-            raise ValueError("Original source GraphId observation mismatch")
-        cache[gid] = row
-    active = []
-    for gid in source_graph_ids:
-        access = cache[gid]["source"]["access"]
-        for mode in (1, 1024):
-            if access & mode:
-                active.append({"root": gid, "mode": mode, "path": [gid],
-                               "branches": []})
-    results: dict[tuple[int, int], dict] = {}
-    while active:
-        missing = list(dict.fromkeys(job["path"][-1] for job in active
-                                     if job["path"][-1] not in cache))
-        if missing:
-            rows = read_native(missing)
-            if len(rows) != len(missing):
-                raise ValueError("Missing original local continuation graph identities")
-            for gid, row in zip(missing, rows):
-                if row.get("kind") != "local-continuations" or row["source"]["graphId"] != gid:
-                    raise ValueError("Original local continuation GraphId mismatch")
-                cache[gid] = row
-        pending = []
-        for job in active:
-            gid = job["path"][-1]
-            evidence = classify_local_continuations(cache[gid], job["mode"])
-            status = evidence["status"]
-            item = {"mode": job["mode"], "path": job["path"],
-                    "branchAlternatives": job["branches"],
-                    "localCandidateFinalGraphId": None}
-            if status == "NATIVE_GRAPH_TERMINAL":
-                item.update(status="GRAPH_LOCAL_TERMINAL", localCandidateFinalGraphId=gid)
-            elif status in ("UNIQUE_LOCAL_FORWARD", "BRANCH_ALIGNED_FORWARD_UNPROVEN"):
-                target = evidence["nextGraphId"]
-                if status == "BRANCH_ALIGNED_FORWARD_UNPROVEN":
-                    job["branches"] = job["branches"] + [{
-                        "atGraphId": gid,
-                        "allForwardGraphIds": evidence["allForwardGraphIds"],
-                        "alignedButNotProvenGraphId": target}]
-                if not in_cut_scope(target):
-                    item.update(status="EXITS_CUTOFF_TILE_SCOPE_UNRESOLVED",
-                                allForwardGraphIds=evidence["allForwardGraphIds"])
-                elif target in job["path"]:
-                    item.update(status="CYCLIC_LOCAL_CONTINUATION_UNRESOLVED",
-                                allForwardGraphIds=evidence["allForwardGraphIds"])
-                else:
-                    pending.append({**job, "path": job["path"] + [target]})
-                    continue
-            else:
-                item.update(status="AMBIGUOUS_LOCAL_CONTINUATION",
-                            allForwardGraphIds=evidence["allForwardGraphIds"])
-            # The next incoming iteration is the only place the updated
-            # branch list is reused; preserve it on every terminal outcome.
-            item["branchAlternatives"] = job["branches"]
-            results[(job["root"], job["mode"])] = item
-        active = pending
-    final = []
-    for gid in source_graph_ids:
-        per_mode = [results[(gid, mode)] for mode in (1, 1024)
-                    if (gid, mode) in results]
-        ids = [x["localCandidateFinalGraphId"] for x in per_mode]
-        # Never conflate different mode-local finals or claim uniqueness at
-        # a branch. A true global physical-road final remains a later gate.
-        one_local = (ids[0] if ids and all(v == ids[0] and v is not None for v in ids)
-                     and all(not x["branchAlternatives"] for x in per_mode)
-                     else None)
-        final.append({"sourceGraphId": gid, "localCandidateFinalGraphId": one_local,
-                      "modeResults": per_mode,
-                      "physicalRoadFinalCompleteness": "NOT_VERIFIED",
-                      "receivingCorrelation": "NOT_STARTED"})
-    return final
-
-
-def consolidate_exact_source_final_ids(resolutions: list[dict]) -> dict:
-    """One candidate per identical *original* final GraphId, never per name.
-
-    This is NOT a physical-road equivalence proof: separate original GraphIds
-    always remain distinct. Preserve each upstream cut observation and every
-    unresolved branch rather than treating a common downstream ID as proof
-    that two source roads/branches were identical.
-    """
-    confirmed: dict[int, dict] = {}
-    unresolved = []
-    seen_sources: set[int] = set()
-    for row in resolutions:
-        source_id = row["sourceGraphId"]
-        if type(source_id) is not int or source_id in seen_sources:
-            raise ValueError("Duplicate source-cut directed GraphId in local final register")
-        seen_sources.add(source_id)
-        final_id = row.get("localCandidateFinalGraphId")
-        if final_id is None:
-            unresolved.append(row)
-            continue
-        if type(final_id) is not int:
-            raise ValueError("Invalid exact original source final GraphId")
-        if row.get("physicalRoadFinalCompleteness") != "NOT_VERIFIED":
-            raise ValueError("Local source grouping cannot certify global road identity")
-        item = confirmed.setdefault(final_id, {
-            "localCandidateFinalGraphId": final_id,
-            "sourceCutGraphIds": [], "sourceCutModePaths": [],
-            "physicalRoadFinalCompleteness": "NOT_VERIFIED"})
-        item["sourceCutGraphIds"].append(source_id)
-        item["sourceCutModePaths"].append(row["modeResults"])
-    return {"distinctLocalFinalCandidateRecords": [confirmed[k] for k in sorted(confirmed)],
-            "unresolvedSourceCutObservations": unresolved,
-            "productionPublication": "BLOCKED"}
 
 
 def classify_native_rows(lines: str, *, selected_count: int, version: str) -> tuple[list[dict], list[dict], dict]:
@@ -479,8 +359,13 @@ def classify_native_rows(lines: str, *, selected_count: int, version: str) -> tu
 
 
 def extract(*, manifest_path: Path, index_path: Path, buffer_path: Path,
-            valhalla_config_path: Path, binary: Path, cut_only: bool = False) -> dict:
+            valhalla_config_path: Path, binary: Path, cut_only: bool = False,
+            paired_scope: dict | None = None) -> dict:
     manifest, selected = region_input(manifest_path, index_path, buffer_path)
+    if paired_scope is not None:
+        if not cut_only or paired_scope["source"]["graphFingerprint"] != manifest["graphFingerprint"]:
+            raise ValueError("Paired source scan requires the exact source graph and original cutoff")
+        selected = paired_scope["selectedSourceTiles"]
     expected_version = str(manifest["valhallaVersion"])
     require_native_protocol(binary, expected_version)
     # Keep exactly the validated original routing archive, and never read
@@ -503,12 +388,19 @@ def extract(*, manifest_path: Path, index_path: Path, buffer_path: Path,
         command = [str(binary), str(cfg), str(ids)]
         if cut_only:
             command.append(str(buffer_path.resolve()))
+        if paired_scope is not None:
+            shared = root / "sha-bound-shared-original-cut.geojson"
+            shared.write_text(json.dumps({"type": "Feature", "properties": {},
+                            "geometry": mapping(paired_scope["geometry"])}), encoding="utf-8")
+            command.append(str(shared))
         result = subprocess.run(command, check=True,
                                 capture_output=True, text=True, timeout=600)
     terminal, unresolved, complete = classify_native_rows(
         result.stdout, selected_count=len(selected), version=expected_version)
     if complete.get("originalCutFilterApplied") is not cut_only:
         raise ValueError("Native original-buffer-cut selection not acknowledged")
+    if paired_scope is not None and complete.get("sharedCutFilterApplied") is not True:
+        raise ValueError("Native shared-pair source cutoff selection not acknowledged")
     if cut_only and any(e.get("originalCutOrientation") not in
                         ("OUTWARD", "INWARD", "AMBIGUOUS") for e in terminal + unresolved):
         raise ValueError("Missing authoritative cut orientation evidence")
@@ -516,6 +408,7 @@ def extract(*, manifest_path: Path, index_path: Path, buffer_path: Path,
         "schema": SCHEMA,
         "schemaVersion": 3 if cut_only else 2,
         "actualOriginalCutGeometryFilter": cut_only,
+        "sharedCutFilterApplied": paired_scope is not None,
         "regionId": manifest["regionId"],
         "packageVersion": manifest["packageVersion"],
         "graphFingerprint": manifest["graphFingerprint"],
@@ -656,75 +549,193 @@ def extract_to_file(*, manifest_path: Path, index_path: Path, buffer_path: Path,
                 "unresolvedJunctionDirectedEdgeCount": counts["unresolved"]}
 
 
+def select_pair_terminal_candidates(cut_rows: list[dict], read_local,
+                                    *, source_cut_tile_ids: set[int],
+                                    receiver_footprint) -> dict:
+    """Terminal-first one-hop native source selection, never graph traversal.
+
+    Every outward/ambiguous source cutoff edge is preserved exactly once.
+    Edges with native terminal modes are direct *candidates*. The remaining
+    directed roads undergo one immediate node/hierarchy inspection only.
+    Their immediate ORIGINAL non-shortcut outgoing edges are checked once for
+    local terminal eligibility (including beyond-cut finals), never followed.
+    Their forks remain unresolved regardless of heading, name or class.
+    """
+    ids: set[int] = set()
+    roots = []
+    for row in cut_rows:
+        gid = row.get("graphId")
+        if type(gid) is not int or gid in ids:
+            raise ValueError("Repeated or invalid original paired-cut GraphId")
+        ids.add(gid)
+        if row.get("originalCutOrientation") in ("OUTWARD", "AMBIGUOUS"):
+            roots.append(row)
+        elif row.get("originalCutOrientation") != "INWARD":
+            raise ValueError("Unclassified original directed shared-cut encounter")
+    if not roots:
+        raise ValueError("Original pair-shared cutoff has no outward/ambiguous directed edges")
+    direct = [r for r in roots if r["nativeTerminalModes"]]
+    nonterminal = [r for r in roots if r["access"] & ~r["nativeTerminalModes"]]
+    terminal: dict[int, dict] = {}
+    def retain(gid: int, modes: int, origin: int, native: dict, *, kind: str):
+        if modes & ~native["access"] or not modes:
+            raise ValueError("Native terminal permissions disagree with original access")
+        data = terminal.setdefault(gid, {"sourceFinalCandidateGraphId": gid,
+            "terminalVehicleModes": 0, "access": native["access"],
+            "endLat": native["endLat"], "endLon": native["endLon"],
+            "sourceCutGraphIds": [], "selectionKinds": [],
+            "sourcePhysicalRoadFinalCompleteness": "NOT_VERIFIED"})
+        if (data["endLat"], data["endLon"], data["access"]) != (
+                native["endLat"], native["endLon"], native["access"]):
+            raise ValueError("Conflicting original native terminal GraphId identity")
+        data["terminalVehicleModes"] |= modes
+        if origin not in data["sourceCutGraphIds"]:
+            data["sourceCutGraphIds"].append(origin)
+        if kind not in data["selectionKinds"]:
+            data["selectionKinds"].append(kind)
+    for row in direct:
+        retain(row["graphId"], row["nativeTerminalModes"],
+               row["graphId"], row, kind="NATIVE_TERMINAL_AT_SHARED_CUT")
+    unresolved = []
+    # A single local inspection at each nonterminal cutoff source node.
+    observations = read_local([row["graphId"] for row in nonterminal]) if nonterminal else []
+    if len(observations) != len(nonterminal):
+        raise ValueError("Incomplete original nonterminal shared-cut adjacency")
+    pending: dict[int, list[int]] = {}
+    for root, native in zip(nonterminal, observations):
+        if (native.get("kind") != "local-continuations" or
+                native["source"]["graphId"] != root["graphId"]):
+            raise ValueError("Wrong original local node source GraphId")
+        options = []
+        for opt in native["options"]:
+            edge = opt["edge"]
+            pending_modes = root["access"] & ~root["nativeTerminalModes"]
+            eligible_modes = edge["access"] & pending_modes
+            eligible = bool(eligible_modes and not edge["shortcut"] and not edge["transit"])
+            in_scope = (edge["graphId"] & ((1 << 25) - 1)) in source_cut_tile_ids
+            options.append({"graphId": edge["graphId"],
+                "viaHierarchy": opt["viaHierarchy"],
+                "nativeVehicleModes": edge["access"] & root["access"],
+                "shortcut": edge["shortcut"], "transit": edge["transit"],
+                "eligibleOriginalForward": eligible,
+                "inSelectedSourceTiles": in_scope})
+            if eligible and in_scope:
+                pending.setdefault(edge["graphId"], []).append(root["graphId"])
+        unresolved.append({"sourceCutGraphId": root["graphId"],
+            "nativeVehicleModes": root["access"],
+            "immediateNativeOutgoing": options,
+            "status": "NONTERMINAL_LOCAL_RELATION_UNRESOLVED",
+            "physicalRoadIdentity": "NOT_VERIFIED"})
+    # Inspect only IMMEDIATE successors, then STOP. In particular, the
+    # algorithm does not recursively follow graph edges, even on curves,
+    # junctions or hierarchy transitions. B footprint is a source scope
+    # check, NEVER the actual B-directed edge identity.
+    successor_ids = sorted(pending)
+    successors = read_local(successor_ids) if successor_ids else []
+    if len(successors) != len(successor_ids):
+        raise ValueError("Incomplete original one-hop source local inspection")
+    observed_one_hop: set[int] = set()
+    for gid, row in zip(successor_ids, successors):
+        if row.get("kind") != "local-continuations" or row["source"]["graphId"] != gid:
+            raise ValueError("Wrong original immediate forward directed GraphId")
+        source = row["source"]
+        if not receiver_footprint.covers(Point(
+                source["endLon"], source["endLat"])):
+            continue
+        observed_one_hop.add(gid)
+        available = source["access"]
+        for option in row["options"]:
+            edge = option["edge"]
+            if not edge["transit"]:
+                available &= ~edge["access"]
+        if available:
+            # One predecessor may be a fork or hierarchy peer. Preserve
+            # every distinct source origin rather than assign road identity.
+            for origin in pending[gid]:
+                root = next(item for item in nonterminal if item["graphId"] == origin)
+                modes = available & root["access"] & ~root["nativeTerminalModes"]
+                if modes:
+                    retain(gid, modes, origin, source,
+                           kind="NATIVE_TERMINAL_ONE_IMMEDIATE_HOP_UNPROVEN")
+    return {
+        "originalPairedCutDirectedEvidence": cut_rows,
+        "outwardOrAmbiguousSourceCutCount": len(roots),
+        "directNativeTerminalRootCount": len(direct),
+        "nonterminalSourceCutCount": len(nonterminal),
+        "oneHopInspectedGraphIdCount": len(successor_ids),
+        "oneHopReceiverFootprintGraphIdCount": len(observed_one_hop),
+        "terminalCandidatesByExactSourceGraphId": [terminal[gid] for gid in sorted(terminal)],
+        "unresolvedNonterminalSourceCutObservations": unresolved,
+        "sourcePhysicalRoadDirectionCompleteness": "NOT_VERIFIED",
+        "receiverCorrelation": "NOT_STARTED",
+        "productionPublication": "BLOCKED",
+    }
+
+
 def resolve_original_cut_to_file(*, manifest_path: Path, index_path: Path,
                                  buffer_path: Path, valhalla_config_path: Path,
-                                 binary: Path, output_path: Path) -> dict:
-    """A single region-independent, NONPUBLISHING cutoff→final candidate stage.
+                                 binary: Path, output_path: Path,
+                                 receiver_manifest_path: Path,
+                                 receiver_index_path: Path,
+                                 receiver_buffer_path: Path) -> dict:
+    """Source A terminal-first, restricted to the *A→B shared* original cut.
 
-    Never consumes historical ledgers, an OSM scan or a manually chosen
-    crossing. The source IDs come only from the native compiled graph shapes
-    intersecting the exact SHA-bound outer 25-km cutoff. Native physical-road
-    ambiguity remains explicit; a local result is not a valid B handoff.
+    Not a graph walk, not an OSM/country heuristic, not a receiving match.
     """
     if output_path.exists():
         raise ValueError("Source final evidence already exists; refusing overwrite")
+    pair = verified_shared_cut(source_manifest=manifest_path,
+        source_index=index_path, source_buffer=buffer_path,
+        receiver_manifest=receiver_manifest_path,
+        receiver_index=receiver_index_path, receiver_buffer=receiver_buffer_path)
     evidence = extract(manifest_path=manifest_path, index_path=index_path,
                        buffer_path=buffer_path, valhalla_config_path=valhalla_config_path,
-                       binary=binary, cut_only=True)
-    cut_rows = (evidence["nativeModeTerminalCandidates"] +
-                evidence["unresolvedJunctionDirectedEdges"])
-    cut_ids = [r["graphId"] for r in cut_rows]
-    if len(set(cut_ids)) != len(cut_ids):
-        raise ValueError("Repeated original directed edge on the cutoff")
-    orientation_counts = {"OUTWARD": 0, "INWARD": 0, "AMBIGUOUS": 0}
-    for row in cut_rows:
-        orientation = row.get("originalCutOrientation")
-        if orientation not in orientation_counts:
-            raise ValueError("Original compiled edge does not establish its cut direction")
-        orientation_counts[orientation] += 1
-    seeds = sorted(row["graphId"] for row in cut_rows
-                   if row["originalCutOrientation"] in ("OUTWARD", "AMBIGUOUS"))
-    if not seeds:
-        raise ValueError("No original outward/ambiguous source cut edges; no complete catalog")
-    _, selected = region_input(manifest_path, index_path, buffer_path)
+                       binary=binary, cut_only=True, paired_scope=pair)
+    cut_rows = evidence["nativeModeTerminalCandidates"] + evidence["unresolvedJunctionDirectedEdges"]
     selected_ids = {int(row["level"]) | (int(row["tileIndex"]) << 3)
-                    for row in selected}
+                    for row in pair["selectedSourceTiles"]}
     def inspect(gids):
         return inspect_local_source_edges(manifest_path=manifest_path,
             index_path=index_path, buffer_path=buffer_path,
             valhalla_config_path=valhalla_config_path, binary=binary,
-            source_graph_ids=gids)
-    source_rows = resolve_local_source_chains(seeds, inspect, selected_ids)
-    grouped = consolidate_exact_source_final_ids(source_rows)
-    one_local = len(source_rows) - len(grouped["unresolvedSourceCutObservations"])
-    # The original source archive and both boundary/index inputs must still
-    # match their manifest before writing durable evidence.
-    manifest_again, selected_again = region_input(manifest_path, index_path, buffer_path)
-    if (manifest_again["graphFingerprint"] != evidence["graphFingerprint"]
-            or selected_again != selected):
-        raise ValueError("Original source graph/boundary inputs changed mid-extraction")
-    report = {
-        "schema": "roadpilot.f8-original-cut-local-final-candidates",
-        "schemaVersion": 1,
-        "regionId": evidence["regionId"],
-        "packageVersion": evidence["packageVersion"],
-        "graphFingerprint": evidence["graphFingerprint"],
-        "bufferFingerprint": evidence["bufferFingerprint"],
-        "graphIndexFingerprint": evidence["graphIndexFingerprint"],
-        "valhallaVersion": evidence["valhallaVersion"],
-        "selectedBoundaryTileCount": evidence["selectedBoundaryTileCount"],
-        "nativeDirectedEdgesInSelectedTiles": evidence["nativeDirectedEdgesInSelectedTiles"],
-        "originalDirectedCutEvidence": cut_rows,
-        "cutOrientationCounts": orientation_counts,
-        "cutSourceSeedCount": len(seeds),
-        "locallyResolvedSeedCount": one_local,
-        "distinctLocalFinalGraphIds": len(grouped["distinctLocalFinalCandidateRecords"]),
-        "candidateRecordsByExactOriginalFinalGraphId": grouped["distinctLocalFinalCandidateRecords"],
-        "unresolvedSourceCutObservations": grouped["unresolvedSourceCutObservations"],
-        "sourcePhysicalRoadDirectionCompleteness": "NOT_VERIFIED",
-        "receiverCorrelation": "NOT_STARTED",
+            source_graph_ids=gids, allowed_tile_ids=selected_ids)
+    observed = select_pair_terminal_candidates(cut_rows, inspect,
+        source_cut_tile_ids=selected_ids,
+        receiver_footprint=shape(load_json(receiver_buffer_path)["geometry"]))
+    # Read both manifest-bound index/buffer identities again before writing.
+    # Do not rewrite original graph archives or installed packages.
+    original, _ = region_input(manifest_path, index_path, buffer_path)
+    receiver, _ = region_input(receiver_manifest_path, receiver_index_path,
+                               receiver_buffer_path)
+    if (original["graphFingerprint"] != evidence["graphFingerprint"]
+            or original["graphFingerprint"] != pair["source"]["graphFingerprint"]
+            or receiver["graphFingerprint"] != pair["receiver"]["graphFingerprint"]):
+        raise ValueError("Either original graph archive changed during paired source selection")
+    for path, sha in ((receiver_index_path, pair["receiverIndexFingerprint"]),
+                      (receiver_buffer_path, pair["receiverBufferFingerprint"]),
+                      (index_path, pair["sourceIndexFingerprint"]),
+                      (buffer_path, pair["sourceBufferFingerprint"])):
+        require_fingerprint(path, sha)
+    output = {
+        "schema": "roadpilot.f8-paired-source-local-terminal-candidates",
+        "schemaVersion": 2,
+        "fromRegionId": pair["source"]["regionId"],
+        "toRegionId": pair["receiver"]["regionId"],
+        "fromGraphFingerprint": pair["source"]["graphFingerprint"],
+        "toGraphFingerprint": pair["receiver"]["graphFingerprint"],
+        "fromBufferFingerprint": pair["sourceBufferFingerprint"],
+        "toBufferFingerprint": pair["receiverBufferFingerprint"],
+        "fromGraphIndexFingerprint": pair["sourceIndexFingerprint"],
+        "toGraphIndexFingerprint": pair["receiverIndexFingerprint"],
+        "reciprocalBoundaryFingerprints": pair["reciprocalBoundaryFingerprints"],
+        "originalSharedSourceCutGeometryFingerprint": "sha256:" +
+            hashlib.sha256(pair["geometry"].wkb).hexdigest(),
+        "selectedOriginalSourceBoundaryTiles": len(pair["selectedSourceTiles"]),
+        "receiverOriginalTilesTouchingSharedCut": len(pair["receiverTilesTouchingSharedCut"]),
+        "nativeDirectedEdgesInspectedInSelectedTiles": evidence["nativeDirectedEdgesInSelectedTiles"],
+        "originalDirectedCutEdgeCount": len(cut_rows),
+        **observed,
         "androidFullJourneyValidation": "NOT_RUN",
-        "productionPublication": "BLOCKED",
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=output_path.parent, delete=False) as temp:
@@ -732,17 +743,18 @@ def resolve_original_cut_to_file(*, manifest_path: Path, index_path: Path,
     try:
         writer = gzip.open if output_path.suffix == ".gz" else open
         with writer(staged, "wt", encoding="utf-8") as stream:
-            json.dump(report, stream, ensure_ascii=False, separators=(",", ":"))
+            json.dump(output, stream, ensure_ascii=False, separators=(",", ":"))
             stream.write("\n")
         if output_path.exists():
             raise ValueError("Source final evidence appeared during build; refusing overwrite")
         staged.replace(output_path)
     finally:
         staged.unlink(missing_ok=True)
-    return {k: report[k] for k in ("regionId", "selectedBoundaryTileCount",
-        "cutOrientationCounts", "cutSourceSeedCount", "locallyResolvedSeedCount",
-        "distinctLocalFinalGraphIds", "sourcePhysicalRoadDirectionCompleteness",
-        "productionPublication")}
+    return {k: output[k] for k in ("fromRegionId", "toRegionId",
+        "selectedOriginalSourceBoundaryTiles", "originalDirectedCutEdgeCount",
+        "outwardOrAmbiguousSourceCutCount", "directNativeTerminalRootCount",
+        "nonterminalSourceCutCount", "oneHopInspectedGraphIdCount",
+        "sourcePhysicalRoadDirectionCompleteness", "productionPublication")}
 
 
 def main() -> None:
@@ -756,18 +768,29 @@ def main() -> None:
     parser.add_argument("--cut-only", action="store_true",
                         help="Only original directed edges intersecting the exact 25-km buffered cutoff; seeds, not proven road finals")
     parser.add_argument("--resolve-cut", action="store_true",
-                        help="Cutoff source seeds and local native forward chains in one nonpublishing, region-independent pass")
+                        help="Source/receiver shared 25-km cutoff; terminal first, immediate native topology only, never graph traversal")
+    parser.add_argument("--receiver-manifest", type=Path)
+    parser.add_argument("--receiver-graph-index", type=Path)
+    parser.add_argument("--receiver-buffer-geojson", type=Path)
     args = parser.parse_args()
     if args.cut_only and args.resolve_cut:
         parser.error("Select --cut-only OR --resolve-cut, not both")
     if args.resolve_cut:
+        if not all((args.receiver_manifest, args.receiver_graph_index,
+                    args.receiver_buffer_geojson)):
+            parser.error("--resolve-cut requires receiver manifest, graph index and original 25-km buffer")
         output = resolve_original_cut_to_file(manifest_path=args.manifest,
             index_path=args.graph_index, buffer_path=args.buffer_geojson,
             valhalla_config_path=args.valhalla_config,
-            binary=args.native_binary, output_path=args.output)
-        print(f'region={output["regionId"]} selectedTiles={output["selectedBoundaryTileCount"]} '
-              f'sources={output["cutSourceSeedCount"]} '
-              f'exactFinalGraphIds={output["distinctLocalFinalGraphIds"]} '
+            binary=args.native_binary, output_path=args.output,
+            receiver_manifest_path=args.receiver_manifest,
+            receiver_index_path=args.receiver_graph_index,
+            receiver_buffer_path=args.receiver_buffer_geojson)
+        print(f'pair={output["fromRegionId"]}->{output["toRegionId"]} '
+              f'selectedTiles={output["selectedOriginalSourceBoundaryTiles"]} '
+              f'pairCutDirectedEdges={output["originalDirectedCutEdgeCount"]} '
+              f'terminalRoots={output["directNativeTerminalRootCount"]} '
+              f'nonterminalUnresolved={output["nonterminalSourceCutCount"]} '
               'physicalCompleteness=NOT_VERIFIED publication=BLOCKED')
     else:
         output = extract_to_file(manifest_path=args.manifest, index_path=args.graph_index,

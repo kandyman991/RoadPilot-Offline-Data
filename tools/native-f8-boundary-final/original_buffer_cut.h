@@ -33,7 +33,8 @@ struct OriginalCut {
   std::vector<Line> segments;
   bgi::rtree<IndexEntry, bgi::quadratic<16>> index;
 
-  explicit OriginalCut(const std::string& buffer_path) {
+  explicit OriginalCut(const std::string& buffer_path,
+                       const std::string& shared_cut_path = "") {
     boost::property_tree::ptree root;
     boost::property_tree::read_json(buffer_path, root);
     const std::string type = root.get<std::string>("geometry.type");
@@ -85,6 +86,46 @@ struct OriginalCut {
       for (const auto& hole : polygon.inners()) append(hole);
     }
     if (segments.empty()) throw std::runtime_error("No buffer boundary segments");
+    if (!shared_cut_path.empty()) {
+      // The shared geometry is A's ORIGINAL outer 25-km cutoff intersected
+      // with B's own SHA-verified original buffered coverage. It is derived
+      // only from the two immutable original GeoJSONs; never from OSM roads,
+      // region names, arbitrary sampling or the nominal border.
+      boost::property_tree::ptree shared;
+      boost::property_tree::read_json(shared_cut_path, shared);
+      const auto& geom = shared.get_child("geometry");
+      const auto type = geom.get<std::string>("type");
+      if (shared.get<std::string>("type") != "Feature" ||
+          (type != "LineString" && type != "MultiLineString"))
+        throw std::runtime_error("Expected derived shared outer-cut LineString/MultiLineString");
+      std::vector<Line> bounded;
+      auto parse_line = [&](const boost::property_tree::ptree& points) {
+        bool seen = false;
+        Point prior;
+        for (const auto& item : points) {
+          const auto& coordinates = item.second;
+          if (coordinates.size() != 2)
+            throw std::runtime_error("Invalid derived shared-cut coordinate");
+          auto it = coordinates.begin();
+          const auto lon = it++->second.get_value<double>();
+          const auto lat = it->second.get_value<double>();
+          if (!std::isfinite(lon) || !std::isfinite(lat) ||
+              std::abs(lat) > 90 || std::abs(lon) > 180)
+            throw std::runtime_error("Invalid derived shared-cut GPS coordinate");
+          const Point current(lon, lat);
+          if (seen && !bg::equals(current, prior))
+            bounded.emplace_back(prior, current);
+          prior = current;
+          seen = true;
+        }
+        if (!seen) throw std::runtime_error("Empty shared-cut geometry");
+      };
+      const auto& coords = geom.get_child("coordinates");
+      if (type == "LineString") parse_line(coords);
+      else for (const auto& line : coords) parse_line(line.second);
+      if (bounded.empty()) throw std::runtime_error("No real shared buffer cutoff lines");
+      segments = std::move(bounded);
+    }
     std::vector<IndexEntry> entries;
     entries.reserve(segments.size());
     for (std::size_t i = 0; i < segments.size(); ++i) {

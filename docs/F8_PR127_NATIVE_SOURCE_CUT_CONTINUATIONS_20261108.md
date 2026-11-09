@@ -1,4 +1,11 @@
-# PR #127 — region-independent original source cutoff and local physical-forward continuations
+# PR #127 — historical 2026-11-08 original source cutoff and local continuation experiment
+
+**SUPERSEDED BY THE NOVEMBER 9 OWNER-APPROVED SOURCE-SELECTION CORRECTION.**
+The region-wide `--resolve-cut` multi-hop traversal and angle-based physical
+continuation logic described here were REMOVED from production code. These
+figures are original read-only test evidence only, not current paired
+production selection results. See
+`docs/F8_PR127_PAIRED_TERMINAL_FIRST_20261109.md` for the replacement.
 
 **8 November 2026 — Source graph A only.** This is a nonpublishing implementation
 increment of the owner-approved D-017 five-step contract, not a new candidate

@@ -51,3 +51,16 @@ locally resolved GraphIds are NOT globally proved unique per physical road
 and travel direction. No receiving B correlation, Android parity or release.
 See `docs/F8_PR127_NATIVE_SOURCE_CUT_CONTINUATIONS_20261108.md`; do not
 close G-F8-06/G-F8-07 or present source candidates as real cross-graph links.
+
+
+**2026-11-09 PR #127 correction (F8 source gap remains OPEN):** Replaced
+region-wide November 8 source-cut traversal with **pair-specific original
+buffer shared cutoff + native terminal-first, maximum one native successor
+hop**. 72/60 original source tiles and 1,520/776 original directed cut
+edges for Italy NE→Austria / Austria→Italy NE; 439/211 outward-source
+nonterminal roots remain explicitly unresolved, original ramps/hierarchy
+alternatives retained. Candidate source GraphIds 505/269 are not globally
+proven one-per-physical-road and cannot publish. Previous 1,599/2,178
+unresolved numbers applied to entire region outlines across *all neighbors*,
+not this pair. No B road matched, no Android parity. See
+`docs/F8_PR127_PAIRED_TERMINAL_FIRST_20261109.md`.

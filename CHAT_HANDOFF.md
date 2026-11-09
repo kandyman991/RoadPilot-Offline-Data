@@ -1,5 +1,47 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Latest PR #127 source-selection correction — 2026-11-09 (pair scoped, terminal first)
+
+**Owner directed:** Correct source-edge selection before expanding native
+continuation resolution; avoid exhaustive traversal. The November 8
+region-wide `--resolve-cut` traversal and angle-based continuation heuristics
+have now been **removed from executable source-stage Python**.
+
+The source-only `--resolve-cut` command now REQUIRES both original compiled
+neighbors' manifests/indexes/25-km buffer polygons and reciprocal boundary
+fingerprints; SHA verifies both original graph archives. Restrict original A
+boundary shape to its **actual outer 25-km cutoff inside B's own original
+buffered footprint**, and inspect only original A tiles touching that shared
+line plus immediate native tile neighbors. Native Valhalla 3.6.3 source
+protocol v5 reads actual directed geometry, modes and local terminal flags.
+Select native terminal candidates FIRST; for nonterminal paired-cut edges,
+retain every original directed source GraphId/branch and inspect only their
+native immediate node/hierarchy adjacency plus one-hop outgoing candidates.
+Never follow beyond one hop, do not classify roads by heading, road names or
+OSM IDs, never substitute a second B GPS point.
+
+Real original archive pair tests PASS, Italy NE→Austria: **72** pair tiles,
+1,520 exact shared-cut directed edges, 820 outward/ambiguous roots,
+381 native terminal roots, 439 nonterminal roots retained unresolved,
+564 one-hop local edges inspected and **505 unique local terminal GraphIds**.
+Austria→Italy NE: **60** pair tiles, 776 exact shared-cut directed edges,
+422 outward/ambiguous roots, 211 native terminal roots, 211 nonterminal
+roots retained unresolved, 249 one-hop edges inspected, **269 unique
+local terminal GraphIds**. One previously discrepant historic original
+GraphId is preserved through two immediate original A alternatives.
+Local release C++ build PASS; 404 Python tests PASS in Legion (latest
+source-only unit and full suite). Pair outputs and SHA-256 evidence are in
+`docs/F8_PR127_PAIRED_TERMINAL_FIRST_20261109.md` and retained under
+`~/RoadPilotGraphStudio/diagnostics/f8-production/20261109/`.
+
+**NOT_VERIFIED:** one true final physical-road A directed GraphId for each
+physical road/direction, full source completeness, receiving B matching,
+Android real journeys/parity. Catalog BLOCKED. PR #127 must remain DRAFT
+and UNMERGED pending independent review, CI, and owner merge decision.
+**Next:** prove the remaining genuine local source ambiguities without
+expanding into general graph traversal; only then correlate B at same X.
+
+
 ## New PR #127 continuation milestone — native source-cut identification (2026-11-08)
 
 **Current draft head:** prior verified PR #127 source geometry commit `9046a68`;

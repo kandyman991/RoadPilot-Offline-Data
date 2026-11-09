@@ -63,8 +63,8 @@ void print_directed_edge(valhalla::baldr::GraphReader& reader,
             << ",\"endNodeGraphId\":" << end_id.value
             << ",\"startLat\":" << start.lat()
             << ",\"startLon\":" << start.lng()
-            << ",\"endLat\":" << end.lat()
-            << ",\"endLon\":" << end.lng()
+            << ",\"endLat\":" << end_tile->get_node_ll(end_id).lat()
+            << ",\"endLon\":" << end_tile->get_node_ll(end_id).lng()
             << ",\"roadClass\":" << static_cast<uint32_t>(edge->classification())
             << ",\"roadUse\":" << static_cast<uint32_t>(edge->use())
             << ",\"layer\":" << static_cast<int>(tile->edgeinfo(edge).layer())
@@ -173,7 +173,7 @@ int inspect_local_continuations(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--protocol") {
-    std::cout << "roadpilot.f8-native-source-4\n";
+    std::cout << "roadpilot.f8-native-source-5\n";
     return 0;
   }
   if (argc == 2 && std::string(argv[1]) == "--version") {
@@ -189,8 +189,8 @@ int main(int argc, char** argv) {
       return 2;
     }
   }
-  if (argc != 3 && argc != 4) {
-    std::cerr << "usage: native_f8_boundary_final_edges <valhalla.json> <tile_ids.txt> [original-25km-buffer.geojson]\n";
+  if (argc != 3 && argc != 4 && argc != 5) {
+    std::cerr << "usage: native_f8_boundary_final_edges <valhalla.json> <tile_ids.txt> [original-25km-buffer.geojson [derived-shared-cut.geojson]]\n";
     return 64;
   }
   try {
@@ -198,9 +198,11 @@ int main(int argc, char** argv) {
     boost::property_tree::ptree config;
     boost::property_tree::read_json(argv[1], config);
     baldr::GraphReader reader(config.get_child("mjolnir"));
-    const bool cut_only = argc == 4;
+    const bool cut_only = argc >= 4;
+    const bool pair_only = argc == 5;
     std::unique_ptr<roadpilot_cut::OriginalCut> original_cut;
-    if (cut_only) original_cut = std::make_unique<roadpilot_cut::OriginalCut>(argv[3]);
+    if (cut_only) original_cut = std::make_unique<roadpilot_cut::OriginalCut>(
+        argv[3], pair_only ? argv[4] : "");
     std::ifstream source(argv[2]);
     if (!source) throw std::runtime_error("Cannot open selected boundary tile IDs");
 
@@ -347,6 +349,7 @@ int main(int argc, char** argv) {
               << ",\"directedExamined\":" << directed_examined
               << ",\"edgesEmitted\":" << edges_emitted
               << ",\"originalCutFilterApplied\":" << (cut_only ? "true" : "false")
+              << ",\"sharedCutFilterApplied\":" << (pair_only ? "true" : "false")
               << "}\n";
     if (!std::cout) throw std::runtime_error("Failed writing native boundary records");
     return 0;

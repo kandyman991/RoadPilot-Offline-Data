@@ -59,6 +59,22 @@ catalog is publishable. See
 `docs/F8_PR127_NATIVE_SOURCE_CUT_CONTINUATIONS_20261108.md` for actual
 Italy/Austria evidence and the retained near-cut geometry discrepancy.
 
+**November 9 owner correction — pair-scoped, terminal-first original source stage:**
+The prior entire-region `--resolve-cut` selection and recursive angle-based
+continuation walker are superseded and removed. Source identification MUST
+first restrict A's original 25-km outer cutoff to the actual pair-specific
+shared buffer coverage with graph B (both retained original graphs,
+indexes, buffer footprints and reciprocal identities verified), then inspect
+native mode-terminal directed edges first. At an unresolved source-cut node,
+only immediate original directed incident edges, hierarchy peers and their
+one-hop terminal candidates may be inspected; never recurse or infer same
+physical road based on angle or road name. Maintain all nonterminal directed
+edge/branch observations as explicitly unverified evidence. A locally
+terminal directed GraphId is NOT proof of one physical-road final or a
+corresponding B road. See
+`docs/F8_PR127_PAIRED_TERMINAL_FIRST_20261109.md` for read-only real pair
+results, incomplete statuses, and source candidate provenance.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer
