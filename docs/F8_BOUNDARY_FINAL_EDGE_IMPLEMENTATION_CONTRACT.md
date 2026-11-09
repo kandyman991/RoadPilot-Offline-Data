@@ -168,6 +168,21 @@ and Android publication remain BLOCKED. This is evidence under Step 1,
 not authorization to declare the complete D-017 invariant. See
 `docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.
 
+**November 9 original incoming-edge owner-tile check (v10, D-017
+unchanged):** The same original A native pair-cut reader now verifies the
+origin tile of every eligible incoming directed A GraphId via Valhalla's
+native immediate opposing-edge reference at exact A exterior X within B
+coverage; one-way reverse orientations included. Both original regional
+Italy NE/Austria pair directions proved **ZERO** eligible incoming edges
+owned outside the selected pair source boundary tile set (1,063 and 541
+incoming refs). The previous 707 external graph-local terminals and 420
+B-allowed candidate endpoints are unchanged. This closes the native
+long-edge owner coverage gate for THESE two original pairs, **not** the
+separate physical-road/direction uniqueness or Android full-trip acceptance
+requirements. No new discovery architecture, graph-wide scans, coordinate
+Y, route-name matching or per-connection Valhalla proof. See
+`docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer

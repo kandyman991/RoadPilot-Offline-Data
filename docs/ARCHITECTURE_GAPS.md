@@ -165,3 +165,21 @@ preserved. All original A-X-B IDs and modes unchanged; no Android JNI
 acceptance or production catalog. Source per-road completeness NOT_VERIFIED,
 Android NOT_RUN, publication BLOCKED; see
 `docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.
+
+
+**2026-11-09 PR #127 native long-source-origin attestation (G-F8-06
+further narrowed):** Same D-017 original A pair-cut source native reader
+v10 now checks **every incoming original A directed GraphId** by immediate
+Valhalla native opposing directed ID at every selected original A node X
+outside A's 25-km buffer AND inside B original buffered coverage, including
+one-way roads. Italy NE→Austria 1,023 nodes/1,063 eligible incoming refs;
+Austria→ItalyNE 629 nodes/541 eligible refs; **ZERO** incoming original A
+edge owner tiles outside original selected source pair cutoff. Completes
+the *original source terminal endpoint owner-tile coverage* gate for these
+pair-graph archives without extra A tile scan/route/coordinate. All 707
+A original exterior graph-local terminal GraphIds unchanged, 420 with ≥1
+native B allowed direction (646 B directed option refs). **Physical road
+identity/branch correctness, Android ingestion and A→X→B real journeys
+remain unverified; catalog stays BLOCKED**. Exact native version and
+SHA-bound outcomes in
+`docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.

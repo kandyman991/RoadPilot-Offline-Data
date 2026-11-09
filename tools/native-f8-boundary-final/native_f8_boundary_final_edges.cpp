@@ -327,7 +327,7 @@ int inspect_local_continuations(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--protocol") {
-    std::cout << "roadpilot.f8-native-source-9\n";
+    std::cout << "roadpilot.f8-native-source-10\n";
     return 0;
   }
   if (argc == 2 && std::string(argv[1]) == "--version") {
@@ -352,7 +352,7 @@ int main(int argc, char** argv) {
       return 2;
     }
   }
-  if (argc != 3 && argc != 4 && argc != 5 && argc != 6) {
+  if (argc != 3 && argc != 4 && argc != 5 && argc != 7) {
     std::cerr << "usage: native_f8_boundary_final_edges <valhalla.json> <tile_ids.txt> [original-25km-buffer.geojson [derived-shared-cut.geojson]]\n";
     return 64;
   }
@@ -362,17 +362,40 @@ int main(int argc, char** argv) {
     boost::property_tree::read_json(argv[1], config);
     baldr::GraphReader reader(config.get_child("mjolnir"));
     const bool cut_only = argc >= 4;
-    const bool external_terminal_only = argc == 6;
+    const bool external_terminal_only = argc == 7;
     if (external_terminal_only && std::string(argv[5]) != "--outer-terminal-candidates")
       throw std::runtime_error("Invalid original pair-cut terminal selector");
     const bool pair_only = argc >= 5;
     std::unique_ptr<roadpilot_cut::OriginalCut> original_cut;
+    std::unique_ptr<roadpilot_cut::OriginalCut> receiver_area;
+    if (external_terminal_only)
+      receiver_area = std::make_unique<roadpilot_cut::OriginalCut>(argv[6]);
     if (cut_only) original_cut = std::make_unique<roadpilot_cut::OriginalCut>(
         argv[3], pair_only ? argv[4] : "");
     std::ifstream source(argv[2]);
     if (!source) throw std::runtime_error("Cannot open selected boundary tile IDs");
 
+    // Original edge origins can be in a DIFFERENT tile from their end X.
+    // Valhalla's native opposite directed reference at an eligible end node
+    // proves whether any owning source tile was missed. Pre-read only the
+    // tiny already SHA-bound original pair-cut tile ID list (NOT road edges).
+    std::unordered_set<uint64_t> selected_original_tile_ids;
+    if (external_terminal_only) {
+      std::ifstream selected_input(argv[2]);
+      std::string selected_line;
+      while (std::getline(selected_input, selected_line)) {
+        const baldr::GraphId selected(decimal_id(selected_line));
+        if (!selected.is_valid() || selected.id() != 0 ||
+            !selected_original_tile_ids.insert(selected.value).second)
+          throw std::runtime_error("Duplicate or invalid pair-boundary original source tile");
+      }
+      if (!selected_input.eof() || selected_original_tile_ids.empty())
+        throw std::runtime_error("Incomplete original pair-cut tile inventory");
+    }
     std::unordered_set<uint64_t> visited_tiles;
+    std::unordered_set<uint64_t> unselected_native_origin_graphids;
+    uint64_t original_b_eligible_endnodes_inspected = 0;
+    uint64_t original_native_incoming_references_inspected = 0;
     uint64_t directed_examined = 0, edges_emitted = 0;
     std::cout << std::setprecision(12);
     std::string line;
@@ -388,11 +411,37 @@ int main(int argc, char** argv) {
         const baldr::GraphId node_id(tile_id.tileid(), tile_id.level(), n);
         const auto start = tile->get_node_ll(node_id);
         const auto* node = tile->node(n);
+        const bool in_outer_handoff_domain = external_terminal_only &&
+            original_cut->original_endpoint_is_outside(start.lng(), start.lat()) &&
+            !receiver_area->original_endpoint_is_outside(start.lng(), start.lat());
+        if (in_outer_handoff_domain) ++original_b_eligible_endnodes_inspected;
         for (uint32_t offset = 0; offset < node->edge_count(); ++offset) {
           const baldr::GraphId edge_id(tile_id.tileid(), tile_id.level(),
                                        node->edge_index() + offset);
           const auto* edge = tile->directededge(edge_id);
           ++directed_examined;
+          if (in_outer_handoff_domain && !edge->IsTransitLine()) {
+            // Query immediate native opposing edge even when this outgoing
+            // orientation is one-way-inaccessible: its OPPOSITE may be an
+            // eligible original directed incoming A edge ending at X.
+            const auto opposing = reader.GetOpposingEdgeId(edge_id);
+            if (!opposing.is_valid())
+              throw std::runtime_error("Missing native original opposing edge at external X");
+            const auto opp_tile = reader.GetGraphTile(opposing);
+            if (!opp_tile || opposing.id() >= opp_tile->header()->directededgecount())
+              throw std::runtime_error("Invalid native opposite tile of incoming A road");
+            const auto* incoming = opp_tile->directededge(opposing);
+            if (incoming->endnode() != node_id)
+              throw std::runtime_error("Native original incoming A edge end-node identity mismatch");
+            if (!incoming->IsTransitLine() && !incoming->is_shortcut() &&
+                (incoming->forwardaccess() & kModes)) {
+              ++original_native_incoming_references_inspected;
+              const uint64_t owning_tile = opposing.level() |
+                       (static_cast<uint64_t>(opposing.tileid()) << 3);
+              if (!selected_original_tile_ids.count(owning_tile))
+                unselected_native_origin_graphids.insert(opposing.value);
+            }
+          }
           if (edge->IsTransitLine() || edge->is_shortcut() ||
               (edge->forwardaccess() & kModes) == 0)
             continue;
@@ -529,6 +578,10 @@ int main(int argc, char** argv) {
               << ",\"sharedCutFilterApplied\":" << (pair_only && !external_terminal_only ? "true" : "false")
               << ",\"pairBoundaryTilesSelected\":" << (pair_only ? "true" : "false")
               << ",\"outerTerminalOnlyApplied\":" << (external_terminal_only ? "true" : "false")
+              << ",\"nativeOpposingOriginCheckApplied\":" << (external_terminal_only ? "true" : "false")
+              << ",\"originalBEligibleExternalEndNodesInspected\":" << original_b_eligible_endnodes_inspected
+              << ",\"nativeOriginalIncomingEdgeReferencesInspected\":" << original_native_incoming_references_inspected
+              << ",\"nativeIncomingOriginOutsideSelectedPairTilesCount\":" << unselected_native_origin_graphids.size()
               << "}\n";
     if (!std::cout) throw std::runtime_error("Failed writing native boundary records");
     return 0;

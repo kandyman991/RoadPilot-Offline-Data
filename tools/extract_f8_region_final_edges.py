@@ -22,7 +22,7 @@ from pathlib import Path
 from shapely.geometry import box, shape, mapping, MultiLineString, Point, LineString
 
 SCHEMA = "roadpilot.f8-region-original-boundary-source"
-NATIVE_PROTOCOL = "roadpilot.f8-native-source-9"
+NATIVE_PROTOCOL = "roadpilot.f8-native-source-10"
 
 
 def sha256(path: Path) -> str:
@@ -1512,6 +1512,32 @@ def verify_pair_cut_source_terminal_endpoint_domain(*, graph_index: dict,
     return eligible
 
 
+
+def validate_native_original_incoming_origin_coverage(completion: dict) -> dict:
+    """Prove no eligible incoming native edge owner was excluded by tile selection.
+
+    Counts originate at the original A graph node from immediate Valhalla
+    GetOpposingEdgeId references. Do not convert a nonzero, malformed or
+    absent count into source coverage, even if all previously known A→B
+    handoffs passed; that would silently drop an actual long road.
+    """
+    if completion.get('nativeOpposingOriginCheckApplied') is not True:
+        raise ValueError('Missing native A original opposing-edge attestation')
+    missed = completion.get('nativeIncomingOriginOutsideSelectedPairTilesCount')
+    nodes = completion.get('originalBEligibleExternalEndNodesInspected')
+    edges = completion.get('nativeOriginalIncomingEdgeReferencesInspected')
+    if (type(missed) is not int or type(nodes) is not int or
+            type(edges) is not int or missed < 0 or nodes <= 0 or edges < 0):
+        raise ValueError('Incomplete original native A opposing-edge origin evidence')
+    if missed:
+        raise ValueError('Original A long incoming edges owned outside selected cutoff tiles require native incident inclusion')
+    return {'nativeLongEdgeOriginCoverage':
+                'VERIFIED_FOR_ORIGINAL_PAIR_ENDPOINT_DOMAIN',
+            'nativeOriginalIncomingEdgeReferencesInspected': edges,
+            'originalBEligibleExternalEndNodesInspected': nodes,
+            'nativeIncomingOriginOutsideSelectedPairTilesCount': 0}
+
+
 def inspect_native_boundary_outer_terminals(*, manifest_path: Path,
                                             index_path: Path,
                                             buffer_path: Path,
@@ -1556,16 +1582,21 @@ def inspect_native_boundary_outer_terminals(*, manifest_path: Path,
             'geometry': mapping(paired_scope['geometry'])}), encoding='utf-8')
         result = subprocess.run([str(binary), str(conf_path), str(tile_path),
             str(buffer_path.resolve()), str(shared_path),
-            '--outer-terminal-candidates'], capture_output=True,
-            text=True, check=True, timeout=600)
+            '--outer-terminal-candidates', str(receiver_buffer_path.resolve())],
+            capture_output=True, text=True, check=True, timeout=600)
     all_exterior, unresolved, done = classify_native_rows(
         result.stdout, selected_count=len(tiles),
         version=str(manifest['valhallaVersion']))
     if (unresolved or done.get('originalCutFilterApplied') is not False or
             done.get('sharedCutFilterApplied') is not False or
             done.get('pairBoundaryTilesSelected') is not True or
-            done.get('outerTerminalOnlyApplied') is not True):
+            done.get('outerTerminalOnlyApplied') is not True or
+            done.get('nativeOpposingOriginCheckApplied') is not True):
         raise ValueError('Original source outer terminal scanning protocol incomplete')
+    # Exactly one original native incoming-edge reference check at eligible
+    # exterior A end nodes: if ANY source edge owner lies in an unselected
+    # tile, do not publish or claim original A-terminal completeness.
+    native_owners = validate_native_original_incoming_origin_coverage(done)
     valid_tiles = {int(t['level']) | int(t['tileIndex']) << 3 for t in tiles}
     in_receiver = []
     for row in all_exterior:
@@ -1584,7 +1615,7 @@ def inspect_native_boundary_outer_terminals(*, manifest_path: Path,
         'originalSourceBoundaryTileCount': len(tiles),
         'indexedSourceTilesIntersectingOuterXDomain': endpoint_domain_tiles,
         'terminalEndpointDomainTileCoverage': 'COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS',
-        'nativeLongEdgeOriginCoverage': 'NOT_VERIFIED',
+        **native_owners,
         'originalSourceDirectedEdgesInspected': done['directedExamined'],
         'originalSourceLocalTerminalEdgesOutsideABuffer': len(all_exterior),
         'originalSourceTerminalEdgesOutsideAWithinB': len(in_receiver),
@@ -1661,6 +1692,12 @@ def reconcile_original_outer_terminal_candidates(*, prior_candidates: list[dict]
             inventory['indexedSourceTilesIntersectingOuterXDomain'],
         'terminalEndpointDomainTileCoverage': inventory['terminalEndpointDomainTileCoverage'],
         'nativeLongEdgeOriginCoverage': inventory['nativeLongEdgeOriginCoverage'],
+        'nativeOriginalIncomingEdgeReferencesInspected':
+            inventory['nativeOriginalIncomingEdgeReferencesInspected'],
+        'originalBEligibleExternalEndNodesInspected':
+            inventory['originalBEligibleExternalEndNodesInspected'],
+        'nativeIncomingOriginOutsideSelectedPairTilesCount':
+            inventory['nativeIncomingOriginOutsideSelectedPairTilesCount'],
         'originalSourceDirectedEdgesInspected': inventory['originalSourceDirectedEdgesInspected'],
         'originalSourceLocalTerminalEdgesOutsideABuffer':
             inventory['originalSourceLocalTerminalEdgesOutsideABuffer'],

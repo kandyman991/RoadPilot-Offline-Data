@@ -164,7 +164,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-9')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-10')\n"
                 "else:\n"
                 " for item in [\n"
                 "  {'kind':'edge','graphId':77,'access':1025,'nativeTerminalModes':1025,'endLat':44,'endLon':10,'hasNativeApproachTangent':True,'approachLat':43.999,'approachLon':10},\n"
@@ -219,7 +219,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "import json,sys\n"
                 f"gid={gid}\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-9')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-10')\n"
                 "elif '--local-continuations' in sys.argv:\n"
                 " assert sys.argv[4]=='--evaluate-native-costing'\n"
                 " for line in open(sys.argv[3]):\n"
@@ -738,6 +738,28 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 graph_index=index,selected_source_tiles=selected,
                 source_footprint=src,receiver_footprint=box(9.1,45.1,9.3,45.3))
 
+    def test_original_b_covers_outer_a_native_opposing_origin_attestation_fail_closed(self):
+        result={'nativeOpposingOriginCheckApplied':True,
+                'nativeIncomingOriginOutsideSelectedPairTilesCount':0,
+                'originalBEligibleExternalEndNodesInspected':120,
+                'nativeOriginalIncomingEdgeReferencesInspected':305}
+        proof=extractor.validate_native_original_incoming_origin_coverage(result)
+        self.assertEqual(proof['nativeLongEdgeOriginCoverage'],
+                         'VERIFIED_FOR_ORIGINAL_PAIR_ENDPOINT_DOMAIN')
+        self.assertEqual(proof['nativeOriginalIncomingEdgeReferencesInspected'],305)
+        for broken in ({'nativeIncomingOriginOutsideSelectedPairTilesCount':1},
+                       {'nativeIncomingOriginOutsideSelectedPairTilesCount':-1},
+                       {'nativeIncomingOriginOutsideSelectedPairTilesCount':None},
+                       {'nativeIncomingOriginOutsideSelectedPairTilesCount':False},
+                       {'originalBEligibleExternalEndNodesInspected':0},
+                       {'originalBEligibleExternalEndNodesInspected':None},
+                       {'nativeOriginalIncomingEdgeReferencesInspected':None},
+                       {'nativeOpposingOriginCheckApplied':False}):
+            with self.subTest(broken=broken):
+                with self.assertRaises(ValueError):
+                    extractor.validate_native_original_incoming_origin_coverage(
+                        {**result,**broken})
+
     def test_outer_boundary_native_terminal_inventory_preserves_all_prior_finals(self):
         def edge(gid, lon):
             return {'graphId':gid,'endNodeGraphId':gid+100,
@@ -752,7 +774,10 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                'originalSourceBoundaryTileCount':2,
                'indexedSourceTilesIntersectingOuterXDomain':2,
                'terminalEndpointDomainTileCoverage':'COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS',
-               'nativeLongEdgeOriginCoverage':'NOT_VERIFIED',
+               'nativeLongEdgeOriginCoverage':'VERIFIED_FOR_ORIGINAL_PAIR_ENDPOINT_DOMAIN',
+               'nativeOriginalIncomingEdgeReferencesInspected':22,
+               'originalBEligibleExternalEndNodesInspected':8,
+               'nativeIncomingOriginOutsideSelectedPairTilesCount':0,
                'originalSourceDirectedEdgesInspected':400,
                'originalSourceLocalTerminalEdgesOutsideABuffer':3,
                'originalSourceTerminalEdgesOutsideAWithinB':2,
@@ -791,7 +816,10 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                'originalSourceBoundaryTileCount':1,
                'indexedSourceTilesIntersectingOuterXDomain':1,
                'terminalEndpointDomainTileCoverage':'COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS',
-               'nativeLongEdgeOriginCoverage':'NOT_VERIFIED',
+               'nativeLongEdgeOriginCoverage':'VERIFIED_FOR_ORIGINAL_PAIR_ENDPOINT_DOMAIN',
+               'nativeOriginalIncomingEdgeReferencesInspected':22,
+               'originalBEligibleExternalEndNodesInspected':8,
+               'nativeIncomingOriginOutsideSelectedPairTilesCount':0,
                'originalSourceDirectedEdgesInspected':10,
                'originalSourceLocalTerminalEdgesOutsideABuffer':1,
                'originalSourceTerminalEdgesOutsideAWithinB':1,
@@ -889,7 +917,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-9')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-10')\n"
                 "else:\n"
                 " assert len(sys.argv) == 4\n"
                 " assert 'buffer.geojson' in sys.argv[3]\n"

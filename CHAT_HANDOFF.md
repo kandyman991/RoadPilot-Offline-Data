@@ -1,5 +1,41 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #127 original B-covered A long-edge origin v10 native attestation (2026-11-09)
+
+**Latest pending PR commit:** SAME approved pair-cut native source reader
+v10 adds original immediate `GraphReader::GetOpposingEdgeId` checks at EVERY
+A-exterior (outside original 25km A polygon) endpoint node INSIDE B
+original coverage. Each returned original incoming directed A GraphId
+must end at exactly this X and have its owning tile within the SAME
+already selected A pair-cut tiles; read opposite refs including one-way
+inaccessible reverse edges. This is a graph-local native node inspection,
+not a full region census, source road walker, route proof, or extra handoff
+GPS. Python fails closed on missing/malformed nonzero outside-owner count.
+
+**Actual immutable original 3.6.3 pair graph proof:** ItalyNE→Austria
+1,023 eligible native A end nodes, 1,063 incoming directed original
+reference checks, ZERO owners outside selected A tiles. Austria→ItalyNE
+629 original end nodes, 541 incoming native references, ZERO missed owners.
+A separate broad scratch check saw 3 Italy original A long-edge owners in
+nonselected tiles but their X were ALL outside Austria B footprint, so
+not eligible handoffs. Native 707 original A graph-local exterior
+terminal GraphIds, 420 with some allowed B native directions (646 distinct
+B option references), unchanged from v9. The older 285 unresolved
+source-root lineage observations remain in report (not automatically 285
+missing roads). **NativeLongEdgeOriginCoverage=
+VERIFIED_FOR_ORIGINAL_PAIR_ENDPOINT_DOMAIN**, but
+**SourcePhysicalRoadDirectionCompleteness=NOT_VERIFIED**, Android JNI
+A→X→B acceptance NOT_RUN and publication BLOCKED.
+
+Attested real graph v10 SHA evidence and exact counts in
+`docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.
+No architecture change or Android code edits. Next: disambiguate real
+same physical-road branches as needed, adapt Android to approved final
+A→X→B format WITHOUT previous per-connection TripLeg proofs, run both
+modes/directions full Android journeys, then standard Graph Studio build
+integration. PR #127 stays DRAFT UNMERGED, owner approval needed.
+
+
 ## PR #127 approved D-017 native A outer terminal inventory & B matching (2026-11-09)
 
 Owner requested **finish A→exact X→B without any architecture change**.
