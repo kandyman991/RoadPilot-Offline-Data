@@ -22,7 +22,7 @@ from pathlib import Path
 from shapely.geometry import box, shape, mapping, MultiLineString, Point, LineString
 
 SCHEMA = "roadpilot.f8-region-original-boundary-source"
-NATIVE_PROTOCOL = "roadpilot.f8-native-source-8"
+NATIVE_PROTOCOL = "roadpilot.f8-native-source-9"
 
 
 def sha256(path: Path) -> str:
@@ -1482,6 +1482,200 @@ def recover_missing_source_terminal_candidates(*, prior: dict,
             "additionalGraphExplorationAllowed": False}
 
 
+
+
+def verify_pair_cut_source_terminal_endpoint_domain(*, graph_index: dict,
+                                                     selected_source_tiles: list[dict],
+                                                     source_footprint,
+                                                     receiver_footprint) -> int:
+    """Fail closed unless ALL indexed A tile bounds over B-outside-A are selected.
+
+    This is read-only graph tile METADATA; it inspects no road edges and does
+    NOT certify that all possible long-edge origin tiles have been scanned.
+    """
+    domain = receiver_footprint.difference(source_footprint)
+    if domain.is_empty:
+        raise ValueError('No original receiving coverage beyond the source buffered cutoff')
+    selected = {(int(t['level']),int(t['tileIndex'])) for t in selected_source_tiles}
+    eligible = 0
+    missing = []
+    for tile in graph_index['tiles']:
+        bounds = tile['bounds']
+        if box(bounds['minLng'],bounds['minLat'],bounds['maxLng'],
+               bounds['maxLat']).intersects(domain):
+            eligible += 1
+            key = (int(tile['level']),int(tile['tileIndex']))
+            if key not in selected:
+                missing.append(key)
+    if not eligible or missing:
+        raise ValueError(f'Incomplete original A outer terminal X tile domain coverage: {missing[:8]}')
+    return eligible
+
+
+def inspect_native_boundary_outer_terminals(*, manifest_path: Path,
+                                            index_path: Path,
+                                            buffer_path: Path,
+                                            valhalla_config_path: Path,
+                                            receiver_buffer_path: Path,
+                                            binary: Path, paired_scope: dict) -> dict:
+    """Identify local terminal A edges in SAME approved pair-cut original tiles.
+
+    A true final edge may begin outside the original source buffered polygon,
+    so unlike the first crossing-root scan its directed shape does NOT need
+    to cross that polygon's outline again. Scan ONLY the already SHA-verified
+    outer-cutoff tile set and evaluate local original terminal adjacency, not
+    paths, all graph tiles, arbitrary physical names or nearby GPS anchors.
+    """
+    manifest, _ = region_input(manifest_path, index_path, buffer_path)
+    if paired_scope['source']['graphFingerprint'] != manifest['graphFingerprint']:
+        raise ValueError('Original paired A outer terminal graph identity mismatch')
+    require_native_protocol(binary, str(manifest['valhallaVersion']))
+    original_config = load_json(valhalla_config_path)
+    if 'mjolnir' not in original_config:
+        raise ValueError('Original Valhalla configuration missing mjolnir')
+    tiles = paired_scope['selectedSourceTiles']
+    source_area = shape(load_json(buffer_path)['geometry'])
+    receiver_area = shape(load_json(receiver_buffer_path)['geometry'])
+    endpoint_domain_tiles = verify_pair_cut_source_terminal_endpoint_domain(
+        graph_index=load_json(index_path),selected_source_tiles=tiles,
+        source_footprint=source_area,receiver_footprint=receiver_area)
+    with tempfile.TemporaryDirectory(prefix='f8-original-outer-A-terminals-') as scratch:
+        work = Path(scratch)
+        original_config['mjolnir'] = dict(original_config['mjolnir'])
+        original_config['mjolnir']['tile_extract'] = str(
+            (manifest_path.parent / manifest['artifact']['fileName']).resolve())
+        original_config['mjolnir']['tile_dir'] = str(work / 'no-unpacked-tiles')
+        conf_path = work / 'original-A-valhalla.json'
+        conf_path.write_text(json.dumps(original_config), encoding='utf-8')
+        tile_path = work / 'approved-pair-cut-tiles.txt'
+        tile_path.write_text(''.join(
+            f'{int(t["level"]) | int(t["tileIndex"]) << 3}\n'
+            for t in tiles), encoding='utf-8')
+        shared_path = work / 'approved-shared-outer-cut.geojson'
+        shared_path.write_text(json.dumps({'type':'Feature', 'properties': {},
+            'geometry': mapping(paired_scope['geometry'])}), encoding='utf-8')
+        result = subprocess.run([str(binary), str(conf_path), str(tile_path),
+            str(buffer_path.resolve()), str(shared_path),
+            '--outer-terminal-candidates'], capture_output=True,
+            text=True, check=True, timeout=600)
+    all_exterior, unresolved, done = classify_native_rows(
+        result.stdout, selected_count=len(tiles),
+        version=str(manifest['valhallaVersion']))
+    if (unresolved or done.get('originalCutFilterApplied') is not False or
+            done.get('sharedCutFilterApplied') is not False or
+            done.get('pairBoundaryTilesSelected') is not True or
+            done.get('outerTerminalOnlyApplied') is not True):
+        raise ValueError('Original source outer terminal scanning protocol incomplete')
+    valid_tiles = {int(t['level']) | int(t['tileIndex']) << 3 for t in tiles}
+    in_receiver = []
+    for row in all_exterior:
+        if (row['originalCutOrientation'] != 'OUTSIDE_OUTER_A_BUFFER' or
+                row['nativeTerminalModes'] <= 0 or
+                type(row['graphId']) is not int or
+                (row['graphId'] & ((1 << 25) - 1)) not in valid_tiles or
+                type(row['endNodeGraphId']) is not int):
+            raise ValueError('Original native outside-buffer terminal candidate is invalid')
+        x = Point(row['endLon'], row['endLat'])
+        if source_area.covers(x):
+            raise ValueError('Native source terminal X is INSIDE original A 25-km buffer')
+        if receiver_area.covers(x):
+            in_receiver.append(row)
+    return {
+        'originalSourceBoundaryTileCount': len(tiles),
+        'indexedSourceTilesIntersectingOuterXDomain': endpoint_domain_tiles,
+        'terminalEndpointDomainTileCoverage': 'COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS',
+        'nativeLongEdgeOriginCoverage': 'NOT_VERIFIED',
+        'originalSourceDirectedEdgesInspected': done['directedExamined'],
+        'originalSourceLocalTerminalEdgesOutsideABuffer': len(all_exterior),
+        'originalSourceTerminalEdgesOutsideAWithinB': len(in_receiver),
+        'outsideAAndOutsideB': len(all_exterior) - len(in_receiver),
+        'eligibleTerminalOriginalEdges': in_receiver,
+        'inventoryScope': 'PAIR_SHARED_OUTER_CUTOFF_TILES_ONLY',
+        'sourcePhysicalRoadDirectionCompleteness': 'NOT_VERIFIED',
+    }
+
+
+def reconcile_original_outer_terminal_candidates(*, prior_candidates: list[dict],
+                                                   inventory: dict,
+                                                   read_native) -> tuple[list[dict], dict]:
+    """Add only genuinely absent A original GraphIds; never replace earlier finals."""
+    by_id = {r['sourceFinalCandidateGraphId']:r for r in prior_candidates}
+    if len(by_id) != len(prior_candidates):
+        raise ValueError('Repeated prior original A final GraphIds')
+    outer_by_id = {}
+    for row in inventory['eligibleTerminalOriginalEdges']:
+        gid = row['graphId']
+        if gid in outer_by_id:
+            raise ValueError('Duplicate original A terminal edge in cutoff-tile inventory')
+        outer_by_id[gid] = row
+        prior = by_id.get(gid)
+        if prior is not None:
+            if (row['endNodeGraphId'] != prior['endNodeGraphId'] or
+                    row['endLat'] != prior['endLat'] or
+                    row['endLon'] != prior['endLon'] or
+                    row['access'] != prior['access'] or
+                    row['nativeTerminalModes'] != prior['originalNativeLocalProof']['terminalModes'] or
+                    prior['terminalVehicleModes'] & ~row['nativeTerminalModes']):
+                raise ValueError('Existing original A candidate conflicts with exact outer final edge')
+    new_ids = sorted(set(outer_by_id) - set(by_id))
+    raw = read_native(new_ids) if new_ids else []
+    if len(raw) != len(new_ids):
+        raise ValueError('Incomplete independent native A outer final readback')
+    added = []
+    for gid, observed in zip(new_ids, raw):
+        validate_immediate_native_observation(observed)
+        a = observed['source']
+        original = outer_by_id[gid]
+        if (a['graphId'] != gid or a['endNodeGraphId'] != original['endNodeGraphId'] or
+                a['access'] != original['access'] or a['endLat'] != original['endLat'] or
+                a['endLon'] != original['endLon'] or
+                a['roadClass'] != original['roadClass'] or
+                a['roadUse'] != original['roadUse'] or
+                a['layer'] != original['layer'] or
+                a['bridge'] != original['bridge'] or
+                a['tunnel'] != original['tunnel']):
+            raise ValueError('Outside-A original directed source final identity changed')
+        terminal_modes = native_terminal_modes_from_adjacency(observed)
+        if terminal_modes <= 0 or terminal_modes != original['nativeTerminalModes']:
+            raise ValueError('Original native A terminal status changed between scans')
+        added.append({
+            'sourceFinalCandidateGraphId': gid,
+            'terminalVehicleModes': terminal_modes,
+            'access': a['access'],
+            'endLat': a['endLat'], 'endLon': a['endLon'],
+            'endNodeGraphId': a['endNodeGraphId'],
+            'sourceCutGraphIds': [],
+            'selectionKinds': ['NATIVE_LOCAL_TERMINAL_IN_PAIR_OUTER_CUTOFF_TILES'],
+            'originalNativeLocalProof': {
+                'method': 'INDEPENDENT_ORIGINAL_END_NODE_ADJACENCY',
+                'endNodeGraphId': a['endNodeGraphId'],
+                'outgoingOriginalDirectedGraphIds': [o['edge']['graphId']
+                                                     for o in observed['options']],
+                'hierarchyPeersIncluded': True,
+                'terminalModes': terminal_modes},
+            'nativeGraphLocalTerminalProof': 'VERIFIED',
+            'physicalRoadFinalCompleteness': 'NOT_VERIFIED'})
+    return [*prior_candidates, *added], {
+        'originalSourceBoundaryTileCount': inventory['originalSourceBoundaryTileCount'],
+        'indexedSourceTilesIntersectingOuterXDomain':
+            inventory['indexedSourceTilesIntersectingOuterXDomain'],
+        'terminalEndpointDomainTileCoverage': inventory['terminalEndpointDomainTileCoverage'],
+        'nativeLongEdgeOriginCoverage': inventory['nativeLongEdgeOriginCoverage'],
+        'originalSourceDirectedEdgesInspected': inventory['originalSourceDirectedEdgesInspected'],
+        'originalSourceLocalTerminalEdgesOutsideABuffer':
+            inventory['originalSourceLocalTerminalEdgesOutsideABuffer'],
+        'originalSourceTerminalEdgesOutsideAWithinB':
+            inventory['originalSourceTerminalEdgesOutsideAWithinB'],
+        'outsideAAndOutsideB': inventory['outsideAAndOutsideB'],
+        'previouslyVerifiedExactGraphIdsInOuterInventory':
+            len(set(outer_by_id) & set(by_id)),
+        'additionalOriginalSourceOuterTerminalGraphIds': new_ids,
+        'allPairBoundaryOuterTerminalGraphIds': sorted(outer_by_id),
+        'sourceTerminalInventoryScope': inventory['inventoryScope'],
+        'sourcePhysicalRoadDirectionCompleteness': 'NOT_VERIFIED',
+        'wholeGraphCensusPerformed': False}
+
+
 def match_original_receiver_to_file(*, source_evidence_path: Path,
                                    manifest_path: Path, index_path: Path,
                                    buffer_path: Path, valhalla_config_path: Path,
@@ -1490,7 +1684,8 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
                                    receiver_buffer_path: Path,
                                    receiver_valhalla_config_path: Path,
                                    binary: Path, output_path: Path,
-                                   bounded_missing_source_recovery: bool = False) -> dict:
+                                   bounded_missing_source_recovery: bool = False,
+                                   reconcile_outer_terminals: bool = False) -> dict:
     """D-017 A final candidate → exact original X → compiled B directed edge.
 
     Match B at X without finding arbitrary Y, best-road selection or a graph
@@ -1548,6 +1743,21 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
             if original is not None and link['originalSourceCutGraphId'] not in original['sourceCutGraphIds']:
                 original['sourceCutGraphIds'].append(link['originalSourceCutGraphId'])
         candidates += extra_source['newOriginalNativeTerminalCandidates']
+    outer_inventory = None
+    if reconcile_outer_terminals:
+        outer = inspect_native_boundary_outer_terminals(
+            manifest_path=manifest_path, index_path=index_path,
+            buffer_path=buffer_path, valhalla_config_path=valhalla_config_path,
+            receiver_buffer_path=receiver_buffer_path, binary=binary,
+            paired_scope=pair)
+        def read_outer_final(ids):
+            return inspect_local_source_edges(manifest_path=manifest_path,
+                index_path=index_path, buffer_path=buffer_path,
+                valhalla_config_path=valhalla_config_path, binary=binary,
+                source_graph_ids=ids, allowed_tile_ids=selected_ids,
+                evaluate_native_costing=True)
+        candidates, outer_inventory = reconcile_original_outer_terminal_candidates(
+            prior_candidates=candidates, inventory=outer, read_native=read_outer_final)
     ids = [r['sourceFinalCandidateGraphId'] for r in candidates]
     if len(ids) != len(set(ids)):
         raise ValueError('Duplicate original source final GraphIds after bounded recovery')
@@ -1588,6 +1798,13 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
     result['originalVerifiedSourceTerminalCandidateCount'] = original_candidate_count
     if extra_source is not None:
         result['boundedMissingSourceRecovery'] = extra_source
+    if outer_inventory is not None:
+        result['approvedBoundaryExteriorTerminalInventory'] = outer_inventory
+        exterior_ids = set(outer_inventory['allPairBoundaryOuterTerminalGraphIds'])
+        result['approvedBoundaryExteriorBMatchedCount'] = sum(
+            bool(c['receivingNativeDirectedContinuationOptions']) for c in
+            result['sourceToReceiverCandidates'] if c['sourceFinalDirectedGraphId']
+            in exterior_ids)
     # No new source search: exact original A cutoff-root coverage accounting
     # from the retained root IDs on every already verified terminal candidate.
     # A B option does NOT prove source physical-road completeness.
@@ -1691,11 +1908,15 @@ def main() -> None:
                         help="Previously completed --resolve-cut original A terminal candidate evidence")
     parser.add_argument("--receiver-valhalla-config", type=Path,
                         help="Compiled Valhalla B routing configuration for its exact original archive")
+    parser.add_argument("--reconcile-outer-terminal-edges", action="store_true",
+                        help="With --match-receiver: enumerate graph-local terminal edges outside A and inside B from the SAME approved source pair-cut tiles, never scan other tiles")
     parser.add_argument("--bounded-missing-source-recovery", action="store_true",
                         help="With --match-receiver only: reopen up to one additional native source hop for previously unmatched source cutoff roots; never a general graph walk")
     args = parser.parse_args()
     if args.bounded_missing_source_recovery and not args.match_receiver:
         parser.error("--bounded-missing-source-recovery requires --match-receiver")
+    if args.reconcile_outer_terminal_edges and not args.match_receiver:
+        parser.error("--reconcile-outer-terminal-edges requires --match-receiver")
     if sum((args.cut_only, args.resolve_cut, args.match_receiver)) > 1:
         parser.error("Select only one source/receiving inspection action")
     if args.match_receiver:
@@ -1711,7 +1932,8 @@ def main() -> None:
             receiver_index_path=args.receiver_graph_index,
             receiver_buffer_path=args.receiver_buffer_geojson,
             receiver_valhalla_config_path=args.receiver_valhalla_config,
-            bounded_missing_source_recovery=args.bounded_missing_source_recovery)
+            bounded_missing_source_recovery=args.bounded_missing_source_recovery,
+            reconcile_outer_terminals=args.reconcile_outer_terminal_edges)
         print(f'originalSourceFinalCandidates={output["sourceFinalCandidateCount"]} '
               f'unresolvedSourceRoots={output["sourceUnresolvedNonterminalRootCount"]} '
               f'receiverStatusCounts={output["nativeReceiverStatusCounts"]} '

@@ -327,7 +327,7 @@ int inspect_local_continuations(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--protocol") {
-    std::cout << "roadpilot.f8-native-source-8\n";
+    std::cout << "roadpilot.f8-native-source-9\n";
     return 0;
   }
   if (argc == 2 && std::string(argv[1]) == "--version") {
@@ -352,7 +352,7 @@ int main(int argc, char** argv) {
       return 2;
     }
   }
-  if (argc != 3 && argc != 4 && argc != 5) {
+  if (argc != 3 && argc != 4 && argc != 5 && argc != 6) {
     std::cerr << "usage: native_f8_boundary_final_edges <valhalla.json> <tile_ids.txt> [original-25km-buffer.geojson [derived-shared-cut.geojson]]\n";
     return 64;
   }
@@ -362,7 +362,10 @@ int main(int argc, char** argv) {
     boost::property_tree::read_json(argv[1], config);
     baldr::GraphReader reader(config.get_child("mjolnir"));
     const bool cut_only = argc >= 4;
-    const bool pair_only = argc == 5;
+    const bool external_terminal_only = argc == 6;
+    if (external_terminal_only && std::string(argv[5]) != "--outer-terminal-candidates")
+      throw std::runtime_error("Invalid original pair-cut terminal selector");
+    const bool pair_only = argc >= 5;
     std::unique_ptr<roadpilot_cut::OriginalCut> original_cut;
     if (cut_only) original_cut = std::make_unique<roadpilot_cut::OriginalCut>(
         argv[3], pair_only ? argv[4] : "");
@@ -405,8 +408,18 @@ int main(int argc, char** argv) {
           auto directed_shape = tile->edgeinfo(edge).shape();
           if (!edge->forward())
             std::reverse(directed_shape.begin(), directed_shape.end());
-          if (cut_only && !original_cut->intersects(directed_shape)) continue;
-          const std::string cut_orientation = cut_only ? original_cut->direction(directed_shape) : "NOT_FILTERED";
+          if (external_terminal_only) {
+            // Same pair-selected ORIGINAL boundary tiles as --resolve-cut.
+            // Unlike root edges, actual terminal edges may start entirely
+            // beyond A's original outer buffer and never touch its outline.
+            // Restrict X to outside A; Python verifies X is inside B.
+            if (!original_cut->original_endpoint_is_outside(end.lng(), end.lat())) continue;
+          } else if (cut_only && !original_cut->intersects(directed_shape)) {
+            continue;
+          }
+          const std::string cut_orientation = external_terminal_only ?
+              "OUTSIDE_OUTER_A_BUFFER" :
+              (cut_only ? original_cut->direction(directed_shape) : "NOT_FILTERED");
           bool has_approach = false;
           double approach_lat = 0.0, approach_lon = 0.0;
           if (!directed_shape.empty()) {
@@ -468,6 +481,7 @@ int main(int argc, char** argv) {
           // A graph-local terminal candidate remains a candidate, NOT a
           // confirmed last physical-road edge. Receiving correlation is later.
           const uint32_t terminal_modes = edge->forwardaccess() & kModes & ~other_modes;
+          if (external_terminal_only && terminal_modes == 0) continue;
           // Output only edges with at least one definitively mode-terminal
           // local end, OR an unresolved local continuation. The receiving
           // correlator will determine whether an actual counterpart exists.
@@ -511,8 +525,10 @@ int main(int argc, char** argv) {
               << "\",\"selectedTiles\":" << visited_tiles.size()
               << ",\"directedExamined\":" << directed_examined
               << ",\"edgesEmitted\":" << edges_emitted
-              << ",\"originalCutFilterApplied\":" << (cut_only ? "true" : "false")
-              << ",\"sharedCutFilterApplied\":" << (pair_only ? "true" : "false")
+              << ",\"originalCutFilterApplied\":" << (cut_only && !external_terminal_only ? "true" : "false")
+              << ",\"sharedCutFilterApplied\":" << (pair_only && !external_terminal_only ? "true" : "false")
+              << ",\"pairBoundaryTilesSelected\":" << (pair_only ? "true" : "false")
+              << ",\"outerTerminalOnlyApplied\":" << (external_terminal_only ? "true" : "false")
               << "}\n";
     if (!std::cout) throw std::runtime_error("Failed writing native boundary records");
     return 0;

@@ -136,6 +136,16 @@ struct OriginalCut {
     index = decltype(index)(entries.begin(), entries.end());
   }
 
+  // Only for the already selected original pair-cut boundary tiles: a real
+  // candidate final X must be OUTSIDE A's actual retained 25-km buffer,
+  // not a nominal country border or an invented nearby crossing point.
+  bool original_endpoint_is_outside(const double longitude, const double latitude) const {
+    if (!std::isfinite(longitude) || !std::isfinite(latitude) ||
+        std::abs(longitude) > 180 || std::abs(latitude) > 90)
+      throw std::runtime_error("Invalid original source terminal X");
+    return !bg::covered_by(Point(longitude, latitude), area);
+  }
+
   template <typename Shape>
   bool intersects(const Shape& native_shape) const {
     if (native_shape.size() < 2) return false;

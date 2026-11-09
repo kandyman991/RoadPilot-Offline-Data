@@ -164,7 +164,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-8')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-9')\n"
                 "else:\n"
                 " for item in [\n"
                 "  {'kind':'edge','graphId':77,'access':1025,'nativeTerminalModes':1025,'endLat':44,'endLon':10,'hasNativeApproachTangent':True,'approachLat':43.999,'approachLon':10},\n"
@@ -219,7 +219,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "import json,sys\n"
                 f"gid={gid}\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-8')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-9')\n"
                 "elif '--local-continuations' in sys.argv:\n"
                 " assert sys.argv[4]=='--evaluate-native-costing'\n"
                 " for line in open(sys.argv[3]):\n"
@@ -712,6 +712,103 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                          ['staticallyAllowedVehicleModes'],1024)
         self.assertFalse(result['sourceCoverageProven'])
 
+    def test_original_tile_index_covers_entire_receiving_side_outer_x_domain(self):
+        # Metadata-only region-independent proof: no graph edges are read,
+        # and no all-tile scan is used to discover actual road candidates.
+        index={'tiles':[
+            {'level':2,'tileIndex':10,'bounds':{
+                'minLng':9.0,'maxLng':9.8,'minLat':45.,'maxLat':46.}},
+            {'level':2,'tileIndex':11,'bounds':{
+                'minLng':9.8,'maxLng':10.2,'minLat':45.,'maxLat':46.}},
+            {'level':2,'tileIndex':12,'bounds':{
+                'minLng':10.2,'maxLng':11.,'minLat':45.,'maxLat':46.}}]}
+        src=box(9,45,10,46)
+        recv=box(9.75,45,10.6,46)
+        selected=[{'level':2,'tileIndex':11},
+                  {'level':2,'tileIndex':12}]
+        self.assertEqual(extractor.verify_pair_cut_source_terminal_endpoint_domain(
+            graph_index=index,selected_source_tiles=selected,
+            source_footprint=src,receiver_footprint=recv),2)
+        with self.assertRaisesRegex(ValueError,'Incomplete original A'):
+            extractor.verify_pair_cut_source_terminal_endpoint_domain(
+                graph_index=index,selected_source_tiles=selected[:1],
+                source_footprint=src,receiver_footprint=recv)
+        with self.assertRaisesRegex(ValueError,'No original receiving coverage'):
+            extractor.verify_pair_cut_source_terminal_endpoint_domain(
+                graph_index=index,selected_source_tiles=selected,
+                source_footprint=src,receiver_footprint=box(9.1,45.1,9.3,45.3))
+
+    def test_outer_boundary_native_terminal_inventory_preserves_all_prior_finals(self):
+        def edge(gid, lon):
+            return {'graphId':gid,'endNodeGraphId':gid+100,
+                    'endLat':45.,'endLon':lon,'access':1025,
+                    'nativeTerminalModes':1025,'roadClass':6,'roadUse':0,
+                    'layer':0,'bridge':False,'tunnel':False}
+        prev={'sourceFinalCandidateGraphId':11,'endNodeGraphId':111,
+              'endLat':45.,'endLon':10.01,'access':1025,
+              'terminalVehicleModes':1025,
+              'originalNativeLocalProof':{'terminalModes':1025}}
+        outer={'eligibleTerminalOriginalEdges':[edge(11,10.01),edge(12,10.02)],
+               'originalSourceBoundaryTileCount':2,
+               'indexedSourceTilesIntersectingOuterXDomain':2,
+               'terminalEndpointDomainTileCoverage':'COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS',
+               'nativeLongEdgeOriginCoverage':'NOT_VERIFIED',
+               'originalSourceDirectedEdgesInspected':400,
+               'originalSourceLocalTerminalEdgesOutsideABuffer':3,
+               'originalSourceTerminalEdgesOutsideAWithinB':2,
+               'outsideAAndOutsideB':1,
+               'inventoryScope':'PAIR_SHARED_OUTER_CUTOFF_TILES_ONLY'}
+        def read(ids):
+            self.assertEqual(ids,[12])
+            return [{'kind':'local-continuations',
+                     'source':{**edge(12,10.02),'endLat':45.,'endLon':10.02},
+                     'options':[]}]
+        union,report=extractor.reconcile_original_outer_terminal_candidates(
+            prior_candidates=[prev],inventory=outer,read_native=read)
+        self.assertIs(union[0],prev)
+        self.assertEqual([o['sourceFinalCandidateGraphId'] for o in union],[11,12])
+        self.assertEqual(union[1]['terminalVehicleModes'],1025)
+        self.assertEqual(union[1]['sourceCutGraphIds'],[])
+        self.assertEqual(union[1]['physicalRoadFinalCompleteness'],'NOT_VERIFIED')
+        self.assertEqual(report['previouslyVerifiedExactGraphIdsInOuterInventory'],1)
+        self.assertEqual(report['additionalOriginalSourceOuterTerminalGraphIds'],[12])
+        self.assertEqual(report['allPairBoundaryOuterTerminalGraphIds'],[11,12])
+        self.assertFalse(report['wholeGraphCensusPerformed'])
+        self.assertEqual(report['sourcePhysicalRoadDirectionCompleteness'],
+                         'NOT_VERIFIED')
+        outer['eligibleTerminalOriginalEdges']=[edge(11,10.01),edge(11,10.01)]
+        with self.assertRaisesRegex(ValueError,'Duplicate original'):
+            extractor.reconcile_original_outer_terminal_candidates(
+                prior_candidates=[prev],inventory=outer,read_native=read)
+
+    def test_outer_boundary_source_terminal_corruption_fails_closed(self):
+        def edge(gid, lon):
+            return {'graphId':gid,'endNodeGraphId':gid+100,
+                    'endLat':45.,'endLon':lon,'access':1025,
+                    'nativeTerminalModes':1025,'roadClass':6,'roadUse':0,
+                    'layer':0,'bridge':False,'tunnel':False}
+        outer={'eligibleTerminalOriginalEdges':[edge(44,10.02)],
+               'originalSourceBoundaryTileCount':1,
+               'indexedSourceTilesIntersectingOuterXDomain':1,
+               'terminalEndpointDomainTileCoverage':'COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS',
+               'nativeLongEdgeOriginCoverage':'NOT_VERIFIED',
+               'originalSourceDirectedEdgesInspected':10,
+               'originalSourceLocalTerminalEdgesOutsideABuffer':1,
+               'originalSourceTerminalEdgesOutsideAWithinB':1,
+               'outsideAAndOutsideB':0,
+               'inventoryScope':'PAIR_SHARED_OUTER_CUTOFF_TILES_ONLY'}
+        bad={'kind':'local-continuations',
+             'source':{**edge(44,10.03),'endLon':10.03},'options':[]}
+        with self.assertRaisesRegex(ValueError,'directed source final identity'):
+            extractor.reconcile_original_outer_terminal_candidates(
+                prior_candidates=[],inventory=outer,read_native=lambda _: [bad])
+        other={**edge(44,10.02),'nativeTerminalModes':1}
+        outer['eligibleTerminalOriginalEdges']=[other]
+        good={'kind':'local-continuations','source':edge(44,10.02),'options':[]}
+        with self.assertRaisesRegex(ValueError,'terminal status changed'):
+            extractor.reconcile_original_outer_terminal_candidates(
+                prior_candidates=[],inventory=outer,read_native=lambda _: [good])
+
     def test_original_graph_local_terminal_proof_rejects_stale_masks_ids_and_x(self):
         row = {"graphId":7,"endNodeGraphId":42,"access":1025,
                "nativeTerminalModes":1,"endLat":45.0,"endLon":10.0}
@@ -792,7 +889,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-8')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-9')\n"
                 "else:\n"
                 " assert len(sys.argv) == 4\n"
                 " assert 'buffer.geojson' in sys.argv[3]\n"

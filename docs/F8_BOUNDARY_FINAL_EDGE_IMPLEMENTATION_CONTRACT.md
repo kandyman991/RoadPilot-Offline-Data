@@ -149,6 +149,25 @@ prove distinct physical-road identity or full coverage; D-017 acceptance,
 RoadPilot Android real routing and publication remain BLOCKED. See
 `docs/F8_PR127_BOUNDED_MISSING_SOURCE_RECOVERY_20261109.md`.
 
+**November 9 original outer-terminal A→X→B reconciliation:**
+Without changing D-017, the owner-directed stage identifies every original
+**graph-local native terminal directed A edge** with X outside A original
+25-km buffer and inside B coverage **within the already selected pair
+buffer-cutoff tiles**. The SAME native reader, using exact source tile
+GraphIds, end-node topology and mode masks, now exposes those local finals
+even when their whole edge is outside the cutoff polyline (and thus not
+among earlier root edges). No network walk, extra GPS, whole-region graph
+scan, new producer or B name/way association is added. Existing A finals
+and B branch options are independently verified and retained. Original
+Italy NE/Austria pair reads: 707 exterior local finals, 704 previously
+registered plus three new; two of three match native B allowed outgoing
+roads. Exact source tile-index bounds covering the B-minus-A endpoint
+region are included (39/39 and 29/29). However full long-native-edge
+origin coverage and physical-road identity are NOT verified, so catalog
+and Android publication remain BLOCKED. This is evidence under Step 1,
+not authorization to declare the complete D-017 invariant. See
+`docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer

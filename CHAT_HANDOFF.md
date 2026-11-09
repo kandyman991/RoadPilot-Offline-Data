@@ -1,5 +1,51 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #127 approved D-017 native A outer terminal inventory & B matching (2026-11-09)
+
+Owner requested **finish A→exact X→B without any architecture change**.
+The source-of-285-missing-roots assumption was checked against the exact
+original 25km A buffer and B footprint: all prior 418 B-positive A terminal
+endpoints are outside A buffer, and 129 prior A internal terminals have no
+B-positive. Extending an arbitrary number of root hops is not the contract.
+Instead the SAME existing Valhalla 3.6.3 native pair-boundary source reader
+v9 now optionally emits graph-local A terminal edges with native X outside
+A original 25km buffer from the SAME 72/60 original pair-cut boundary tiles
+and SHA-bound original graphs, not all tiles or a road walk; the existing
+`--match-receiver --bounded-missing-source-recovery
+--reconcile-outer-terminal-edges` CLI reconciles these against previous
+GraphIds, independent A local native terminal modes and original B directed
+geometry/turn access at unchanged X. No OSM/road names, approximate
+nearby crossing, new Y, route preference or hierarchy dedup.
+
+Actual original regional graph tile-index metadata proved that all source
+tile bounds intersecting B-coverage MINUS A-buffer endpoint area are
+among the selected cutoff tile set: 39/39 in Italy NE→Austria and 29/29
+in reverse. This does NOT prove long original directed edge origins cannot
+be owned by outside tiles (remaining gate). Real original A native
+terminal GraphIds outside A and inside B: **454 + 253 = 707**, **704**
+already independently checked in previous 833 candidates; just **3** new
+original graph-local A terminal GraphIds (2 Italy NE, 1 Austrian). Two of
+the 3 have B-native allowed alternatives (2 B options each), one is
+B-restriction/hierarchy unresolved. **420 of 707** A outer terminal
+candidates have ≥1 native B permitted directed successor, all 646 B
+successor references preserved, no exact terminal X collisions.
+
+All original candidate records (833 original including 129 inside A) are
+unchanged; new candidate total 836. All 285 earlier unresolved source-root
+observations remain as *lineage observations*, not 285 proven missing
+roads. The new A outer terminal inventory is exhaustive only **inside
+approved pair cutoff tiles**, NOT a full per-physical-road proof.
+Current exact SHA-bound evidence:
+`docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.
+Native Valhalla 3.6.3 Release build PASS, 419 Python tests PASS; bilateral
+original A/B graph output verified. SourceLongEdgeOriginCoverage NOT_VERIFIED,
+physical road/direction identity NOT_VERIFIED; Android JNI journeys NOT_RUN;
+publication BLOCKED. PR #127 remains DRAFT/UNMERGED pending independent
+review/CI/owner approval. Next: focus on long-edge origin and physical-road
+identity **only where necessary**, then versioned Android adapter and real
+multi-mode/multi-direction device journeys. NO new discovery architecture.
+
+
 ## PR #127 bounded missing-source Step 1 (2026-11-09)
 
 Owner ordered targeted work on exactly the **392** original A cutoff source

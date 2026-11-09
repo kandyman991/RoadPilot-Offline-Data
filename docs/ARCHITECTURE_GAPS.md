@@ -145,3 +145,23 @@ candidates and their 10 B successor options are **NOT** proven complete
 physical-road handoffs. Full source completeness NOT_VERIFIED, Android
 NOT_RUN, publication BLOCKED. Exact original SHA-bound evidence in
 `docs/F8_PR127_BOUNDED_MISSING_SOURCE_RECOVERY_20261109.md`.
+
+
+**2026-11-09 PR #127 original outer-final source terminal reconciliation
+(G-F8-06 PARTIALLY CLOSED, D-017 still open):** Same version-pinned native
+original source reader v9 and A→X→B CLI; no network recursion or graph-wide
+enumeration. Among pair-selected buffer-cutoff tile sets, source A terminal
+X OUTSIDE A 25-km polygon and INSIDE B original coverage: **454** Italy NE
+and **253** Austria, total 707. The previous 833 native terminal register
+already contained 704 of these; only 3 original A terminal GraphIds were
+missing, two with original B permitted directed successors (4 B branches),
+one B restriction/hierarchy unknown. **420** outer-terminal A candidates
+now have ≥1 native B directional continuation (646 distinct option refs),
+no same-X duplicate. Original source tile-index metadata covers all B-minus-A
+endpoint tiles in cutoff selection (39/39 and 29/29), BUT **not all possible
+long-edge origin tiles or same physical-road lineage**. Remaining 285 old
+source-root observations aren't automatically missing roads and remain
+preserved. All original A-X-B IDs and modes unchanged; no Android JNI
+acceptance or production catalog. Source per-road completeness NOT_VERIFIED,
+Android NOT_RUN, publication BLOCKED; see
+`docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.
