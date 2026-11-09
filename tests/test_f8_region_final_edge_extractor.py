@@ -221,11 +221,14 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "if '--version' in sys.argv: print('3.6.3')\n"
                 "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-5')\n"
                 "elif '--local-continuations' in sys.argv:\n"
-                " raise RuntimeError('direct terminal should not be followed')\n"
+                " for line in open(sys.argv[3]):\n"
+                "  rowid=int(line)\n"
+                "  print(json.dumps({'kind':'local-continuations','source':{'graphId':rowid,'endNodeGraphId':999,'access':1025,'endLat':45,'endLon':10.01},'options':[]}))\n"
+                " print(json.dumps({'kind':'complete','edgesInspected':1,'valhallaVersion':'3.6.3'}))\n"
                 "else:\n"
                 " assert len(sys.argv)==5\n"
                 " assert 'sha-bound-shared-original-cut.geojson' in sys.argv[4]\n"
-                " print(json.dumps({'kind':'edge','graphId':gid,'access':1025,'nativeTerminalModes':1025,'originalCutOrientation':'OUTWARD','endLat':45,'endLon':10.01,'hasNativeApproachTangent':True,'approachLat':45,'approachLon':10.009}))\n"
+                " print(json.dumps({'kind':'edge','graphId':gid,'access':1025,'nativeTerminalModes':1025,'endNodeGraphId':999,'originalCutOrientation':'OUTWARD','endLat':45,'endLon':10.01,'hasNativeApproachTangent':True,'approachLat':45,'approachLon':10.009}))\n"
                 " print(json.dumps({'kind':'complete','selectedTiles':1,'valhallaVersion':'3.6.3','edgesEmitted':1,'directedExamined':42,'originalCutFilterApplied':True,'sharedCutFilterApplied':True}))\n"
             )
             native.chmod(0o755)
@@ -239,6 +242,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
             self.assertEqual(summary["nonterminalSourceCutCount"], 0)
             with gzip.open(out, "rt") as stream:
                 result = json.load(stream)
+            self.assertEqual(result["schemaVersion"], 3)
             self.assertEqual(result["fromRegionId"], "fictional-a")
             self.assertEqual(result["toRegionId"], "fictional-b")
             self.assertEqual(result["originalPairedCutDirectedEvidence"][0]["graphId"], gid)
@@ -283,15 +287,18 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                     receiver_index=b[1], receiver_buffer=b[2])
 
     def test_mode_specific_terminals_forks_and_shortcuts_remain_distinct(self):
-        cut = [{"graphId":100,"access":1025,"nativeTerminalModes":1,
-                "originalCutOrientation":"OUTWARD","endLat":45.,"endLon":10.}]
+        cut = [{"graphId":100,"endNodeGraphId":1000,"access":1025,
+                "nativeTerminalModes":1,"originalCutOrientation":"OUTWARD",
+                "endLat":45.,"endLon":10.}]
         def peer(gid, access, *, shortcut=False):
-            return {"graphId":gid,"access":access,"shortcut":shortcut,
+            return {"graphId":gid,"endNodeGraphId":gid*10,
+                    "access":access,"shortcut":shortcut,
                     "transit":False,"startLat":45.,"startLon":10.,
                     "endLat":45.,"endLon":10.001}
         options = [{"viaHierarchy":False,"edge":peer(101,1024)},
                    {"viaHierarchy":True,"edge":peer(102,1024,shortcut=True)}]
-        first = {"kind":"local-continuations","source":{"graphId":100},
+        first = {"kind":"local-continuations",
+                 "source":{**peer(100,1025),"endNodeGraphId":1000,"endLon":10.},
                  "options":options}
         last = {"kind":"local-continuations","source":peer(101,1024),"options":[]}
         called = []
@@ -314,30 +321,31 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
 
     def test_terminal_first_never_walks_outgoing_network(self):
         cut = [
-            {"graphId":10,"access":1025,"nativeTerminalModes":1025,
+            {"graphId":10,"endNodeGraphId":110,"access":1025,"nativeTerminalModes":1025,
              "originalCutOrientation":"OUTWARD","endLat":45.,"endLon":10.},
-            {"graphId":11,"access":1025,"nativeTerminalModes":0,
+            {"graphId":11,"endNodeGraphId":111,"access":1025,"nativeTerminalModes":0,
              "originalCutOrientation":"OUTWARD","endLat":45.,"endLon":10.},
-            {"graphId":12,"access":1025,"nativeTerminalModes":0,
+            {"graphId":12,"endNodeGraphId":112,"access":1025,"nativeTerminalModes":0,
              "originalCutOrientation":"INWARD","endLat":45.,"endLon":10.},
         ]
         def source(gid, end_lon=10.):
-            return {"graphId":gid,"access":1025,"endLat":45.,"endLon":end_lon}
+            return {"graphId":gid,"endNodeGraphId":100+gid,
+                    "access":1025,"shortcut":False,"transit":False,
+                    "startLat":45.,"startLon":10.,"endLat":45.,"endLon":end_lon}
         incoming = {"kind":"local-continuations","source":source(11),
-                    "options":[{"viaHierarchy":False,"edge":{
-                        "graphId":13,"access":1025,"shortcut":False,"transit":False}},
-                               {"viaHierarchy":True,"edge":{
-                        "graphId":14,"access":1025,"shortcut":False,"transit":False}}]}
+                    "options":[{"viaHierarchy":False,"edge":source(13)},
+                               {"viaHierarchy":True,"edge":source(14)}]}
         child = {"kind":"local-continuations","source":source(13),"options":[]}
         grandchild = {"kind":"local-continuations","source":source(14, 90.),
-                      "options":[{"edge":{"graphId":15,"access":1025,"transit":False}}]}
+                      "options":[{"viaHierarchy":False,"edge":source(15)}]}
         calls = []
         def read(ids):
             calls.append(ids)
-            return [[incoming],[child, grandchild]][len(calls)-1]
+            return [[{"kind":"local-continuations","source":source(10),
+                       "options":[]},incoming],[child, grandchild]][len(calls)-1]
         result = extractor.select_pair_terminal_candidates(cut,read,
             source_cut_tile_ids={10,11,12,13,14}, receiver_footprint=box(9,44,11,46))
-        self.assertEqual(calls, [[11],[13,14]])
+        self.assertEqual(calls, [[10,11],[13,14]])
         self.assertEqual(result["outwardOrAmbiguousSourceCutCount"],2)
         self.assertEqual(result["directNativeTerminalRootCount"],1)
         self.assertEqual(result["nonterminalSourceCutCount"],1)
@@ -345,6 +353,77 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
             result["terminalCandidatesByExactSourceGraphId"]},{10,13})
         self.assertEqual(len(result["unresolvedNonterminalSourceCutObservations"]),1)
         self.assertEqual(result["sourcePhysicalRoadDirectionCompleteness"],"NOT_VERIFIED")
+
+    def test_original_graph_local_terminal_proof_rejects_stale_masks_ids_and_x(self):
+        row = {"graphId":7,"endNodeGraphId":42,"access":1025,
+               "nativeTerminalModes":1,"endLat":45.0,"endLon":10.0}
+        observation = {"kind":"local-continuations",
+                       "source":{"graphId":7,"endNodeGraphId":42,
+                                 "access":1025,"endLat":45.0,"endLon":10.0},
+                       "options":[{"viaHierarchy":True,"edge":{
+                           "graphId":8,"access":1024,"shortcut":False,
+                           "transit":False,"startLat":45.0,"startLon":10.0,
+                           "endLat":45.0,"endLon":10.01}}]}
+        self.assertEqual(extractor.verify_cut_root_native_identity(row,observation),1)
+        for modified in ({"graphId":6},{"endNodeGraphId":43},{"access":1},
+                         {"endLon":10.001},{"nativeTerminalModes":1025}):
+            with self.subTest(modified=modified):
+                with self.assertRaisesRegex(ValueError,"mismatch|mask"):
+                    extractor.verify_cut_root_native_identity({**row,**modified},observation)
+        # A shortcut at a hierarchy peer is still native forward access.
+        # Never call the source graph terminal for a mode with any shortcut.
+        observation["options"][0]["edge"]["shortcut"] = True
+        self.assertEqual(extractor.native_terminal_modes_from_adjacency(observation),1)
+
+    def test_single_native_one_hop_terminal_is_structural_not_physical_proof(self):
+        root = {"graphId":20,"endNodeGraphId":120,"access":1025,
+                "nativeTerminalModes":0,"originalCutOrientation":"OUTWARD",
+                "endLat":45.0,"endLon":10.0}
+        def native_edge(gid):
+            return {"graphId":gid,"endNodeGraphId":100+gid,
+                    "access":1025,"startLat":45.0,"startLon":10.0,
+                    "endLat":45.0,"endLon":10.01,"transit":False,
+                    "shortcut":False}
+        first = {"kind":"local-continuations",
+                 "source":{**native_edge(20),"endLon":10.0},
+                 "options":[{"viaHierarchy":False,"edge":native_edge(21)}]}
+        final = {"kind":"local-continuations","source":native_edge(21),
+                 "options":[]}
+        calls=[]
+        def read(ids):
+            calls.append(ids)
+            return [[first],[final]][len(calls)-1]
+        result = extractor.select_pair_terminal_candidates([root],read,
+            source_cut_tile_ids={20,21},receiver_footprint=box(9,44,11,46))
+        self.assertEqual(calls,[[20],[21]])
+        self.assertEqual(result["cutRootsIndependentlyReadBackCount"],1)
+        self.assertEqual(result["singleNativeOneHopTerminalRootCount"],1)
+        self.assertEqual(result["nonterminalSourceCutCount"],1)
+        self.assertEqual(result["nativeGraphLocalTerminalCandidateCount"],1)
+        self.assertEqual(result["terminalCandidatesByExactSourceGraphId"][0]
+                         ["nativeGraphLocalTerminalProof"],"VERIFIED")
+        evidence = result["unresolvedNonterminalSourceCutObservations"][0]
+        self.assertEqual(evidence["localStructuralStatus"],"SINGLE_IMMEDIATE_NATIVE_TERMINAL")
+        self.assertEqual(evidence["uniqueNativeOneHopTerminalGraphId"],21)
+        self.assertEqual(evidence["locallyVerifiedContinuingVehicleModes"],1025)
+        self.assertEqual(evidence["physicalRoadIdentity"],"NOT_VERIFIED")
+        self.assertEqual(result["sourcePhysicalRoadDirectionCompleteness"],"NOT_VERIFIED")
+
+    def test_distinct_final_graphids_same_x_never_deduplicated(self):
+        cut = [{"graphId":v,"endNodeGraphId":100,"access":1025,
+                "nativeTerminalModes":1025,"originalCutOrientation":"OUTWARD",
+                "endLat":45.,"endLon":10.} for v in (30,31)]
+        def read(ids):
+            return [{"kind":"local-continuations",
+                     "source":{"graphId":gid,"endNodeGraphId":100,
+                               "access":1025,"endLat":45.,"endLon":10.},
+                     "options":[]} for gid in ids]
+        result=extractor.select_pair_terminal_candidates(cut,read,
+            source_cut_tile_ids={30,31}, receiver_footprint=box(9,44,11,46))
+        self.assertEqual(result["nativeGraphLocalTerminalCandidateCount"],2)
+        self.assertEqual(result["exactEndNodeCoincidenceGroups"],[[30,31]])
+        self.assertEqual(result["exactTerminalGpsCoincidenceGroups"],[[30,31]])
+        self.assertEqual(result["productionPublication"],"BLOCKED")
 
     def test_cut_only_stream_requires_native_exact_original_polygon_filter(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -360,7 +439,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 " assert len(sys.argv) == 4\n"
                 " assert 'buffer.geojson' in sys.argv[3]\n"
                 " for row in [\n"
-                " {'kind':'edge','graphId':77,'access':1025,'nativeTerminalModes':1025,'originalCutOrientation':'OUTWARD','endLat':44,'endLon':10,'hasNativeApproachTangent':True,'approachLat':43.999,'approachLon':10},\n"
+                " {'kind':'edge','graphId':77,'access':1025,'nativeTerminalModes':1025,'endNodeGraphId':999,'originalCutOrientation':'OUTWARD','endLat':44,'endLon':10,'hasNativeApproachTangent':True,'approachLat':43.999,'approachLon':10},\n"
                 " {'kind':'edge','graphId':79,'access':1025,'nativeTerminalModes':0,'originalCutOrientation':'INWARD','endLat':44,'endLon':10,'hasNativeApproachTangent':True,'approachLat':43.999,'approachLon':10},\n"
                 " {'kind':'complete','selectedTiles':1,'valhallaVersion':'3.6.3','edgesEmitted':2,'directedExamined':58,'originalCutFilterApplied':True}\n"
                 " ]: print(json.dumps(row))\n"

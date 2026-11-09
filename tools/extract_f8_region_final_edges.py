@@ -267,6 +267,48 @@ def validate_immediate_native_observation(record: dict) -> None:
                 raise ValueError("Invalid original native outgoing geometry")
 
 
+def native_terminal_modes_from_adjacency(native_observation: dict) -> int:
+    """Prove a directed edge's graph-LOCAL terminal vehicle modes.
+
+    Iterate ALL original outgoing edges at its actual compiled end node and
+    immediate native hierarchy peers (including shortcuts). This cannot
+    establish physical-road identity at a fork or a corresponding B road.
+    """
+    validate_immediate_native_observation(native_observation)
+    source = native_observation["source"]
+    if (type(source.get("access")) is not int or source["access"] <= 0):
+        raise ValueError("Missing original native source vehicle modes")
+    all_outgoing = 0
+    for row in native_observation["options"]:
+        if row["edge"]["transit"]:
+            raise ValueError("Transit found among native road-only adjacency")
+        all_outgoing |= row["edge"]["access"]
+    return source["access"] & ~all_outgoing
+
+
+def verify_cut_root_native_identity(cut_row: dict, native_observation: dict) -> int:
+    """Independent native read-back of exact A GraphId, X and local modes.
+
+    Fail closed on stale source rows or missing hierarchy/branch options;
+    never infer a physical road from GPS, names, mode or bearing.
+    """
+    modes = native_terminal_modes_from_adjacency(native_observation)
+    source = native_observation["source"]
+    for field in ("graphId", "endNodeGraphId", "access"):
+        if type(cut_row.get(field)) is not int or cut_row[field] != source.get(field):
+            raise ValueError(f"Native directed source identity mismatch: {field}")
+    for field in ("endLat", "endLon"):
+        first, second = cut_row.get(field), source.get(field)
+        if (type(first) not in (int, float) or type(second) not in (int, float)
+                or not math.isfinite(first) or not math.isfinite(second)
+                or abs(first - second) > 1e-7):
+            raise ValueError(f"Original native terminal node GPS mismatch: {field}")
+    if (type(cut_row.get("nativeTerminalModes")) is not int or
+            modes != cut_row["nativeTerminalModes"]):
+        raise ValueError("Original native terminal mask disagrees with independently read local adjacency")
+    return modes
+
+
 def inspect_local_source_edges(*, manifest_path: Path, index_path: Path,
                                buffer_path: Path, valhalla_config_path: Path,
                                binary: Path, source_graph_ids: list[int],
@@ -574,38 +616,59 @@ def select_pair_terminal_candidates(cut_rows: list[dict], read_local,
             raise ValueError("Unclassified original directed shared-cut encounter")
     if not roots:
         raise ValueError("Original pair-shared cutoff has no outward/ambiguous directed edges")
+    # Reopen every A source-cut root from the ORIGINAL compiled Valhalla
+    # graph. The stream's own terminal mask is not a proof: recalculate it
+    # from actual outgoing directed edges and immediate hierarchy peers.
+    root_observations = read_local([row["graphId"] for row in roots])
+    if len(root_observations) != len(roots):
+        raise ValueError("Incomplete source-cut native identity verification")
+    root_inspected: dict[int, dict] = {}
+    for row, record in zip(roots, root_observations):
+        verify_cut_root_native_identity(row, record)
+        root_inspected[row["graphId"]] = record
+
     direct = [r for r in roots if r["nativeTerminalModes"]]
     nonterminal = [r for r in roots if r["access"] & ~r["nativeTerminalModes"]]
+    nonterminal_by_gid = {r["graphId"]: r for r in nonterminal}
     terminal: dict[int, dict] = {}
-    def retain(gid: int, modes: int, origin: int, native: dict, *, kind: str):
+    def retain(gid: int, modes: int, origin: int, native: dict, *, kind: str,
+               proof: dict):
         if modes & ~native["access"] or not modes:
             raise ValueError("Native terminal permissions disagree with original access")
         data = terminal.setdefault(gid, {"sourceFinalCandidateGraphId": gid,
             "terminalVehicleModes": 0, "access": native["access"],
             "endLat": native["endLat"], "endLon": native["endLon"],
+            "endNodeGraphId": native["endNodeGraphId"],
             "sourceCutGraphIds": [], "selectionKinds": [],
-            "sourcePhysicalRoadFinalCompleteness": "NOT_VERIFIED"})
-        if (data["endLat"], data["endLon"], data["access"]) != (
-                native["endLat"], native["endLon"], native["access"]):
+            "originalNativeLocalProof": proof,
+            "nativeGraphLocalTerminalProof": "VERIFIED",
+            "physicalRoadFinalCompleteness": "NOT_VERIFIED"})
+        if (data["endLat"], data["endLon"], data["access"],
+                data["endNodeGraphId"]) != (native["endLat"], native["endLon"],
+                native["access"], native["endNodeGraphId"]):
             raise ValueError("Conflicting original native terminal GraphId identity")
+        if data["originalNativeLocalProof"] != proof:
+            raise ValueError("Conflicting original native terminal proof for same directed GraphId")
         data["terminalVehicleModes"] |= modes
         if origin not in data["sourceCutGraphIds"]:
             data["sourceCutGraphIds"].append(origin)
         if kind not in data["selectionKinds"]:
             data["selectionKinds"].append(kind)
     for row in direct:
+        record = root_inspected[row["graphId"]]
         retain(row["graphId"], row["nativeTerminalModes"],
-               row["graphId"], row, kind="NATIVE_TERMINAL_AT_SHARED_CUT")
+               row["graphId"], record["source"],
+               kind="NATIVE_TERMINAL_AT_SHARED_CUT",
+               proof={"method": "INDEPENDENT_ORIGINAL_END_NODE_ADJACENCY",
+                      "endNodeGraphId": row["endNodeGraphId"],
+                      "outgoingOriginalDirectedGraphIds": [v["edge"]["graphId"]
+                                               for v in record["options"]],
+                      "hierarchyPeersIncluded": True,
+                      "terminalModes": row["nativeTerminalModes"]})
     unresolved = []
-    # A single local inspection at each nonterminal cutoff source node.
-    observations = read_local([row["graphId"] for row in nonterminal]) if nonterminal else []
-    if len(observations) != len(nonterminal):
-        raise ValueError("Incomplete original nonterminal shared-cut adjacency")
     pending: dict[int, list[int]] = {}
-    for root, native in zip(nonterminal, observations):
-        if (native.get("kind") != "local-continuations" or
-                native["source"]["graphId"] != root["graphId"]):
-            raise ValueError("Wrong original local node source GraphId")
+    for root in nonterminal:
+        native = root_inspected[root["graphId"]]
         options = []
         for opt in native["options"]:
             edge = opt["edge"]
@@ -639,31 +702,80 @@ def select_pair_terminal_candidates(cut_rows: list[dict], read_local,
         if row.get("kind") != "local-continuations" or row["source"]["graphId"] != gid:
             raise ValueError("Wrong original immediate forward directed GraphId")
         source = row["source"]
+        available = native_terminal_modes_from_adjacency(row)
         if not receiver_footprint.covers(Point(
                 source["endLon"], source["endLat"])):
             continue
         observed_one_hop.add(gid)
-        available = source["access"]
-        for option in row["options"]:
-            edge = option["edge"]
-            if not edge["transit"]:
-                available &= ~edge["access"]
         if available:
             # One predecessor may be a fork or hierarchy peer. Preserve
             # every distinct source origin rather than assign road identity.
             for origin in pending[gid]:
-                root = next(item for item in nonterminal if item["graphId"] == origin)
+                root = nonterminal_by_gid[origin]
                 modes = available & root["access"] & ~root["nativeTerminalModes"]
                 if modes:
                     retain(gid, modes, origin, source,
-                           kind="NATIVE_TERMINAL_ONE_IMMEDIATE_HOP_UNPROVEN")
+                           kind="NATIVE_TERMINAL_ONE_IMMEDIATE_HOP_UNPROVEN",
+                           proof={"method": "INDEPENDENT_ORIGINAL_END_NODE_ADJACENCY",
+                                  "endNodeGraphId": source["endNodeGraphId"],
+                                  "outgoingOriginalDirectedGraphIds": [v["edge"]["graphId"]
+                                                     for v in row["options"]],
+                                  "hierarchyPeersIncluded": True,
+                                  "terminalModes": available})
+    # A bounded structural proof is possible only for a single native
+    # immediate successor with no shortcuts/branch alternatives and a
+    # terminal end-node for *all* previously continuing vehicle modes.
+    # A physical-road identity is NOT inferred; every original root remains
+    # present in the unresolved register for full D-017 acceptance.
+    structurally_single_hop = 0
+    for root in unresolved:
+        source_id = root["sourceCutGraphId"]
+        row = nonterminal_by_gid[source_id]
+        continuing = row["access"] & ~row["nativeTerminalModes"]
+        options = root["immediateNativeOutgoing"]
+        if len(options) == 1 and options[0]["eligibleOriginalForward"]:
+            successor = terminal.get(options[0]["graphId"])
+            if (successor is not None and
+                    options[0]["graphId"] != source_id and
+                    (continuing & ~successor["terminalVehicleModes"]) == 0 and
+                    source_id in successor["sourceCutGraphIds"]):
+                root["localStructuralStatus"] = "SINGLE_IMMEDIATE_NATIVE_TERMINAL"
+                root["uniqueNativeOneHopTerminalGraphId"] = options[0]["graphId"]
+                root["locallyVerifiedContinuingVehicleModes"] = continuing
+                structurally_single_hop += 1
+                continue
+        root["localStructuralStatus"] = ("MULTIPLE_NATIVE_OUTGOING_UNRESOLVED"
+                                         if len(options) > 1 else
+                                         "SINGLE_NATIVE_OUTGOING_UNRESOLVED")
+        root["uniqueNativeOneHopTerminalGraphId"] = None
+        root["locallyVerifiedContinuingVehicleModes"] = 0
+
+    # Only flag identical native end node or exact GPS X; never collapse
+    # candidates on proximity, bearings, names or hierarchy representation.
+    # Legitimate multi-road junctions remain separate even if X coincides.
+    by_end_node: dict[int, list[int]] = {}
+    by_exact_x: dict[tuple[float, float], list[int]] = {}
+    for candidate in terminal.values():
+        gid = candidate["sourceFinalCandidateGraphId"]
+        by_end_node.setdefault(candidate["endNodeGraphId"], []).append(gid)
+        by_exact_x.setdefault((candidate["endLat"], candidate["endLon"]), []).append(gid)
+    repeated_nodes = [sorted(ids) for ids in by_end_node.values() if len(ids) > 1]
+    repeated_x = [sorted(ids) for ids in by_exact_x.values() if len(ids) > 1]
+    repeated_nodes.sort()
+    repeated_x.sort()
     return {
         "originalPairedCutDirectedEvidence": cut_rows,
         "outwardOrAmbiguousSourceCutCount": len(roots),
         "directNativeTerminalRootCount": len(direct),
+        "cutRootsIndependentlyReadBackCount": len(root_inspected),
+        "nativeTerminalRootsIndependentlyVerifiedCount": len(direct),
         "nonterminalSourceCutCount": len(nonterminal),
+        "singleNativeOneHopTerminalRootCount": structurally_single_hop,
         "oneHopInspectedGraphIdCount": len(successor_ids),
         "oneHopReceiverFootprintGraphIdCount": len(observed_one_hop),
+        "nativeGraphLocalTerminalCandidateCount": len(terminal),
+        "exactEndNodeCoincidenceGroups": repeated_nodes,
+        "exactTerminalGpsCoincidenceGroups": repeated_x,
         "terminalCandidatesByExactSourceGraphId": [terminal[gid] for gid in sorted(terminal)],
         "unresolvedNonterminalSourceCutObservations": unresolved,
         "sourcePhysicalRoadDirectionCompleteness": "NOT_VERIFIED",
@@ -718,7 +830,7 @@ def resolve_original_cut_to_file(*, manifest_path: Path, index_path: Path,
         require_fingerprint(path, sha)
     output = {
         "schema": "roadpilot.f8-paired-source-local-terminal-candidates",
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "fromRegionId": pair["source"]["regionId"],
         "toRegionId": pair["receiver"]["regionId"],
         "fromGraphFingerprint": pair["source"]["graphFingerprint"],

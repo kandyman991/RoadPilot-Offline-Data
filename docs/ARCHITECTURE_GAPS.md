@@ -64,3 +64,19 @@ proven one-per-physical-road and cannot publish. Previous 1,599/2,178
 unresolved numbers applied to entire region outlines across *all neighbors*,
 not this pair. No B road matched, no Android parity. See
 `docs/F8_PR127_PAIRED_TERMINAL_FIRST_20261109.md`.
+
+
+**2026-11-09 further source-only bounded native proof (G-F8-06 OPEN):**
+PR #127 independently reopens and validates 820/422 original pair-cut
+source GraphIds/end-node GPS X/modes and **all 505/269 local terminal
+candidate A GraphIds** directly from original native Valhalla 3.6.3 node
+and hierarchy adjacency. 381/211 original cut-root GraphIds have no native
+forward node outgoing at any hierarchy peer; another 38/20 source roots
+have exactly one original forward edge reaching a native terminal in one
+hop. Original 439/211 nonterminal source roots are still preserved; 401/191
+have more than this one-hop bounded structural proof. No distinct local
+terminal candidates coincided at exact original end-node or GPS X in these
+archives. This is graph-local topology, **NOT proven full one-per-physical-
+road/direction or all-region completeness**; no Graph B road read, matching,
+Android acceptance, merge, or catalog publication. See
+`docs/F8_PR127_BOUNDED_SOURCE_LOCAL_PROOF_20261109.md`.

@@ -1,5 +1,41 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## Bounded SOURCE-only final GraphId verification — PR #127, 2026-11-09
+
+**Current engineering gate, pending exact-head CI and review.** Without
+changing D-017 or inspecting any receiving B *road*, the pair-terminal-first
+`--resolve-cut` path independently re-reads EVERY original cut-root A GraphId,
+actual end-node GraphId, X and car/motorcycle mask. It recomputes graph-local
+terminal modes via original native immediate outgoing and hierarchy adjacency
+(including shortcuts), hard-failing on mismatches; this is one bounded native
+end-node proof, NOT a new graph discovery/traversal. Locally terminal A
+candidates now carry original directed native local proof, and candidates
+with coincident X or end-node identities are kept DISTINCT and flagged.
+
+Real original Valhalla 3.6.3 Italy NE→Austria: 820/820 cutoff source roots
+read back, 381/381 direct source native terminal roots and **505/505**
+distinct local terminal candidate GraphIds verified, 439 unresolved source
+nonterminal roots retained. **38** roots have a SINGLE native outgoing edge
+whose original final GraphId is terminal in exactly ONE hop; 401 have other
+bounded local ambiguities. Reverse Austria→Italy NE: 422/422 read back,
+211/211 direct terminal, **269/269** local terminal candidates proven;
+211 original nonterminal roots retained, **20** one-hop structurally closed,
+191 further local ambiguity. No exact end-node or X collisions among these
+local GraphId candidates. All actual original roots/forks, class, original
+shortcut/hierarchy/mode uncertainty preserved. Actual physical-road identity
+and full source uniqueness NOT_VERIFIED, B native directed matching
+NOT_STARTED, Android NOT_RUN, publication BLOCKED.
+
+Evidence output SHA and per-pair counts at
+`docs/F8_PR127_BOUNDED_SOURCE_LOCAL_PROOF_20261109.md`; retained readonly
+original graph source outputs under the Legion
+`~/RoadPilotGraphStudio/diagnostics/f8-production/20261109/`.
+**Next:** bounded physical-road lineage disambiguation of remaining 401/191
+hard junction roots, WITHOUT deeper network traversal. Continue source only;
+then B at same X later, only when source road identity established. No
+merge/release authorization; PR #127 remains DRAFT.
+
+
 ## Latest PR #127 source-selection correction — 2026-11-09 (pair scoped, terminal first)
 
 **Owner directed:** Correct source-edge selection before expanding native

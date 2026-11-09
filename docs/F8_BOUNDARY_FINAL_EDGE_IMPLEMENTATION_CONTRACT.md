@@ -75,6 +75,19 @@ corresponding B road. See
 `docs/F8_PR127_PAIRED_TERMINAL_FIRST_20261109.md` for read-only real pair
 results, incomplete statuses, and source candidate provenance.
 
+**November 9 source-only graph-local terminal proof increment:**
+The original cutoff stage now independently verifies *every* paired-cut
+root's exact original A directed GraphId, native end-node GraphId, terminal
+GPS X and vehicle access. It recomputes native terminal modes from immediate
+compiled A node/hierarchy outgoing edges (including shortcuts), and records
+one-hop terminal proof only if there is a sole eligible outgoing directed
+edge; all other root alternatives remain unresolved. Multiple candidate
+GraphIds sharing native X or an end-node are flagged, NEVER merged. These
+read-back original A topological proofs are not complete physical-road
+identity evidence and do not authorize B road matching, route probes,
+catalog publication or a `COMPLETE` status. See
+`docs/F8_PR127_BOUNDED_SOURCE_LOCAL_PROOF_20261109.md`.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer
