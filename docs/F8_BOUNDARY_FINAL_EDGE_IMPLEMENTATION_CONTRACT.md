@@ -115,6 +115,22 @@ Graph B native matching, new coordinate or production publication are
 allowed by this evidence. See
 `docs/F8_PR127_EXACT_NATIVE_SOURCE_BRANCH_TOPOLOGY_20261109.md`.
 
+**November 9 owner-directed A→X→B implementation gate:**
+The owner authorized moving directly to matching the original previously
+verified source A terminal directed GraphIds at their exact native endpoint
+X against the corresponding B original compiled road, **with bounded source
+completeness reconciliation alongside it**, instead of more generalized
+source classification. The same producer uses Valhalla 3.6.3 original B
+spatial bins only at X, requires exact forward-shape approach overlap,
+original native layer/bridge/tunnel evidence, and handles B incoming edges
+that terminate at X through their exact same-node original B directed
+successors (car/motorcycle allowed turns). All distinct legal original B
+branches are preserved, shortcuts/conditional/hierarchy cases stay
+unresolved, and A source road coverage is NOT yet proven. No B Y, names/OSM
+identities, graph-wide scans, prefer-the-best-route logic, source graph
+rebuild, or release is authorized. These are D-017 steps 2–3, not a new
+architecture. See `docs/F8_PR127_NATIVE_A_X_B_MATCHING_20261109.md`.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer

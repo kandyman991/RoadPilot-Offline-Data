@@ -1,5 +1,47 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #127 owner-directed native A → exact X → B correlation, 2026-11-09
+
+**Current latest draft head pending commit/CI.** Owner explicitly authorized
+moving from extensive source classification to D-017's actual A→X→B matching,
+with bounded source completeness checks. Native reader protocol v8 now uses
+Valhalla 3.6.3's **original receiver B spatial bin index** at every exact
+original A terminal endpoint X (not an invented Y or arbitrary nearest-road
+search), compares A native incoming approach segment to B's original directed
+geometry in forward order/layer/bridge/tunnel, then follows only verified
+B predecessor's immediate original native outgoing node edges with native
+car/motorcycle Valhalla `Allowed` costing. Every B directed branch retained;
+no route search, all-B scan, name/way heuristics, GraphId equality comparison,
+Android implementation or catalog release. The same region-independent
+Python CLI `--match-receiver --source-evidence <original --resolve-cut file>`
+re-reads all A GraphIds and terminal masks from immutable archived tiles,
+requires exact A/B SHA-bound manifests/indexes/25km buffers, and emits
+**nonpublishing** result bound to both original graph SHA and source evidence.
+
+Real Italy NE→Austria 505 native A terminal candidates checked, 257 have ≥1
+B native permitted successor, 128 have 2+ B outgoing original alternatives,
+395 total B successor directed options; 203 have no proven B outgoing and
+61 include unresolved B restriction/hierarchy modes. Reverse Austria→Italy NE:
+269 A candidates checked, 155 have B outgoing options (79 multi-branch),
+237 total B directed options, 92 no proven outgoing, 27 partially unresolved.
+Root coverage: A outward source observations 820/422 all preserved, respectively
+302/175 linked to B options, 255/118 have candidate without proven B output,
+263/129 lack final A candidate within approved one-source-hop bound. The
+latter are not necessarily unique missing physical roads.
+
+Native Valhalla 3.6.3 Release build PASS, 414 Python tests PASS, bilateral
+archived A/B native directed runs PASS. Evidence, SHA-256 outputs and full
+limitations: `docs/F8_PR127_NATIVE_A_X_B_MATCHING_20261109.md`.
+**Still OPEN:** source one-final-edge per physical road/direction completeness;
+physical branch identity at ambiguous junctions; original B timed/restriction
+cases; actual RoadPilot Android A→X→B parity; catalog publication.
+**SourcePhysicalRoadDirectionCompleteness=NOT_VERIFIED, Android=NOT_RUN,
+Publication=BLOCKED**. Keep PR #127 DRAFT and UNMERGED. Next exact step:
+focus only on unresolved original source cutoff observations that may hide
+missing final A edges, plus receiver ambiguities affecting actual B options;
+no replacement discovery architecture or new scanning framework.
+
+
 ## PR #127 native exact source branch evidence — 2026-11-09
 
 **Current latest draft head pending commit/CI.** Owner directed to use

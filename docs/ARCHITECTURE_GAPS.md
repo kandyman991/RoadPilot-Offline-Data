@@ -110,3 +110,21 @@ The 505/269 terminal-candidate original GraphIds and original branches
 remain intact, no Graph B directed edge match and no Android trip. Physical
 road/direction uniqueness/completeness NOT_VERIFIED, catalog BLOCKED. See
 `docs/F8_PR127_EXACT_NATIVE_SOURCE_BRANCH_TOPOLOGY_20261109.md`.
+
+
+**2026-11-09 PR #127 original A→exact X→B native correlation (G-F8-06 OPEN):**
+Product owner authorized this step directly on already verified source A
+candidate edges. Original B Valhalla 3.6.3 spatial indexed directed geometry
+lookup at each exact X; compare actual A approach segment and B oriented
+shape/structure (no nearest matching), then use only immediate native B
+node outgoing costing and preserve ALL legal branches. Real Italy NE→Austria:
+257 of 505 native A local terminal candidates have ≥1 B outgoing option,
+128 have multiple B alternatives; 302/820 A outward cut roots relate to
+those options. Austria→Italy NE: 155 of 269, 79 multiple; 175/422 source
+roots relate to a B option. All original 774 A candidates and 1242 original
+A outward/ambiguous roots retained; 263/129 roots have no final A candidate
+in one-hop scope, no false completeness claim. **The 412 candidates with B
+options are native candidate handoffs, NOT an Android-verified catalog.**
+Original A per-physical-road completeness NOT_VERIFIED, Android NOT_RUN,
+publication BLOCKED. Evidence and exact original SHA fingerprints in
+`docs/F8_PR127_NATIVE_A_X_B_MATCHING_20261109.md`.

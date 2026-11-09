@@ -19,10 +19,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from shapely.geometry import box, shape, mapping, MultiLineString, Point
+from shapely.geometry import box, shape, mapping, MultiLineString, Point, LineString
 
 SCHEMA = "roadpilot.f8-region-original-boundary-source"
-NATIVE_PROTOCOL = "roadpilot.f8-native-source-7"
+NATIVE_PROTOCOL = "roadpilot.f8-native-source-8"
 
 
 def sha256(path: Path) -> str:
@@ -1003,6 +1003,493 @@ def resolve_original_cut_to_file(*, manifest_path: Path, index_path: Path,
         "sourcePhysicalRoadDirectionCompleteness", "productionPublication")}
 
 
+
+def indexed_receiver_edges_at_x(*, receiver_manifest_path: Path,
+                                receiver_index_path: Path,
+                                receiver_buffer_path: Path,
+                                receiver_valhalla_config: Path,
+                                native_binary: Path, source_candidates: list[dict]) -> list[dict]:
+    """Native original B Valhalla spatial bins around X, no whole-B scan.
+
+    Candidate IDs and original endpoint X come ONLY from independently
+    verified A GraphIds. Valhalla's B bins also find long edges that start
+    outside X's containing tile and index opposing directed travel.
+    """
+    manifest, _ = region_input(receiver_manifest_path, receiver_index_path,
+                               receiver_buffer_path)
+    require_native_protocol(native_binary, manifest["valhallaVersion"])
+    if not source_candidates:
+        raise ValueError("No original source terminal candidates")
+    seen = set()
+    for item in source_candidates:
+        gid = item.get("sourceFinalCandidateGraphId")
+        if type(gid) is not int or gid in seen:
+            raise ValueError("Duplicated or malformed original source final candidate")
+        seen.add(gid)
+        for field in ("endLat", "endLon"):
+            if type(item.get(field)) not in (int, float) or not math.isfinite(item[field]):
+                raise ValueError("Invalid original source handoff X")
+    with tempfile.TemporaryDirectory(prefix="f8-native-receiver-at-x-") as tmp:
+        work = Path(tmp)
+        conf = load_json(receiver_valhalla_config)
+        if "mjolnir" not in conf:
+            raise ValueError("Not a Valhalla receiver configuration")
+        conf["mjolnir"] = dict(conf["mjolnir"])
+        conf["mjolnir"]["tile_extract"] = str(
+            (receiver_manifest_path.parent / manifest["artifact"]["fileName"]).resolve())
+        conf["mjolnir"]["tile_dir"] = str(work / "no-unpacked-tiles")
+        conf_path = work / "receiver.json"
+        conf_path.write_text(json.dumps(conf), encoding="utf-8")
+        seeds = work / "source-X.jsonl"
+        seeds.write_text(''.join(json.dumps({
+            "sourceGraphId": item["sourceFinalCandidateGraphId"],
+            "xLat": item["endLat"], "xLon": item["endLon"]
+        }, separators=(",", ":")) + "\n" for item in source_candidates), encoding="utf-8")
+        run = subprocess.run([str(native_binary), "--receiver-at-x",
+                              str(conf_path), str(seeds)], capture_output=True,
+                             check=True, text=True, timeout=600)
+    lines = [json.loads(row) for row in run.stdout.splitlines()]
+    if (len(lines) != len(source_candidates) + 1 or
+            lines[-1].get("kind") != "complete-receiver" or
+            lines[-1].get("sourcesInspected") != len(source_candidates) or
+            lines[-1].get("valhallaVersion") != manifest["valhallaVersion"]):
+        raise ValueError("Incomplete native original B receiving edge lookup")
+    for source, observed in zip(source_candidates, lines[:-1]):
+        if (observed.get("kind") != "receiver-at-x" or
+                observed.get("sourceGraphId") != source["sourceFinalCandidateGraphId"] or
+                abs(observed.get("xLat", float('inf')) - source["endLat"]) > 1e-7 or
+                abs(observed.get("xLon", float('inf')) - source["endLon"]) > 1e-7):
+            raise ValueError("Receiver native lookup disagrees with exact original A source X")
+        edges = observed.get("originalBDirectedEdges")
+        if not isinstance(edges, list):
+            raise ValueError("Receiver original directed edge array missing")
+        seen_edges = set()
+        for option in edges:
+            edge = option.get("edge", {})
+            gid = edge.get("graphId")
+            if type(gid) is not int or gid in seen_edges or type(edge.get("access")) is not int:
+                raise ValueError("Invalid or repeated native B directed GraphId")
+            seen_edges.add(gid)
+            coordinates = option.get("directedShape")
+            if not isinstance(coordinates, list) or len(coordinates) < 2:
+                raise ValueError("Missing original B directed edge geometry")
+            for point in coordinates:
+                if (not isinstance(point, list) or len(point) != 2 or
+                        any(type(value) not in (int, float) or not math.isfinite(value)
+                            for value in point)):
+                    raise ValueError("Invalid original B directed shape vertex")
+            distance = option.get("nativeDistanceToXMetres")
+            if (type(distance) not in (float, int) or
+                    not 0 <= distance <= 4.00001):
+                raise ValueError("Native receiver spatial index returned out-of-range shape")
+    return lines[:-1]
+
+
+def read_b_native_immediate_continuations(*, receiver_manifest_path: Path,
+                                          receiver_index_path: Path,
+                                          receiver_buffer_path: Path,
+                                          receiver_valhalla_config: Path,
+                                          native_binary: Path,
+                                          original_b_predecessor_graph_ids: list[int]) -> dict[int, dict]:
+    """Reopen ONLY native B predecessor edges proven at source X.
+
+    Reuses the same native original GraphReader local-node view already used
+    for A, in B's exact SHA-pinned archive. No route search or B graph walk.
+    """
+    if not original_b_predecessor_graph_ids:
+        return {}
+    ids = sorted(set(original_b_predecessor_graph_ids))
+    manifest, _ = region_input(receiver_manifest_path, receiver_index_path,
+                               receiver_buffer_path)
+    require_native_protocol(native_binary, manifest['valhallaVersion'])
+    with tempfile.TemporaryDirectory(prefix='f8-native-b-exact-node-') as tmp:
+        root = Path(tmp)
+        cfg = load_json(receiver_valhalla_config)
+        if 'mjolnir' not in cfg:
+            raise ValueError('Missing original B Valhalla config')
+        cfg['mjolnir'] = dict(cfg['mjolnir'])
+        cfg['mjolnir']['tile_extract'] = str(
+            (receiver_manifest_path.parent / manifest['artifact']['fileName']).resolve())
+        cfg['mjolnir']['tile_dir'] = str(root / 'no-unpacked-tiles')
+        conf_path = root / 'receiver.json'
+        conf_path.write_text(json.dumps(cfg), encoding='utf-8')
+        ids_path = root / 'source-B-original-predecessors.txt'
+        ids_path.write_text(''.join(f'{gid}\n' for gid in ids), encoding='utf-8')
+        run = subprocess.run([str(native_binary), '--local-continuations',
+            str(conf_path), str(ids_path), '--evaluate-native-costing'],
+            capture_output=True, text=True, check=True, timeout=600)
+    records = [json.loads(row) for row in run.stdout.splitlines()]
+    if (len(records) != len(ids) + 1 or
+            records[-1].get('kind') != 'complete' or
+            records[-1].get('edgesInspected') != len(ids) or
+            records[-1].get('valhallaVersion') != manifest['valhallaVersion']):
+        raise ValueError('Incomplete original B immediate node evidence')
+    for gid, record in zip(ids, records[:-1]):
+        validate_immediate_native_observation(record)
+        if record['source']['graphId'] != gid:
+            raise ValueError('Wrong original B predecessor GraphId identity')
+        if any('nativeImmediateCosting' not in opt or
+               type(opt.get('fromNodeGraphId')) is not int
+               for opt in record['options']):
+            raise ValueError('Incomplete original B native legal successor evidence')
+    return dict(zip(ids, records[:-1]))
+
+
+def classify_original_b_directional_overlap(source: dict, receiver: dict) -> dict:
+    """Compare actual A final directed shape at X to original B directed edge.
+
+    GPS proximity is ONLY a candidate finder. Positive evidence requires the
+    *same directed source approach segment* overlapping B geometry in order,
+    no opposing travel, and compiled layer/bridge/tunnel concordance.
+    Anything less remains an explicitly unresolved candidate, not a match.
+    """
+    edge = receiver["edge"]
+    mask = source["access"] & edge["access"] & (1 | 1024)
+    if not mask:
+        return {"status": "REJECTED_NO_SHARED_VEHICLE_MODE", "commonVehicleModes": 0}
+    xlat, xlon = source["endLat"], source["endLon"]
+    approach = source.get("approach")
+    if (not isinstance(approach, list) or len(approach) != 2 or
+            any(type(v) not in (int, float) or not math.isfinite(v) for v in approach)):
+        return {"status": "UNRESOLVED_SOURCE_APPROACH_MISSING", "commonVehicleModes": mask}
+    metres_lon = 111320.0 * math.cos(math.radians(xlat))
+    def xy(coord):
+        return ((coord[1] - xlon) * metres_lon, (coord[0] - xlat) * 111320.0)
+    a_approach = Point(xy(approach))
+    x = Point(0, 0)
+    b = LineString([xy(vertex) for vertex in receiver["directedShape"]])
+    if b.length <= 0:
+        return {"status": "UNRESOLVED_B_GEOMETRY_DEGENERATE", "commonVehicleModes": mask}
+    x_dist = b.distance(x)
+    approach_dist = b.distance(a_approach)
+    x_along = b.project(x)
+    approach_along = b.project(a_approach)
+    remaining = b.length - x_along
+    # Compiled Valhalla original shape nodes are stored at ~1e-7 degrees.
+    # Two-point overlap means far more than near proximity of X alone.
+    strict_overlap = x_dist <= 0.75 and approach_dist <= 0.75
+    travelled = x_along - approach_along
+    source_segment_len = a_approach.distance(x)
+    if strict_overlap and travelled <= -0.5:
+        status = "REJECTED_OPPOSITE_DIRECTED_SHAPE"
+    elif strict_overlap and travelled >= 1.0 and source_segment_len >= 1.0:
+        if (source["layer"] != edge["layer"] or
+                source["bridge"] != edge["bridge"] or
+                source["tunnel"] != edge["tunnel"]):
+            status = "UNRESOLVED_NATIVE_LEVEL_OR_STRUCTURE_CONFLICT"
+        elif remaining < 1.0:
+            status = "B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR"
+        else:
+            status = "MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP"
+    else:
+        status = "UNRESOLVED_NO_DIRECTED_SOURCE_OVERLAP"
+    return {"status": status, "commonVehicleModes": mask,
+            "distanceXMetres": round(x_dist, 3),
+            "distanceSourceApproachMetres": round(approach_dist, 3),
+            "directedOverlapProgressMetres": round(travelled, 3),
+            "receiverRemainingMetresAfterX": round(remaining, 3),
+            "sameRoadUse": source["roadUse"] == edge["roadUse"],
+            "sameRoadClass": source["roadClass"] == edge["roadClass"],
+            "sameLayerBridgeTunnel": (source["layer"], source["bridge"], source["tunnel"]) ==
+                                     (edge["layer"], edge["bridge"], edge["tunnel"])}
+
+
+def correlate_verified_source_candidates(*, source_candidates: list[dict],
+                                          source_observations: list[dict],
+                                          receiver_observations: list[dict],
+                                          receiver_predecessor_observations: dict[int, dict] | None = None) -> dict:
+    """One source terminal record per original A directed GraphId; preserve all B alternatives."""
+    if not (len(source_candidates) == len(source_observations) == len(receiver_observations)):
+        raise ValueError("Incomplete original A-X-B candidate lookups")
+    result = []
+    totals = {}
+    receiver_predecessor_observations = receiver_predecessor_observations or {}
+    for candidate, a, b in zip(source_candidates, source_observations, receiver_observations):
+        gid = candidate["sourceFinalCandidateGraphId"]
+        original = a.get("source", {})
+        if (a.get("kind") != "local-continuations" or original.get("graphId") != gid or
+                candidate.get("nativeGraphLocalTerminalProof") != "VERIFIED" or
+                original.get("endNodeGraphId") != candidate.get("endNodeGraphId") or
+                original.get("access") != candidate.get("access") or
+                any(abs(original[k] - candidate[k]) > 1e-7 for k in ("endLat", "endLon")) or
+                b.get("sourceGraphId") != gid):
+            raise ValueError("Original A terminal proof/identity changed before receiver matching")
+        original_terminal_modes = native_terminal_modes_from_adjacency(a)
+        proven = candidate.get('originalNativeLocalProof', {})
+        terminal_modes = candidate.get('terminalVehicleModes')
+        if (type(terminal_modes) is not int or terminal_modes <= 0 or
+                (terminal_modes & ~original_terminal_modes) != 0 or
+                proven.get('terminalModes') != original_terminal_modes or
+                proven.get('endNodeGraphId') != original['endNodeGraphId'] or
+                proven.get('outgoingOriginalDirectedGraphIds') != [
+                    entry['edge']['graphId'] for entry in a['options']] or
+                proven.get('hierarchyPeersIncluded') is not True):
+            raise ValueError('Original A independently recomputed native terminal modes/proof mismatch')
+        alternatives = []
+        for row in b["originalBDirectedEdges"]:
+            verdict = classify_original_b_directional_overlap(original, row)
+            entry = {"receiverDirectedGraphId": row["edge"]["graphId"],
+                     "receiverNativeRoadClass": row["edge"]["roadClass"],
+                     "receiverNativeRoadUse": row["edge"]["roadUse"],
+                     "receiverNativeLayer": row["edge"]["layer"],
+                     "receiverNativeBridge": row["edge"]["bridge"],
+                     "receiverNativeTunnel": row["edge"]["tunnel"],
+                     "originalReceiverAccess": row["edge"]["access"], **verdict}
+            alternatives.append(entry)
+        overlap = [x for x in alternatives
+                   if x["status"] == "MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP"]
+        upstream = [x for x in alternatives
+                    if x["status"] == "B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR"]
+        b_successors = {}
+        b_predecessor_ids = []
+        b_continuation_uncertainties = []
+        for predecessor in upstream:
+            predecessor_gid = predecessor['receiverDirectedGraphId']
+            b_predecessor_ids.append(predecessor_gid)
+            b_local = receiver_predecessor_observations.get(predecessor_gid)
+            if b_local is None:
+                b_continuation_uncertainties.append({
+                    'receiverPredecessorGraphId': predecessor_gid,
+                    'reason': 'MISSING_ORIGINAL_B_NATIVE_NODE_READBACK'})
+                continue
+            b_source = b_local['source']
+            if (b_source['graphId'] != predecessor_gid or
+                    abs(b_source['endLat'] - candidate['endLat']) > 1e-5 or
+                    abs(b_source['endLon'] - candidate['endLon']) > 1e-5):
+                raise ValueError('Original B native predecessor does not end at the exact source X')
+            for opt in b_local['options']:
+                successor = opt['edge']
+                succid = successor['graphId']
+                if not opt['viaHierarchy'] and opt['fromNodeGraphId'] != b_source['endNodeGraphId']:
+                    raise ValueError('Wrong native B junction outgoing from-node GraphId')
+                statuses = opt['nativeImmediateCosting']
+                common_modes = 0
+                if (statuses['car'] == 'ALLOWED_NATIVE_IMMEDIATE' and
+                        candidate['terminalVehicleModes'] & 1 and successor['access'] & 1):
+                    common_modes |= 1
+                if (statuses['motorcycle'] == 'ALLOWED_NATIVE_IMMEDIATE' and
+                        candidate['terminalVehicleModes'] & 1024 and successor['access'] & 1024):
+                    common_modes |= 1024
+                if common_modes:
+                    value = b_successors.setdefault(succid, {
+                        'receiverDirectedGraphId': succid,
+                        'sharedVehicleModes': 0,
+                        'fromNativeBPredecessorGraphIds': [],
+                        'receiverNativeRoadClass': successor['roadClass'],
+                        'receiverNativeRoadUse': successor['roadUse'],
+                        'receiverNativeLayer': successor['layer'],
+                        'receiverNativeBridge': successor['bridge'],
+                        'receiverNativeTunnel': successor['tunnel'],
+                        'status': 'VERIFIED_B_ORIGINAL_SAME_NODE_LEGAL_BRANCH'})
+                    value['sharedVehicleModes'] |= common_modes
+                    if predecessor_gid not in value['fromNativeBPredecessorGraphIds']:
+                        value['fromNativeBPredecessorGraphIds'].append(predecessor_gid)
+                if (any(state.startswith('UNRESOLVED_') for state in statuses.values())):
+                    b_continuation_uncertainties.append({
+                        'receiverPredecessorGraphId': predecessor_gid,
+                        'receiverDirectedGraphId': succid,
+                        'car': statuses['car'], 'motorcycle': statuses['motorcycle']})
+        if overlap:
+            for edge in overlap:
+                succid = edge['receiverDirectedGraphId']
+                if succid not in b_successors:
+                    b_successors[succid] = {
+                        'receiverDirectedGraphId': succid,
+                        'sharedVehicleModes': edge['commonVehicleModes'] &
+                                              candidate['terminalVehicleModes'],
+                        'fromNativeBPredecessorGraphIds': [],
+                        'status': 'VERIFIED_B_DIRECTED_INTERIOR_SOURCE_OVERLAP'}
+        if b_continuation_uncertainties:
+            status = 'B_NODE_CONTINUATION_PARTIALLY_UNRESOLVED'
+        elif len(b_successors) > 0 and len(b_predecessor_ids) <= 1 and len(overlap) <= 1:
+            status = 'B_NATIVE_DIRECTIONAL_CONTINUATIONS_IDENTIFIED'
+        elif len(b_successors) > 0:
+            status = 'B_MULTIPLE_OVERLAPPING_PREDECESSORS_UNRESOLVED'
+        elif upstream:
+            status = 'NO_PROVEN_B_NATIVE_OUTGOING_AFTER_X'
+        else:
+            status = 'NO_PROVEN_CORRESPONDING_B_DIRECTION'
+        # These are B edge correspondence observations ONLY; no complete
+        # physical-road source census or Android consumer verification.
+        totals[status] = totals.get(status, 0) + 1
+        result.append({"sourceFinalDirectedGraphId": gid,
+            "sourceOriginalEndNodeGraphId": original["endNodeGraphId"],
+            "x": {"lat": candidate["endLat"], "lon": candidate["endLon"]},
+            "sourceVehicleModes": candidate["terminalVehicleModes"],
+            "sourceCutGraphIds": candidate["sourceCutGraphIds"],
+            "sourcePhysicalRoadFinalCompleteness": "NOT_VERIFIED",
+            "receiverCorrelationStatus": status,
+            "confirmedGeometricOverlapOptions": [v["receiverDirectedGraphId"] for v in overlap],
+            "correspondingBPredecessorAtXGraphIds": b_predecessor_ids,
+            "receivingNativeDirectedContinuationOptions": [b_successors[k] for k in sorted(b_successors)],
+            "receivingNativeUnresolvedContinuations": b_continuation_uncertainties,
+            "receiverDirectedCandidatesAtX": alternatives})
+    return {"sourceTerminalCandidatesCorrelated": len(result),
+            "nativeReceiverStatusCounts": totals,
+            "sourceToReceiverCandidates": result,
+            "sourcePhysicalRoadDirectionCompleteness": "NOT_VERIFIED",
+            "androidFullJourneyValidation": "NOT_RUN",
+            "productionPublication": "BLOCKED"}
+
+
+
+def match_original_receiver_to_file(*, source_evidence_path: Path,
+                                   manifest_path: Path, index_path: Path,
+                                   buffer_path: Path, valhalla_config_path: Path,
+                                   receiver_manifest_path: Path,
+                                   receiver_index_path: Path,
+                                   receiver_buffer_path: Path,
+                                   receiver_valhalla_config_path: Path,
+                                   binary: Path, output_path: Path) -> dict:
+    """D-017 A final candidate → exact original X → compiled B directed edge.
+
+    Match B at X without finding arbitrary Y, best-road selection or a graph
+    scan. Keep source incompleteness visible and publication hard-blocked.
+    """
+    if output_path.exists():
+        raise ValueError("Original A-X-B matching evidence exists; refusing overwrite")
+    pair = verified_shared_cut(source_manifest=manifest_path,
+        source_index=index_path, source_buffer=buffer_path,
+        receiver_manifest=receiver_manifest_path,
+        receiver_index=receiver_index_path, receiver_buffer=receiver_buffer_path)
+    opener = gzip.open if source_evidence_path.suffix == '.gz' else open
+    with opener(source_evidence_path, 'rt', encoding='utf-8') as reader:
+        prior = json.load(reader)
+    if (prior.get('schema') != 'roadpilot.f8-paired-source-local-terminal-candidates' or
+            prior.get('schemaVersion') != 5 or
+            prior.get('fromRegionId') != pair['source']['regionId'] or
+            prior.get('toRegionId') != pair['receiver']['regionId'] or
+            prior.get('fromGraphFingerprint') != pair['source']['graphFingerprint'] or
+            prior.get('toGraphFingerprint') != pair['receiver']['graphFingerprint'] or
+            prior.get('fromBufferFingerprint') != pair['sourceBufferFingerprint'] or
+            prior.get('toBufferFingerprint') != pair['receiverBufferFingerprint'] or
+            prior.get('fromGraphIndexFingerprint') != pair['sourceIndexFingerprint'] or
+            prior.get('toGraphIndexFingerprint') != pair['receiverIndexFingerprint'] or
+            prior.get('reciprocalBoundaryFingerprints') != pair['reciprocalBoundaryFingerprints'] or
+            prior.get('sourcePhysicalRoadDirectionCompleteness') != 'NOT_VERIFIED' or
+            prior.get('productionPublication') != 'BLOCKED'):
+        raise ValueError('Original native source pair evidence does not match current immutable archives')
+    candidates = prior['terminalCandidatesByExactSourceGraphId']
+    if (not isinstance(candidates, list) or len(candidates) == 0 or
+            len({r['sourceFinalCandidateGraphId'] for r in candidates}) != len(candidates)):
+        raise ValueError('Missing unique original A terminal candidates')
+    ids = [r['sourceFinalCandidateGraphId'] for r in candidates]
+    selected_ids = {int(row['level']) | int(row['tileIndex']) << 3
+                    for row in pair['selectedSourceTiles']}
+    if any((gid & ((1 << 25) - 1)) not in selected_ids for gid in ids):
+        raise ValueError('A terminal candidate outside verified source cutoff tiles')
+    # Always re-open A candidate originals before comparing any receiving B
+    # edge, including one-hop candidates whose initial root is elsewhere.
+    source_native = inspect_local_source_edges(manifest_path=manifest_path,
+        index_path=index_path, buffer_path=buffer_path,
+        valhalla_config_path=valhalla_config_path, binary=binary,
+        source_graph_ids=ids, allowed_tile_ids=selected_ids,
+        evaluate_native_costing=True)
+    b_native = indexed_receiver_edges_at_x(receiver_manifest_path=receiver_manifest_path,
+        receiver_index_path=receiver_index_path,
+        receiver_buffer_path=receiver_buffer_path,
+        receiver_valhalla_config=receiver_valhalla_config_path,
+        native_binary=binary, source_candidates=candidates)
+    # B matching at a native X endpoint often requires one zero-distance
+    # node transition after the original B incoming edge. Query exactly
+    # those original B predecessor GraphIds, not the wider receiving graph.
+    exact_b_predecessors = set()
+    for candidate, a_record, b_record in zip(candidates, source_native, b_native):
+        for receiver_option in b_record['originalBDirectedEdges']:
+            assessed = classify_original_b_directional_overlap(
+                a_record['source'], receiver_option)
+            if assessed['status'] == 'B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR':
+                exact_b_predecessors.add(receiver_option['edge']['graphId'])
+    b_local = read_b_native_immediate_continuations(
+        receiver_manifest_path=receiver_manifest_path,
+        receiver_index_path=receiver_index_path,
+        receiver_buffer_path=receiver_buffer_path,
+        receiver_valhalla_config=receiver_valhalla_config_path,
+        native_binary=binary, original_b_predecessor_graph_ids=list(exact_b_predecessors))
+    result = correlate_verified_source_candidates(source_candidates=candidates,
+        source_observations=source_native, receiver_observations=b_native,
+        receiver_predecessor_observations=b_local)
+    result['originalBPredecessorsIndependentlyReadBackAtX'] = len(b_local)
+    # No new source search: exact original A cutoff-root coverage accounting
+    # from the retained root IDs on every already verified terminal candidate.
+    # A B option does NOT prove source physical-road completeness.
+    linked = {}
+    for item in result['sourceToReceiverCandidates']:
+        for root in item['sourceCutGraphIds']:
+            linked.setdefault(root, []).append(item)
+    coverage = []
+    counts = {}
+    for cut_row in prior['originalPairedCutDirectedEvidence']:
+        if cut_row['originalCutOrientation'] not in ('OUTWARD', 'AMBIGUOUS'):
+            continue
+        gid = cut_row['graphId']
+        related = linked.get(gid, [])
+        good = [row for row in related if row['receivingNativeDirectedContinuationOptions']]
+        if good:
+            state = 'ROOT_HAS_NATIVE_RECEIVER_OPTIONS_SOURCE_LINEAGE_UNPROVEN'
+        elif related:
+            state = 'ROOT_TERMINAL_CANDIDATE_NO_CONFIRMED_RECEIVER'
+        else:
+            state = 'ROOT_NO_TERMINAL_CANDIDATE_WITHIN_ONE_NATIVE_HOP'
+        counts[state] = counts.get(state, 0) + 1
+        coverage.append({'originalSourceCutGraphId': gid,
+            'originalNativeTerminalModes': cut_row['nativeTerminalModes'],
+            'boundedRelatedAOriginalFinalGraphIds': [
+                row['sourceFinalDirectedGraphId'] for row in related],
+            'boundedOriginalSourceRootStatus': state,
+            'physicalRoadDirectionCompleteness': 'NOT_VERIFIED'})
+    if len(coverage) != prior['outwardOrAmbiguousSourceCutCount'] or len({
+            row['originalSourceCutGraphId'] for row in coverage}) != len(coverage):
+        raise ValueError('Source cut-root coverage incomplete or repeated')
+    result['originalSourceCutRootCoverageCounts'] = counts
+    result['originalSourceCutRootCoverage'] = coverage
+    # Before writing, recompute immutable Graph A and B archive/buffer/index
+    # proofs. The output cannot be promoted to production while any source
+    # boundary road or Android consumption remains unverified.
+    verified_shared_cut(source_manifest=manifest_path,
+        source_index=index_path, source_buffer=buffer_path,
+        receiver_manifest=receiver_manifest_path,
+        receiver_index=receiver_index_path, receiver_buffer=receiver_buffer_path)
+    unresolved_roots = prior.get('unresolvedNonterminalSourceCutObservations')
+    if (not isinstance(unresolved_roots, list) or
+            len(unresolved_roots) != prior['nonterminalSourceCutCount']):
+        raise ValueError('Original source unresolved roots missing from coverage gate')
+    output = {'schema': 'roadpilot.f8-paired-native-receiver-correlation-evidence',
+        'schemaVersion': 1,
+        'sourceEvidenceSha256': 'sha256:' + sha256(source_evidence_path),
+        'sourceGraphFingerprint': pair['source']['graphFingerprint'],
+        'receiverGraphFingerprint': pair['receiver']['graphFingerprint'],
+        'sourceRegionId': pair['source']['regionId'],
+        'receiverRegionId': pair['receiver']['regionId'],
+        'sourceBufferFingerprint': pair['sourceBufferFingerprint'],
+        'receiverBufferFingerprint': pair['receiverBufferFingerprint'],
+        'sourceIndexFingerprint': pair['sourceIndexFingerprint'],
+        'receiverIndexFingerprint': pair['receiverIndexFingerprint'],
+        'reciprocalBoundaryFingerprints': pair['reciprocalBoundaryFingerprints'],
+        'sourceUnresolvedNonterminalRootGraphIds': [
+            r['sourceCutGraphId'] for r in unresolved_roots],
+        'sourceUnresolvedNonterminalRootCount': len(unresolved_roots),
+        'sourceFinalCandidateCount': len(candidates),
+        **result}
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=output_path.parent, delete=False) as temp:
+        staged = Path(temp.name)
+    try:
+        writer = gzip.open if output_path.suffix == '.gz' else open
+        with writer(staged, 'wt', encoding='utf-8') as stream:
+            json.dump(output, stream, ensure_ascii=False, separators=(',', ':'))
+            stream.write('\n')
+        if output_path.exists():
+            raise ValueError('Original B correlation output appeared during verification')
+        staged.replace(output_path)
+    finally:
+        staged.unlink(missing_ok=True)
+    return {'sourceFinalCandidateCount': len(candidates),
+        'sourceUnresolvedNonterminalRootCount': len(unresolved_roots),
+        'nativeReceiverStatusCounts': result['nativeReceiverStatusCounts'],
+        'productionPublication': 'BLOCKED'}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
@@ -1018,10 +1505,33 @@ def main() -> None:
     parser.add_argument("--receiver-manifest", type=Path)
     parser.add_argument("--receiver-graph-index", type=Path)
     parser.add_argument("--receiver-buffer-geojson", type=Path)
+    parser.add_argument("--match-receiver", action="store_true",
+                        help="Read previously verified A terminal candidates and match original B directed edges at the exact source endpoint X")
+    parser.add_argument("--source-evidence", type=Path,
+                        help="Previously completed --resolve-cut original A terminal candidate evidence")
+    parser.add_argument("--receiver-valhalla-config", type=Path,
+                        help="Compiled Valhalla B routing configuration for its exact original archive")
     args = parser.parse_args()
-    if args.cut_only and args.resolve_cut:
-        parser.error("Select --cut-only OR --resolve-cut, not both")
-    if args.resolve_cut:
+    if sum((args.cut_only, args.resolve_cut, args.match_receiver)) > 1:
+        parser.error("Select only one source/receiving inspection action")
+    if args.match_receiver:
+        if not all((args.receiver_manifest, args.receiver_graph_index,
+                    args.receiver_buffer_geojson, args.source_evidence,
+                    args.receiver_valhalla_config)):
+            parser.error("--match-receiver requires original source evidence and exact receiver inputs")
+        output = match_original_receiver_to_file(source_evidence_path=args.source_evidence,
+            manifest_path=args.manifest, index_path=args.graph_index,
+            buffer_path=args.buffer_geojson, valhalla_config_path=args.valhalla_config,
+            binary=args.native_binary, output_path=args.output,
+            receiver_manifest_path=args.receiver_manifest,
+            receiver_index_path=args.receiver_graph_index,
+            receiver_buffer_path=args.receiver_buffer_geojson,
+            receiver_valhalla_config_path=args.receiver_valhalla_config)
+        print(f'originalSourceFinalCandidates={output["sourceFinalCandidateCount"]} '
+              f'unresolvedSourceRoots={output["sourceUnresolvedNonterminalRootCount"]} '
+              f'receiverStatusCounts={output["nativeReceiverStatusCounts"]} '
+              'sourceCompleteness=NOT_VERIFIED publication=BLOCKED')
+    elif args.resolve_cut:
         if not all((args.receiver_manifest, args.receiver_graph_index,
                     args.receiver_buffer_geojson)):
             parser.error("--resolve-cut requires receiver manifest, graph index and original 25-km buffer")

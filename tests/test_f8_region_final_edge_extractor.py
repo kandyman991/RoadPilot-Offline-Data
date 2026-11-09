@@ -164,7 +164,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-7')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-8')\n"
                 "else:\n"
                 " for item in [\n"
                 "  {'kind':'edge','graphId':77,'access':1025,'nativeTerminalModes':1025,'endLat':44,'endLon':10,'hasNativeApproachTangent':True,'approachLat':43.999,'approachLon':10},\n"
@@ -219,7 +219,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "import json,sys\n"
                 f"gid={gid}\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-7')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-8')\n"
                 "elif '--local-continuations' in sys.argv:\n"
                 " assert sys.argv[4]=='--evaluate-native-costing'\n"
                 " for line in open(sys.argv[3]):\n"
@@ -485,6 +485,121 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
         row["options"][0]["edge"]["departure"]=[45.001,10.001]
         extractor.validate_immediate_native_observation(row)
 
+    def test_receiver_exact_x_needs_forward_directed_overlap_not_nearest(self):
+        source={"graphId":10,"endNodeGraphId":110,"access":1025,
+                "endLat":45.0,"endLon":10.0,"approach":[44.9999,10.0],
+                "roadUse":0,"roadClass":6,"layer":0,
+                "bridge":False,"tunnel":False}
+        def b_edge(gid, coords, *, layer=0, modes=1025):
+            return {"edge":{"graphId":gid,"access":modes,
+                            "layer":layer,"roadUse":0,"roadClass":6,
+                            "bridge":False,"tunnel":False},
+                    "directedShape":coords}
+        interior=b_edge(21,[[44.9998,10.],[44.9999,10.],[45.,10.],[45.0001,10.]])
+        result=extractor.classify_original_b_directional_overlap(source,interior)
+        self.assertEqual(result['status'],'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP')
+        self.assertEqual(result['commonVehicleModes'],1025)
+        reverse=b_edge(22,list(reversed(interior['directedShape'])))
+        self.assertEqual(extractor.classify_original_b_directional_overlap(
+            source,reverse)['status'],'REJECTED_OPPOSITE_DIRECTED_SHAPE')
+        # X is just a few metres from an unrelated parallel road; proximity
+        # cannot create source physical-road identity.
+        nearby=b_edge(23,[[44.9998,10.00004],[45.0001,10.00004]])
+        self.assertEqual(extractor.classify_original_b_directional_overlap(
+            source,nearby)['status'],'UNRESOLVED_NO_DIRECTED_SOURCE_OVERLAP')
+        crossing=b_edge(24,[[45.,9.9999],[45.,10.0001]])
+        self.assertEqual(extractor.classify_original_b_directional_overlap(
+            source,crossing)['status'],'UNRESOLVED_NO_DIRECTED_SOURCE_OVERLAP')
+        layer_conflict=b_edge(25,interior['directedShape'],layer=1)
+        self.assertEqual(extractor.classify_original_b_directional_overlap(
+            source,layer_conflict)['status'],'UNRESOLVED_NATIVE_LEVEL_OR_STRUCTURE_CONFLICT')
+        b_ends_at_x=b_edge(26,[[44.9998,10.],[44.9999,10.],[45.,10.]])
+        self.assertEqual(extractor.classify_original_b_directional_overlap(
+            source,b_ends_at_x)['status'],
+            'B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR')
+        no_common=b_edge(27,interior['directedShape'],modes=0)
+        self.assertEqual(extractor.classify_original_b_directional_overlap(
+            source,no_common)['status'],'REJECTED_NO_SHARED_VEHICLE_MODE')
+
+    def test_original_b_predecessor_at_x_preserves_all_native_legal_branches(self):
+        candidate={'sourceFinalCandidateGraphId':10,
+                   'nativeGraphLocalTerminalProof':'VERIFIED',
+                   'endNodeGraphId':110,'endLat':45.,'endLon':10.,
+                   'access':1025,'terminalVehicleModes':1025,
+                   'originalNativeLocalProof':{
+                       'terminalModes':1025, 'endNodeGraphId':110,
+                       'outgoingOriginalDirectedGraphIds':[],
+                       'hierarchyPeersIncluded':True},
+                   'sourceCutGraphIds':[10]}
+        a={'kind':'local-continuations','source':{
+            'graphId':10,'endNodeGraphId':110,'endLat':45.,'endLon':10.,
+            'access':1025,'approach':[44.9999,10.],
+            'roadClass':6,'roadUse':0,'layer':0,
+            'bridge':False,'tunnel':False},'options':[]}
+        b={'kind':'receiver-at-x','sourceGraphId':10,
+           'originalBDirectedEdges':[{'edge':{'graphId':20,'access':1025,
+                 'roadClass':6,'roadUse':0,'layer':0,'bridge':False,'tunnel':False},
+                'directedShape':[[44.9998,10.],[44.9999,10.],[45.,10.]]}]}
+        from_b={'kind':'local-continuations','source':{
+            'graphId':20,'endNodeGraphId':200,'endLat':45.,'endLon':10.,
+            'access':1025},'options':[]}
+        for gid,status_car,status_bike in (
+                (21,'ALLOWED_NATIVE_IMMEDIATE','ALLOWED_NATIVE_IMMEDIATE'),
+                (22,'NO_MODE_ACCESS','ALLOWED_NATIVE_IMMEDIATE'),
+                (23,'UNRESOLVED_PATH_OR_TIME_CONTEXT','UNRESOLVED_SHORTCUT')):
+            from_b['options'].append({'viaHierarchy':False,'fromNodeGraphId':200,
+                'edge':{'graphId':gid,'roadClass':6,'roadUse':0,
+                        'layer':0,'bridge':False,'tunnel':False,
+                        'access':1025 if gid != 22 else 1024},
+                'nativeImmediateCosting':{'car':status_car,'motorcycle':status_bike}})
+        result=extractor.correlate_verified_source_candidates(
+            source_candidates=[candidate],source_observations=[a],
+            receiver_observations=[b],receiver_predecessor_observations={20:from_b})
+        source=result['sourceToReceiverCandidates'][0]
+        self.assertEqual(source['receiverCorrelationStatus'],
+                         'B_NODE_CONTINUATION_PARTIALLY_UNRESOLVED')
+        self.assertEqual(source['correspondingBPredecessorAtXGraphIds'],[20])
+        self.assertEqual([x['receiverDirectedGraphId'] for x in
+            source['receivingNativeDirectedContinuationOptions']],[21,22])
+        self.assertEqual([x['sharedVehicleModes'] for x in
+            source['receivingNativeDirectedContinuationOptions']],[1025,1024])
+        self.assertEqual([x['receiverDirectedGraphId'] for x in
+            source['receivingNativeUnresolvedContinuations']],[23])
+        self.assertEqual(source['sourcePhysicalRoadFinalCompleteness'],'NOT_VERIFIED')
+        # A saved VERIFIED flag can be stale or falsified: the original
+        # Valhalla A local end-node result must agree at matching time.
+        stale={**candidate,'terminalVehicleModes':1,
+               'originalNativeLocalProof':{**candidate['originalNativeLocalProof'],
+                    'terminalModes':1}}
+        with self.assertRaisesRegex(ValueError,'terminal modes/proof mismatch'):
+            extractor.correlate_verified_source_candidates(
+                source_candidates=[stale], source_observations=[a],
+                receiver_observations=[b],receiver_predecessor_observations={20:from_b})
+        self.assertEqual(result['sourcePhysicalRoadDirectionCompleteness'],'NOT_VERIFIED')
+        self.assertEqual(result['productionPublication'],'BLOCKED')
+        # Never claim a B native same-node branch when the outgoing edge is
+        # owned by some unrelated B node, even if its GPS is near X.
+        from_b['options'][0]['fromNodeGraphId']=201
+        with self.assertRaisesRegex(ValueError,'Wrong native B junction'):
+            extractor.correlate_verified_source_candidates(
+                source_candidates=[candidate],source_observations=[a],
+                receiver_observations=[b],receiver_predecessor_observations={20:from_b})
+
+    def test_receiver_mismatched_source_identity_fails_closed(self):
+        candidate={'sourceFinalCandidateGraphId':1,
+                   'nativeGraphLocalTerminalProof':'VERIFIED',
+                   'endNodeGraphId':99,'endLat':45.,'endLon':10.,
+                   'access':1025,'terminalVehicleModes':1025,
+                   'sourceCutGraphIds':[1]}
+        a={'kind':'local-continuations','source':{
+            'graphId':1,'endNodeGraphId':99,'endLat':45.,'endLon':10.001,
+            'access':1025},'options':[]}
+        b={'kind':'receiver-at-x','sourceGraphId':1,'originalBDirectedEdges':[]}
+        with self.assertRaisesRegex(ValueError,'A terminal proof/identity'):
+            extractor.correlate_verified_source_candidates(
+                source_candidates=[candidate],source_observations=[a],
+                receiver_observations=[b])
+
     def test_original_graph_local_terminal_proof_rejects_stale_masks_ids_and_x(self):
         row = {"graphId":7,"endNodeGraphId":42,"access":1025,
                "nativeTerminalModes":1,"endLat":45.0,"endLon":10.0}
@@ -565,7 +680,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-7')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-8')\n"
                 "else:\n"
                 " assert len(sys.argv) == 4\n"
                 " assert 'buffer.geojson' in sys.argv[3]\n"

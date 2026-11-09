@@ -7,6 +7,9 @@
 #include <valhalla/baldr/graphreader.h>
 #include <valhalla/baldr/graphconstants.h>
 #include <valhalla/midgard/logging.h>
+#include <valhalla/meili/candidate_search.h>
+#include <valhalla/meili/geometry_helpers.h>
+#include <valhalla/midgard/util.h>
 #include <valhalla/sif/autocost.h>
 #include <valhalla/sif/motorcyclecost.h>
 #include <valhalla/sif/edgelabel.h>
@@ -21,6 +24,7 @@
 #include <vector>
 #include <fstream>
 #include <iomanip>
+#include <sstream>
 #include <memory>
 #include <iostream>
 #include <stdexcept>
@@ -145,6 +149,90 @@ std::string one_step_costing_status(const valhalla::sif::DynamicCost& costing,
   return allowed ? "ALLOWED_NATIVE_IMMEDIATE" : "DENIED_NATIVE_IMMEDIATE";
 }
 
+// B-edge identity lookup at the EXACT original source X. Valhalla's own
+// spatial bins reference compiled edges even if their start is in another
+// tile. Search only the immediate few metres, NEVER a graph-wide scan or
+// nearest-edge identity decision. Python decides geometric correspondence.
+int inspect_receiver_at_x(int argc, char** argv) {
+  if (argc != 4)
+    throw std::runtime_error("usage: --receiver-at-x <receiver-valhalla.json> <source-X.jsonl>");
+  boost::property_tree::ptree config;
+  boost::property_tree::read_json(argv[2], config);
+  baldr::GraphReader reader(config.get_child("mjolnir"));
+  valhalla::meili::CandidateGridQuery query(reader, 0.0005f, 0.0005f);
+  std::ifstream source(argv[3]);
+  if (!source) throw std::runtime_error("Cannot open original source X input");
+  std::unordered_set<uint64_t> seen_sources;
+  std::string line;
+  uint64_t processed = 0;
+  std::cout << std::setprecision(12);
+  while (std::getline(source, line)) {
+    boost::property_tree::ptree input;
+    std::istringstream stream(line);
+    boost::property_tree::read_json(stream, input);
+    const uint64_t source_id = input.get<uint64_t>("sourceGraphId");
+    const double lat = input.get<double>("xLat");
+    const double lon = input.get<double>("xLon");
+    if (!seen_sources.insert(source_id).second || !std::isfinite(lat) ||
+        !std::isfinite(lon) || std::abs(lat) > 90 || std::abs(lon) > 180)
+      throw std::runtime_error("Invalid, repeated or nonfinite original X record");
+    const valhalla::midgard::PointLL x(lon, lat);
+    constexpr double kSearchMeters = 4.0;
+    auto incoming = query.RangeQuery(valhalla::midgard::ExpandMeters(x, kSearchMeters));
+    // Valhalla's bins represent physical geometry once; evaluate the
+    // opposite directed GraphId independently to preserve direction.
+    std::unordered_set<uint64_t> bidirectional;
+    for (const auto& edge_id : incoming) {
+      bidirectional.insert(edge_id.value);
+      const auto opposite = reader.GetOpposingEdgeId(edge_id);
+      if (opposite.is_valid()) bidirectional.insert(opposite.value);
+    }
+    std::vector<uint64_t> ids(bidirectional.begin(), bidirectional.end());
+    std::sort(ids.begin(), ids.end());
+    bool first = true;
+    std::cout << "{\"kind\":\"receiver-at-x\",\"sourceGraphId\":" << source_id
+              << ",\"xLat\":" << lat << ",\"xLon\":" << lon
+              << ",\"originalBDirectedEdges\":[";
+    for (const auto candidate_value : ids) {
+      const baldr::GraphId edge_id(candidate_value);
+      const auto tile = reader.GetGraphTile(edge_id);
+      if (!tile || edge_id.id() >= tile->header()->directededgecount())
+        throw std::runtime_error("Native receiving spatial index referenced missing edge");
+      const auto* edge = tile->directededge(edge_id);
+      if (edge->IsTransitLine() || edge->is_shortcut() || !(edge->forwardaccess() & kModes))
+        continue;
+      auto lazy = tile->edgeinfo(edge).lazy_shape();
+      if (lazy.empty()) continue;
+      auto proj = valhalla::meili::helpers::Project(valhalla::midgard::projector_t(x), lazy);
+      const double distance_m = std::sqrt(std::get<1>(proj));
+      if (!std::isfinite(distance_m) || distance_m > kSearchMeters) continue;
+      auto geometry = tile->edgeinfo(edge).shape();
+      if (!edge->forward()) std::reverse(geometry.begin(), geometry.end());
+      if (geometry.size() < 2) continue;
+      if (!first) std::cout << ',';
+      first = false;
+      std::cout << "{\"edge\":";
+      print_directed_edge(reader, edge_id);
+      std::cout << ",\"nativeDistanceToXMetres\":" << distance_m
+                << ",\"directedShape\":[";
+      for (std::size_t i = 0; i < geometry.size(); ++i) {
+        if (i) std::cout << ',';
+        if (!std::isfinite(geometry[i].lat()) || !std::isfinite(geometry[i].lng()))
+          throw std::runtime_error("Nonfinite receiving original directed shape");
+        std::cout << '[' << geometry[i].lat() << ',' << geometry[i].lng() << ']';
+      }
+      std::cout << "]}";
+    }
+    std::cout << "]}\n";
+    ++processed;
+  }
+  if (!source.eof() || processed == 0)
+    throw std::runtime_error("Incomplete receiving native X lookup input");
+  std::cout << "{\"kind\":\"complete-receiver\",\"sourcesInspected\":" << processed
+            << ",\"valhallaVersion\":\"" << ROADPILOT_VALHALLA_VERSION << "\"}\n";
+  return 0;
+}
+
 int inspect_local_continuations(int argc, char** argv) {
   if (argc != 4 && argc != 5)
     throw std::runtime_error("usage: --local-continuations <valhalla.json> <original_directed_ids.txt> [--evaluate-native-costing]");
@@ -239,12 +327,21 @@ int inspect_local_continuations(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--protocol") {
-    std::cout << "roadpilot.f8-native-source-7\n";
+    std::cout << "roadpilot.f8-native-source-8\n";
     return 0;
   }
   if (argc == 2 && std::string(argv[1]) == "--version") {
     std::cout << ROADPILOT_VALHALLA_VERSION << '\n';
     return 0;
+  }
+  if (argc > 1 && std::string(argv[1]) == "--receiver-at-x") {
+    try {
+      valhalla::midgard::logging::Configure({{"type", "std_err"}, {"color", "false"}});
+      return inspect_receiver_at_x(argc, argv);
+    } catch (const std::exception& e) {
+      std::cerr << "receiver_at_x: " << e.what() << "\nPARTIAL_OUTPUT_NOT_VALID\n";
+      return 2;
+    }
   }
   if (argc > 1 && std::string(argv[1]) == "--local-continuations") {
     try {
