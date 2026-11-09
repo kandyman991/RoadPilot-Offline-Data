@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roadpilot.example/schemas/f8-final-directed-connection-candidates-v1.json",
+  "title": "RoadPilot Graph Studio D-017 original-native A to exact X to B candidate/exception ledger (NOT PUBLISHABLE)",
+  "description": "Source-only, original-Valhalla-evidenced candidates. This is NOT the old Android F8 TripLeg v1 catalog; it must never be interpreted as a READY production handoff catalog.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "version", "pairId", "fromRegionId", "toRegionId", "graphFingerprints", "sourceBufferFingerprint", "receiverBufferFingerprint", "sourceGraphIndexFingerprint", "receiverGraphIndexFingerprint", "originalSourceEvidenceSha256", "reciprocalBoundaryFingerprints", "originalSourceTileTerminalInventory", "physicalRoadIdentityAcceptance", "oneRecordPerSourceFinalDirectedGraphId", "noDistinctSourceOrReceiverBranchSuppressed", "sourceDiscoveryComplete", "receiverMatchingComplete", "androidFullJourneyAcceptance", "productionPublication", "counts", "connectionCandidates", "unresolvedSourceFinalEdges", "unresolvedOriginalCutRootLineageGraphIds"],
+  "properties": {
+    "schema": {"const": "roadpilot.f8-final-directed-connection-candidates"},
+    "version": {"const": 1},
+    "pairId": {"type":"string", "minLength": 3, "maxLength": 256},
+    "fromRegionId": {"type":"string", "minLength":1,"maxLength":128},
+    "toRegionId": {"type":"string", "minLength":1,"maxLength":128},
+    "graphFingerprints": {"type":"object", "additionalProperties":false,
+       "required":["from","to"],"properties":{"from":{"$ref":"#/$defs/sha"},"to":{"$ref":"#/$defs/sha"}}},
+    "sourceBufferFingerprint":{"$ref":"#/$defs/sha"},
+    "receiverBufferFingerprint":{"$ref":"#/$defs/sha"},
+    "sourceGraphIndexFingerprint":{"$ref":"#/$defs/sha"},
+    "receiverGraphIndexFingerprint":{"$ref":"#/$defs/sha"},
+    "originalSourceEvidenceSha256":{"$ref":"#/$defs/sha"},
+    "reciprocalBoundaryFingerprints":{"type":"object","additionalProperties":false,"required":["from","to"],
+      "properties":{"from":{"$ref":"#/$defs/sha"},"to":{"$ref":"#/$defs/sha"}}},
+    "originalSourceTileTerminalInventory":{"const":"VERIFIED_FOR_ORIGINAL_B_COVERED_OUTER_ENDPOINT_DOMAIN"},
+    "physicalRoadIdentityAcceptance":{"const":"NOT_VERIFIED"},
+    "oneRecordPerSourceFinalDirectedGraphId":{"const":true},
+    "noDistinctSourceOrReceiverBranchSuppressed":{"const":true},
+    "sourceDiscoveryComplete":{"const":false},
+    "receiverMatchingComplete":{"const":false},
+    "androidFullJourneyAcceptance":{"const":"NOT_RUN"},
+    "productionPublication":{"const":"BLOCKED"},
+    "counts":{"type":"object","additionalProperties":false,
+      "required":["eligibleSourceFinals","candidateSourcesWithBOptions","unresolvedEligibleSourceFinals","nativeOriginalBDirectedOptions","branchAttributeEvidenceCounts","originalSourceCutRootsNotLinkedWithinBoundedScope"],
+      "properties":{
+        "eligibleSourceFinals":{"type":"integer","minimum":1},
+        "candidateSourcesWithBOptions":{"type":"integer","minimum":0},
+        "unresolvedEligibleSourceFinals":{"type":"integer","minimum":0},
+        "nativeOriginalBDirectedOptions":{"type":"integer","minimum":0},
+        "branchAttributeEvidenceCounts":{"type":"object","additionalProperties":{"type":"integer","minimum":0}},
+        "originalSourceCutRootsNotLinkedWithinBoundedScope":{"type":"integer","minimum":0}
+      }
+    },
+    "connectionCandidates":{"type":"array","items":{"$ref":"#/$defs/connection"}},
+    "unresolvedSourceFinalEdges":{"type":"array","items":{"$ref":"#/$defs/unresolved"}},
+    "unresolvedOriginalCutRootLineageGraphIds":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/graphid"}}
+  },
+  "$defs":{
+    "sha":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"},
+    "graphid":{"type":"integer","minimum":1},
+    "mode":{"enum":["auto","motorcycle"]},
+    "modes":{"type":"array","minItems":1,"maxItems":2,"uniqueItems":true,"items":{"$ref":"#/$defs/mode"}},
+    "x":{"type":"object","additionalProperties":false,"required":["lat","lng"],
+        "properties":{"lat":{"type":"number","minimum":-90,"maximum":90},"lng":{"type":"number","minimum":-180,"maximum":180}}},
+    "source":{"type":"object","required":["sourceFinalDirectedGraphId","sourceFinalCoordinate","sourceValhallaProvedModes","sourceOriginalNativeEndNodeGraphId","sourceOriginalNativeRoadClass","sourceOriginalNativeRoadUse","sourceNativeLayer","sourceNativeBridge","sourceNativeTunnel","receiverCorrelationStatus","sourcePhysicalRoadIdentity"],
+      "properties":{
+        "sourceFinalDirectedGraphId":{"$ref":"#/$defs/graphid"},
+        "sourceFinalCoordinate":{"$ref":"#/$defs/x"},
+        "sourceValhallaProvedModes":{"$ref":"#/$defs/modes"},
+        "sourceOriginalNativeEndNodeGraphId":{"type":"integer","minimum":0},
+        "sourceOriginalNativeRoadClass":{"type":"integer","minimum":0},
+        "sourceOriginalNativeRoadUse":{"type":"integer","minimum":0},
+        "sourceNativeLayer":{"type":"integer"},
+        "sourceNativeBridge":{"type":"boolean"},
+        "sourceNativeTunnel":{"type":"boolean"},
+        "receiverCorrelationStatus":{"type":"string","minLength":3},
+        "sourcePhysicalRoadIdentity":{"const":"NOT_VERIFIED"}
+      }
+    },
+    "connection":{"allOf":[{"$ref":"#/$defs/source"},
+      {"type":"object","required":["nativeBOriginalPredecessorGraphIds","receiverOptions","unresolvedOriginalNativeBTransitions","status"],
+       "properties":{
+         "nativeBOriginalPredecessorGraphIds":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/graphid"}},
+         "receiverOptions":{"type":"array","minItems":1,"maxItems":250,"items":{"$ref":"#/$defs/receiverOption"}},
+         "unresolvedOriginalNativeBTransitions":{"type":"array","items":{"type":"object"}},
+         "status":{"const":"NATIVE_CANDIDATE_NOT_PUBLISHED"}
+       }}]},
+    "unresolved":{"allOf":[{"$ref":"#/$defs/source"},
+      {"type":"object","required":["reason","mustNotCreateConnection","nativeBOriginalPredecessorGraphIds","unresolvedOriginalNativeBTransitions"],
+        "properties":{
+          "reason":{"enum":["ORIGINAL_B_CONDITIONAL_HIERARCHY_OR_PATH_CONTEXT_UNRESOLVED","NO_ORIGINAL_B_NATIVE_ALLOWED_FORWARD_CONTINUATION"]},
+          "mustNotCreateConnection":{"const":true},
+          "nativeBOriginalPredecessorGraphIds":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/graphid"}},
+          "unresolvedOriginalNativeBTransitions":{"type":"array","items":{"type":"object"}}
+        }}]},
+    "receiverOption":{"type":"object","additionalProperties":false,
+       "required":["receiverFirstDirectedGraphId","receiverGraphFingerprint","travelModes","nativeOriginalBPredecessorDirectedGraphIds","nativeCorrespondenceEvidence","nativePhysicalBranchEvidence","samePhysicalRoadVerified","androidJourneyVerified"],
+       "properties":{
+         "receiverFirstDirectedGraphId":{"$ref":"#/$defs/graphid"},
+         "receiverGraphFingerprint":{"$ref":"#/$defs/sha"},
+         "travelModes":{"$ref":"#/$defs/modes"},
+         "nativeOriginalBPredecessorDirectedGraphIds":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/graphid"}},
+         "nativeCorrespondenceEvidence":{"enum":["VERIFIED_B_ORIGINAL_SAME_NODE_LEGAL_BRANCH","VERIFIED_B_DIRECTED_INTERIOR_SOURCE_OVERLAP"]},
+         "nativePhysicalBranchEvidence":{"enum":["NATIVE_STRUCTURE_CHANGE_PHYSICAL_IDENTITY_UNVERIFIED","NATIVE_CLASS_OR_USE_CHANGE_PHYSICAL_IDENTITY_UNVERIFIED","CONSISTENT_NATIVE_ROAD_ATTRIBUTES_PHYSICAL_IDENTITY_UNVERIFIED","INTERIOR_B_EDGE_OVERLAP_PHYSICAL_IDENTITY_UNVERIFIED"]},
+         "samePhysicalRoadVerified":{"const":false},
+         "androidJourneyVerified":{"const":false},
+         "receiverNativeRoadClass":{"type":"integer","minimum":0},
+         "receiverNativeRoadUse":{"type":"integer","minimum":0},
+         "receiverNativeLayer":{"type":"integer"},
+         "receiverNativeBridge":{"type":"boolean"},
+         "receiverNativeTunnel":{"type":"boolean"},
+         "nativeReceiverStartGapMetres":{"type":"number","minimum":0,"maximum":0.75},
+         "nativeSameClassAsBPredecessor":{"type":"boolean"},
+         "nativeSameUseAsBPredecessor":{"type":"boolean"},
+         "nativeSameStructureAsBPredecessor":{"type":"boolean"}
+       }
+    }
+  }
+}

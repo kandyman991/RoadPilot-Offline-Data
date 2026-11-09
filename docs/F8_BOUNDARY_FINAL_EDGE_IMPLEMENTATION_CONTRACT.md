@@ -183,6 +183,25 @@ requirements. No new discovery architecture, graph-wide scans, coordinate
 Y, route-name matching or per-connection Valhalla proof. See
 `docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.
 
+**November 9 source-to-receiver nonpublishing catalog milestone (D-017
+unchanged):** The existing A-final-GraphId→exact-X→native B directed matching
+reader now optionally emits a versioned, fingerprint-verified candidate plus
+exception catalog, one source final original GraphId with all truly distinct
+B statically allowed outgoing directed GraphIds and car/motorcycle mode bits.
+For the 707 original Italy NE/Austria source exterior terminal finals, 420
+have 646 B native candidate branches; 287 are explicitly unresolved
+(219 no positive static B outgoing, 68 additional native restriction/time/
+hierarchy unknowns). Original B successor *starts at X* to within 0.07m
+on the original graphs; B predecessor/successor original class, use,
+bridge/tunnel/layer divergence is recorded but **not** treated as proof of
+physical-road sameness or a reason to discard genuine branches. Schema
+`roadpilot.f8-final-directed-connection-candidates` v1; production BLOCKED,
+physical road identity NOT_VERIFIED, Android acceptance NOT_RUN. This
+is the same architecture and existing producer; does not authorize
+per-connection TripLeg routes, guessed coordinates, names/way matching,
+new discovery stages, direct Android installation or production publication.
+See `docs/F8_PR127_NATIVE_FINAL_CONNECTION_CATALOG_20261109.md`.
+
 ### 0. Trigger and graph identity
 
 The existing regional build queue invokes a single F8 post-build producer

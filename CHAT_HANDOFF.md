@@ -1,5 +1,67 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #127 D-017 blocked original A→exact X→B connection catalog (2026-11-09)
+
+Owner authorized completing 3 items **inside the existing PR #127**:
+(1) validate B native road matches/branch options using original directed
+geometry/topology/layer and car/motorcycle modes, (2) account for all 287
+A exterior final edges without a B static allowed successor, (3) produce a
+versioned A-final-GraphId→exact-X→original B directed-GraphId(s) catalog
+without any new discovery/angle/name/way heuristic or per-connection
+Valhalla TripLeg proof.
+
+The SAME `tools/extract_f8_region_final_edges.py --match-receiver
+--bounded-missing-source-recovery --reconcile-outer-terminal-edges`
+accepts optional `--catalog-output` to emit separate **nonpublishing** JSON
+schema `roadpilot.f8-final-directed-connection-candidates` v1,
+`schemas/f8-final-directed-connection-candidates.schema.json`. Pair
+original graph SHA-256, buffer/index and reciprocal boundary fingerprints
+included. Source candidate one record per original A final directed GraphId
+and exact native X; ALL statically permitted original B directed branches
+and true car/motorcycle modes retained (no selection by preferred route).
+Every source final WITHOUT permitted B native outgoing is represented once
+in explicit `unresolvedSourceFinalEdges`; old 285 source-root lineage
+observations remain separately retained, NOT 285 missing roads.
+
+**Actual original Italy NE→Austria + Austria→Italy NE**:
+707 unique exterior A final candidates total (454/253), **420** with native
+B static allowed outgoing (260/160), **646** B native alternative refs
+(401/245). Original native B successor starts at EXACT X to within 0.07m
+on both test regions, no nearest-road fallback. B predecessor→successor
+attributes: 451 original same class/use/structure; 153 class/use differences;
+42 bridge/tunnel/layer differences. All 646 preserved and explicitly
+`samePhysicalRoadVerified=false` (native class/grade congruence alone is
+not proof). Unmatched **287** original A finals: 219 no confirmed B
+native allowed outgoing (148/71), 68 unresolved native hierarchy/
+conditional/path restrictions (46/22). All records have
+`productionPublication=BLOCKED`, Android acceptance NOT_RUN,
+source physical road completeness NOT_VERIFIED. All older A sources/X/B
+options and two graph fingerprint gates are unchanged.
+
+Saved actual immutable Legion catalog artifacts:
+`~/RoadPilotGraphStudio/diagnostics/f8-production/20261109/`
+`italy-ne-to-austria-connection-candidates-v2.json` SHA-256
+`c1914321fad678e450aa59d8a7ec40102662dbfa3fe237592b3107c234da2b53`
+(613,196 bytes),
+`austria-to-italy-ne-connection-candidates-v2.json` SHA-256
+`5a8b5b9182938ffe57d9e1e979e797707ef7e4b6213fd1a229206e99430b567b`
+(355,759 bytes). BOTH independently pass JSON Schema Draft 2020-12
+validation and bilateral real original Valhalla 3.6.3 GraphReader native
+run. `docs/F8_PR127_NATIVE_FINAL_CONNECTION_CATALOG_20261109.md` has
+full evidence, reproduction and limitations.
+
+**IMPORTANT: data-only catalog production is implemented, NOT RELEASE-READY.**
+The old experimental Android F8FinalEdgeConnectionCatalog reader needs
+per-connection route TripLeg proofs and is incompatible with D-017; do NOT
+reintroduce those proofs or pretend this blocked native catalog is an
+installed/working Android sidecar. Separate downstream Android consumer
+adaptation, two-region two-direction car/moto real routing, verified
+physical-road identity and independent review/exact-head CI are still
+needed before normal Graph Studio build release integration. Keep PR #127
+DRAFT/UNMERGED and acceptance gates/production BLOCKED. NO new discovery
+architecture, graph walk, invented Y, angles, OSM way/name matching.
+
+
 ## PR #127 original B-covered A long-edge origin v10 native attestation (2026-11-09)
 
 **Latest pending PR commit:** SAME approved pair-cut native source reader

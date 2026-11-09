@@ -542,7 +542,8 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 'directedShape':[[44.9998,10.],[44.9999,10.],[45.,10.]]}]}
         from_b={'kind':'local-continuations','source':{
             'graphId':20,'endNodeGraphId':200,'endLat':45.,'endLon':10.,
-            'access':1025},'options':[]}
+            'access':1025,'roadClass':6,'roadUse':0,'layer':0,
+            'bridge':False,'tunnel':False},'options':[]}
         for gid,status_car,status_bike in (
                 (21,'ALLOWED_NATIVE_IMMEDIATE','ALLOWED_NATIVE_IMMEDIATE'),
                 (22,'NO_MODE_ACCESS','ALLOWED_NATIVE_IMMEDIATE'),
@@ -550,6 +551,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
             from_b['options'].append({'viaHierarchy':False,'fromNodeGraphId':200,
                 'edge':{'graphId':gid,'roadClass':6,'roadUse':0,
                         'layer':0,'bridge':False,'tunnel':False,
+                        'startLat':45.,'startLon':10.,
                         'access':1025 if gid != 22 else 1024},
                 'nativeImmediateCosting':{'car':status_car,'motorcycle':status_bike}})
         result=extractor.correlate_verified_source_candidates(

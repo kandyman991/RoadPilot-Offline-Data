@@ -1194,6 +1194,48 @@ def classify_original_b_directional_overlap(source: dict, receiver: dict) -> dic
                                      (edge["layer"], edge["bridge"], edge["tunnel"])}
 
 
+def validate_native_receiver_successor_at_x(source_x: dict, native_predecessor: dict,
+                                           native_successor: dict) -> dict:
+    """Validate B's exact SAME native directed node at original A X.
+
+    Road class/use/grade differences are real original graph facts: record
+    them without suppressing a potentially genuine physical ramp/branch.
+    A statically allowed turn alone is NOT physical-road proof.
+    """
+    lat = source_x['lat']
+    lon = source_x['lon']
+    start_lat = native_successor.get('startLat')
+    start_lon = native_successor.get('startLon')
+    if (type(start_lat) not in (int, float) or
+            type(start_lon) not in (int, float) or
+            not math.isfinite(start_lat) or not math.isfinite(start_lon)):
+        raise ValueError('Original B directed successor missing native start X')
+    dx = (start_lon - lon) * 111320 * math.cos(math.radians(lat))
+    dy = (start_lat - lat) * 111320
+    gap = math.hypot(dx, dy)
+    # Native Valhalla original graph X quantization is at centimetres;
+    # fail closed on a different road's start node even if native costing
+    # returned a positive result under incomplete path context.
+    if gap > 0.75:
+        raise ValueError('Original B native successor does not START at exact handoff X')
+    same_structure = all(native_predecessor[k] == native_successor[k]
+                         for k in ('layer','bridge','tunnel'))
+    same_class = native_predecessor['roadClass'] == native_successor['roadClass']
+    same_use = native_predecessor['roadUse'] == native_successor['roadUse']
+    if not same_structure:
+        evidence = 'NATIVE_STRUCTURE_CHANGE_PHYSICAL_IDENTITY_UNVERIFIED'
+    elif not (same_class and same_use):
+        evidence = 'NATIVE_CLASS_OR_USE_CHANGE_PHYSICAL_IDENTITY_UNVERIFIED'
+    else:
+        evidence = 'CONSISTENT_NATIVE_ROAD_ATTRIBUTES_PHYSICAL_IDENTITY_UNVERIFIED'
+    return {'nativeReceiverStartGapMetres': round(gap, 4),
+            'nativeSameClassAsBPredecessor': same_class,
+            'nativeSameUseAsBPredecessor': same_use,
+            'nativeSameStructureAsBPredecessor': same_structure,
+            'originalPhysicalRoadIdentityStatus': 'NOT_VERIFIED',
+            'originalNativeBranchRelationshipEvidence': evidence}
+
+
 def correlate_verified_source_candidates(*, source_candidates: list[dict],
                                           source_observations: list[dict],
                                           receiver_observations: list[dict],
@@ -1271,8 +1313,12 @@ def correlate_verified_source_candidates(*, source_candidates: list[dict],
                         candidate['terminalVehicleModes'] & 1024 and successor['access'] & 1024):
                     common_modes |= 1024
                 if common_modes:
+                    branch_evidence = validate_native_receiver_successor_at_x(
+                        {'lat': candidate['endLat'], 'lon': candidate['endLon']},
+                        b_source, successor)
                     value = b_successors.setdefault(succid, {
                         'receiverDirectedGraphId': succid,
+                        **branch_evidence,
                         'sharedVehicleModes': 0,
                         'fromNativeBPredecessorGraphIds': [],
                         'receiverNativeRoadClass': successor['roadClass'],
@@ -1281,6 +1327,9 @@ def correlate_verified_source_candidates(*, source_candidates: list[dict],
                         'receiverNativeBridge': successor['bridge'],
                         'receiverNativeTunnel': successor['tunnel'],
                         'status': 'VERIFIED_B_ORIGINAL_SAME_NODE_LEGAL_BRANCH'})
+                    if (value['originalNativeBranchRelationshipEvidence'] !=
+                            branch_evidence['originalNativeBranchRelationshipEvidence']):
+                        raise ValueError('Multiple B predecessor records disagree on original native branch identity')
                     value['sharedVehicleModes'] |= common_modes
                     if predecessor_gid not in value['fromNativeBPredecessorGraphIds']:
                         value['fromNativeBPredecessorGraphIds'].append(predecessor_gid)
@@ -1298,7 +1347,10 @@ def correlate_verified_source_candidates(*, source_candidates: list[dict],
                         'sharedVehicleModes': edge['commonVehicleModes'] &
                                               candidate['terminalVehicleModes'],
                         'fromNativeBPredecessorGraphIds': [],
-                        'status': 'VERIFIED_B_DIRECTED_INTERIOR_SOURCE_OVERLAP'}
+                        'status': 'VERIFIED_B_DIRECTED_INTERIOR_SOURCE_OVERLAP',
+                        'originalPhysicalRoadIdentityStatus': 'NOT_VERIFIED',
+                        'originalNativeBranchRelationshipEvidence':
+                            'INTERIOR_B_EDGE_OVERLAP_PHYSICAL_IDENTITY_UNVERIFIED'}
         if b_continuation_uncertainties:
             status = 'B_NODE_CONTINUATION_PARTIALLY_UNRESOLVED'
         elif len(b_successors) > 0 and len(b_predecessor_ids) <= 1 and len(overlap) <= 1:
@@ -1316,6 +1368,11 @@ def correlate_verified_source_candidates(*, source_candidates: list[dict],
             "sourceOriginalEndNodeGraphId": original["endNodeGraphId"],
             "x": {"lat": candidate["endLat"], "lon": candidate["endLon"]},
             "sourceVehicleModes": candidate["terminalVehicleModes"],
+            "sourceNativeRoadClass": original['roadClass'],
+            "sourceNativeRoadUse": original['roadUse'],
+            "sourceNativeLayer": original['layer'],
+            "sourceNativeBridge": original['bridge'],
+            "sourceNativeTunnel": original['tunnel'],
             "sourceCutGraphIds": candidate["sourceCutGraphIds"],
             "sourcePhysicalRoadFinalCompleteness": "NOT_VERIFIED",
             "receiverCorrelationStatus": status,
@@ -1713,6 +1770,229 @@ def reconcile_original_outer_terminal_candidates(*, prior_candidates: list[dict]
         'wholeGraphCensusPerformed': False}
 
 
+
+
+def native_modes_to_names(mode_bits: int) -> list[str]:
+    if (type(mode_bits) is not int or mode_bits < 0 or mode_bits & ~1025):
+        raise ValueError('Invalid original directed road car/motorcycle mode mask')
+    return (["auto"] if mode_bits & 1 else []) + (
+        ["motorcycle"] if mode_bits & 1024 else [])
+
+
+def build_nonpublishing_native_handoff_catalog(evidence: dict) -> dict:
+    """Data-only D-017 candidate/exception ledger from native A→exact X→B.
+
+    Produces exactly ONE source final directed GraphId row, with ALL original
+    B legal branches grouped underneath it, or exactly ONE unresolved row.
+    No connections are considered Android VERIFIED / production-ready; this
+    is the build-to-consumer format input, NOT the legacy TripLeg v1 format.
+    """
+    if (evidence.get('schema') != 'roadpilot.f8-paired-native-receiver-correlation-evidence' or
+            evidence.get('schemaVersion') != 1 or
+            evidence.get('productionPublication') != 'BLOCKED' or
+            evidence.get('sourcePhysicalRoadDirectionCompleteness') != 'NOT_VERIFIED' or
+            evidence.get('androidFullJourneyValidation') != 'NOT_RUN'):
+        raise ValueError('Catalog input must be the original blocked native A-X-B proof')
+    area = evidence.get('approvedBoundaryExteriorTerminalInventory', {})
+    if (area.get('terminalEndpointDomainTileCoverage') != 'COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS' or
+            area.get('nativeLongEdgeOriginCoverage') !=
+                'VERIFIED_FOR_ORIGINAL_PAIR_ENDPOINT_DOMAIN' or
+            area.get('nativeIncomingOriginOutsideSelectedPairTilesCount') != 0 or
+            area.get('wholeGraphCensusPerformed') is not False):
+        raise ValueError('Original A outer-final proof and native long-edge ownership not complete')
+    ids = area.get('allPairBoundaryOuterTerminalGraphIds')
+    if (not isinstance(ids, list) or not ids or
+            any(type(i) is not int or i <= 0 for i in ids) or
+            len(set(ids)) != len(ids) or
+            len(ids) != area.get('originalSourceTerminalEdgesOutsideAWithinB')):
+        raise ValueError('Malformed original native source external-final terminal census')
+    if evidence.get('sourceFinalCandidateCount') != len(evidence.get('sourceToReceiverCandidates', [])):
+        raise ValueError('Original native A candidate record count changed')
+    for k in ('sourceGraphFingerprint','receiverGraphFingerprint',
+              'sourceBufferFingerprint','receiverBufferFingerprint',
+              'sourceIndexFingerprint','receiverIndexFingerprint','sourceEvidenceSha256'):
+        expected_sha256(evidence[k])
+    reciprocal = evidence.get('reciprocalBoundaryFingerprints')
+    if not isinstance(reciprocal, dict) or not reciprocal:
+        raise ValueError('Missing original SHA-bound reciprocal A/B boundary identities')
+    src = evidence['sourceRegionId']
+    dest = evidence['receiverRegionId']
+    if not isinstance(src, str) or not isinstance(dest, str) or src == dest or not src or not dest:
+        raise ValueError('Invalid original source/receiving identity')
+    prior = evidence['sourceToReceiverCandidates']
+    by_id = {row['sourceFinalDirectedGraphId']: row for row in prior}
+    if (len(by_id) != len(prior) or not set(ids) <= set(by_id) or
+            len(set(evidence.get('sourceUnresolvedNonterminalRootGraphIds', []))) !=
+                 evidence.get('sourceUnresolvedNonterminalRootCount')):
+        raise ValueError('Missing or duplicate original source candidates/roots')
+    candidate_rows = []
+    unresolved_rows = []
+    branch_classes = {}
+    for gid in sorted(ids):
+        row = by_id[gid]
+        x = row.get('x', {})
+        if (row.get('sourcePhysicalRoadFinalCompleteness') != 'NOT_VERIFIED' or
+                any(type(x.get(k)) not in (float,int) or not math.isfinite(x[k])
+                    for k in ('lat','lon')) or
+                not (-90 <= x['lat'] <= 90 and -180 <= x['lon'] <= 180)):
+            raise ValueError('Source original final directed ID X is invalid/unverified')
+        modes = native_modes_to_names(row['sourceVehicleModes'])
+        if not modes or row['sourceVehicleModes'] <= 0:
+            raise ValueError('Original A road has no permitted car/motorcycle mode')
+        source = {'sourceFinalDirectedGraphId': gid,
+                  'sourceFinalCoordinate': {'lat': x['lat'], 'lng': x['lon']},
+                  'sourceValhallaProvedModes': modes,
+                  'sourceOriginalNativeEndNodeGraphId': row['sourceOriginalEndNodeGraphId'],
+                  'sourceOriginalNativeRoadClass': row['sourceNativeRoadClass'],
+                  'sourceOriginalNativeRoadUse': row['sourceNativeRoadUse'],
+                  'sourceNativeLayer': row['sourceNativeLayer'],
+                  'sourceNativeBridge': row['sourceNativeBridge'],
+                  'sourceNativeTunnel': row['sourceNativeTunnel'],
+                  'receiverCorrelationStatus': row['receiverCorrelationStatus'],
+                  'sourcePhysicalRoadIdentity': 'NOT_VERIFIED'}
+        options = row['receivingNativeDirectedContinuationOptions']
+        if len({o['receiverDirectedGraphId'] for o in options}) != len(options):
+            raise ValueError('Duplicate same-physical-node B original directed option')
+        if options:
+            branches = []
+            for opt in sorted(options,key=lambda o:o['receiverDirectedGraphId']):
+                bits = opt['sharedVehicleModes']
+                travel = native_modes_to_names(bits)
+                if (not travel or bits & ~row['sourceVehicleModes'] or
+                        opt.get('originalPhysicalRoadIdentityStatus') != 'NOT_VERIFIED' or
+                        opt.get('status') not in (
+                           'VERIFIED_B_ORIGINAL_SAME_NODE_LEGAL_BRANCH',
+                           'VERIFIED_B_DIRECTED_INTERIOR_SOURCE_OVERLAP')):
+                    raise ValueError('Incorrect original B native legal option or vehicle access')
+                proof = opt['originalNativeBranchRelationshipEvidence']
+                if proof not in (
+                     'NATIVE_STRUCTURE_CHANGE_PHYSICAL_IDENTITY_UNVERIFIED',
+                     'NATIVE_CLASS_OR_USE_CHANGE_PHYSICAL_IDENTITY_UNVERIFIED',
+                     'CONSISTENT_NATIVE_ROAD_ATTRIBUTES_PHYSICAL_IDENTITY_UNVERIFIED',
+                     'INTERIOR_B_EDGE_OVERLAP_PHYSICAL_IDENTITY_UNVERIFIED'):
+                    raise ValueError('Missing original B native branch identity evidence')
+                if opt['status'] == 'VERIFIED_B_ORIGINAL_SAME_NODE_LEGAL_BRANCH':
+                    if not opt['fromNativeBPredecessorGraphIds']:
+                        raise ValueError('Original B same-node branch has no native predecessor proof')
+                    gap = opt.get('nativeReceiverStartGapMetres')
+                    if type(gap) not in (int, float) or not math.isfinite(gap) or not 0 <= gap <= 0.75:
+                        raise ValueError('Original B permitted successor native start is not at X')
+                    road = opt.get('nativeSameClassAsBPredecessor')
+                    road_use = opt.get('nativeSameUseAsBPredecessor')
+                    structure = opt.get('nativeSameStructureAsBPredecessor')
+                    if any(type(state) is not bool for state in (road,road_use,structure)):
+                        raise ValueError('Missing original B branch class/use/layer evidence')
+                    classified = ('NATIVE_STRUCTURE_CHANGE_PHYSICAL_IDENTITY_UNVERIFIED'
+                                  if not structure else
+                                  'NATIVE_CLASS_OR_USE_CHANGE_PHYSICAL_IDENTITY_UNVERIFIED'
+                                  if not road or not road_use else
+                                  'CONSISTENT_NATIVE_ROAD_ATTRIBUTES_PHYSICAL_IDENTITY_UNVERIFIED')
+                    if proof != classified:
+                        raise ValueError('Original B native branch classification contradicts structural evidence')
+                branch_classes[proof] = branch_classes.get(proof,0)+1
+                branch = {'receiverFirstDirectedGraphId': opt['receiverDirectedGraphId'],
+                    'receiverGraphFingerprint': evidence['receiverGraphFingerprint'],
+                    'travelModes': travel,
+                    'nativeOriginalBPredecessorDirectedGraphIds':
+                        sorted(opt['fromNativeBPredecessorGraphIds']),
+                    'nativeCorrespondenceEvidence': opt['status'],
+                    'nativePhysicalBranchEvidence': proof,
+                    'samePhysicalRoadVerified': False,
+                    'androidJourneyVerified': False}
+                for field in ('receiverNativeRoadClass','receiverNativeRoadUse',
+                              'receiverNativeLayer','receiverNativeBridge',
+                              'receiverNativeTunnel','nativeReceiverStartGapMetres',
+                              'nativeSameClassAsBPredecessor',
+                              'nativeSameUseAsBPredecessor',
+                              'nativeSameStructureAsBPredecessor'):
+                    if field in opt:
+                        branch[field] = opt[field]
+                branches.append(branch)
+            candidate_rows.append({**source,
+                'nativeBOriginalPredecessorGraphIds':
+                    sorted(row['correspondingBPredecessorAtXGraphIds']),
+                'receiverOptions': branches,
+                'unresolvedOriginalNativeBTransitions':
+                    row['receivingNativeUnresolvedContinuations'],
+                'status': 'NATIVE_CANDIDATE_NOT_PUBLISHED'})
+        else:
+            if row['receivingNativeUnresolvedContinuations']:
+                reason = 'ORIGINAL_B_CONDITIONAL_HIERARCHY_OR_PATH_CONTEXT_UNRESOLVED'
+            else:
+                reason = 'NO_ORIGINAL_B_NATIVE_ALLOWED_FORWARD_CONTINUATION'
+            unresolved_rows.append({**source,
+                'reason': reason,
+                'mustNotCreateConnection': True,
+                'nativeBOriginalPredecessorGraphIds':
+                    sorted(row['correspondingBPredecessorAtXGraphIds']),
+                'unresolvedOriginalNativeBTransitions':
+                    row['receivingNativeUnresolvedContinuations']})
+    if (len(candidate_rows)+len(unresolved_rows) != len(ids) or
+            len(set(c['sourceFinalDirectedGraphId'] for c in
+                    candidate_rows+unresolved_rows)) != len(ids)):
+        raise ValueError('A eligible outer final dropped or duplicated from catalog')
+    # Preserve cutoff lineage observations without claiming each observation
+    # represents a separate missing physical road or another connection.
+    unknown_roots = [row['originalSourceCutGraphId'] for row in
+        evidence.get('originalSourceCutRootCoverage', [])
+        if row['boundedOriginalSourceRootStatus'].startswith('ROOT_NO_TERMINAL_')]
+    if (len(unknown_roots) != len(set(unknown_roots)) or
+            len(evidence['originalSourceCutRootCoverage']) != sum(
+                evidence['originalSourceCutRootCoverageCounts'].values())):
+        raise ValueError('Incomplete original A cut-root lineage accounting')
+    return {'schema':'roadpilot.f8-final-directed-connection-candidates',
+        'version':1,
+        'pairId': src+'__'+dest,
+        'fromRegionId':src,
+        'toRegionId':dest,
+        'graphFingerprints':{'from':evidence['sourceGraphFingerprint'],
+                             'to':evidence['receiverGraphFingerprint']},
+        'sourceBufferFingerprint':evidence['sourceBufferFingerprint'],
+        'receiverBufferFingerprint':evidence['receiverBufferFingerprint'],
+        'sourceGraphIndexFingerprint':evidence['sourceIndexFingerprint'],
+        'receiverGraphIndexFingerprint':evidence['receiverIndexFingerprint'],
+        'originalSourceEvidenceSha256':evidence['sourceEvidenceSha256'],
+        'reciprocalBoundaryFingerprints':evidence.get('reciprocalBoundaryFingerprints'),
+        'originalSourceTileTerminalInventory':
+            'VERIFIED_FOR_ORIGINAL_B_COVERED_OUTER_ENDPOINT_DOMAIN',
+        'physicalRoadIdentityAcceptance':'NOT_VERIFIED',
+        'oneRecordPerSourceFinalDirectedGraphId':True,
+        'noDistinctSourceOrReceiverBranchSuppressed':True,
+        'sourceDiscoveryComplete':False,
+        'receiverMatchingComplete':False,
+        'androidFullJourneyAcceptance':'NOT_RUN',
+        'productionPublication':'BLOCKED',
+        'counts':{'eligibleSourceFinals':len(ids),
+                  'candidateSourcesWithBOptions':len(candidate_rows),
+                  'unresolvedEligibleSourceFinals':len(unresolved_rows),
+                  'nativeOriginalBDirectedOptions':sum(len(c['receiverOptions'])
+                                                       for c in candidate_rows),
+                  'branchAttributeEvidenceCounts':branch_classes,
+                  'originalSourceCutRootsNotLinkedWithinBoundedScope':len(unknown_roots)},
+        'connectionCandidates':candidate_rows,
+        'unresolvedSourceFinalEdges':unresolved_rows,
+        'unresolvedOriginalCutRootLineageGraphIds':sorted(unknown_roots)}
+
+
+def write_nonpublishing_native_catalog(*, evidence: dict, output_path: Path) -> dict:
+    if output_path.exists():
+        raise ValueError('Native original source A-X-B catalog output already exists')
+    ledger = build_nonpublishing_native_handoff_catalog(evidence)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=output_path.parent, delete=False) as tmp:
+        staged = Path(tmp.name)
+    try:
+        with staged.open('w', encoding='utf-8') as stream:
+            json.dump(ledger,stream,ensure_ascii=False,sort_keys=True,separators=(',',':'))
+            stream.write('\n')
+        if output_path.exists():
+            raise ValueError('Native source catalog output appeared during generation')
+        staged.replace(output_path)
+    finally:
+        staged.unlink(missing_ok=True)
+    return ledger['counts']
+
+
 def match_original_receiver_to_file(*, source_evidence_path: Path,
                                    manifest_path: Path, index_path: Path,
                                    buffer_path: Path, valhalla_config_path: Path,
@@ -1722,7 +2002,8 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
                                    receiver_valhalla_config_path: Path,
                                    binary: Path, output_path: Path,
                                    bounded_missing_source_recovery: bool = False,
-                                   reconcile_outer_terminals: bool = False) -> dict:
+                                   reconcile_outer_terminals: bool = False,
+                                   catalog_output_path: Path | None = None) -> dict:
     """D-017 A final candidate → exact original X → compiled B directed edge.
 
     Match B at X without finding arbitrary Y, best-road selection or a graph
@@ -1730,6 +2011,12 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
     """
     if output_path.exists():
         raise ValueError("Original A-X-B matching evidence exists; refusing overwrite")
+    if catalog_output_path is not None:
+        if (catalog_output_path == output_path or catalog_output_path.exists() or
+                catalog_output_path.suffix != '.json'):
+            raise ValueError('Native A-X-B nonpublishing catalog path must be a distinct new JSON')
+        if not reconcile_outer_terminals:
+            raise ValueError('Catalog requires exact native original outer terminal coverage')
     pair = verified_shared_cut(source_manifest=manifest_path,
         source_index=index_path, source_buffer=buffer_path,
         receiver_manifest=receiver_manifest_path,
@@ -1905,6 +2192,11 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
         'sourceUnresolvedNonterminalRootCount': len(unresolved_roots),
         'sourceFinalCandidateCount': len(candidates),
         **result}
+    # Pre-validate the complete blocked D-017 consumer candidate ledger
+    # before writing either artifact, so no partial malformed catalog is
+    # accepted. The ledger is NOT an Android-ready release by itself.
+    native_ledger = (build_nonpublishing_native_handoff_catalog(output)
+                     if catalog_output_path is not None else None)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=output_path.parent, delete=False) as temp:
         staged = Path(temp.name)
@@ -1918,6 +2210,9 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
         staged.replace(output_path)
     finally:
         staged.unlink(missing_ok=True)
+    if native_ledger is not None:
+        write_nonpublishing_native_catalog(evidence=output,
+                                           output_path=catalog_output_path)
     return {'sourceFinalCandidateCount': len(candidates),
         'sourceUnresolvedNonterminalRootCount': len(unresolved_roots),
         'nativeReceiverStatusCounts': result['nativeReceiverStatusCounts'],
@@ -1945,6 +2240,8 @@ def main() -> None:
                         help="Previously completed --resolve-cut original A terminal candidate evidence")
     parser.add_argument("--receiver-valhalla-config", type=Path,
                         help="Compiled Valhalla B routing configuration for its exact original archive")
+    parser.add_argument("--catalog-output", type=Path,
+                        help="With --match-receiver --reconcile-outer-terminal-edges: write a separate BLOCKED versioned A->X->B candidate/exception ledger for RoadPilot's future consumer, no TripLeg proofs")
     parser.add_argument("--reconcile-outer-terminal-edges", action="store_true",
                         help="With --match-receiver: enumerate graph-local terminal edges outside A and inside B from the SAME approved source pair-cut tiles, never scan other tiles")
     parser.add_argument("--bounded-missing-source-recovery", action="store_true",
@@ -1954,6 +2251,9 @@ def main() -> None:
         parser.error("--bounded-missing-source-recovery requires --match-receiver")
     if args.reconcile_outer_terminal_edges and not args.match_receiver:
         parser.error("--reconcile-outer-terminal-edges requires --match-receiver")
+    if args.catalog_output and (not args.match_receiver or
+                                not args.reconcile_outer_terminal_edges):
+        parser.error("--catalog-output requires --match-receiver and --reconcile-outer-terminal-edges")
     if sum((args.cut_only, args.resolve_cut, args.match_receiver)) > 1:
         parser.error("Select only one source/receiving inspection action")
     if args.match_receiver:
@@ -1970,7 +2270,8 @@ def main() -> None:
             receiver_buffer_path=args.receiver_buffer_geojson,
             receiver_valhalla_config_path=args.receiver_valhalla_config,
             bounded_missing_source_recovery=args.bounded_missing_source_recovery,
-            reconcile_outer_terminals=args.reconcile_outer_terminal_edges)
+            reconcile_outer_terminals=args.reconcile_outer_terminal_edges,
+            catalog_output_path=args.catalog_output)
         print(f'originalSourceFinalCandidates={output["sourceFinalCandidateCount"]} '
               f'unresolvedSourceRoots={output["sourceUnresolvedNonterminalRootCount"]} '
               f'receiverStatusCounts={output["nativeReceiverStatusCounts"]} '

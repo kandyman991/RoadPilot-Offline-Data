@@ -183,3 +183,22 @@ identity/branch correctness, Android ingestion and A→X→B real journeys
 remain unverified; catalog stays BLOCKED**. Exact native version and
 SHA-bound outcomes in
 `docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.
+
+
+**2026-11-09 PR #127 versioned blocked D-017 original native connection
+candidate/exception ledger (G-F8-06 remains OPEN):** `--catalog-output`
+extends the SAME A→exact X→B original graph reader; one source final native
+GraphId with one exact X, all original B allowed car/motorcycle directed
+branches or one explicit unmatched exception; SHA-binds both original
+archive/index/buffer/boundary identities, fails closed on mismatches and
+forgery. Real bilateral graph native results 707 eligible A exterior
+finals = 420 with 646 original B permitted branch options + 287
+unmatched exceptions. Of 646 B branches 451 have consistent original
+B predecessor/successor class/use/grade, 153 differ in class/use, 42 differ
+in layer/bridge/tunnel; **physical road identity still NOT_VERIFIED** on
+ALL. Among 287 unmatched, 219 have no B static allowed continuation and
+68 need original B restriction/hierarchy/time context. All real outputs
+pass versioned JSON schema on Legion; 285 earlier unlinked original
+source-cut root observations preserved separately. No Android consumer
+compatibility, real JNI journey or enabled build/publisher — catalog remains
+BLOCKED. Evidence: `docs/F8_PR127_NATIVE_FINAL_CONNECTION_CATALOG_20261109.md`.
