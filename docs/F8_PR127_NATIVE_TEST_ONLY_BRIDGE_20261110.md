@@ -33,6 +33,8 @@ The candidate ledger remains untouched and unusable in product routing. The new 
 | Austria → Italy Nord-Est | 253 | 160 | 245 | 93 | 5 |
 | **Combined** | **707** | **420** | **646** | **287** | **21** |
 
+**Preserving conditionally unresolved B turns:** In addition to the 646 proven native legal B options, the original paired ledger has **28 conditionally unresolved native B directed options within matched A sources** (21 distinct matched source finals) and **111 such options attached to 287 unmatched A source exceptions**. Those 139 original B predecessor/receiver pairs carry car/motorcycle statuses such as `UNRESOLVED_HIERARCHY_CONTEXT`, `UNRESOLVED_PATH_OR_TIME_CONTEXT`, `UNRESOLVED_SHORTCUT` and, where mode-specific, `ALLOWED_NATIVE_IMMEDIATE`. The original independent audit now requires **exact equality** of each of these conditional lists to the native evidence (no suppression or tampering), and the TEST_ONLY artifact retains every original directed B pair/status rather than a Boolean-only summary. These are NOT approved production connections.
+
 Of the 646 B options, **451** have class/use/structure equal to the matched B incoming predecessor, and **195** change at least one of these attributes. Every option is retained, with native graph IDs and permissions; none is promoted merely because of its attributes, and none was discarded for a class/structure change.
 
 Original archive fingerprints:

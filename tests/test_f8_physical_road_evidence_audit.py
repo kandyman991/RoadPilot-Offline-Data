@@ -53,6 +53,35 @@ class OriginalNativePhysicalRoadAuditTests(unittest.TestCase):
         self.assertEqual(len(result['unresolvedSourceFinals']), 1)
         self.assertTrue(result['unresolvedSourceFinals'][0]['mustNotCreateConnection'])
 
+    def test_rejects_removed_native_conditional_b_turns(self):
+        record = self.catalog['connectionCandidates'][0]
+        original = self.evidence['sourceToReceiverCandidates'][0]
+        conditional = {
+            'car': 'UNRESOLVED_HIERARCHY_CONTEXT',
+            'motorcycle': 'UNRESOLVED_HIERARCHY_CONTEXT',
+            'receiverPredecessorGraphId': 999991,
+            'receiverDirectedGraphId': 999992,
+        }
+        record['receiverCorrelationStatus'] = 'B_NODE_CONTINUATION_PARTIALLY_UNRESOLVED'
+        original['receiverCorrelationStatus'] = 'B_NODE_CONTINUATION_PARTIALLY_UNRESOLVED'
+        original['receivingNativeUnresolvedContinuations'] = [conditional]
+        self.reject()
+        record['unresolvedOriginalNativeBTransitions'] = [conditional]
+        result = build_test_only_original_handoffs(self.catalog, self.evidence)
+        self.assertEqual(result['nativeDirectedHandoffs'][0]['unresolvedNativeBTransitions'],
+                         [conditional])
+        self.assertTrue(result['nativeDirectedHandoffs'][0]['hasUnresolvedNativeBTransitions'])
+
+    def test_rejects_removed_exception_conditional_b_turns(self):
+        original = self.evidence['sourceToReceiverCandidates'][1]
+        original['receivingNativeUnresolvedContinuations'] = [{
+            'car': 'UNRESOLVED_PATH_OR_TIME_CONTEXT',
+            'motorcycle': 'UNRESOLVED_PATH_OR_TIME_CONTEXT',
+            'receiverPredecessorGraphId': 99221,
+            'receiverDirectedGraphId': 99222,
+        }]
+        self.reject()
+
     def test_test_only_artifact_refuses_missing_native_input(self):
         self.evidence['sourceToReceiverCandidates'][0]['receiverDirectedCandidatesAtX'] = []
         with self.assertRaises(ValueError):

@@ -80,6 +80,10 @@ def audit(catalog: dict, evidence: dict) -> dict:
         if (candidate['sourcePhysicalRoadIdentity'] != 'NOT_VERIFIED'
                 or candidate['status'] != 'NATIVE_CANDIDATE_NOT_PUBLISHED'):
             fail("Source incorrectly approved")
+        if (candidate['receiverCorrelationStatus'] != row['receiverCorrelationStatus'] or
+                candidate['unresolvedOriginalNativeBTransitions'] !=
+                row['receivingNativeUnresolvedContinuations']):
+            fail("Conditional original B junction alternatives were changed or suppressed")
         refs = {o['receiverDirectedGraphId']: o
                 for o in row['receivingNativeDirectedContinuationOptions']}
         if len(refs) != len(row['receivingNativeDirectedContinuationOptions']):
@@ -159,6 +163,8 @@ def audit(catalog: dict, evidence: dict) -> dict:
         if (exception['nativeBOriginalPredecessorGraphIds'] !=
                 original['correspondingBPredecessorAtXGraphIds']):
             fail("Unresolved original B predecessor identities were altered")
+        if exception['unresolvedOriginalNativeBTransitions'] != original['receivingNativeUnresolvedContinuations']:
+            fail("Conditional unresolved source B directed alternatives were changed or suppressed")
         source_ids.add(sid)
     # Independent original source inventory: catalog self-counts alone cannot
     # prove that a missing A final edge was not silently omitted from BOTH the
@@ -247,6 +253,8 @@ def build_test_only_original_handoffs(catalog: dict, evidence: dict) -> dict:
             'sourcePhysicalRoadFinalCompleteness': 'NOT_VERIFIED',
             'hasUnresolvedNativeBTransitions':
                 bool(candidate['unresolvedOriginalNativeBTransitions']),
+            'unresolvedNativeBTransitions':
+                candidate['unresolvedOriginalNativeBTransitions'],
         })
     exceptions = [{
         'originalASourceFinalDirectedGraphId': row['sourceFinalDirectedGraphId'],
@@ -254,6 +262,8 @@ def build_test_only_original_handoffs(catalog: dict, evidence: dict) -> dict:
         'reason': row['reason'],
         'travelModes': sorted(row['sourceValhallaProvedModes']),
         'mustNotCreateConnection': True,
+        'unresolvedNativeBTransitions':
+            row['unresolvedOriginalNativeBTransitions'],
     } for row in sorted(catalog['unresolvedSourceFinalEdges'],
                         key=lambda row: row['sourceFinalDirectedGraphId'])]
     result = {
