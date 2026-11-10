@@ -11,6 +11,7 @@ import argparse
 import gzip
 import hashlib
 import json
+import math
 import os
 import tempfile
 from collections import Counter
@@ -25,6 +26,139 @@ def read_json(path: Path) -> dict:
 def fail(message: str) -> None:
     raise ValueError(message)
 
+
+
+def original_native_incoming_at_x(row: dict) -> dict[int, dict]:
+    """Independently reread directed B incoming approach, never nearest-point alone."""
+    accepted = {}
+    for entry in row['receiverDirectedCandidatesAtX']:
+        for name in ('distanceSourceApproachMetres', 'distanceXMetres',
+                     'directedOverlapProgressMetres'):
+            value = entry[name]
+            if (type(value) not in (int, float) or not math.isfinite(value) or
+                    (name != 'directedOverlapProgressMetres' and value < 0)):
+                fail("Invalid or nonfinite original native B directed distance evidence")
+        if (entry['status'] != 'B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR'
+                or entry['distanceSourceApproachMetres'] > 0.75
+                or entry['distanceXMetres'] > 0.75
+                or entry['directedOverlapProgressMetres'] <= 0
+                or not entry['sameLayerBridgeTunnel']):
+            continue
+        gid = entry['receiverDirectedGraphId']
+        if gid in accepted:
+            fail("Duplicate directed original B incoming approach")
+        accepted[gid] = entry
+    # This equality also catches a source incorrectly labelled as an excluded
+    # dead end merely because its B approach was silently suppressed.
+    if not accepted or set(accepted) != set(row['correspondingBPredecessorAtXGraphIds']):
+        fail("Native original B predecessor IDs and A-overlapping directed geometry differ")
+    return accepted
+
+
+
+def verify_original_native_conditional_mode_partition(row: dict) -> None:
+    """An allowed motorcycle B turn remains routable even when car is unknown.
+
+    Existing native reader can return e.g. car=UNRESOLVED_PATH_OR_TIME_CONTEXT
+    and motorcycle=ALLOWED_NATIVE_IMMEDIATE for the *same original B edge*.
+    Do not convert a partly unknown turn to all-mode denied/allowed.
+    """
+    allowed = {v['receiverDirectedGraphId']: v
+               for v in row['receivingNativeDirectedContinuationOptions']}
+    if len(allowed) != len(row['receivingNativeDirectedContinuationOptions']):
+        fail("Repeated original native B legal outgoing GraphId")
+    valid = {
+        'UNRESOLVED_PATH_OR_TIME_CONTEXT',
+        'UNRESOLVED_HIERARCHY_CONTEXT',
+        'UNRESOLVED_SHORTCUT',
+        'ALLOWED_NATIVE_IMMEDIATE',
+    }
+    for uncertain in row['receivingNativeUnresolvedContinuations']:
+        if (uncertain.get('car') not in valid or
+                uncertain.get('motorcycle') not in valid or
+                not any(uncertain[mode].startswith('UNRESOLVED_')
+                        for mode in ('car', 'motorcycle'))):
+            fail("Original B conditional status was falsely accepted or denied")
+        gid = uncertain['receiverDirectedGraphId']
+        for mode, mask in (('car', 1), ('motorcycle', 1024)):
+            is_allowed = uncertain[mode] == 'ALLOWED_NATIVE_IMMEDIATE'
+            actually_recorded = bool(allowed.get(gid, {}).get('sharedVehicleModes', 0) & mask)
+            if is_allowed and not actually_recorded:
+                fail("A positive original native B mode was suppressed")
+            if is_allowed:
+                if (uncertain['receiverPredecessorGraphId'] not in
+                        allowed[gid]['fromNativeBPredecessorGraphIds']):
+                    fail("Original B motorcycle-only successor lost its native predecessor")
+            elif actually_recorded:
+                # Native B options may union legal access from MULTIPLE incoming
+                # predecessors. Do not veto a legal mode from another original
+                # B predecessor just because THIS predecessor's status is unknown.
+                # With a single predecessor, claiming unknown AND legal from it
+                # is an inconsistency and must fail closed.
+                pred = allowed[gid]['fromNativeBPredecessorGraphIds']
+                if (len(pred) == 1 and
+                        pred[0] == uncertain['receiverPredecessorGraphId']):
+                    fail("A conditional original B mode was incorrectly promoted")
+
+def independently_reconcile_source_roots(catalog: dict, evidence: dict,
+                                          native_ids: set[int],
+                                          all_source_evidence_ids: set[int]) -> dict:
+    """Root observations and true final directed edges are distinct inventories.
+
+    This attests the existing bounded root analysis without tracing another
+    edge or falsely treating an unlinked root as a missing physical road.
+    """
+    records = evidence.get('originalSourceCutRootCoverage')
+    recorded_counts = evidence.get('originalSourceCutRootCoverageCounts')
+    if not isinstance(records, list) or not isinstance(recorded_counts, dict):
+        fail("Missing original compiled A cut-root coverage evidence")
+    valid = {
+        'ROOT_HAS_NATIVE_RECEIVER_OPTIONS_SOURCE_LINEAGE_UNPROVEN',
+        'ROOT_TERMINAL_CANDIDATE_NO_CONFIRMED_RECEIVER',
+        'ROOT_NO_TERMINAL_CANDIDATE_WITHIN_TWO_BOUNDED_HOPS',
+    }
+    counter = Counter()
+    ids = set()
+    unlinked = set()
+    candidate_ids = {
+        row['sourceFinalDirectedGraphId']
+        for row in catalog['connectionCandidates']
+    }
+    for record in records:
+        gid = record.get('originalSourceCutGraphId')
+        if type(gid) is not int or gid <= 0 or gid in ids:
+            fail("Repeated or invalid original source cut-root GraphId")
+        ids.add(gid)
+        status = record.get('boundedOriginalSourceRootStatus')
+        related = record.get('boundedRelatedAOriginalFinalGraphIds')
+        if (status not in valid or
+                record.get('physicalRoadDirectionCompleteness') != 'NOT_VERIFIED' or
+                not isinstance(related, list) or
+                any(type(x) is not int or x <= 0 for x in related) or
+                len(set(related)) != len(related) or
+                not set(related) <= all_source_evidence_ids):
+            fail("Invalid bounded native source-root-to-terminal evidence")
+        if status == 'ROOT_NO_TERMINAL_CANDIDATE_WITHIN_TWO_BOUNDED_HOPS':
+            if related:
+                fail("Unlinked bounded source root has an attached terminal")
+            unlinked.add(gid)
+        elif (not related or
+              (status == 'ROOT_HAS_NATIVE_RECEIVER_OPTIONS_SOURCE_LINEAGE_UNPROVEN') !=
+              bool(set(related) & candidate_ids)):
+            fail("Native source-root B-connection evidence misclassified")
+        counter[status] += 1
+    if (dict(counter) != recorded_counts or
+            sorted(unlinked) != sorted(catalog.get('unresolvedOriginalCutRootLineageGraphIds', [])) or
+            len(unlinked) != catalog['counts'].get('originalSourceCutRootsNotLinkedWithinBoundedScope')):
+        fail("Source-cut root count/missing-root list changed or suppressed")
+    if not native_ids <= all_source_evidence_ids:
+        fail("Source evidence missing true bounded native outer-cut final edge")
+    return {
+        'originalSourceRootObservations': len(ids),
+        'boundedUnlinkedRootObservations': len(unlinked),
+        'boundedRootDispositionCounts': dict(sorted(counter.items())),
+        'unlinkedRootsAreNotProvenDistinctMissingRoads': True,
+    }
 
 def audit(catalog: dict, evidence: dict) -> dict:
     if (catalog.get('schema') != 'roadpilot.f8-final-directed-connection-candidates'
@@ -62,6 +196,7 @@ def audit(catalog: dict, evidence: dict) -> dict:
     class_counts = Counter()
     source_ids = set()
     status_counts = Counter()
+    predecessor_owner = {}
     # The audit has an intentionally *stronger* standard than native turn legality.
     # Never mark a branch physical-road VERIFIED without a separate approved proof.
     for candidate in catalog['connectionCandidates']:
@@ -70,6 +205,7 @@ def audit(catalog: dict, evidence: dict) -> dict:
             fail("Duplicate or missing source-native readback")
         source_ids.add(sid)
         row = by_source[sid]
+        verify_original_native_conditional_mode_partition(row)
         x = candidate['sourceFinalCoordinate']
         if (abs(x['lat'] - row['x']['lat']) > 0.00000001
                 or abs(x['lng'] - row['x']['lon']) > 0.00000001):
@@ -80,6 +216,15 @@ def audit(catalog: dict, evidence: dict) -> dict:
         if (candidate['sourcePhysicalRoadIdentity'] != 'NOT_VERIFIED'
                 or candidate['status'] != 'NATIVE_CANDIDATE_NOT_PUBLISHED'):
             fail("Source incorrectly approved")
+        expected_source_modes = {mode for flag, mode in ((1, 'auto'), (1024, 'motorcycle'))
+                                 if row['sourceVehicleModes'] & flag}
+        if (set(candidate['sourceValhallaProvedModes']) != expected_source_modes
+                or candidate['sourceOriginalNativeRoadClass'] != row['sourceNativeRoadClass']
+                or candidate['sourceOriginalNativeRoadUse'] != row['sourceNativeRoadUse']
+                or candidate['sourceNativeLayer'] != row['sourceNativeLayer']
+                or candidate['sourceNativeBridge'] != row['sourceNativeBridge']
+                or candidate['sourceNativeTunnel'] != row['sourceNativeTunnel']):
+            fail("Original A directed source road identity/modes changed")
         if (candidate['receiverCorrelationStatus'] != row['receiverCorrelationStatus'] or
                 candidate['unresolvedOriginalNativeBTransitions'] !=
                 row['receivingNativeUnresolvedContinuations']):
@@ -123,16 +268,15 @@ def audit(catalog: dict, evidence: dict) -> dict:
             options_by_evidence[(sid, oid)] = key
         # The B predecessor of each source must have original A approach
         # geometrical overlap; B junction successors alone do not prove identity.
-        incoming = {entry['receiverDirectedGraphId']
-                    for entry in row['receiverDirectedCandidatesAtX']
-                    if (entry['status'] == 'B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR'
-                        and entry['distanceSourceApproachMetres'] <= 0.75
-                        and entry['directedOverlapProgressMetres'] > 0
-                        and entry['sameLayerBridgeTunnel'])}
-        if not incoming or not set(candidate['nativeBOriginalPredecessorGraphIds']) & incoming:
-            fail("No independently read-back original B incoming approach to X")
+        incoming = original_native_incoming_at_x(row)
+        if set(candidate['nativeBOriginalPredecessorGraphIds']) != set(incoming):
+            fail("Candidate original B predecessor identities differ from native road approach")
+        for b_incoming_gid in incoming:
+            if b_incoming_gid in predecessor_owner and predecessor_owner[b_incoming_gid] != sid:
+                fail("Two different A terminal directed edges claim the SAME original B incoming road")
+            predecessor_owner[b_incoming_gid] = sid
         for option in candidate['receiverOptions']:
-            if not set(option['nativeOriginalBPredecessorDirectedGraphIds']) <= incoming:
+            if not set(option['nativeOriginalBPredecessorDirectedGraphIds']) <= set(incoming):
                 fail("Receiver continuation is not attached to independently verified B incoming physical approach")
             if option['nativeCorrespondenceEvidence'] != 'VERIFIED_B_ORIGINAL_SAME_NODE_LEGAL_BRANCH':
                 fail("Unverified original B outgoing relation")
@@ -155,6 +299,7 @@ def audit(catalog: dict, evidence: dict) -> dict:
                 exception['sourcePhysicalRoadIdentity'] != 'NOT_VERIFIED'):
             fail("Missing or incorrectly approved unresolved final")
         original = by_source[sid]
+        verify_original_native_conditional_mode_partition(original)
         if (exception['sourceOriginalNativeEndNodeGraphId'] !=
                 original['sourceOriginalEndNodeGraphId'] or
                 abs(exception['sourceFinalCoordinate']['lat'] - original['x']['lat']) > 0.00000001 or
@@ -165,6 +310,37 @@ def audit(catalog: dict, evidence: dict) -> dict:
             fail("Unresolved original B predecessor identities were altered")
         if exception['unresolvedOriginalNativeBTransitions'] != original['receivingNativeUnresolvedContinuations']:
             fail("Conditional unresolved source B directed alternatives were changed or suppressed")
+        # A "no native allowed continuation" is a negative finding about
+        # the checked native costing context, not proof the road cannot
+        # continue for a different path, date or vehicle costing context.
+        if original['receivingNativeDirectedContinuationOptions']:
+            fail("Unmatched source has an omitted original B statically permitted edge")
+        expected_source_modes = {mode for flag, mode in ((1, 'auto'), (1024, 'motorcycle'))
+                                 if original['sourceVehicleModes'] & flag}
+        if set(exception['sourceValhallaProvedModes']) != expected_source_modes:
+            fail("Unmatched original A source legal mode mask changed")
+        if (exception['receiverCorrelationStatus'] != original['receiverCorrelationStatus']
+                or exception['sourceOriginalNativeRoadClass'] != original['sourceNativeRoadClass']
+                or exception['sourceOriginalNativeRoadUse'] != original['sourceNativeRoadUse']
+                or exception['sourceNativeLayer'] != original['sourceNativeLayer']
+                or exception['sourceNativeBridge'] != original['sourceNativeBridge']
+                or exception['sourceNativeTunnel'] != original['sourceNativeTunnel']):
+            fail("Unmatched source original-native road attributes or status changed")
+        unknown = bool(original['receivingNativeUnresolvedContinuations'])
+        expected_status = ('B_NODE_CONTINUATION_PARTIALLY_UNRESOLVED' if unknown
+                           else 'NO_PROVEN_B_NATIVE_OUTGOING_AFTER_X')
+        expected_reason = ('ORIGINAL_B_CONDITIONAL_HIERARCHY_OR_PATH_CONTEXT_UNRESOLVED' if unknown
+                           else 'NO_ORIGINAL_B_NATIVE_ALLOWED_FORWARD_CONTINUATION')
+        if (exception['receiverCorrelationStatus'] != expected_status
+                or exception['reason'] != expected_reason):
+            fail("Incorrect disposition of a native B conditional or non-routable exception")
+        incoming = original_native_incoming_at_x(original)
+        if set(exception['nativeBOriginalPredecessorGraphIds']) != set(incoming):
+            fail("Exception original B incoming directed geometry identity changed")
+        for b_incoming_gid in incoming:
+            if b_incoming_gid in predecessor_owner and predecessor_owner[b_incoming_gid] != sid:
+                fail("Unmatched A source duplicates a confirmed original B directed approach")
+            predecessor_owner[b_incoming_gid] = sid
         source_ids.add(sid)
     # Independent original source inventory: catalog self-counts alone cannot
     # prove that a missing A final edge was not silently omitted from BOTH the
@@ -179,6 +355,8 @@ def audit(catalog: dict, evidence: dict) -> dict:
             source_ids != set(authoritative_ids) or
             native_inventory.get('originalSourceTerminalEdgesOutsideAWithinB') != len(source_ids) or
             native_inventory.get('nativeIncomingOriginOutsideSelectedPairTilesCount') != 0 or
+            native_inventory.get('nativeLongEdgeOriginCoverage') !=
+                'VERIFIED_FOR_ORIGINAL_PAIR_ENDPOINT_DOMAIN' or
             native_inventory.get('terminalEndpointDomainTileCoverage') !=
                 'COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS' or
             native_inventory.get('sourceTerminalInventoryScope') !=
@@ -193,11 +371,39 @@ def audit(catalog: dict, evidence: dict) -> dict:
         fail("Suppressed or invented source/branch candidates")
     if dict(class_counts) != counts['branchAttributeEvidenceCounts']:
         fail('Original B attribute categories changed or suppressed')
+    if not source_ids <= set(by_source):
+        fail('Native A exterior terminal source missing from paired evidence')
+    root_report = independently_reconcile_source_roots(
+        catalog, evidence, source_ids, set(by_source))
+    candidate_partials = sum(bool(r['unresolvedOriginalNativeBTransitions'])
+                             for r in catalog['connectionCandidates'])
+    unresolved_by_reason = Counter(r['reason'] for r in unresolved)
+    conditional_counts = {
+        'nativeAllowedSourceFinalsWithOtherUnknownBTurns': candidate_partials,
+        'nativeAllowedBOptionsWithUnknownSiblings':
+            sum(len(r['unresolvedOriginalNativeBTransitions'])
+                for r in catalog['connectionCandidates']),
+        'nativeUnknownBOptionsOnUnmatchedSourceFinals':
+            sum(len(r['unresolvedOriginalNativeBTransitions']) for r in unresolved),
+    }
     return {
         'schema': 'roadpilot.f8-pr127-independent-physical-identity-audit-v1',
         'pairId': catalog['pairId'],
         'originalArchiveFingerprints': catalog['graphFingerprints'],
         'eligibleOriginalSourceFinals': len(source_ids),
+        'verifiedNativeAOriginalBDirectedIncomingAtExactX': len(source_ids),
+        'originalBDirectedIncomingIdentityUniqueAcrossASources': True,
+        'distinctOriginalBIncomingDirectedGraphIds': len(predecessor_owner),
+        'originalNativeIndependentTerminalDomain': 'EXTERIOR_A_WITHIN_ORIGINAL_B_PAIR_TILES',
+        'eligibleSourceDispositions': {
+            'nativeAllowedBSuccessorSources': len(catalog['connectionCandidates']),
+            'nativeNoAllowedBSuccessorAtCheckedContext':
+                unresolved_by_reason['NO_ORIGINAL_B_NATIVE_ALLOWED_FORWARD_CONTINUATION'],
+            'nativeBPathTimeOrHierarchyUnresolvedNoAllowed':
+                unresolved_by_reason['ORIGINAL_B_CONDITIONAL_HIERARCHY_OR_PATH_CONTEXT_UNRESOLVED'],
+        },
+        'conditionalBUncertainty': conditional_counts,
+        'sourceRootLineage': root_report,
         'sourceCandidatesWithNativeBOptions': len(catalog['connectionCandidates']),
         'explicitUnresolvedFinalSources': len(unresolved),
         'preservedDirectedBOptions': len(options_by_evidence),
@@ -303,6 +509,118 @@ def build_test_only_original_handoffs(catalog: dict, evidence: dict) -> dict:
     return result
 
 
+def build_bounded_physical_road_dispositions(catalog: dict, evidence: dict) -> dict:
+    """No new discovery: reproducible per-original-GraphId M1 acceptance ledger.
+
+    Original Valhalla A directed final incoming road *up to* X is natively
+    matched to original directed B incoming road at X. A B outgoing edge is
+    separately an actual statically legal branch, not necessarily the same
+    physical road after the junction. Incompleteness is still explicit.
+    """
+    report = audit(catalog, evidence)
+    by_source = {row['sourceFinalDirectedGraphId']: row
+                 for row in evidence['sourceToReceiverCandidates']}
+    candidate_ids = {
+        r['sourceFinalDirectedGraphId']: r for r in catalog['connectionCandidates']
+    }
+    exceptions = {
+        r['sourceFinalDirectedGraphId']: r for r in catalog['unresolvedSourceFinalEdges']
+    }
+    records = []
+    status_counts = Counter()
+    for sid in sorted(candidate_ids.keys() | exceptions.keys()):
+        original = by_source[sid]
+        candidate = candidate_ids.get(sid)
+        exception = exceptions.get(sid)
+        incoming = original_native_incoming_at_x(original)
+        legal = sorted(original['receivingNativeDirectedContinuationOptions'],
+                       key=lambda row: row['receiverDirectedGraphId'])
+        conditional = sorted(original['receivingNativeUnresolvedContinuations'],
+                             key=lambda row: (row['receiverPredecessorGraphId'],
+                                              row['receiverDirectedGraphId']))
+        if candidate:
+            category = ('NATIVE_LEGAL_B_BRANCHES_WITH_CONDITIONAL_UNCERTAINTY'
+                        if conditional else 'NATIVE_LEGAL_B_BRANCHES_NO_KNOWN_UNCERTAINTY')
+        elif conditional:
+            category = 'NO_NATIVE_ALLOWED_B_BRANCH_WITH_CONDITIONAL_UNCERTAINTY'
+        else:
+            category = 'NO_NATIVE_ALLOWED_B_BRANCH_AT_CHECKED_CONTEXT'
+        status_counts[category] += 1
+        records.append({
+            'originalASourceFinalDirectedGraphId': sid,
+            'originalAEndNodeGraphId': original['sourceOriginalEndNodeGraphId'],
+            'exactX': {'lat': original['x']['lat'], 'lng': original['x']['lon']},
+            'originalSourceCarMotorcycleModeMask': original['sourceVehicleModes'],
+            'nativeBIncomingDirectedGraphIds': sorted(incoming),
+            'nativeBIncomingDirectedOverlapMetres':
+                {str(gid): incoming[gid]['directedOverlapProgressMetres']
+                 for gid in sorted(incoming)},
+            'nativeBIncomingAtXMaxDeviationMetres':
+                max(incoming[gid]['distanceXMetres'] for gid in incoming),
+            'originalAtoBIncomingDirectedApproach': 'NATIVE_GEOMETRY_TOPOLOGY_VERIFIED',
+            'nativeLegalOriginalBBranches': [{
+                'receiverDirectedGraphId': option['receiverDirectedGraphId'],
+                'originalBIncomingPredecessorGraphIds':
+                    sorted(option['fromNativeBPredecessorGraphIds']),
+                'sharedOriginalVehicleModeMask': option['sharedVehicleModes'],
+                'nativeTurnStatus': option['status'],
+                'sameRoadAfterJunction': 'NOT_VERIFIED',
+                'nativeStructureAndClassEvidence':
+                    option['originalNativeBranchRelationshipEvidence'],
+            } for option in legal],
+            'unresolvedNativeBTransitions': conditional,
+            'disposition': category,
+            'mustNotPublishAsReady': True,
+            'mustNotCreateConnection': candidate is None,
+            'sourceRoadDirectionCensusCompleteness': 'NOT_VERIFIED',
+        })
+    roots = sorted(evidence['originalSourceCutRootCoverage'],
+                   key=lambda row: row['originalSourceCutGraphId'])
+    output = {
+        'schema': 'roadpilot.f8-pr127-bounded-physical-road-dispositions',
+        'version': 1,
+        'pairId': catalog['pairId'],
+        'fromRegionId': catalog['fromRegionId'],
+        'toRegionId': catalog['toRegionId'],
+        'originalGraphArchiveSha256': catalog['graphFingerprints'],
+        'sourceBufferFingerprint': catalog['sourceBufferFingerprint'],
+        'receiverBufferFingerprint': catalog['receiverBufferFingerprint'],
+        'sourceGraphIndexFingerprint': catalog['sourceGraphIndexFingerprint'],
+        'receiverGraphIndexFingerprint': catalog['receiverGraphIndexFingerprint'],
+        'sourceEvidenceSha256': catalog['originalSourceEvidenceSha256'],
+        'nativeOriginalSourceTerminalCensus': 'EXHAUSTIVE_WITHIN_PAIR_ENDPOINT_DOMAIN',
+        'nativeLongEdgeOwningTileCoverage': 'VERIFIED_WITHIN_PAIR_ENDPOINT_DOMAIN',
+        'physicalRoadDirectionCompleteness': 'NOT_VERIFIED',
+        'samePhysicalRoadAfterJunctionAcceptance': 'NOT_VERIFIED',
+        'androidProductionUIAcceptance': 'NOT_VERIFIED',
+        'productionPublication': 'BLOCKED',
+        'noAdditionalRoadTracingPerformed': True,
+        'counts': {
+            'eligibleOriginalAExteriorTerminals': report['eligibleOriginalSourceFinals'],
+            'nativeBMatchedIncomingAApproaches':
+                report['verifiedNativeAOriginalBDirectedIncomingAtExactX'],
+            'nativeLegalOriginalBOptions': report['preservedDirectedBOptions'],
+            'sourceFinalDispositions': dict(sorted(status_counts.items())),
+            'nativeConditionalBOptionsOnMatchedSources':
+                report['conditionalBUncertainty']['nativeAllowedBOptionsWithUnknownSiblings'],
+            'nativeConditionalBOptionsOnUnmatchedSources':
+                report['conditionalBUncertainty']['nativeUnknownBOptionsOnUnmatchedSourceFinals'],
+            'boundedOriginalSourceCutRoots': len(roots),
+            'unlinkedOriginalSourceCutRootObservations':
+                report['sourceRootLineage']['boundedUnlinkedRootObservations'],
+        },
+        'nativeOriginalASourceFinalDispositions': records,
+        'boundedOriginalSourceCutRootObservations': roots,
+        'stopReason':
+            'Exact exterior A terminal directed-edge inventory is bounded and exhaustive for '
+            'the original B-covered endpoint tile scope. Root lineage is not a unique '
+            'physical-road census; native conditional B costing and same-road-after-junction '
+            'identity remain unresolved. Do not publish or label a complete physical-road '
+            'connection catalog.',
+    }
+    return output
+
+
 def atomic_write_new_json(path: Path, value: dict) -> None:
     """Immutable test output, never overwrite a prior independently audited result."""
     if path.exists():
@@ -337,6 +655,8 @@ def main() -> None:
     p.add_argument('--to-archive', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--test-only-catalog-output', type=Path, help='Optional nonpublishing original native directed A-X-B test artifact')
+    p.add_argument('--disposition-output', type=Path,
+                   help='Optional independently audited per-native-GraphId M1 uncertainty report (BLOCKED)')
     a = p.parse_args()
     c = read_json(a.catalog)
     e = read_json(a.evidence)
@@ -347,6 +667,9 @@ def main() -> None:
         fail("Real original B archive SHA-256 mismatch")
     if a.test_only_catalog_output:
         atomic_write_new_json(a.test_only_catalog_output, build_test_only_original_handoffs(c, e))
+    if a.disposition_output:
+        atomic_write_new_json(a.disposition_output,
+                              build_bounded_physical_road_dispositions(c, e))
     a.output.parent.mkdir(parents=True, exist_ok=True)
     a.output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
     print(json.dumps(result, sort_keys=True))

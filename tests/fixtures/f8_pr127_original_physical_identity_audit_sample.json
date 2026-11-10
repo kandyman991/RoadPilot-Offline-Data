@@ -29,7 +29,7 @@
       "candidateSourcesWithBOptions": 1,
       "eligibleSourceFinals": 2,
       "nativeOriginalBDirectedOptions": 2,
-      "originalSourceCutRootsNotLinkedWithinBoundedScope": 0,
+      "originalSourceCutRootsNotLinkedWithinBoundedScope": 1,
       "unresolvedEligibleSourceFinals": 1
     },
     "connectionCandidates": [
@@ -134,6 +134,9 @@
         ],
         "unresolvedOriginalNativeBTransitions": []
       }
+    ],
+    "unresolvedOriginalCutRootLineageGraphIds": [
+      123456789
     ]
   },
   "evidence": {
@@ -400,7 +403,40 @@
       "nativeIncomingOriginOutsideSelectedPairTilesCount": 0,
       "terminalEndpointDomainTileCoverage": "COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS",
       "sourceTerminalInventoryScope": "PAIR_SHARED_OUTER_CUTOFF_TILES_ONLY",
-      "wholeGraphCensusPerformed": false
+      "wholeGraphCensusPerformed": false,
+      "nativeLongEdgeOriginCoverage": "VERIFIED_FOR_ORIGINAL_PAIR_ENDPOINT_DOMAIN"
+    },
+    "originalSourceCutRootCoverage": [
+      {
+        "boundedOriginalSourceRootStatus": "ROOT_HAS_NATIVE_RECEIVER_OPTIONS_SOURCE_LINEAGE_UNPROVEN",
+        "boundedRelatedAOriginalFinalGraphIds": [
+          6307642
+        ],
+        "originalNativeTerminalModes": 1025,
+        "originalSourceCutGraphId": 6307642,
+        "physicalRoadDirectionCompleteness": "NOT_VERIFIED"
+      },
+      {
+        "boundedOriginalSourceRootStatus": "ROOT_TERMINAL_CANDIDATE_NO_CONFIRMED_RECEIVER",
+        "boundedRelatedAOriginalFinalGraphIds": [
+          442515258
+        ],
+        "originalNativeTerminalModes": 1025,
+        "originalSourceCutGraphId": 442515258,
+        "physicalRoadDirectionCompleteness": "NOT_VERIFIED"
+      },
+      {
+        "boundedOriginalSourceRootStatus": "ROOT_NO_TERMINAL_CANDIDATE_WITHIN_TWO_BOUNDED_HOPS",
+        "boundedRelatedAOriginalFinalGraphIds": [],
+        "originalNativeTerminalModes": 0,
+        "originalSourceCutGraphId": 123456789,
+        "physicalRoadDirectionCompleteness": "NOT_VERIFIED"
+      }
+    ],
+    "originalSourceCutRootCoverageCounts": {
+      "ROOT_HAS_NATIVE_RECEIVER_OPTIONS_SOURCE_LINEAGE_UNPROVEN": 1,
+      "ROOT_NO_TERMINAL_CANDIDATE_WITHIN_TWO_BOUNDED_HOPS": 1,
+      "ROOT_TERMINAL_CANDIDATE_NO_CONFIRMED_RECEIVER": 1
     }
   }
 }
