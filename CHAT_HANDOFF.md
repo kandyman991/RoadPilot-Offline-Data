@@ -1,3 +1,43 @@
+# Current Graph Studio handoff — 10 November 2026 (PR #128 production readiness)
+
+The **current** D-017 production work is PR #128 on branch
+feature/f8-approved-catalog-contract-20261110. Both Graph Studio PR #128
+and RoadPilot PR #543 remain **DRAFT, not merged or released**. The
+already merged PR #127 is the **only** native A-final → exact X →
+original B incoming-directed-road matching implementation.
+
+- New reproducible, immutable and nonpublishing preflight:
+  tools/preflight_f8_approved_directed_catalog.py. It uses the EXISTING
+  independent PR #127 auditor, original native evidence, original compiled
+  Graph A/B TAR SHA-256, and independently regenerated exact source
+  dispositions; does not create another matcher, scan or alternate X.
+- Both original Italy Nord-Est/Austria pair directions independently pass:
+  454/454 A directed terminal finals matched to B incoming directed roads
+  for Italy→Austria; 253/253 for reverse. All distinct source/receiver
+  original GraphIds, exact native X, car/motorcycle access and directed
+  physical approach overlap are retained; B outgoing-turn status is NOT
+  a gate on the match. A missing native GraphId/mode/X or falsified
+  review/approval state fails closed.
+- Saved ONLY outside Git as BLOCKED, nonroutable original archive-bound
+  reports in ~/RoadPilotGraphStudio/diagnostics/f8-production/20261109/.
+  They are not accepted by Android's READY schema and are not pinned
+  or installed. Source semantic one-per-physical-road lineage remains
+  NOT_VERIFIED. Android normal UI/journey proofs, independent review,
+  owner production approval and signing/pin also remain missing.
+- Verification: project Python environment
+  ~/.cache/app.roadpilot.graphstudio/python-env/bin/python with its bin
+  directory first in PATH: 479/479 unittest cases PASS; native originals
+  independently re-audited against full SHA-256 of the compiled TARs.
+- IMPORTANT NEXT STEP: finish authoritative native source physical-road/
+  direction lineage coverage without outgoing-turn matching or another
+  road tracing architecture, and run RoadPilot PR #543's real normal
+  Android planner/preview acceptance with the same original two graphs.
+  Only after honest independent proof and owner approval may a READY
+  publication catalog + signed APK catalog pin be created. Do not
+  mark either draft PR ready or merge/publish.
+
+---
+
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
 ## PR #127 D-017 blocked original A→exact X→B connection catalog (2026-11-09)
