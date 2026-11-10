@@ -102,3 +102,65 @@ Reverse the inputs to check Austria→Italy. The executable itself contains
 no hardcoded regions.
 
 PR #128 and RoadPilot PR #543 remain DRAFT, UNMERGED and nonpublishing.
+
+## 10 November 2026 — owner-accepted evidence, complete automatic catalog generation
+
+The owner accepted the Legion original-native correspondence and previously
+completed four explicitly chosen Android journeys as engineering evidence,
+then requested automatic catalog generation and actual autonomous RoadPilot
+crossing selection. This does not constitute independent READY review or
+authorization to merge, release or publish a signed production APK.
+
+New generic generator: tools/build_f8_native_auto_catalog.py.
+
+It independently rehashes both original compiled Valhalla TAR archives,
+reruns the original PR127 directed native A/B audit, reconstitutes the
+independent source-terminal dispositions, verifies the exact retained
+preflight report and binds its *actual* SHA-256 bytes. It preserves ALL
+distinct A final directed GraphIds, B incoming directed roads, exact X
+and car/motorcycle mode permissions. No new road matcher, outgoing-B-turn
+gate, road-name heuristics, arbitrary crossing point or hardcoded region.
+
+Nonpublishing automatic pair catalogs on the Legion under
+~/RoadPilotGraphStudio/diagnostics/f8-production/20261109/:
+
+| Directed pair | Original A finals | Original B incoming | Catalog SHA-256 |
+|---|---:|---:|---|
+| Italy Nord-Est → Austria | 454 | 454 | d5225a0ed5fd691e32d3e81304c73016362b0f0e288a3ada1a228a44ee0b8f05 |
+| Austria → Italy Nord-Est | 253 | 253 | 5dd70b5d9f4639a7391bbba51672a57aac18dfc13bbc9cd20d48621917221dd3 |
+
+CLI takes required --catalog, --native-evidence, --dispositions,
+--preflight, --from-archive, --to-archive and --output parameters, all
+relative to the actual original graph pair. Output is exclusively
+BLOCKED_TEST_ONLY; the separate READY contract remains protected by
+independent review, explicit production approval and a signed APK hash pin.
+The generator is region-independent and refuses to overwrite an output.
+
+Both full catalog files were independently loaded on the Legion Android
+emulator through the explicit debug-only SHA-bound auto-selection gate.
+The normal RoadPilot Planner -> Create Route -> original regional Valhalla
+and exact-edge JNI -> Ferrostar -> actual visible Route Preview succeeded
+in BOTH directions and for BOTH car and motorcycle, without supplying
+a source GraphId:
+
+| Direction | Automatically selected original A -> matching B incoming | Preview |
+|---|---|---|
+| Italy Nord-Est → Austria | 1295341612010 -> 1580218739690 | 129.7 km / 1 h 42 min |
+| Austria → Italy Nord-Est | 48089797098 -> 824405135850 | 151.8 km / 6 h 29 min |
+
+Both vehicle profiles returned the same preview for the same endpoints.
+Evidence: ~/RoadPilotGraphStudio/diagnostics/f8-production/20261110/android-auto-catalog/f8-auto-catalog-four-mode-ui-BLOCKED-20261110-v1.json.
+Evidence SHA-256: 604c2632d6d7e3a7dae38082e1f2453c9b842e95151e5d37bd0bc1072fd28724.
+Four original Android screenshot PNGs and correlated timing logs accompany it.
+
+**Open issue, separate from native physical-road matching:** The reverse
+Faster debug selector exits on the first valid native match, producing
+6 h 29 min instead of a different, earlier proven 2 h 33 min crossing.
+This establishes automatic *validity* but NOT optimal route selection.
+The production catalog planner currently probes all sources to select
+the best, which may itself take excessive time. Improve routing selection
+efficiently while retaining every certified road/direction in the catalog
+and never returning to the legacy discovery.
+
+Graph Studio PR #128 and RoadPilot PR #543 remain DRAFT and unmerged;
+neither project emits a READY or owner-signed/pinned catalog yet.

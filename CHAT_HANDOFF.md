@@ -1,3 +1,33 @@
+# Current Graph Studio handoff — automatic original native catalog, 10 November 2026
+
+The owner accepted prior Legion/native proof for the original A-final
+to exact X to matching B-incoming directed correspondence, and requested
+an automatically generated catalog with Android cross-region route preview.
+
+New tool: tools/build_f8_native_auto_catalog.py.
+Independently verifies the two original TAR archives, native audit,
+source-disposition census and real immutable preflight SHA. Generates
+454 Italy NE->Austria and 253 Austria->Italy NE COMPLETE matched
+original terminal source/receiver pairs as nonpublishing BLOCKED_TEST_ONLY
+catalogs. No new matcher, GPS handoff or outgoing B turn gate.
+
+RoadPilot PR543 normal UI auto-selects an A/B pair from ALL matches without
+any supplied source GraphId: 4/4 car/motorcycle forward/reverse Android
+route previews succeed. Italy->Austria A 1295341612010 -> B 1580218739690,
+129.7 km / 1h42m; reverse A 48089797098 -> B 824405135850,
+151.8 km / 6h29m.
+
+Critical separate follow-up: first-valid debug selection is not necessarily
+fastest. Previous manually selected reverse journey was 2h33m; production
+all-candidate comparison may also be expensive. Optimize route preference
+ranking (not native physical-road matching) before release.
+
+Neither PR has been merged or activated; no fake independent review,
+signed APK pin, publication or release. The accepted Legion technical
+evidence is NOT equivalent to authorization to publish READY data.
+
+---
+
 # Current Graph Studio handoff — 10 November 2026 (PR #128 production readiness)
 
 The **current** D-017 production work is PR #128 on branch
