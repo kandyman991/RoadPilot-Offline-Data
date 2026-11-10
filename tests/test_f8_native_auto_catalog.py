@@ -31,6 +31,15 @@ class NativeAutoCatalogTest(unittest.TestCase):
         self.assertNotIn("producerEvidence", r)
         self.assertEqual("END_NODE", r["connections"][0]["receiverDirectedRoadsAtX"][0]["receiverXPosition"])
 
+    def test_untrusted_or_malformed_preflight_sha_cannot_be_provenance(self):
+        for invalid in (
+            "sha256:" + "Z" * 64,
+            "sha256:" + "f" * 63,
+            "sha256:" + "f" * 65,
+        ):
+            with self.assertRaisesRegex(ValueError, "Preflight proof SHA-256"):
+                build(self.sample(), invalid)
+
     def test_missing_original_a_or_b_road_never_generates_a_partial_catalog(self):
         r = self.sample()
         r["nativeDirectedApproachesForReviewOnly"].pop()

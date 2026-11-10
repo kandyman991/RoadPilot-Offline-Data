@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import audit_f8_physical_road_evidence as native_audit
@@ -26,8 +27,9 @@ def build(preflight: dict, preflight_sha256: str) -> dict:
             preflight.get("notForRoadPilotRuntime") is True and
             preflight.get("version") == 1,
             "Expected independently audited BLOCKED preflight")
-    require(preflight_sha256.startswith("sha256:") and
-            len(preflight_sha256) == 71,
+    sha_pattern = re.compile(r"sha256:[0-9a-f]{64}\Z")
+    require(isinstance(preflight_sha256, str) and
+            sha_pattern.fullmatch(preflight_sha256) is not None,
             "Preflight proof SHA-256 unavailable")
     rows = preflight["nativeDirectedApproachesForReviewOnly"]
     counts = preflight["counts"]
@@ -40,8 +42,9 @@ def build(preflight: dict, preflight_sha256: str) -> dict:
             "The native source lineage gate changed; requires fresh independent review")
     original = preflight["originalGraphArchives"]
     require(set(original) == {"from", "to"} and
-            all(isinstance(h, str) and h.startswith("sha256:") and len(h) == 71
-                for h in original.values()),
+            all(isinstance(h, str) and sha_pattern.fullmatch(h) is not None
+                for h in original.values()) and
+            sha_pattern.fullmatch(preflight["nativeEvidenceSha256"]) is not None,
             "Original compiled Valhalla graph fingerprints missing")
     seen_a: set[int] = set()
     seen_b: set[int] = set()
