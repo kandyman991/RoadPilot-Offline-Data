@@ -1,5 +1,459 @@
 # Chat Handoff — RoadPilot Offline Data / Graph Studio
 
+## PR #127 D-017 blocked original A→exact X→B connection catalog (2026-11-09)
+
+Owner authorized completing 3 items **inside the existing PR #127**:
+(1) validate B native road matches/branch options using original directed
+geometry/topology/layer and car/motorcycle modes, (2) account for all 287
+A exterior final edges without a B static allowed successor, (3) produce a
+versioned A-final-GraphId→exact-X→original B directed-GraphId(s) catalog
+without any new discovery/angle/name/way heuristic or per-connection
+Valhalla TripLeg proof.
+
+The SAME `tools/extract_f8_region_final_edges.py --match-receiver
+--bounded-missing-source-recovery --reconcile-outer-terminal-edges`
+accepts optional `--catalog-output` to emit separate **nonpublishing** JSON
+schema `roadpilot.f8-final-directed-connection-candidates` v1,
+`schemas/f8-final-directed-connection-candidates.schema.json`. Pair
+original graph SHA-256, buffer/index and reciprocal boundary fingerprints
+included. Source candidate one record per original A final directed GraphId
+and exact native X; ALL statically permitted original B directed branches
+and true car/motorcycle modes retained (no selection by preferred route).
+Every source final WITHOUT permitted B native outgoing is represented once
+in explicit `unresolvedSourceFinalEdges`; old 285 source-root lineage
+observations remain separately retained, NOT 285 missing roads.
+
+**Actual original Italy NE→Austria + Austria→Italy NE**:
+707 unique exterior A final candidates total (454/253), **420** with native
+B static allowed outgoing (260/160), **646** B native alternative refs
+(401/245). Original native B successor starts at EXACT X to within 0.07m
+on both test regions, no nearest-road fallback. B predecessor→successor
+attributes: 451 original same class/use/structure; 153 class/use differences;
+42 bridge/tunnel/layer differences. All 646 preserved and explicitly
+`samePhysicalRoadVerified=false` (native class/grade congruence alone is
+not proof). Unmatched **287** original A finals: 219 no confirmed B
+native allowed outgoing (148/71), 68 unresolved native hierarchy/
+conditional/path restrictions (46/22). All records have
+`productionPublication=BLOCKED`, Android acceptance NOT_RUN,
+source physical road completeness NOT_VERIFIED. All older A sources/X/B
+options and two graph fingerprint gates are unchanged.
+
+Saved actual immutable Legion catalog artifacts:
+`~/RoadPilotGraphStudio/diagnostics/f8-production/20261109/`
+`italy-ne-to-austria-connection-candidates-v2.json` SHA-256
+`c1914321fad678e450aa59d8a7ec40102662dbfa3fe237592b3107c234da2b53`
+(613,196 bytes),
+`austria-to-italy-ne-connection-candidates-v2.json` SHA-256
+`5a8b5b9182938ffe57d9e1e979e797707ef7e4b6213fd1a229206e99430b567b`
+(355,759 bytes). BOTH independently pass JSON Schema Draft 2020-12
+validation and bilateral real original Valhalla 3.6.3 GraphReader native
+run. `docs/F8_PR127_NATIVE_FINAL_CONNECTION_CATALOG_20261109.md` has
+full evidence, reproduction and limitations.
+
+**IMPORTANT: data-only catalog production is implemented, NOT RELEASE-READY.**
+The old experimental Android F8FinalEdgeConnectionCatalog reader needs
+per-connection route TripLeg proofs and is incompatible with D-017; do NOT
+reintroduce those proofs or pretend this blocked native catalog is an
+installed/working Android sidecar. Separate downstream Android consumer
+adaptation, two-region two-direction car/moto real routing, verified
+physical-road identity and independent review/exact-head CI are still
+needed before normal Graph Studio build release integration. Keep PR #127
+DRAFT/UNMERGED and acceptance gates/production BLOCKED. NO new discovery
+architecture, graph walk, invented Y, angles, OSM way/name matching.
+
+
+## PR #127 original B-covered A long-edge origin v10 native attestation (2026-11-09)
+
+**Latest pending PR commit:** SAME approved pair-cut native source reader
+v10 adds original immediate `GraphReader::GetOpposingEdgeId` checks at EVERY
+A-exterior (outside original 25km A polygon) endpoint node INSIDE B
+original coverage. Each returned original incoming directed A GraphId
+must end at exactly this X and have its owning tile within the SAME
+already selected A pair-cut tiles; read opposite refs including one-way
+inaccessible reverse edges. This is a graph-local native node inspection,
+not a full region census, source road walker, route proof, or extra handoff
+GPS. Python fails closed on missing/malformed nonzero outside-owner count.
+
+**Actual immutable original 3.6.3 pair graph proof:** ItalyNE→Austria
+1,023 eligible native A end nodes, 1,063 incoming directed original
+reference checks, ZERO owners outside selected A tiles. Austria→ItalyNE
+629 original end nodes, 541 incoming native references, ZERO missed owners.
+A separate broad scratch check saw 3 Italy original A long-edge owners in
+nonselected tiles but their X were ALL outside Austria B footprint, so
+not eligible handoffs. Native 707 original A graph-local exterior
+terminal GraphIds, 420 with some allowed B native directions (646 distinct
+B option references), unchanged from v9. The older 285 unresolved
+source-root lineage observations remain in report (not automatically 285
+missing roads). **NativeLongEdgeOriginCoverage=
+VERIFIED_FOR_ORIGINAL_PAIR_ENDPOINT_DOMAIN**, but
+**SourcePhysicalRoadDirectionCompleteness=NOT_VERIFIED**, Android JNI
+A→X→B acceptance NOT_RUN and publication BLOCKED.
+
+Attested real graph v10 SHA evidence and exact counts in
+`docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.
+No architecture change or Android code edits. Next: disambiguate real
+same physical-road branches as needed, adapt Android to approved final
+A→X→B format WITHOUT previous per-connection TripLeg proofs, run both
+modes/directions full Android journeys, then standard Graph Studio build
+integration. PR #127 stays DRAFT UNMERGED, owner approval needed.
+
+
+## PR #127 approved D-017 native A outer terminal inventory & B matching (2026-11-09)
+
+Owner requested **finish A→exact X→B without any architecture change**.
+The source-of-285-missing-roots assumption was checked against the exact
+original 25km A buffer and B footprint: all prior 418 B-positive A terminal
+endpoints are outside A buffer, and 129 prior A internal terminals have no
+B-positive. Extending an arbitrary number of root hops is not the contract.
+Instead the SAME existing Valhalla 3.6.3 native pair-boundary source reader
+v9 now optionally emits graph-local A terminal edges with native X outside
+A original 25km buffer from the SAME 72/60 original pair-cut boundary tiles
+and SHA-bound original graphs, not all tiles or a road walk; the existing
+`--match-receiver --bounded-missing-source-recovery
+--reconcile-outer-terminal-edges` CLI reconciles these against previous
+GraphIds, independent A local native terminal modes and original B directed
+geometry/turn access at unchanged X. No OSM/road names, approximate
+nearby crossing, new Y, route preference or hierarchy dedup.
+
+Actual original regional graph tile-index metadata proved that all source
+tile bounds intersecting B-coverage MINUS A-buffer endpoint area are
+among the selected cutoff tile set: 39/39 in Italy NE→Austria and 29/29
+in reverse. This does NOT prove long original directed edge origins cannot
+be owned by outside tiles (remaining gate). Real original A native
+terminal GraphIds outside A and inside B: **454 + 253 = 707**, **704**
+already independently checked in previous 833 candidates; just **3** new
+original graph-local A terminal GraphIds (2 Italy NE, 1 Austrian). Two of
+the 3 have B-native allowed alternatives (2 B options each), one is
+B-restriction/hierarchy unresolved. **420 of 707** A outer terminal
+candidates have ≥1 native B permitted directed successor, all 646 B
+successor references preserved, no exact terminal X collisions.
+
+All original candidate records (833 original including 129 inside A) are
+unchanged; new candidate total 836. All 285 earlier unresolved source-root
+observations remain as *lineage observations*, not 285 proven missing
+roads. The new A outer terminal inventory is exhaustive only **inside
+approved pair cutoff tiles**, NOT a full per-physical-road proof.
+Current exact SHA-bound evidence:
+`docs/F8_PR127_NATIVE_OUTER_TERMINAL_RECONCILIATION_20261109.md`.
+Native Valhalla 3.6.3 Release build PASS, 419 Python tests PASS; bilateral
+original A/B graph output verified. SourceLongEdgeOriginCoverage NOT_VERIFIED,
+physical road/direction identity NOT_VERIFIED; Android JNI journeys NOT_RUN;
+publication BLOCKED. PR #127 remains DRAFT/UNMERGED pending independent
+review/CI/owner approval. Next: focus on long-edge origin and physical-road
+identity **only where necessary**, then versioned Android adapter and real
+multi-mode/multi-direction device journeys. NO new discovery architecture.
+
+
+## PR #127 bounded missing-source Step 1 (2026-11-09)
+
+Owner ordered targeted work on exactly the **392** original A cutoff source
+observations without a local native terminal A candidate (263 Italy NE→AT,
+129 AT→NE); no new discovery architecture. Optional
+`--match-receiver --bounded-missing-source-recovery` in the EXISTING D-017
+A→exact X→B command reopens only those roots' **native immediate statically
+permitted** original directed successors plus ONE more native incident edge
+and stops. Shortcut/hierarchy/conditional/complex unknowns and all genuinely
+distinct branches stay unresolved, never suppressed; no global scan/route,
+road name/OSM/angle, extra GPS Y or Android package change. It validates
+both original native A directed identities/end-node X, true local terminal
+mode access and footprint, reuses previously verified A candidate identities
+without duplicate final records, and runs the SAME original B edge
+correlation on any newly proven A terminal candidate. All original source
+root-to-terminal relationships are explicitly physical-road UNVERIFIED.
+
+Original archived Valhalla 3.6.3 Italy NE→Austria: 210 first-hop and 298
+second-hop exact native GraphIds reopened; **43 additional A native
+terminal GraphIds**, 72/263 previously missing roots now have a bounded
+candidate link, **191 remain**, 2 new A candidate endpoints have a B native
+permitted outgoing connection (4 distinct B options); total 548 distinct A
+terminal candidates, 259 with B native outgoing options. Reverse AT→NE:
+103 first-hop/152 second-hop, **16 new A local terminal GraphIds**, 35/129
+roots gain candidate link, **94 remain**, 4 new A endpoints with B native
+permitted successors (6 B options); total 285 A candidates, 159 with B.
+All 774 previous A candidate IDs/X/vehicle permissions/receiver options
+unchanged. **285 original roots unresolved** does not imply 285 physical
+roads. SourcePhysicalRoadDirectionCompleteness NOT_VERIFIED, Android NOT_RUN,
+ProductionPublication BLOCKED.
+
+Read-only graph outputs and exact SHA-256 in
+`docs/F8_PR127_BOUNDED_MISSING_SOURCE_RECOVERY_20261109.md` (source A/B
+original fingerprints unchanged). Same PR #127 DRAFT and UNMERGED, needs
+independent review/exact-head CI and owner authorization; next step is
+resolve specific real missing A→X→B physical handoffs, NOT broaden into
+graph-wide road lineage/tracing, then run Android acceptance before publish.
+
+
+## PR #127 owner-directed native A → exact X → B correlation, 2026-11-09
+
+**Current latest draft head pending commit/CI.** Owner explicitly authorized
+moving from extensive source classification to D-017's actual A→X→B matching,
+with bounded source completeness checks. Native reader protocol v8 now uses
+Valhalla 3.6.3's **original receiver B spatial bin index** at every exact
+original A terminal endpoint X (not an invented Y or arbitrary nearest-road
+search), compares A native incoming approach segment to B's original directed
+geometry in forward order/layer/bridge/tunnel, then follows only verified
+B predecessor's immediate original native outgoing node edges with native
+car/motorcycle Valhalla `Allowed` costing. Every B directed branch retained;
+no route search, all-B scan, name/way heuristics, GraphId equality comparison,
+Android implementation or catalog release. The same region-independent
+Python CLI `--match-receiver --source-evidence <original --resolve-cut file>`
+re-reads all A GraphIds and terminal masks from immutable archived tiles,
+requires exact A/B SHA-bound manifests/indexes/25km buffers, and emits
+**nonpublishing** result bound to both original graph SHA and source evidence.
+
+Real Italy NE→Austria 505 native A terminal candidates checked, 257 have ≥1
+B native permitted successor, 128 have 2+ B outgoing original alternatives,
+395 total B successor directed options; 203 have no proven B outgoing and
+61 include unresolved B restriction/hierarchy modes. Reverse Austria→Italy NE:
+269 A candidates checked, 155 have B outgoing options (79 multi-branch),
+237 total B directed options, 92 no proven outgoing, 27 partially unresolved.
+Root coverage: A outward source observations 820/422 all preserved, respectively
+302/175 linked to B options, 255/118 have candidate without proven B output,
+263/129 lack final A candidate within approved one-source-hop bound. The
+latter are not necessarily unique missing physical roads.
+
+Native Valhalla 3.6.3 Release build PASS, 414 Python tests PASS, bilateral
+archived A/B native directed runs PASS. Evidence, SHA-256 outputs and full
+limitations: `docs/F8_PR127_NATIVE_A_X_B_MATCHING_20261109.md`.
+**Still OPEN:** source one-final-edge per physical road/direction completeness;
+physical branch identity at ambiguous junctions; original B timed/restriction
+cases; actual RoadPilot Android A→X→B parity; catalog publication.
+**SourcePhysicalRoadDirectionCompleteness=NOT_VERIFIED, Android=NOT_RUN,
+Publication=BLOCKED**. Keep PR #127 DRAFT and UNMERGED. Next exact step:
+focus only on unresolved original source cutoff observations that may hide
+missing final A edges, plus receiver ambiguities affecting actual B options;
+no replacement discovery architecture or new scanning framework.
+
+
+## PR #127 native exact source branch evidence — 2026-11-09
+
+**Current latest draft head pending commit/CI.** Owner directed to use
+Valhalla 3.6.3 one-step costing **plus original A directed native geometry
+and exact node topology**. Without a new discovery/route algorithm, native
+reader protocol v7 now exposes the *exact owner from-node GraphId* of each
+original immediate outgoing edge; Python verifies that a direct edge comes
+from the incoming directed original A end-node, retains the original
+oriented first distinct departure shape, native end-node, class/use,
+bridge/tunnel/layer and car/motorcycle legality.
+
+Bounded source branch results on immutable original Italy NE→Austria A graph:
+439 original nonterminal source roots, 121 single static legal successors,
+25 single positive plus unknown alternatives, **188 with 2+ genuinely
+divergent native directed branches**, 105 with unknown/no confirmed positive;
+21 branched junctions had different original road use, 19 had different
+native classification. Reverse Austria→Italy NE: 211 source roots; 71
+single static legal, 8 positive+unknown, **84 distinct divergent branches**,
+48 unknown/no positive; 16 different road use/class. The car and motorcycle
+counts coincide in these original archives but are classified independently.
+The original 505/269 local native terminal candidate GraphIds and ALL
+original immediate branches, permits and modes are unchanged; no Graph B
+native road read. A unique statically legal successor is NOT proof of same
+physical road; a local divergent branch is NOT a proved second handoff.
+No angle/straightest, road-name, OSM way, proximity or route preference rule
+was used. **PhysicalRoadDirectionCompleteness=NOT_VERIFIED,
+ReceiverCorrelation=NOT_STARTED, Android=NOT_RUN, Publication=BLOCKED**.
+
+Tests: Valhalla original C++ Release build PASS, 411 Python unit tests PASS;
+bilateral real original A archive comparisons PASS. Full evidence and
+read-only local gzip SHA checksums in
+`docs/F8_PR127_EXACT_NATIVE_SOURCE_BRANCH_TOPOLOGY_20261109.md`.
+**Next exact gate:** determine actual physical-road continuation identity
+and source-road coverage at unresolved original source fork/edge lineages;
+NEVER select a winner from multiple divergent legal branches based on
+straightness or costing. If native information cannot distinguish, preserve
+source as explicitly unresolved. No B road matching or publication yet.
+
+
+## PR #127 native immediate Valhalla legality increment (2026-11-09)
+
+Owner directed resumption using Valhalla's own immediate transition rules,
+without full route searches, full-graph walks, a new discovery system or
+Graph B road matching. Existing original pair-bounded A source reader now
+supports v6 `--evaluate-native-costing`: calls native Valhalla 3.6.3
+`AutoCost::Allowed` and `MotorcycleCost::Allowed` with original incoming
+EdgeLabel and exact immediate outgoing directed GraphId. Explicitly marks
+shortcut, hierarchy, complex restriction and conditional/time/path-history
+cases as unknown, never converts unknown to allowed/dead-end. Per-edge car
+and motorcycle statuses retained under every original native option; no
+edge/ramp/fork filtered or grouped by GPS/road name.
+
+Legion actual original A archive runs: Italy NE→Austria 439 roots/706
+immediate options: 527 ALLOWED, 71 hierarchy-unknown, 47 shortcut-unknown,
+61 context-unknown per mode, 188 roots with 2+ positive immediate options.
+Austria→Italy NE 211 roots/327 options: 251 ALLOWED, 33 hierarchy-unknown,
+33 shortcut-unknown, 10 context-unknown per mode, 84 roots with 2+ positive
+options. 505/269 original local terminal GraphIds remain; native end-node
+and one-hop proof unchanged; graph-local terminal != unique physical road.
+See `docs/F8_PR127_NATIVE_IMMEDIATE_COSTING_20261109.md` and SHA-bound
+nonpublishing original outputs under
+`~/RoadPilotGraphStudio/diagnostics/f8-production/20261109/`.
+
+**Next exact step:** classify remaining source junctions using these default
+one-step legal-turn statuses and original directed physical-road topology;
+do not select a single best route or suppress genuine branches. Full source
+physical-road/direction completeness NOT_VERIFIED, Graph B matching
+NOT_STARTED, Android acceptance NOT_RUN, publication BLOCKED. PR #127
+stays DRAFT, UNMERGED pending review/CI and owner authorization.
+
+
+## Bounded SOURCE-only final GraphId verification — PR #127, 2026-11-09
+
+**Current engineering gate, pending exact-head CI and review.** Without
+changing D-017 or inspecting any receiving B *road*, the pair-terminal-first
+`--resolve-cut` path independently re-reads EVERY original cut-root A GraphId,
+actual end-node GraphId, X and car/motorcycle mask. It recomputes graph-local
+terminal modes via original native immediate outgoing and hierarchy adjacency
+(including shortcuts), hard-failing on mismatches; this is one bounded native
+end-node proof, NOT a new graph discovery/traversal. Locally terminal A
+candidates now carry original directed native local proof, and candidates
+with coincident X or end-node identities are kept DISTINCT and flagged.
+
+Real original Valhalla 3.6.3 Italy NE→Austria: 820/820 cutoff source roots
+read back, 381/381 direct source native terminal roots and **505/505**
+distinct local terminal candidate GraphIds verified, 439 unresolved source
+nonterminal roots retained. **38** roots have a SINGLE native outgoing edge
+whose original final GraphId is terminal in exactly ONE hop; 401 have other
+bounded local ambiguities. Reverse Austria→Italy NE: 422/422 read back,
+211/211 direct terminal, **269/269** local terminal candidates proven;
+211 original nonterminal roots retained, **20** one-hop structurally closed,
+191 further local ambiguity. No exact end-node or X collisions among these
+local GraphId candidates. All actual original roots/forks, class, original
+shortcut/hierarchy/mode uncertainty preserved. Actual physical-road identity
+and full source uniqueness NOT_VERIFIED, B native directed matching
+NOT_STARTED, Android NOT_RUN, publication BLOCKED.
+
+Evidence output SHA and per-pair counts at
+`docs/F8_PR127_BOUNDED_SOURCE_LOCAL_PROOF_20261109.md`; retained readonly
+original graph source outputs under the Legion
+`~/RoadPilotGraphStudio/diagnostics/f8-production/20261109/`.
+**Next:** bounded physical-road lineage disambiguation of remaining 401/191
+hard junction roots, WITHOUT deeper network traversal. Continue source only;
+then B at same X later, only when source road identity established. No
+merge/release authorization; PR #127 remains DRAFT.
+
+
+## Latest PR #127 source-selection correction — 2026-11-09 (pair scoped, terminal first)
+
+**Owner directed:** Correct source-edge selection before expanding native
+continuation resolution; avoid exhaustive traversal. The November 8
+region-wide `--resolve-cut` traversal and angle-based continuation heuristics
+have now been **removed from executable source-stage Python**.
+
+The source-only `--resolve-cut` command now REQUIRES both original compiled
+neighbors' manifests/indexes/25-km buffer polygons and reciprocal boundary
+fingerprints; SHA verifies both original graph archives. Restrict original A
+boundary shape to its **actual outer 25-km cutoff inside B's own original
+buffered footprint**, and inspect only original A tiles touching that shared
+line plus immediate native tile neighbors. Native Valhalla 3.6.3 source
+protocol v5 reads actual directed geometry, modes and local terminal flags.
+Select native terminal candidates FIRST; for nonterminal paired-cut edges,
+retain every original directed source GraphId/branch and inspect only their
+native immediate node/hierarchy adjacency plus one-hop outgoing candidates.
+Never follow beyond one hop, do not classify roads by heading, road names or
+OSM IDs, never substitute a second B GPS point.
+
+Real original archive pair tests PASS, Italy NE→Austria: **72** pair tiles,
+1,520 exact shared-cut directed edges, 820 outward/ambiguous roots,
+381 native terminal roots, 439 nonterminal roots retained unresolved,
+564 one-hop local edges inspected and **505 unique local terminal GraphIds**.
+Austria→Italy NE: **60** pair tiles, 776 exact shared-cut directed edges,
+422 outward/ambiguous roots, 211 native terminal roots, 211 nonterminal
+roots retained unresolved, 249 one-hop edges inspected, **269 unique
+local terminal GraphIds**. One previously discrepant historic original
+GraphId is preserved through two immediate original A alternatives.
+Local release C++ build PASS; 404 Python tests PASS in Legion (latest
+source-only unit and full suite). Pair outputs and SHA-256 evidence are in
+`docs/F8_PR127_PAIRED_TERMINAL_FIRST_20261109.md` and retained under
+`~/RoadPilotGraphStudio/diagnostics/f8-production/20261109/`.
+
+**NOT_VERIFIED:** one true final physical-road A directed GraphId for each
+physical road/direction, full source completeness, receiving B matching,
+Android real journeys/parity. Catalog BLOCKED. PR #127 must remain DRAFT
+and UNMERGED pending independent review, CI, and owner merge decision.
+**Next:** prove the remaining genuine local source ambiguities without
+expanding into general graph traversal; only then correlate B at same X.
+
+
+## New PR #127 continuation milestone — native source-cut identification (2026-11-08)
+
+**Current draft head:** prior verified PR #127 source geometry commit `9046a68`;
+this local source-cut continuation increment adds the exact original 25-km
+buffer boundary filter and branch-preserving native continuation inspection.
+Region-independent C++ Valhalla 3.6.3 native reader and source Python stage
+remain read-only against the exact graph/index/buffer SHA.
+
+Real Legion test, original `2026.10.13-1` original graphs:
+Italy Nord-Est — 178 selected tiles, 6,180 original directed cut edges,
+2,920 outward / 2,909 inward / 351 ambiguous; 3,271 outward or ambiguous
+seeds traced, 1,672 locally resolved, 1,663 distinct GraphIds,
+1,599 incomplete. Austria — 227 selected tiles, 8,135 cut edges,
+3,891 outward / 3,885 inward / 359 ambiguous; 4,250 traced,
+2,072 locally resolved, 2,062 distinct GraphIds, 2,178 incomplete.
+Nine Italy and ten Austria duplicate exact final IDs preserve upstream paths.
+Local `GRAPH_LOCAL_TERMINAL` is not proof of global physical-road uniqueness.
+One historical projected-source-cut candidate is not a strict raw GeoJSON
+cut intersection; it remains present in the unresolved native-forward
+alternatives of two genuine cut seeds, NOT suppressed.
+
+The region-neutral `tools/extract_f8_region_final_edges.py --resolve-cut`
+command now integrates the entire original cutoff→local native continuation
+stage in one atomic, nonpublishing candidate output (not a historical ledger).
+Both original Italy and Austria archive executions PASS, with independent
+source-root accounting of every outward/ambiguous seed; integrated artifact
+SHA-256s are `6874f4b721ec211216de5a7d5910ebbc10645f10b84a8677446bda859f2edc15`
+and `1623ccf6e84f9b99962b93ab0a59900a330284d75385f531254a1bd1cf1fe886`.
+Native compiled against Valhalla 3.6.3; **404 Python tests PASS**.
+
+**Source physical-road/direction final completeness NOT_VERIFIED.** Native
+junction, hierarchy, mode, ramp and cyclic ambiguity retained; do not claim
+all originals are proven just from the locally resolved counts.
+Receiving original B correlation NOT_STARTED, Android full journeys NOT_RUN,
+publication BLOCKED, draft PR unmerged. No old architecture resurrected.
+See `docs/F8_PR127_NATIVE_SOURCE_CUT_CONTINUATIONS_20261108.md` with local
+SHA-bound evidence. **Next exact step:** resolve the 1,599/2,178 actual
+source-cut ambiguity cases on their original native directed topology and
+reconcile true last physical-road/direction edges. Only then match B at the
+same source node GPS X and run RoadPilot Android consumption.
+
+## Current working increment — draft PR #127 (2026-11-08)
+
+PR: https://github.com/kandyman991/RoadPilot-Offline-Data/pull/127
+Branch: `feature/f8-region-independent-final-edge-source-20261106`.
+Building on the original region-independent, read-only 25-km compiled
+boundary-tile source extractor. This increment reads the *actual directed
+Valhalla edge shape* and emits the last nonidentical approach vertex
+into the original source endpoint X, retains road use and directed
+orientation, and requires `roadpilot.f8-native-source-2` binary protocol.
+Python fails closed on missing/nonfinite/collapsed approaches and stores
+an absent/degenerate geometry explicitly as null. No candidate is
+removed on polygon distance, name, OSM way, access mode or apparent
+forward continuation. This is native source geometry evidence, **not**
+proof of a unique last physical road edge or a receiver match.
+
+On the Legion with Valhalla 3.6.3, native release compilation PASSED;
+398 Python tests PASSED. Real original Italy Nord-Est archive read-only
+extraction v3 PASSED: 178 boundary tiles, 281,290 native terminal-mode
+candidates, 2,854,067 local continuation-unresolved edges, 54.59 seconds,
+774,272 KiB peak RSS. The v3 SHA-256 is
+`d7cafa9ebd261dfc5ec27c284413075a6daadd08d716421f6cac6835d724d5d1`.
+Read-only validation retained 177/177 historical Italy Nord-Est source
+cut directed GraphIds, each with its native approach tangent; 23 out of
+3,135,357 emitted directed edges had no nondegenerate approach tangent
+and were retained with explicit null. Prior v2 candidate counts unchanged. Source
+physical-road uniqueness INCOMPLETE; receiving-B correlation NOT_STARTED;
+Android full journeys NOT_RUN; producer publication BLOCKED. No graph
+packages, source geometry files, Android code, or installed GUI changed.
+
+**NEXT EXACT STEP:** determine each actual last retained source edge per
+physical road/travel direction from the native directed geometry/topology
+(including ambiguous continuations, ramps and hierarchy levels) using only
+the original boundary tiles and immediate native references; then identify
+the matching B directed geometry at the same X, preserve genuine branches
+and mode intersection, integrate the versioned catalog into the build, and
+run real RoadPilot Android A→X→B journeys. Italy/Austria remain test data,
+never code special cases. Do not merge this draft or publish an incomplete
+source inventory as completed connections.
+
 ## LATEST completed merge — PR #122 reviewed source-only evidence (2026-11-04)
 
 Owner-authorized PR #122 was independently audited as a separate technical
