@@ -134,5 +134,20 @@ class ApprovedDirectedCatalogContractTest(unittest.TestCase):
         self.assert_invalid(sample)
 
 
+    def test_rejects_duplicate_modes_missing_receiver_and_untrusted_proof(self):
+        sample = synthetic_approved_fixture()
+        sample["connections"][0]["sourceModes"] = ["car", "car"]
+        self.assert_invalid(sample)
+        sample = synthetic_approved_fixture()
+        sample["connections"][0]["receiverDirectedRoadsAtX"] = []
+        self.assert_invalid(sample)
+        sample = synthetic_approved_fixture()
+        sample["producerEvidence"]["normalRoutePreviewReportSha256"] = "unverified"
+        self.assert_invalid(sample)
+        sample = synthetic_approved_fixture()
+        sample["originalGraphArchives"]["from"] = "sha256:" + "g" * 64
+        self.assert_invalid(sample)
+
+
 if __name__ == "__main__":
     unittest.main()
