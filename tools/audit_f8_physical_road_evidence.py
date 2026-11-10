@@ -11,6 +11,8 @@ import argparse
 import gzip
 import hashlib
 import json
+import os
+import tempfile
 from collections import Counter
 from pathlib import Path
 
@@ -204,6 +206,111 @@ def audit(catalog: dict, evidence: dict) -> dict:
     }
 
 
+
+def build_test_only_original_handoffs(catalog: dict, evidence: dict) -> dict:
+    """Expose ONLY independently audited original directed seam relations for Android acceptance.
+
+    Not an approved physical-road catalog. Each B outgoing edge is a native
+    legal branch after a verified incoming B approach; same-road status remains
+    UNKNOWN (including cases where its class/use/structure happens to match).
+    Unresolved A finals and unresolved conditional B turns must remain visible.
+    This reuses the original PR127 A -> X -> B matcher; no new discovery stage.
+    """
+    report = audit(catalog, evidence)
+    records = []
+    for candidate in sorted(catalog['connectionCandidates'],
+                            key=lambda row: row['sourceFinalDirectedGraphId']):
+        modes = sorted(candidate['sourceValhallaProvedModes'])
+        branches = []
+        for opt in sorted(candidate['receiverOptions'],
+                          key=lambda row: row['receiverFirstDirectedGraphId']):
+            branches.append({
+                'originalBDirectedGraphId': opt['receiverFirstDirectedGraphId'],
+                'nativeBIncomingDirectedGraphIds':
+                    sorted(opt['nativeOriginalBPredecessorDirectedGraphIds']),
+                'nativeRelationship': opt['nativePhysicalBranchEvidence'],
+                'nativeXGapMetres': opt['nativeReceiverStartGapMetres'],
+                'travelModes': sorted(opt['travelModes']),
+                'nativeBIncomingPhysicalApproachOverlapsA': True,
+                'nativeBOutgoingTurnAndDirectionVerified': True,
+                'samePhysicalRoadAfterJunction': 'NOT_VERIFIED',
+            })
+        records.append({
+            'originalASourceFinalDirectedGraphId':
+                candidate['sourceFinalDirectedGraphId'],
+            'originalAEndNodeGraphId':
+                candidate['sourceOriginalNativeEndNodeGraphId'],
+            'nativeX': candidate['sourceFinalCoordinate'],
+            'travelModes': modes,
+            'originalBBranches': branches,
+            'nativeIncomingRoadAndDirectionAtXVerified': True,
+            'sourcePhysicalRoadFinalCompleteness': 'NOT_VERIFIED',
+            'hasUnresolvedNativeBTransitions':
+                bool(candidate['unresolvedOriginalNativeBTransitions']),
+        })
+    exceptions = [{
+        'originalASourceFinalDirectedGraphId': row['sourceFinalDirectedGraphId'],
+        'nativeX': row['sourceFinalCoordinate'],
+        'reason': row['reason'],
+        'travelModes': sorted(row['sourceValhallaProvedModes']),
+        'mustNotCreateConnection': True,
+    } for row in sorted(catalog['unresolvedSourceFinalEdges'],
+                        key=lambda row: row['sourceFinalDirectedGraphId'])]
+    result = {
+        'schema': 'roadpilot.f8-original-native-handoff-test-only',
+        'version': 1,
+        'pairId': catalog['pairId'],
+        'fromRegionId': catalog['fromRegionId'],
+        'toRegionId': catalog['toRegionId'],
+        'originalGraphArchiveSha256': catalog['graphFingerprints'],
+        'originalSourceEvidenceSha256': catalog['originalSourceEvidenceSha256'],
+        'sourceBufferFingerprint': catalog['sourceBufferFingerprint'],
+        'receiverBufferFingerprint': catalog['receiverBufferFingerprint'],
+        'sourceGraphIndexFingerprint': catalog['sourceGraphIndexFingerprint'],
+        'receiverGraphIndexFingerprint': catalog['receiverGraphIndexFingerprint'],
+        'originalSourceTerminalInventory':
+            'VERIFIED_FOR_ORIGINAL_B_COVERED_OUTER_ENDPOINT_DOMAIN',
+        'nativeBIncomingAndLegalOutgoing': 'VERIFIED_FOR_RECORDED_OPTIONS',
+        'sourcePhysicalRoadIdentityAcceptance': 'NOT_VERIFIED',
+        'sourceDiscoveryComplete': False,
+        'receiverMatchingComplete': False,
+        'androidFullJourneyAcceptance': 'NOT_RUN',
+        'productionPublication': 'BLOCKED',
+        'testOnly': True,
+        'counts': {
+            'eligibleSourceFinals': report['eligibleOriginalSourceFinals'],
+            'nativeAWithBOptions': report['sourceCandidatesWithNativeBOptions'],
+            'originalBDirectedOptions': report['preservedDirectedBOptions'],
+            'unresolvedSourceFinals': report['explicitUnresolvedFinalSources'],
+            'sourceRootsNotLinked':
+                len(catalog.get('unresolvedOriginalCutRootLineageGraphIds', [])),
+        },
+        'nativeDirectedHandoffs': records,
+        'unresolvedSourceFinals': exceptions,
+        'unresolvedOriginalCutRootGraphIds':
+            sorted(catalog.get('unresolvedOriginalCutRootLineageGraphIds', [])),
+    }
+    return result
+
+
+def atomic_write_new_json(path: Path, value: dict) -> None:
+    """Immutable test output, never overwrite a prior independently audited result."""
+    if path.exists():
+        fail('Original F8 test-only catalog already exists')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
+                                 dir=path.parent, delete=False) as fd:
+        temp = Path(fd.name)
+        json.dump(value, fd, sort_keys=True, separators=(',', ':'))
+        fd.write('\n')
+    try:
+        if path.exists():
+            fail('Original F8 test-only catalog was created concurrently')
+        os.link(temp, path)  # exclusive create; no overwrite or partial file
+    finally:
+        temp.unlink(missing_ok=True)
+
+
 def digest(path: Path) -> str:
     h = hashlib.sha256()
     with path.open('rb') as fd:
@@ -219,6 +326,7 @@ def main() -> None:
     p.add_argument('--from-archive', type=Path, required=True)
     p.add_argument('--to-archive', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
+    p.add_argument('--test-only-catalog-output', type=Path, help='Optional nonpublishing original native directed A-X-B test artifact')
     a = p.parse_args()
     c = read_json(a.catalog)
     e = read_json(a.evidence)
@@ -227,6 +335,8 @@ def main() -> None:
         fail("Real original A archive SHA-256 mismatch")
     if digest(a.to_archive) != c['graphFingerprints']['to']:
         fail("Real original B archive SHA-256 mismatch")
+    if a.test_only_catalog_output:
+        atomic_write_new_json(a.test_only_catalog_output, build_test_only_original_handoffs(c, e))
     a.output.parent.mkdir(parents=True, exist_ok=True)
     a.output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
     print(json.dumps(result, sort_keys=True))

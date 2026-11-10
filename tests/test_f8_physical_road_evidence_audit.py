@@ -4,7 +4,8 @@ import json
 import unittest
 from pathlib import Path
 
-from tools.audit_f8_physical_road_evidence import audit
+from tools.audit_f8_physical_road_evidence import (
+    audit, build_test_only_original_handoffs, atomic_write_new_json)
 
 FIXTURE = Path(__file__).parent / 'fixtures/f8_pr127_original_physical_identity_audit_sample.json'
 
@@ -26,6 +27,48 @@ class OriginalNativePhysicalRoadAuditTests(unittest.TestCase):
         self.assertEqual(report['explicitUnresolvedFinalSources'], 1)
         self.assertEqual(report['fullPhysicalRoadIdentityApproval'], 'NOT_VERIFIED')
         self.assertEqual(report['productionPublication'], 'BLOCKED')
+
+    def test_test_only_artifact_preserves_original_a_x_b_ids_and_native_branches(self):
+        result = build_test_only_original_handoffs(self.catalog, self.evidence)
+        self.assertEqual(result['schema'], 'roadpilot.f8-original-native-handoff-test-only')
+        self.assertTrue(result['testOnly'])
+        self.assertEqual(result['productionPublication'], 'BLOCKED')
+        self.assertFalse(result['sourceDiscoveryComplete'])
+        self.assertEqual(result['counts']['eligibleSourceFinals'], 2)
+        self.assertEqual(result['counts']['nativeAWithBOptions'], 1)
+        self.assertEqual(result['counts']['originalBDirectedOptions'], 2)
+        self.assertEqual(result['counts']['unresolvedSourceFinals'], 1)
+        row = result['nativeDirectedHandoffs'][0]
+        candidate = self.catalog['connectionCandidates'][0]
+        self.assertEqual(row['originalASourceFinalDirectedGraphId'],
+                         candidate['sourceFinalDirectedGraphId'])
+        self.assertEqual(row['nativeX'], candidate['sourceFinalCoordinate'])
+        self.assertEqual(
+            {b['originalBDirectedGraphId'] for b in row['originalBBranches']},
+            {b['receiverFirstDirectedGraphId'] for b in candidate['receiverOptions']})
+        for branch in row['originalBBranches']:
+            self.assertTrue(branch['nativeBIncomingPhysicalApproachOverlapsA'])
+            self.assertTrue(branch['nativeBOutgoingTurnAndDirectionVerified'])
+            self.assertEqual(branch['samePhysicalRoadAfterJunction'], 'NOT_VERIFIED')
+        self.assertEqual(len(result['unresolvedSourceFinals']), 1)
+        self.assertTrue(result['unresolvedSourceFinals'][0]['mustNotCreateConnection'])
+
+    def test_test_only_artifact_refuses_missing_native_input(self):
+        self.evidence['sourceToReceiverCandidates'][0]['receiverDirectedCandidatesAtX'] = []
+        with self.assertRaises(ValueError):
+            build_test_only_original_handoffs(self.catalog, self.evidence)
+
+    def test_test_only_artifact_cannot_overwrite_existing_catalog(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'native-test-only.json'
+            data = build_test_only_original_handoffs(self.catalog, self.evidence)
+            atomic_write_new_json(target, data)
+            self.assertEqual(json.loads(target.read_text())['schema'], data['schema'])
+            original = target.read_bytes()
+            with self.assertRaises(ValueError):
+                atomic_write_new_json(target, data)
+            self.assertEqual(target.read_bytes(), original)
 
     def test_rejects_undetected_or_repeated_receiving_branch(self):
         self.catalog['connectionCandidates'][0]['receiverOptions'].pop()
