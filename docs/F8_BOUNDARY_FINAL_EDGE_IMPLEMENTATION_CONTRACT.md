@@ -16,6 +16,8 @@ requirements for a full-edge census and per-connection routing proofs.
 
 **Keep the existing 25-km graph overlap.** Do not change its size without explicit owner approval. **No arbitrary crossing points, road-name matching, exhaustive graph scans, or redundant per-connection Valhalla routing verification.** No architectural change without explicit owner approval.
 
+**10 November 2026 owner clarification — outgoing B turn is NOT a road-match gate:** To identify the receiving road in step 3, use the original B directed edge whose oriented compiled geometry overlaps the original A directed approach at exact X. A matched original B incoming edge may END at X (or contain X in its interior); requiring a subsequent B legal outgoing road is incorrect. Preserve the directed B GraphId, A/B modes and exact X independently of any subsequent branch, time restriction or path-history costing. Outgoing transitions are optionally retained as diagnostic evidence for ordinary Valhalla routing, never a requirement for recording the A → X → B physical-road correspondence. See docs/F8_PR127_DIRECTED_ROAD_MATCH_CORRECTION_20261110.md. This does not authorize publication or assert road-origin lineage completeness.
+
 The detailed rules below implement these five steps; they do not authorize additional producer stages.
 
 **All-region implementation invariant (owner clarification, 2026-11-06):** This is

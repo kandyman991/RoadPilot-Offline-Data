@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://roadpilot.example/schemas/f8-final-directed-connection-candidates-v1.json",
   "title": "RoadPilot Graph Studio D-017 original-native A to exact X to B candidate/exception ledger (NOT PUBLISHABLE)",
-  "description": "Source-only, original-Valhalla-evidenced candidates. This is NOT the old Android F8 TripLeg v1 catalog; it must never be interpreted as a READY production handoff catalog.",
+  "description": "First-class original directed A-final to corresponding B road match at exact X; B outgoing-turn candidate/exception records are diagnostic only, never a matching prerequisite. NOT the legacy Android TripLeg v1 catalog; NEVER READY production.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "version", "pairId", "fromRegionId", "toRegionId", "graphFingerprints", "sourceBufferFingerprint", "receiverBufferFingerprint", "sourceGraphIndexFingerprint", "receiverGraphIndexFingerprint", "originalSourceEvidenceSha256", "reciprocalBoundaryFingerprints", "originalSourceTileTerminalInventory", "physicalRoadIdentityAcceptance", "oneRecordPerSourceFinalDirectedGraphId", "noDistinctSourceOrReceiverBranchSuppressed", "sourceDiscoveryComplete", "receiverMatchingComplete", "androidFullJourneyAcceptance", "productionPublication", "counts", "connectionCandidates", "unresolvedSourceFinalEdges", "unresolvedOriginalCutRootLineageGraphIds"],
+  "required": ["schema", "version", "pairId", "fromRegionId", "toRegionId", "graphFingerprints", "sourceBufferFingerprint", "receiverBufferFingerprint", "sourceGraphIndexFingerprint", "receiverGraphIndexFingerprint", "originalSourceEvidenceSha256", "reciprocalBoundaryFingerprints", "originalSourceTileTerminalInventory", "physicalRoadIdentityAcceptance", "oneRecordPerSourceFinalDirectedGraphId", "noDistinctSourceOrReceiverBranchSuppressed", "sourceDiscoveryComplete", "receiverMatchingComplete", "androidFullJourneyAcceptance", "productionPublication", "counts", "nativeDirectedRoadMatchesAtX", "connectionCandidates", "unresolvedSourceFinalEdges", "unresolvedOriginalCutRootLineageGraphIds"],
   "properties": {
     "schema": {"const": "roadpilot.f8-final-directed-connection-candidates"},
     "version": {"const": 1},
@@ -30,9 +30,12 @@
     "androidFullJourneyAcceptance":{"const":"NOT_RUN"},
     "productionPublication":{"const":"BLOCKED"},
     "counts":{"type":"object","additionalProperties":false,
-      "required":["eligibleSourceFinals","candidateSourcesWithBOptions","unresolvedEligibleSourceFinals","nativeOriginalBDirectedOptions","branchAttributeEvidenceCounts","originalSourceCutRootsNotLinkedWithinBoundedScope"],
+      "required":["eligibleSourceFinals","sourceFinalsWithMatchedBDirectedRoadAtX","sourceFinalsWithoutMatchedBDirectedRoadAtX","nativeBDirectedRoadMatchesAtX","candidateSourcesWithBOptions","unresolvedEligibleSourceFinals","nativeOriginalBDirectedOptions","branchAttributeEvidenceCounts","originalSourceCutRootsNotLinkedWithinBoundedScope"],
       "properties":{
         "eligibleSourceFinals":{"type":"integer","minimum":1},
+        "sourceFinalsWithMatchedBDirectedRoadAtX":{"type":"integer","minimum":0},
+        "sourceFinalsWithoutMatchedBDirectedRoadAtX":{"type":"integer","minimum":0},
+        "nativeBDirectedRoadMatchesAtX":{"type":"integer","minimum":0},
         "candidateSourcesWithBOptions":{"type":"integer","minimum":0},
         "unresolvedEligibleSourceFinals":{"type":"integer","minimum":0},
         "nativeOriginalBDirectedOptions":{"type":"integer","minimum":0},
@@ -40,6 +43,7 @@
         "originalSourceCutRootsNotLinkedWithinBoundedScope":{"type":"integer","minimum":0}
       }
     },
+    "nativeDirectedRoadMatchesAtX":{"type":"array","items":{"$ref":"#/$defs/roadMatch"}},
     "connectionCandidates":{"type":"array","items":{"$ref":"#/$defs/connection"}},
     "unresolvedSourceFinalEdges":{"type":"array","items":{"$ref":"#/$defs/unresolved"}},
     "unresolvedOriginalCutRootLineageGraphIds":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/graphid"}}
@@ -66,6 +70,32 @@
         "sourcePhysicalRoadIdentity":{"const":"NOT_VERIFIED"}
       }
     },
+    "roadMatch":{"type":"object","additionalProperties":false,
+      "required":["sourceFinalDirectedGraphId","sourceFinalCoordinate","sourceValhallaProvedModes","receiverDirectedRoadsAtX","status","productionRouteVerified"],
+      "properties":{
+        "sourceFinalDirectedGraphId":{"$ref":"#/$defs/graphid"},
+        "sourceFinalCoordinate":{"$ref":"#/$defs/x"},
+        "sourceValhallaProvedModes":{"$ref":"#/$defs/modes"},
+        "receiverDirectedRoadsAtX":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/matchedB"}},
+        "status":{"enum":["NATIVE_DIRECTED_ROAD_MATCH_AT_X","NO_VERIFIED_DIRECTED_RECEIVER_ROAD_AT_X"]},
+        "productionRouteVerified":{"const":false}
+      }},
+    "matchedB":{"type":"object","additionalProperties":false,
+      "required":["receiverDirectedGraphId","nativeGeometryRelationship","receiverXPosition","nativeCommonVehicleModes","distanceXMetres","directedApproachOverlapMetres","receiverNativeRoadClass","receiverNativeRoadUse","receiverNativeLayer","receiverNativeBridge","receiverNativeTunnel","productionRouteVerified"],
+      "properties":{
+        "receiverDirectedGraphId":{"$ref":"#/$defs/graphid"},
+        "nativeGeometryRelationship":{"enum":["B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR","MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP"]},
+        "receiverXPosition":{"enum":["END_NODE","INTERIOR"]},
+        "nativeCommonVehicleModes":{"type":"integer","enum":[1,1024,1025]},
+        "distanceXMetres":{"type":"number","minimum":0,"maximum":0.75},
+        "directedApproachOverlapMetres":{"type":"number","minimum":1},
+        "receiverNativeRoadClass":{"type":"integer","minimum":0},
+        "receiverNativeRoadUse":{"type":"integer","minimum":0},
+        "receiverNativeLayer":{"type":"integer"},
+        "receiverNativeBridge":{"type":"boolean"},
+        "receiverNativeTunnel":{"type":"boolean"},
+        "productionRouteVerified":{"const":false}
+      }},
     "connection":{"allOf":[{"$ref":"#/$defs/source"},
       {"type":"object","required":["nativeBOriginalPredecessorGraphIds","receiverOptions","unresolvedOriginalNativeBTransitions","status"],
        "properties":{

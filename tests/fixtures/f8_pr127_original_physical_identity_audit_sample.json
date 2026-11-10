@@ -30,7 +30,10 @@
       "eligibleSourceFinals": 2,
       "nativeOriginalBDirectedOptions": 2,
       "originalSourceCutRootsNotLinkedWithinBoundedScope": 1,
-      "unresolvedEligibleSourceFinals": 1
+      "unresolvedEligibleSourceFinals": 1,
+      "sourceFinalsWithMatchedBDirectedRoadAtX": 2,
+      "sourceFinalsWithoutMatchedBDirectedRoadAtX": 0,
+      "nativeBDirectedRoadMatchesAtX": 2
     },
     "connectionCandidates": [
       {
@@ -137,6 +140,66 @@
     ],
     "unresolvedOriginalCutRootLineageGraphIds": [
       123456789
+    ],
+    "nativeDirectedRoadMatchesAtX": [
+      {
+        "sourceFinalDirectedGraphId": 6307642,
+        "sourceFinalCoordinate": {
+          "lat": 46.7547812,
+          "lng": 13.7585482
+        },
+        "sourceValhallaProvedModes": [
+          "auto",
+          "motorcycle"
+        ],
+        "receiverDirectedRoadsAtX": [
+          {
+            "receiverDirectedGraphId": 6307642,
+            "nativeGeometryRelationship": "B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR",
+            "receiverXPosition": "END_NODE",
+            "nativeCommonVehicleModes": 1025,
+            "distanceXMetres": 0.027,
+            "directedApproachOverlapMetres": 20.724,
+            "receiverNativeRoadClass": 7,
+            "receiverNativeRoadUse": 3,
+            "receiverNativeLayer": 0,
+            "receiverNativeBridge": false,
+            "receiverNativeTunnel": false,
+            "productionRouteVerified": false
+          }
+        ],
+        "status": "NATIVE_DIRECTED_ROAD_MATCH_AT_X",
+        "productionRouteVerified": false
+      },
+      {
+        "sourceFinalDirectedGraphId": 442515258,
+        "sourceFinalCoordinate": {
+          "lat": 46.7538691,
+          "lng": 13.7647911
+        },
+        "sourceValhallaProvedModes": [
+          "auto",
+          "motorcycle"
+        ],
+        "receiverDirectedRoadsAtX": [
+          {
+            "receiverDirectedGraphId": 1885355834,
+            "nativeGeometryRelationship": "B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR",
+            "receiverXPosition": "END_NODE",
+            "nativeCommonVehicleModes": 1025,
+            "distanceXMetres": 0.013,
+            "directedApproachOverlapMetres": 48.527,
+            "receiverNativeRoadClass": 7,
+            "receiverNativeRoadUse": 3,
+            "receiverNativeLayer": 0,
+            "receiverNativeBridge": false,
+            "receiverNativeTunnel": false,
+            "productionRouteVerified": false
+          }
+        ],
+        "status": "NATIVE_DIRECTED_ROAD_MATCH_AT_X",
+        "productionRouteVerified": false
+      }
     ]
   },
   "evidence": {

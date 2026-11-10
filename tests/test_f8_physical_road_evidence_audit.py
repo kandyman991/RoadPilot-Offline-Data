@@ -25,6 +25,9 @@ class OriginalNativePhysicalRoadAuditTests(unittest.TestCase):
     def test_original_valhalla_a_x_b_approach_and_two_branches_preserved(self):
         report = audit(self.catalog, self.evidence)
         self.assertEqual(report['sourceCandidatesWithNativeBOptions'], 1)
+        self.assertEqual(report['originalASourceFinalsEvaluatedForDirectRoadMatching'], 2)
+        self.assertEqual(report['originalBDirectRoadMatchCount'], 2)
+        self.assertEqual(report['originalASourcesWithNoDirectedBMatch'], 0)
         self.assertEqual(report['preservedDirectedBOptions'], 2)
         self.assertEqual(report['explicitUnresolvedFinalSources'], 1)
         self.assertEqual(report['fullPhysicalRoadIdentityApproval'], 'NOT_VERIFIED')
@@ -54,6 +57,79 @@ class OriginalNativePhysicalRoadAuditTests(unittest.TestCase):
             self.assertEqual(branch['samePhysicalRoadAfterJunction'], 'NOT_VERIFIED')
         self.assertEqual(len(result['unresolvedSourceFinals']), 1)
         self.assertTrue(result['unresolvedSourceFinals'][0]['mustNotCreateConnection'])
+
+    def test_a_source_with_no_b_outgoing_turn_still_matches_original_b_road(self):
+        record = self.catalog['nativeDirectedRoadMatchesAtX'][1]
+        self.assertEqual(record['sourceFinalDirectedGraphId'], 442515258)
+        self.assertEqual(record['receiverDirectedRoadsAtX'][0]['receiverDirectedGraphId'],
+                         1885355834)
+        self.assertEqual(record['status'], 'NATIVE_DIRECTED_ROAD_MATCH_AT_X')
+        self.assertEqual(record['receiverDirectedRoadsAtX'][0]['receiverXPosition'], 'END_NODE')
+        self.assertFalse(record['productionRouteVerified'])
+        self.assertEqual(self.catalog['unresolvedSourceFinalEdges'][0]['reason'],
+                         'NO_ORIGINAL_B_NATIVE_ALLOWED_FORWARD_CONTINUATION')
+        self.assertEqual(audit(self.catalog,self.evidence)['originalBDirectRoadMatchCount'], 2)
+
+    def test_native_b_interior_projection_is_valid_without_a_next_edge(self):
+        # Generic geometry: X is inside B's original directed road, so the
+        # matching B edge itself is the receiving road, no next B turn needed.
+        source = self.catalog['connectionCandidates'][0]
+        native = self.evidence['sourceToReceiverCandidates'][0]
+        source['nativeBOriginalPredecessorGraphIds'] = []
+        native['correspondingBPredecessorAtXGraphIds'] = []
+        road = source['receiverOptions'][0]
+        road['receiverFirstDirectedGraphId'] = 6307642
+        road['nativeOriginalBPredecessorDirectedGraphIds'] = []
+        road['nativeCorrespondenceEvidence'] = 'VERIFIED_B_DIRECTED_INTERIOR_SOURCE_OVERLAP'
+        road['nativePhysicalBranchEvidence'] = 'INTERIOR_B_EDGE_OVERLAP_PHYSICAL_IDENTITY_UNVERIFIED'
+        for key in ('nativeReceiverStartGapMetres', 'nativeSameClassAsBPredecessor',
+                    'nativeSameUseAsBPredecessor', 'nativeSameStructureAsBPredecessor',
+                    'receiverNativeRoadClass', 'receiverNativeRoadUse',
+                    'receiverNativeLayer', 'receiverNativeBridge', 'receiverNativeTunnel'):
+            road.pop(key, None)
+        source['receiverOptions'] = [road]
+        native['receivingNativeDirectedContinuationOptions'] = [{
+            'receiverDirectedGraphId': 6307642,
+            'sharedVehicleModes': 1025,
+            'fromNativeBPredecessorGraphIds': [],
+            'status': 'VERIFIED_B_DIRECTED_INTERIOR_SOURCE_OVERLAP',
+            'originalPhysicalRoadIdentityStatus': 'NOT_VERIFIED',
+            'originalNativeBranchRelationshipEvidence':
+                'INTERIOR_B_EDGE_OVERLAP_PHYSICAL_IDENTITY_UNVERIFIED',
+        }]
+        raw = next(e for e in native['receiverDirectedCandidatesAtX']
+                   if e['receiverDirectedGraphId'] == 6307642)
+        raw['status'] = 'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP'
+        raw['receiverRemainingMetresAfterX'] = 22.
+        match = self.catalog['nativeDirectedRoadMatchesAtX'][0]['receiverDirectedRoadsAtX'][0]
+        match['nativeGeometryRelationship'] = 'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP'
+        match['receiverXPosition'] = 'INTERIOR'
+        self.catalog['counts']['nativeOriginalBDirectedOptions'] = 1
+        self.catalog['counts']['branchAttributeEvidenceCounts'] = {
+            'INTERIOR_B_EDGE_OVERLAP_PHYSICAL_IDENTITY_UNVERIFIED':1}
+        report = audit(self.catalog, self.evidence)
+        self.assertEqual(report['originalBDirectRoadMatchCount'], 2)
+        self.assertEqual(report['preservedDirectedBOptions'], 1)
+        self.assertEqual(report['originalASourcesWithNoDirectedBMatch'], 0)
+
+    def test_directed_road_match_cannot_be_suppressed_by_turn_diagnostics(self):
+        record = self.catalog['nativeDirectedRoadMatchesAtX'][1]
+        record['receiverDirectedRoadsAtX'] = []
+        record['status'] = 'NO_VERIFIED_DIRECTED_RECEIVER_ROAD_AT_X'
+        self.catalog['counts']['nativeBDirectedRoadMatchesAtX'] = 1
+        self.catalog['counts']['sourceFinalsWithMatchedBDirectedRoadAtX'] = 1
+        self.catalog['counts']['sourceFinalsWithoutMatchedBDirectedRoadAtX'] = 1
+        self.reject()
+
+    def test_directed_road_match_cannot_be_substituted_with_another_graphid(self):
+        record = self.catalog['nativeDirectedRoadMatchesAtX'][1]
+        record['receiverDirectedRoadsAtX'][0]['receiverDirectedGraphId'] = 6307642
+        self.reject()
+
+    def test_matched_directed_road_must_preserve_actual_vehicle_modes(self):
+        self.catalog['nativeDirectedRoadMatchesAtX'][0][
+            'receiverDirectedRoadsAtX'][0]['nativeCommonVehicleModes'] = 1024
+        self.reject()
 
     def test_rejects_removed_native_conditional_b_turns(self):
         record = self.catalog['connectionCandidates'][0]

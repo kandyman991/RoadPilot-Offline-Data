@@ -1779,6 +1779,59 @@ def native_modes_to_names(mode_bits: int) -> list[str]:
         ["motorcycle"] if mode_bits & 1024 else [])
 
 
+
+def verified_original_b_directed_roads_at_x(row: dict) -> list[dict]:
+    """Existing native A-approach/B-oriented-shape comparison, NOT B turn costing.
+
+    An original B road can end at X; the next B edge is not a prerequisite
+    for identifying its directed road at X. Keep the original B GraphId,
+    travel-mode access and X position for the route consumer to snap/route.
+    """
+    matches = {}
+    for edge in row['receiverDirectedCandidatesAtX']:
+        status = edge['status']
+        if status not in ('B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR',
+                          'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP'):
+            continue
+        for name in ('distanceXMetres', 'distanceSourceApproachMetres',
+                     'directedOverlapProgressMetres', 'receiverRemainingMetresAfterX'):
+            value = edge.get(name)
+            if type(value) not in (int, float) or not math.isfinite(value):
+                raise ValueError('Nonfinite original directed B road geometry at X')
+        if (edge['distanceXMetres'] > 0.75
+                or edge['distanceSourceApproachMetres'] > 0.75
+                or edge['directedOverlapProgressMetres'] < 1.0
+                or edge['sameLayerBridgeTunnel'] is not True):
+            raise ValueError('Original B directed road does not overlap A approach at X')
+        remaining = edge['receiverRemainingMetresAfterX']
+        if (status == 'B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR' and
+                remaining >= 1.0):
+            raise ValueError('Original B endpoint claim contradicts native geometry')
+        if status == 'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP' and remaining < 1.0:
+            raise ValueError('Original B interior claim contradicts native geometry')
+        mode_bits = edge['commonVehicleModes'] & row['sourceVehicleModes'] & 1025
+        if not mode_bits:
+            raise ValueError('Matched original B directed road lacks shared motorized access')
+        gid = edge['receiverDirectedGraphId']
+        if type(gid) is not int or gid <= 0 or gid in matches:
+            raise ValueError('Duplicate or invalid matched original B road GraphId')
+        matches[gid] = {
+            'receiverDirectedGraphId': gid,
+            'nativeGeometryRelationship': status,
+            'receiverXPosition': ('END_NODE' if remaining < 1.0 else 'INTERIOR'),
+            'nativeCommonVehicleModes': mode_bits,
+            'distanceXMetres': edge['distanceXMetres'],
+            'directedApproachOverlapMetres': edge['directedOverlapProgressMetres'],
+            'receiverNativeRoadClass': edge['receiverNativeRoadClass'],
+            'receiverNativeRoadUse': edge['receiverNativeRoadUse'],
+            'receiverNativeLayer': edge['receiverNativeLayer'],
+            'receiverNativeBridge': edge['receiverNativeBridge'],
+            'receiverNativeTunnel': edge['receiverNativeTunnel'],
+            'productionRouteVerified': False,
+        }
+    return [matches[gid] for gid in sorted(matches)]
+
+
 def build_nonpublishing_native_handoff_catalog(evidence: dict) -> dict:
     """Data-only D-017 candidate/exception ledger from native A→exact X→B.
 
@@ -1827,6 +1880,7 @@ def build_nonpublishing_native_handoff_catalog(evidence: dict) -> dict:
         raise ValueError('Missing or duplicate original source candidates/roots')
     candidate_rows = []
     unresolved_rows = []
+    road_matches = []
     branch_classes = {}
     for gid in sorted(ids):
         row = by_id[gid]
@@ -1850,6 +1904,19 @@ def build_nonpublishing_native_handoff_catalog(evidence: dict) -> dict:
                   'sourceNativeTunnel': row['sourceNativeTunnel'],
                   'receiverCorrelationStatus': row['receiverCorrelationStatus'],
                   'sourcePhysicalRoadIdentity': 'NOT_VERIFIED'}
+        # The primary A -> X -> B association uses the directed original B
+        # road ALREADY aligned with A's approach at X. B successors below
+        # remain optional diagnostic turning evidence, NOT a match gate.
+        matched_roads = verified_original_b_directed_roads_at_x(row)
+        road_matches.append({
+            'sourceFinalDirectedGraphId': gid,
+            'sourceFinalCoordinate': source['sourceFinalCoordinate'],
+            'sourceValhallaProvedModes': modes,
+            'receiverDirectedRoadsAtX': matched_roads,
+            'status': ('NATIVE_DIRECTED_ROAD_MATCH_AT_X' if matched_roads
+                       else 'NO_VERIFIED_DIRECTED_RECEIVER_ROAD_AT_X'),
+            'productionRouteVerified': False,
+        })
         options = row['receivingNativeDirectedContinuationOptions']
         if len({o['receiverDirectedGraphId'] for o in options}) != len(options):
             raise ValueError('Duplicate same-physical-node B original directed option')
@@ -1963,12 +2030,22 @@ def build_nonpublishing_native_handoff_catalog(evidence: dict) -> dict:
         'androidFullJourneyAcceptance':'NOT_RUN',
         'productionPublication':'BLOCKED',
         'counts':{'eligibleSourceFinals':len(ids),
+                  'sourceFinalsWithMatchedBDirectedRoadAtX':
+                      sum(bool(r['receiverDirectedRoadsAtX']) for r in road_matches),
+                  'sourceFinalsWithoutMatchedBDirectedRoadAtX':
+                      sum(not r['receiverDirectedRoadsAtX'] for r in road_matches),
+                  'nativeBDirectedRoadMatchesAtX':
+                      sum(len(r['receiverDirectedRoadsAtX']) for r in road_matches),
                   'candidateSourcesWithBOptions':len(candidate_rows),
                   'unresolvedEligibleSourceFinals':len(unresolved_rows),
                   'nativeOriginalBDirectedOptions':sum(len(c['receiverOptions'])
                                                        for c in candidate_rows),
                   'branchAttributeEvidenceCounts':branch_classes,
                   'originalSourceCutRootsNotLinkedWithinBoundedScope':len(unknown_roots)},
+        # THIS is the build-time directed-road matching contract; the
+        # previous candidate/exception partition below is *only* B
+        # continuation evidence kept for backward-compatible diagnostics.
+        'nativeDirectedRoadMatchesAtX':road_matches,
         'connectionCandidates':candidate_rows,
         'unresolvedSourceFinalEdges':unresolved_rows,
         'unresolvedOriginalCutRootLineageGraphIds':sorted(unknown_roots)}
@@ -2126,7 +2203,7 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
         result['approvedBoundaryExteriorTerminalInventory'] = outer_inventory
         exterior_ids = set(outer_inventory['allPairBoundaryOuterTerminalGraphIds'])
         result['approvedBoundaryExteriorBMatchedCount'] = sum(
-            bool(c['receivingNativeDirectedContinuationOptions']) for c in
+            bool(verified_original_b_directed_roads_at_x(c)) for c in
             result['sourceToReceiverCandidates'] if c['sourceFinalDirectedGraphId']
             in exterior_ids)
     # No new source search: exact original A cutoff-root coverage accounting

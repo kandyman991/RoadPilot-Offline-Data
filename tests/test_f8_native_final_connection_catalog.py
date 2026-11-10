@@ -66,6 +66,25 @@ def sample_evidence():
                'x':{'lat':45.0002,'lon':10.0002},
                'receiverCorrelationStatus':'NO_PROVEN_B_NATIVE_OUTGOING_AFTER_X',
                'receivingNativeDirectedContinuationOptions':[]}
+    # The 3 B incoming directed physical roads all align at X, regardless
+    # of whether native B successor costing confirms any onward turn.
+    for row, bid in ((good, 99), (bad, 98), (nothing, 97)):
+        row['correspondingBPredecessorAtXGraphIds'] = [bid]
+        row['receiverDirectedCandidatesAtX'] = [{
+            'receiverDirectedGraphId': bid,
+            'status': 'B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR',
+            'distanceXMetres': 0.03,
+            'distanceSourceApproachMetres': 0.0,
+            'directedOverlapProgressMetres': 20.0,
+            'receiverRemainingMetresAfterX': 0.0,
+            'sameLayerBridgeTunnel': True,
+            'commonVehicleModes': 1025,
+            'receiverNativeRoadClass': 6,
+            'receiverNativeRoadUse': 0,
+            'receiverNativeLayer': 0,
+            'receiverNativeBridge': False,
+            'receiverNativeTunnel': False,
+        }]
     return {
         'schema':'roadpilot.f8-paired-native-receiver-correlation-evidence',
         'schemaVersion':1,'productionPublication':'BLOCKED',
@@ -129,6 +148,17 @@ class NativeFinalConnectionCatalogTests(unittest.TestCase):
         self.assertFalse(catalog['receiverMatchingComplete'])
         self.assertEqual(catalog['androidFullJourneyAcceptance'],'NOT_RUN')
         self.assertEqual(catalog['counts']['eligibleSourceFinals'],3)
+        self.assertEqual(catalog['counts']['sourceFinalsWithMatchedBDirectedRoadAtX'],3)
+        self.assertEqual(catalog['counts']['sourceFinalsWithoutMatchedBDirectedRoadAtX'],0)
+        self.assertEqual(catalog['counts']['nativeBDirectedRoadMatchesAtX'],3)
+        self.assertEqual(
+            [(r['sourceFinalDirectedGraphId'],
+              r['receiverDirectedRoadsAtX'][0]['receiverDirectedGraphId'])
+             for r in catalog['nativeDirectedRoadMatchesAtX']],
+            [(101,99),(102,98),(103,97)])
+        self.assertTrue(all(r['status']=='NATIVE_DIRECTED_ROAD_MATCH_AT_X'
+                            and not r['productionRouteVerified']
+                            for r in catalog['nativeDirectedRoadMatchesAtX']))
         self.assertEqual(catalog['counts']['candidateSourcesWithBOptions'],1)
         self.assertEqual(catalog['counts']['unresolvedEligibleSourceFinals'],2)
         self.assertEqual(catalog['counts']['nativeOriginalBDirectedOptions'],2)
@@ -148,6 +178,55 @@ class NativeFinalConnectionCatalogTests(unittest.TestCase):
         self.assertTrue(all(row['mustNotCreateConnection']
                             for row in catalog['unresolvedSourceFinalEdges']))
         self.assertNotIn('originalReceiverValhallaTripLeg',json.dumps(catalog))
+
+    def test_outgoing_turns_do_not_gate_original_directed_road_match(self):
+        evidence = sample_evidence()
+        evidence['sourceToReceiverCandidates'][0][
+            'receivingNativeDirectedContinuationOptions'] = []
+        evidence['sourceToReceiverCandidates'][0][
+            'receiverCorrelationStatus'] = 'NO_PROVEN_B_NATIVE_OUTGOING_AFTER_X'
+        catalog = build_nonpublishing_native_handoff_catalog(evidence)
+        self.assertEqual(catalog['counts']['candidateSourcesWithBOptions'], 0)
+        self.assertEqual(catalog['counts']['sourceFinalsWithMatchedBDirectedRoadAtX'], 3)
+        self.assertEqual(catalog['counts']['nativeBDirectedRoadMatchesAtX'], 3)
+        self.assertEqual(catalog['nativeDirectedRoadMatchesAtX'][0][
+            'receiverDirectedRoadsAtX'][0]['receiverDirectedGraphId'], 99)
+        self.assertEqual(catalog['productionPublication'], 'BLOCKED')
+
+    def test_wrong_direction_or_nearby_geometry_is_not_matched(self):
+        for bad_status in ('REJECTED_OPPOSITE_DIRECTED_SHAPE',
+                           'UNRESOLVED_NO_DIRECTED_SOURCE_OVERLAP'):
+            evidence = sample_evidence()
+            evidence['sourceToReceiverCandidates'][1][
+                'receiverDirectedCandidatesAtX'][0]['status'] = bad_status
+            catalog = build_nonpublishing_native_handoff_catalog(evidence)
+            self.assertEqual(catalog['counts']['sourceFinalsWithMatchedBDirectedRoadAtX'], 2)
+            self.assertEqual(catalog['counts']['sourceFinalsWithoutMatchedBDirectedRoadAtX'], 1)
+            self.assertEqual(catalog['nativeDirectedRoadMatchesAtX'][1][
+                'receiverDirectedRoadsAtX'], [])
+
+    def test_outgoing_turn_does_not_cause_false_road_match_on_wrong_way_b(self):
+        evidence = sample_evidence()
+        # Old logic would classify source 101 as "matched" because B has two
+        # legal outgoing turns, even though the incoming B edge is wrong-way.
+        evidence['sourceToReceiverCandidates'][0]['receiverDirectedCandidatesAtX'][0][
+            'status'] = 'REJECTED_OPPOSITE_DIRECTED_SHAPE'
+        catalog = build_nonpublishing_native_handoff_catalog(evidence)
+        self.assertEqual(catalog['counts']['candidateSourcesWithBOptions'], 1)
+        self.assertEqual(catalog['counts']['sourceFinalsWithMatchedBDirectedRoadAtX'], 2)
+        self.assertEqual(catalog['nativeDirectedRoadMatchesAtX'][0]['status'],
+                         'NO_VERIFIED_DIRECTED_RECEIVER_ROAD_AT_X')
+        self.assertEqual(catalog['productionPublication'], 'BLOCKED')
+
+    def test_original_b_interior_projection_requires_no_next_edge(self):
+        evidence = sample_evidence()
+        raw = evidence['sourceToReceiverCandidates'][2]['receiverDirectedCandidatesAtX'][0]
+        raw['status'] = 'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP'
+        raw['receiverRemainingMetresAfterX'] = 25.0
+        ledger = build_nonpublishing_native_handoff_catalog(evidence)
+        match = ledger['nativeDirectedRoadMatchesAtX'][2]['receiverDirectedRoadsAtX'][0]
+        self.assertEqual(match['receiverXPosition'], 'INTERIOR')
+        self.assertEqual(match['receiverDirectedGraphId'], 97)
 
     def test_catalog_rejects_incomplete_coverage_or_unproven_original_sources(self):
         for change in (

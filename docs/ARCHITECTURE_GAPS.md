@@ -202,3 +202,15 @@ pass versioned JSON schema on Legion; 285 earlier unlinked original
 source-cut root observations preserved separately. No Android consumer
 compatibility, real JNI journey or enabled build/publisher — catalog remains
 BLOCKED. Evidence: `docs/F8_PR127_NATIVE_FINAL_CONNECTION_CATALOG_20261109.md`.
+
+
+**2026-11-10 PR #127 outgoing-turn correction (G-F8-06 remains OPEN):**
+The existing native original A approach / B directed-geometry matching identifies
+707/707 eligible pair-scoped native original A external directed finals with distinct
+original B directed road GraphIds at exact X on the Italy NE/Austria originals.
+Old 420/287 figures described subsequent native B outgoing-turn availability, not
+presence/absence of the corresponding B road. Source final-edge records now include
+first-class B directed road matches independent of successor availability. This
+closes the false B-connection matching gate, **not** complete semantic source-cut
+physical-road lineage, normal Android routing adoption, or READY publication.
+See docs/F8_PR127_DIRECTED_ROAD_MATCH_CORRECTION_20261110.md.

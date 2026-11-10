@@ -50,8 +50,19 @@ def original_native_incoming_at_x(row: dict) -> dict[int, dict]:
         accepted[gid] = entry
     # This equality also catches a source incorrectly labelled as an excluded
     # dead end merely because its B approach was silently suppressed.
-    if not accepted or set(accepted) != set(row['correspondingBPredecessorAtXGraphIds']):
-        fail("Native original B predecessor IDs and A-overlapping directed geometry differ")
+    # X may be inside a single original B edge instead of at the end of
+    # an original B predecessor: either geometry representation is valid.
+    interior = [
+        entry for entry in row['receiverDirectedCandidatesAtX']
+        if (entry['status'] == 'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP'
+            and entry['distanceXMetres'] <= 0.75
+            and entry['distanceSourceApproachMetres'] <= 0.75
+            and entry['directedOverlapProgressMetres'] >= 1.0
+            and entry['receiverRemainingMetresAfterX'] >= 1.0
+            and entry['sameLayerBridgeTunnel'])
+    ]
+    if (not accepted and not interior) or set(accepted) != set(row['correspondingBPredecessorAtXGraphIds']):
+        fail("Native original B predecessor/interior directional road identities at X disagree")
     return accepted
 
 
@@ -248,17 +259,24 @@ def audit(catalog: dict, evidence: dict) -> dict:
                 fail("Native physical-branch descriptor changed")
             if option['nativeOriginalBPredecessorDirectedGraphIds'] != original['fromNativeBPredecessorGraphIds']:
                 fail("Original B predecessor changed")
-            if abs(option['nativeReceiverStartGapMetres'] -
-                   original['nativeReceiverStartGapMetres']) > 0.000001:
-                fail("B original X entry moved")
-            if option['nativeReceiverStartGapMetres'] > 0.75:
-                fail("B original directed edge does not start at X")
+            is_interior = (original['status'] ==
+                           'VERIFIED_B_DIRECTED_INTERIOR_SOURCE_OVERLAP')
+            if is_interior:
+                if (option['nativeOriginalBPredecessorDirectedGraphIds']
+                        or original['originalNativeBranchRelationshipEvidence'] !=
+                            'INTERIOR_B_EDGE_OVERLAP_PHYSICAL_IDENTITY_UNVERIFIED'):
+                    fail("B original interior road identity incorrectly represented as a successor")
+            else:
+                if (abs(option['nativeReceiverStartGapMetres'] -
+                        original['nativeReceiverStartGapMetres']) > 0.000001
+                        or option['nativeReceiverStartGapMetres'] > 0.75):
+                    fail("B original successor entry point moved away from X")
             for field in ('receiverNativeRoadClass', 'receiverNativeRoadUse',
                           'receiverNativeLayer', 'receiverNativeBridge',
                           'receiverNativeTunnel', 'nativeSameClassAsBPredecessor',
                           'nativeSameUseAsBPredecessor',
                           'nativeSameStructureAsBPredecessor'):
-                if option[field] != original[field]:
+                if option.get(field) != original.get(field):
                     fail("B original native attribute mismatch: " + field)
             if option['nativeCorrespondenceEvidence'] != original['status']:
                 fail("Native B directional/turn status changed")
@@ -278,8 +296,21 @@ def audit(catalog: dict, evidence: dict) -> dict:
         for option in candidate['receiverOptions']:
             if not set(option['nativeOriginalBPredecessorDirectedGraphIds']) <= set(incoming):
                 fail("Receiver continuation is not attached to independently verified B incoming physical approach")
-            if option['nativeCorrespondenceEvidence'] != 'VERIFIED_B_ORIGINAL_SAME_NODE_LEGAL_BRANCH':
-                fail("Unverified original B outgoing relation")
+            if option['nativeCorrespondenceEvidence'] == 'VERIFIED_B_ORIGINAL_SAME_NODE_LEGAL_BRANCH':
+                if not option['nativeOriginalBPredecessorDirectedGraphIds']:
+                    fail("B successor turn without native B predecessor")
+            elif option['nativeCorrespondenceEvidence'] == 'VERIFIED_B_DIRECTED_INTERIOR_SOURCE_OVERLAP':
+                if (option['nativeOriginalBPredecessorDirectedGraphIds']
+                        or not any(
+                          raw['receiverDirectedGraphId'] == option['receiverFirstDirectedGraphId']
+                          and raw['status'] == 'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP'
+                          and raw['sameLayerBridgeTunnel']
+                          and raw['distanceXMetres'] <= 0.75
+                          and raw['directedOverlapProgressMetres'] >= 1
+                          for raw in row['receiverDirectedCandidatesAtX'])):
+                    fail("B interior directed edge was not independently matched at X")
+            else:
+                fail("Unverified original B directed road relationship")
         # Preserve the original Valhalla motorized access mask per branch,
         # rather than copying a source or sibling branch's access rights.
         for oid, option in published.items():
@@ -363,7 +394,84 @@ def audit(catalog: dict, evidence: dict) -> dict:
                 'PAIR_SHARED_OUTER_CUTOFF_TILES_ONLY' or
             native_inventory.get('wholeGraphCensusPerformed') is not False):
         fail("Catalog source IDs do not exactly match independent bounded native A terminal census")
+    # Primary A -> exact X -> directed B road correspondence. This MUST
+    # include every original A terminal regardless of whether the B matching
+    # road has a statically allowed outgoing successor at X.
+    primary = catalog.get('nativeDirectedRoadMatchesAtX')
+    if not isinstance(primary, list):
+        fail('Missing outgoing-turn-independent original B directed-road matches')
+    matched_sources = set()
+    matched_b_roads = set()
+    total_roads = 0
+    for record in primary:
+        sid = record['sourceFinalDirectedGraphId']
+        if sid not in source_ids or sid in matched_sources:
+            fail('Duplicate or invented original A primary directed-road match')
+        matched_sources.add(sid)
+        native = by_source[sid]
+        if (record['sourceFinalCoordinate'] !=
+                {'lat':native['x']['lat'],'lng':native['x']['lon']}
+                or set(record['sourceValhallaProvedModes']) !=
+                   {name for bit,name in ((1,'auto'),(1024,'motorcycle'))
+                    if native['sourceVehicleModes'] & bit}
+                or record['productionRouteVerified'] is not False):
+            fail('Primary original A GraphId, X, modes or publication evidence changed')
+        observed = {}
+        for entry in native['receiverDirectedCandidatesAtX']:
+            if entry['status'] not in (
+                    'B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR',
+                    'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP'):
+                continue
+            if (entry['distanceXMetres'] > 0.75
+                    or entry['distanceSourceApproachMetres'] > 0.75
+                    or entry['directedOverlapProgressMetres'] < 1.0
+                    or not entry['sameLayerBridgeTunnel']):
+                fail('Native B approach geometry cannot support matched road')
+            gid = entry['receiverDirectedGraphId']
+            if gid in observed:
+                fail('Duplicate original B directed native match')
+            observed[gid] = entry
+        reported = record['receiverDirectedRoadsAtX']
+        if (len(reported) != len({r['receiverDirectedGraphId'] for r in reported})
+                or {r['receiverDirectedGraphId'] for r in reported} != set(observed)
+                or record['status'] != (
+                    'NATIVE_DIRECTED_ROAD_MATCH_AT_X' if observed
+                    else 'NO_VERIFIED_DIRECTED_RECEIVER_ROAD_AT_X')):
+            fail('Original B directed physical road was omitted or falsely matched')
+        for r in reported:
+            gid = r['receiverDirectedGraphId']
+            e = observed[gid]
+            expected_position = ('END_NODE' if
+                e['receiverRemainingMetresAfterX'] < 1.0 else 'INTERIOR')
+            if (r['receiverXPosition'] != expected_position
+                    or r['nativeGeometryRelationship'] != e['status']
+                    or r['nativeCommonVehicleModes'] !=
+                        (e['commonVehicleModes'] & native['sourceVehicleModes'] & 1025)
+                    or abs(r['distanceXMetres'] - e['distanceXMetres']) > 1e-9
+                    or abs(r['directedApproachOverlapMetres'] -
+                           e['directedOverlapProgressMetres']) > 1e-9
+                    or r['productionRouteVerified'] is not False):
+                fail('Original B road snapping geometry, direction, modes or evidence was altered')
+            for attr in ('receiverNativeRoadClass','receiverNativeRoadUse',
+                         'receiverNativeLayer','receiverNativeBridge',
+                         'receiverNativeTunnel'):
+                if r[attr] != e[attr]:
+                    fail('Original B directed physical road identity/structure was altered')
+            # Never deduplicate distinct A final edges based on name or road
+            # attributes. A duplicate B incoming directed ID is a real conflict.
+            if gid in matched_b_roads:
+                fail('Original B incoming road claimed by multiple source finals')
+            matched_b_roads.add(gid)
+            total_roads += 1
+    if matched_sources != source_ids:
+        fail('A native source final was missing from the directed road match records')
     counts = catalog['counts']
+    if (counts.get('sourceFinalsWithMatchedBDirectedRoadAtX') !=
+            sum(bool(r['receiverDirectedRoadsAtX']) for r in primary)
+            or counts.get('sourceFinalsWithoutMatchedBDirectedRoadAtX') !=
+            sum(not r['receiverDirectedRoadsAtX'] for r in primary)
+            or counts.get('nativeBDirectedRoadMatchesAtX') != total_roads):
+        fail('Primary directed road matching counts changed or omitted')
     if (len(source_ids) != counts['eligibleSourceFinals']
             or len(catalog['connectionCandidates']) != counts['candidateSourcesWithBOptions']
             or len(unresolved) != counts['unresolvedEligibleSourceFinals']
@@ -391,6 +499,10 @@ def audit(catalog: dict, evidence: dict) -> dict:
         'pairId': catalog['pairId'],
         'originalArchiveFingerprints': catalog['graphFingerprints'],
         'eligibleOriginalSourceFinals': len(source_ids),
+        'originalASourceFinalsEvaluatedForDirectRoadMatching': len(primary),
+        'originalBDirectRoadMatchCount': total_roads,
+        'originalASourcesWithNoDirectedBMatch':
+            counts['sourceFinalsWithoutMatchedBDirectedRoadAtX'],
         'verifiedNativeAOriginalBDirectedIncomingAtExactX': len(source_ids),
         'originalBDirectedIncomingIdentityUniqueAcrossASources': True,
         'distinctOriginalBIncomingDirectedGraphIds': len(predecessor_owner),
