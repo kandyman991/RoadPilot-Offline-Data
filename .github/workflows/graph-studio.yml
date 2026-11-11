@@ -107,6 +107,29 @@ jobs:
           echo "GRAPH_STUDIO_DEB=$DEB" >> "$GITHUB_ENV"
           ls -lh "$APPIMAGE" "$DEB"
 
+      # One-off device installation from reviewed PR code: never publish or
+      # update the rolling Linux release or R2 release pointers.
+      - name: Capture local AppImage acceptance package checksums
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "build_commit=$GITHUB_SHA" > legion-appimage-python-provenance.txt
+          echo "source_commit=$(git rev-parse HEAD^)" >> legion-appimage-python-provenance.txt
+          sha256sum "$GRAPH_STUDIO_APPIMAGE" "$GRAPH_STUDIO_DEB" >> legion-appimage-python-provenance.txt
+
+      - name: Export local acceptance packages (manual only)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: graph-studio-appimage-python-acceptance
+          path: |
+            legion-appimage-python-provenance.txt
+            graph-studio/src-tauri/target/release/bundle/appimage/*.AppImage
+            graph-studio/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Publish rolling Graph Studio Linux release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         shell: bash
