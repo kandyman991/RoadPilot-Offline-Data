@@ -31,6 +31,21 @@ class NativeAutoCatalogTest(unittest.TestCase):
         self.assertNotIn("producerEvidence", r)
         self.assertEqual("END_NODE", r["connections"][0]["receiverDirectedRoadsAtX"][0]["receiverXPosition"])
 
+    def test_multiple_receiver_branches_survive_into_auto_catalog(self):
+        preflight = self.sample()
+        extra = copy.deepcopy(
+            preflight["nativeDirectedApproachesForReviewOnly"][0]["receiverDirectedRoadsAtX"][0]
+        )
+        extra["receiverDirectedGraphId"] = 204
+        preflight["nativeDirectedApproachesForReviewOnly"][0]["receiverDirectedRoadsAtX"].append(extra)
+        preflight["counts"]["nativeDirectedBIncomingPhysicalRoadMatches"] = 3
+        result = build(preflight, PRE_SHA)
+        self.assertEqual(2, result["counts"]["sourceConnections"])
+        self.assertEqual(3, result["counts"]["receiverIncomingRoads"])
+        self.assertEqual([202, 204], [road["receiverDirectedGraphId"]
+            for road in result["connections"][0]["receiverDirectedRoadsAtX"]])
+        self.assertEqual("BLOCKED_TEST_ONLY", result["publication"])
+
     def test_untrusted_or_malformed_preflight_sha_cannot_be_provenance(self):
         for invalid in (
             "sha256:" + "Z" * 64,

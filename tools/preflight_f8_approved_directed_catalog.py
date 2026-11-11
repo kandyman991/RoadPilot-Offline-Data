@@ -187,9 +187,13 @@ def reconcile(
                 row["mustNotPublishAsReady"] is True for row in dispositions),
             "Unexpected approval/completeness change: require new independently reviewed proof")
 
+    # More than one native B incoming road can legitimately match a source A
+    # final at the same X.  The disposition count measures matched A approaches;
+    # the catalog and independent audit count every distinct B directed road.
+    # Never assume those totals are equal or drop genuine receiver branches.
     require(len(seen_b) == catalog["counts"]["nativeBDirectedRoadMatchesAtX"] ==
-            d["counts"]["nativeBMatchedIncomingAApproaches"] ==
-            len(native_rows),
+            a["originalBDirectRoadMatchCount"] and
+            d["counts"]["nativeBMatchedIncomingAApproaches"] == len(native_rows),
             "Original B directed match count mismatch")
 
     # Always nonpublishing. No approval, READY flag, B outgoing dependency,

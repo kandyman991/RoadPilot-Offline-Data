@@ -62,6 +62,7 @@ def fixtures():
         "originalBIncomingApproachReadbackVerified": True,
         "eligibleOriginalSourceFinals": 2,
         "verifiedNativeAOriginalBDirectedIncomingAtExactX": 2,
+        "originalBDirectRoadMatchCount": 2,
         "fullPhysicalRoadIdentityApproval": "NOT_VERIFIED",
     }
     for offset, mode_mask in ((0, 1025), (1, 1024)):
@@ -139,6 +140,30 @@ class ApprovedCatalogPreflightTest(unittest.TestCase):
         c, d, a = fixtures()
         c["nativeDirectedRoadMatchesAtX"][0]["sourceFinalCoordinate"]["lat"] += 0.1
         self.assert_denied(c, d, a, "exact X disagrees")
+
+    def test_multiple_distinct_receiver_roads_are_preserved_per_source(self):
+        c, d, a = fixtures()
+        # A single source final can match several B directed incoming roads at
+        # the same X.  Source counts and B-road counts are independent.
+        second = copy.deepcopy(c["nativeDirectedRoadMatchesAtX"][0]["receiverDirectedRoadsAtX"][0])
+        second["receiverDirectedGraphId"] = 204
+        c["nativeDirectedRoadMatchesAtX"][0]["receiverDirectedRoadsAtX"].append(second)
+        c["counts"]["nativeBDirectedRoadMatchesAtX"] = 3
+        a["originalBDirectRoadMatchCount"] = 3
+        disposition = d["nativeOriginalASourceFinalDispositions"][0]
+        disposition["nativeBIncomingDirectedGraphIds"].append(204)
+        disposition["nativeBIncomingDirectedOverlapMetres"]["204"] = 25.0
+        report = check(c, d, a)
+        self.assertEqual(2, report["counts"]["independentlyReconciledOriginalASourceFinals"])
+        self.assertEqual(3, report["counts"]["nativeDirectedBIncomingPhysicalRoadMatches"])
+        self.assertEqual(
+            [202, 204],
+            [r["receiverDirectedGraphId"]
+             for r in report["nativeDirectedApproachesForReviewOnly"][0]["receiverDirectedRoadsAtX"]]
+        )
+        # A forged total cannot hide a missing or invented native B option.
+        a["originalBDirectRoadMatchCount"] = 2
+        self.assert_denied(c, d, a, "directed match count mismatch")
 
     def test_receiver_missing_swapped_or_duplicated_fails(self):
         c, d, a = fixtures()
