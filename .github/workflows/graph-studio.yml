@@ -107,6 +107,35 @@ jobs:
           echo "GRAPH_STUDIO_DEB=$DEB" >> "$GITHUB_ENV"
           ls -lh "$APPIMAGE" "$DEB"
 
+      # One-time, owner-only draft transfer. Never touch public rolling
+      # releases, R2 catalog publishing, or Android READY metadata.
+      - name: Transfer acceptance AppImage to private draft-only QA release
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="graph-studio-pr131-appimage-qa-20261111"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Refusing to overwrite a preexisting release: $TAG" >&2
+            exit 1
+          fi
+          cp "$GRAPH_STUDIO_APPIMAGE" "$RUNNER_TEMP/RoadPilot-Graph-Studio-PR131.AppImage"
+          cp "$GRAPH_STUDIO_DEB" "$RUNNER_TEMP/RoadPilot-Graph-Studio-PR131.deb"
+          {
+            echo "qa_build_commit=$GITHUB_SHA"
+            echo "source_fix_commit=$(git rev-parse HEAD^)"
+            (cd "$RUNNER_TEMP" && sha256sum RoadPilot-Graph-Studio-PR131.AppImage RoadPilot-Graph-Studio-PR131.deb)
+          } > "$RUNNER_TEMP/pr131-provenance.txt"
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
+            --title "Graph Studio PR131 PRIVATE QA DRAFT — DO NOT PUBLISH" \
+            --notes "Temporary owner-only artifact for Legion AppImage Python acceptance. Not a production release, not an R2 catalog and not Android release metadata. Delete this draft after on-device validation." \
+            "$RUNNER_TEMP/RoadPilot-Graph-Studio-PR131.AppImage" \
+            "$RUNNER_TEMP/RoadPilot-Graph-Studio-PR131.deb" \
+            "$RUNNER_TEMP/pr131-provenance.txt"
+
       - name: Publish rolling Graph Studio Linux release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         shell: bash
