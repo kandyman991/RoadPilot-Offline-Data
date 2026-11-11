@@ -20,19 +20,39 @@ even when the Geofabrik CLI runs successfully outside the AppImage.
 The build queue remains disabled because the embedded Python toolchain
 prerequisite check reports incomplete.
 
+### Second AppImage environment leak — host dynamic libraries
+
+In a direct isolated launch with only PYTHONHOME/PYTHONPATH cleaned,
+Geofabrik loads, the existing region editor works, and Build selected
+enables correctly. However Native F8 → Inspect pair still reports
+`pip upgrade failed`. The real stderr identifies a separate collision:
+
+    /usr/bin/uname: .../squashfs-root/usr/lib/libsystemd.so.0:
+      version `LIBSYSTEMD_254' not found (required by /usr/bin/uname)
+
+pip's distro detection launches `uname -rs`. The GUI needs its bundled
+`LD_LIBRARY_PATH`, but host Python, Valhalla, and other host CLI tools
+must not inherit those bundled native libraries. The same `uname -rs`
+command succeeds with AppImage LD_LIBRARY_PATH removed.
+
 ## Fix and safety scope
 
 At Tauri initialization, strip `PYTHONHOME` only when it points inside
 the current `APPDIR`. Strip only paths under the same `APPDIR` from
 `PYTHONPATH`; preserve legitimate external user Python module paths.
-Non-AppImage sessions are untouched, and the routing graph, Android
-handoffs, on-disk build packages, user configs, release metadata and R2
-publication commands are unchanged.
+For every **host CLI subprocess only**, strip AppImage-owned
+`LD_LIBRARY_PATH` entries while preserving user external library paths.
+**Do not remove GUI-process LD_LIBRARY_PATH**: WebKit still needs the
+bundled libraries. Non-AppImage sessions are untouched, and routing
+architecture, graph data, Android handoffs, configs, release metadata
+and R2 publication commands are unchanged.
 
 ## Regression and acceptance
 
 - Rust tests: AppImage-only `PYTHONPATH` is removed; unrelated entries
-  survive; lexical sibling-prefix paths are not removed.
+  survive; lexical sibling-prefix paths are not removed; bundled native
+  library dirs are removed only from host child environments while real
+  external LD paths survive.
 - 490 Python tests passed on Legion before and after the source-only fix.
 - For the real packaged AppImage, rerun the UI accessibility audit:
   the Geofabrik catalog must load, the existing region editor must open,

@@ -210,7 +210,7 @@ fn f8_command(app: &AppHandle, operation: &str, from_region: &str,
     let script = pipeline_root(app)?.join("tools/graph_studio_f8_workspace.py");
     if !script.is_file() { return Err("Bundled native F8 workspace engine is missing.".into()); }
     let root = workspace_root(app)?;
-    let mut command = Command::new(python);
+    let mut command = host_command(python);
     command.arg("-u").arg(script).arg(operation)
         .arg("--workspace").arg(root)
         .arg("--from-manifest").arg(from)
@@ -334,7 +334,7 @@ fn f8_start_workflow(app: AppHandle, state: State<'_, F8WorkflowState>,
                     Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
                 }
                 if owned.cancel.load(Ordering::SeqCst) {
-                    let _ = Command::new("kill").args(["-TERM", "--", &format!("-{}",child.id())]).status();
+                    let _ = host_command("kill").args(["-TERM", "--", &format!("-{}",child.id())]).status();
                     let _=child.kill();
                 }
             }
@@ -366,7 +366,7 @@ fn f8_cancel_workflow(state: State<'_, F8WorkflowState>) -> Result<(),String> {
     }
     state.cancel.store(true,Ordering::SeqCst);
     if let Some(pid)=*state.pid.lock().map_err(|_|"F8 PID lock poisoned")? {
-        let _=Command::new("kill").args(["-TERM", "--", &format!("-{pid}")]).status();
+        let _=host_command("kill").args(["-TERM", "--", &format!("-{pid}")]).status();
     }
     Ok(())
 }
@@ -506,7 +506,7 @@ fn route_service_executable() -> PathBuf {
 
 fn pyvalhalla_native_bin_dir() -> Option<PathBuf> {
     let launcher = executable_path("valhalla_service")?;
-    let output = Command::new(&launcher).arg("--version").output().ok()?;
+    let output = host_command(&launcher).arg("--version").output().ok()?;
     let mut text = String::from_utf8_lossy(&output.stdout).to_string();
     text.push_str(&String::from_utf8_lossy(&output.stderr));
 
@@ -540,7 +540,7 @@ fn pyvalhalla_native_bin_dir() -> Option<PathBuf> {
 // make host Python fail before it can import the standard-library "encodings"
 // module. Remove only paths belonging to this AppImage, preserving unrelated
 // user-provided PYTHONPATH entries.
-fn external_python_paths(appdir: &Path, pythonpath: &std::ffi::OsStr) -> Option<std::ffi::OsString> {
+fn paths_outside_appimage(appdir: &Path, pythonpath: &std::ffi::OsStr) -> Option<std::ffi::OsString> {
     let kept: Vec<PathBuf> = env::split_paths(pythonpath)
         .filter(|path| !path.as_os_str().is_empty() && !path.starts_with(appdir))
         .collect();
@@ -559,12 +559,40 @@ fn normalize_appimage_python_environment() {
 
     if let Some(path) = env::var_os("PYTHONPATH") {
         if env::split_paths(&path).any(|entry| entry.starts_with(&appdir)) {
-            match external_python_paths(&appdir, &path) {
+            match paths_outside_appimage(&appdir, &path) {
                 Some(paths) => env::set_var("PYTHONPATH", paths),
                 None => env::remove_var("PYTHONPATH"),
             }
         }
     }
+}
+
+// Keep AppImage shared libraries for Tauri/WebKit itself, but NEVER pass
+// those bundled libraries to host CLI tools. On the Legion, /usr/bin/uname
+// fails with LIBSYSTEMD_254 not found when it inherits AppImage's older
+// libsystemd.so.0; pip queries uname and consequently aborts. Filtering the
+// child process only preserves WebKit and all native GUI dependencies.
+pub(crate) fn host_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    let mut command = Command::new(program);
+    let Some(appdir) = env::var_os("APPDIR").map(PathBuf::from) else { return command; };
+    if !appdir.is_absolute() { return command; }
+
+    if let Some(home) = env::var_os("PYTHONHOME") {
+        if env::split_paths(&home).any(|path| path.starts_with(&appdir)) {
+            command.env_remove("PYTHONHOME");
+        }
+    }
+    for key in ["PYTHONPATH", "LD_LIBRARY_PATH"] {
+        if let Some(value) = env::var_os(key) {
+            if env::split_paths(&value).any(|path| path.starts_with(&appdir)) {
+                match paths_outside_appimage(&appdir, &value) {
+                    Some(paths) => { command.env(key, paths); }
+                    None => { command.env_remove(key); }
+                }
+            }
+        }
+    }
+    command
 }
 
 fn normalize_process_path() {
@@ -897,7 +925,7 @@ fn python_env_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn command_output(command: &str, args: &[&str]) -> Result<String, String> {
-    let output = Command::new(command)
+    let output = host_command(command)
         .args(args)
         .output()
         .map_err(|e| format!("Could not run {command}: {e}"))?;
@@ -917,7 +945,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
 
     if !python.is_file() {
         emit_log(app, "Preparing Graph Studio Python environment…");
-        let status = Command::new("python3")
+        let status = host_command("python3")
             .args(["-m", "venv"])
             .arg(&env_dir)
             .status()
@@ -946,7 +974,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
 
     if marker_value.trim() != requirements_stamp {
         emit_log(app, "Installing/updating Graph Studio Python dependencies…");
-        let status = Command::new(&python)
+        let status = host_command(&python)
             .args(["-m", "pip", "install", "--upgrade", "pip"])
             .status()
             .map_err(|e| format!("Could not update pip: {e}"))?;
@@ -955,7 +983,7 @@ fn ensure_python_env(app: &AppHandle) -> Result<PathBuf, String> {
         }
 
         for requirements in [&routing_requirements, &visual_requirements, &search_requirements] {
-            let status = Command::new(&python)
+            let status = host_command(&python)
                 .args(["-m", "pip", "install", "-r"])
                 .arg(requirements)
                 .status()
@@ -1071,7 +1099,7 @@ fn run_graph_studio_region_helper(
         ));
     }
 
-    let output = Command::new(python)
+    let output = host_command(python)
         .arg(script)
         .args(arguments)
         .output()
@@ -1171,7 +1199,7 @@ fn save_region_config(
     let validate_result = (|| -> Result<(), String> {
         let python = ensure_python_env(&app)?;
         let pipeline = pipeline_root(&app)?;
-        let structural = Command::new(&python)
+        let structural = host_command(&python)
             .arg(pipeline.join("tools/validate_region_config.py"))
             .arg("--config")
             .arg(&temporary)
@@ -1245,7 +1273,7 @@ fn toolchain_status(app: AppHandle) -> ToolchainStatus {
         .unwrap_or_else(|| "3.2.0".into());
     let (tilemaker_ready, tilemaker_detail) = match tilemaker_path {
         Some(path) => {
-            let output = Command::new(&path)
+            let output = host_command(&path)
                 .arg("--help")
                 .output()
                 .ok()
@@ -1275,7 +1303,7 @@ fn toolchain_status(app: AppHandle) -> ToolchainStatus {
         detail: tilemaker_detail,
     });
 
-    let venv_ready = Command::new("python3")
+    let venv_ready = host_command("python3")
         .args(["-m", "venv", "--help"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -1345,7 +1373,7 @@ fn read_temperature() -> Option<f64> {
 }
 
 fn disk_free(path: &Path) -> Option<u64> {
-    let output = Command::new("df")
+    let output = host_command("df")
         .arg("-B1")
         .arg(path)
         .output()
@@ -1472,7 +1500,7 @@ fn run_process_streaming(
         }
 
         if state.cancel.load(Ordering::SeqCst) {
-            let _ = Command::new("kill")
+            let _ = host_command("kill")
                 .args(["-TERM", &child.id().to_string()])
                 .status();
         }
@@ -1530,7 +1558,7 @@ fn run_build_queue(
             return Err(format!("Region config does not exist: {}", config.display()));
         }
 
-        let mut command = Command::new(&python);
+        let mut command = host_command(&python);
         command
             .arg(pipeline.join("tools/build_routing_region.py"))
             .arg("--config")
@@ -1562,7 +1590,7 @@ fn run_build_queue(
             })
             .ok_or_else(|| format!("No manifest produced for {region_id} {package_version}"))?;
 
-        let status = Command::new(&python)
+        let status = host_command(&python)
             .arg(pipeline.join("tools/validate_routing_pack.py"))
             .arg("--manifest")
             .arg(&manifest)
@@ -1585,7 +1613,7 @@ fn run_build_queue(
         if visual_enabled {
             set_stage(&app, &state, "Building retained visual package");
             emit_log(&app, format!("→ {region_id}: building visual PMTiles…"));
-            let mut visual_command = Command::new(&python);
+            let mut visual_command = host_command(&python);
             visual_command
                 .arg(pipeline.join("tools/build_visual_region_pack.py"))
                 .arg("--config")
@@ -1722,7 +1750,7 @@ fn start_build_queue(
 fn cancel_build(state: State<'_, BuildState>) -> Result<(), String> {
     state.cancel.store(true, Ordering::SeqCst);
     if let Some(pid) = *state.current_pid.lock().expect("pid lock poisoned") {
-        let _ = Command::new("kill")
+        let _ = host_command("kill")
             .args(["-TERM", &pid.to_string()])
             .status();
     }
@@ -1855,7 +1883,7 @@ fn search_retained_build(
     let (_artifact, database) = load_search_build(&app, &region_id, &version)?;
     let python = ensure_python_env(&app)?;
     let tool = pipeline_root(&app)?.join("tools/roadpilot_search_v2.py");
-    let mut command = Command::new(&python);
+    let mut command = host_command(&python);
     command.arg(tool).arg("--database").arg(database);
     if !query.trim().is_empty() { command.arg("--query").arg(query.trim()); }
     if !category.trim().is_empty() { command.arg("--category").arg(category.trim()); }
@@ -1881,7 +1909,7 @@ fn compare_search_builds(
     let (_b, db_b) = load_search_build(&app, &region_id, &version_b)?;
     let python = ensure_python_env(&app)?;
     let tool = pipeline_root(&app)?.join("tools/compare_search_builds.py");
-    let output = Command::new(&python).arg(tool).arg("--a").arg(db_a).arg("--b").arg(db_b)
+    let output = host_command(&python).arg(tool).arg("--a").arg(db_a).arg("--b").arg(db_b)
         .output().map_err(|e| format!("Could not compare search builds: {e}"))?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
@@ -2092,7 +2120,7 @@ fn run_r2_json_script(
     if !script.is_file() {
         return Err(format!("Bundled R2 tool is missing: {}", script.display()));
     }
-    let mut command = Command::new(python);
+    let mut command = host_command(python);
     command.arg(script).args(args);
     apply_r2_env(&mut command, &credentials);
     let output = command
@@ -2186,7 +2214,7 @@ fn run_publication_job(
     }
     emit_publication_status(&app, &state);
 
-    let prepare = Command::new(&python)
+    let prepare = host_command(&python)
         .arg(pipeline.join("tools").join(&preparer_script))
         .arg("--manifest")
         .arg(&manifest_path)
@@ -2207,7 +2235,7 @@ fn run_publication_job(
     }
     emit_publication_status(&app, &state);
 
-    let mut command = Command::new(&python);
+    let mut command = host_command(&python);
     command
         .arg(pipeline.join("tools/publish_publication_plan_r2.py"))
         .arg("--plan")
@@ -2494,7 +2522,7 @@ fn activate_r2_release(app: AppHandle, release_key: String) -> Result<Value, Str
     let python = ensure_python_env(&app)?;
     let script = pipeline_root(&app)?.join("tools/activate_publication_release_r2.py");
     let report_path = publication_cache_dir(&app)?.join("last-activation-report.json");
-    let mut command = Command::new(python);
+    let mut command = host_command(python);
     command
         .arg(script)
         .arg("--release-key")
@@ -2835,7 +2863,7 @@ fn collect_json_files(root: &Path, depth: usize, output: &mut Vec<PathBuf>) {
 }
 
 fn sha256_prefixed(path: &Path) -> Result<String, String> {
-    let output = Command::new("sha256sum")
+    let output = host_command("sha256sum")
         .arg(path)
         .output()
         .map_err(|e| format!("Could not run sha256sum for {}: {e}", path.display()))?;
@@ -4186,7 +4214,7 @@ fn render_graph_tile(config: &Path, z: u8, x: u32, y: u32) -> Result<Vec<u8>, St
         }
     })
     .to_string();
-    let output = Command::new("valhalla_service")
+    let output = host_command("valhalla_service")
         .arg(config)
         .arg("tile")
         .arg(request)
@@ -4584,21 +4612,31 @@ mod appimage_python_env_tests {
     fn appimage_only_pythonpath_is_removed() {
         let appdir = Path::new("/tmp/.mount_RoadPilot");
         let injected = OsStr::new("/tmp/.mount_RoadPilot/usr/share/pyshared/:");
-        assert!(external_python_paths(appdir, injected).is_none());
+        assert!(paths_outside_appimage(appdir, injected).is_none());
     }
 
     #[test]
     fn external_pythonpath_is_preserved_without_bundled_paths() {
         let appdir = Path::new("/tmp/.mount_RoadPilot");
         let injected = OsStr::new("/home/mircea/custom:/tmp/.mount_RoadPilot/usr/share/pyshared:/opt/python");
-        let cleaned = external_python_paths(appdir, injected).unwrap();
+        let cleaned = paths_outside_appimage(appdir, injected).unwrap();
         assert_eq!(cleaned, OsStr::new("/home/mircea/custom:/opt/python"));
+    }
+
+    #[test]
+    fn appimage_native_library_dirs_do_not_leak_to_host_child() {
+        let appdir = Path::new("/tmp/.mount_RoadPilot");
+        let value = OsStr::new("/usr/local/lib:/tmp/.mount_RoadPilot/usr/lib:/tmp/.mount_RoadPilot/usr/lib/x86_64-linux-gnu");
+        assert_eq!(
+            paths_outside_appimage(appdir, value).as_deref(),
+            Some(OsStr::new("/usr/local/lib"))
+        );
     }
 
     #[test]
     fn unrelated_paths_do_not_match_the_mount_prefix() {
         let appdir = Path::new("/tmp/.mount_RoadPilot");
         let injected = OsStr::new("/tmp/.mount_RoadPilot-similar/usr:/usr/local/python");
-        assert_eq!(external_python_paths(appdir, injected).as_deref(), Some(injected));
+        assert_eq!(paths_outside_appimage(appdir, injected).as_deref(), Some(injected));
     }
 }
