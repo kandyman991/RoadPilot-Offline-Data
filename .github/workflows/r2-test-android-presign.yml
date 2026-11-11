@@ -1,0 +1,97 @@
+name: R2 original graphs temporary Android test download links
+
+# Only manually requested, and only on reviewed main. No publishing/READY.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: roadpilot-r2-temporary-test-links
+  cancel-in-progress: false
+
+jobs:
+  generate-read-only-links:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Install isolated AWS S3 presigning dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/r2-signer"
+          "$RUNNER_TEMP/r2-signer/bin/python" -m pip install --quiet --disable-pip-version-check "boto3>=1.35,<2"
+
+      - name: Generate two GET-only, 6-day test-object URLs and verify range access
+        shell: bash
+        env:
+          TEST_ACCESS_KEY_ID: ${{ secrets.ROADPILOT_R2_ACCESS_KEY_ID }}
+          TEST_SECRET_ACCESS_KEY: ${{ secrets.ROADPILOT_R2_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/r2-signer/bin/python" - <<'PY'
+          import datetime
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+          import boto3
+          from botocore.config import Config
+
+          account = '06feb351c2243add77c866ce1c9ceccf'
+          bucket = 'roadpilot-test-graphs'
+          version = '2026.10.13-1'
+          ttl_seconds = 6 * 24 * 60 * 60
+          access = os.getenv('TEST_ACCESS_KEY_ID', '')
+          secret = os.getenv('TEST_SECRET_ACCESS_KEY', '')
+          if not access or not secret:
+              raise SystemExit('R2 credentials not configured')
+          client = boto3.client(
+              's3', endpoint_url=f'https://{account}.r2.cloudflarestorage.com',
+              region_name='auto', aws_access_key_id=access,
+              aws_secret_access_key=secret,
+              config=Config(signature_version='s3v4', s3={'addressing_style': 'path'})
+          )
+          regions = {
+              'italy-nord-est': (780707840, 'e6a10d36f8622ac0e47dc3d17a8295f60b144f9a2ad478e1b5f6ef2dbea75953'),
+              'austria': (1216788480, 'ee7baac93b639d0c2fefab8f90540d26d03fd28a283c73bff516a1d8bdc2bc7b'),
+          }
+          urls = {}
+          for region, (size, sha) in regions.items():
+              key = f'test-only/original/{version}/{region}/graph.tar'
+              # No LIST/PUT/DELETE, no access to another object or bucket.
+              url = client.generate_presigned_url(
+                  'get_object', Params={'Bucket': bucket, 'Key': key},
+                  ExpiresIn=ttl_seconds, HttpMethod='GET'
+              )
+              # Confirm GET range support without downloading either multi-GB archive.
+              request = urllib.request.Request(url, headers={
+                  'Range': 'bytes=0-0', 'Accept-Encoding': 'identity'})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  if response.status != 206 or response.headers.get('Content-Range') != f'bytes 0-0/{size}' or len(response.read(2)) != 1:
+                      raise RuntimeError(f'Unexpected R2 range response for {region}')
+              urls[region] = {'url': url, 'bytes': size, 'sha256': sha}
+          now = datetime.datetime.now(datetime.timezone.utc)
+          output = {
+              'schema': 'roadpilot.r2.original-test-get-urls.v1',
+              'status': 'BLOCKED_TEST_ONLY',
+              'issuedAtUtc': now.isoformat(),
+              'expiresAtUtc': (now + datetime.timedelta(seconds=ttl_seconds)).isoformat(),
+              'regions': urls,
+          }
+          target = Path(os.environ['RUNNER_TEMP']) / 'roadpilot-r2-original-test-get-urls.json'
+          target.write_text(json.dumps(output, separators=(',', ':')) + '\n')
+          target.chmod(0o600)
+          print('Two exact R2 GET-only test graph URLs created and range-verified; no URLs or credentials logged.')
+          PY
+
+      - name: Retain short-lived test download links for authorized debug APK build
+        uses: actions/upload-artifact@v4
+        with:
+          name: roadpilot-r2-original-test-urls
+          path: ${{ runner.temp }}/roadpilot-r2-original-test-get-urls.json
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 0
