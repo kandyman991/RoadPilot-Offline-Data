@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "f8-approved-native-directed-road-connections.schema.json",
+  "title": "RoadPilot D-017 reviewed original A-final → exact X → B-directed-road catalog",
+  "description": "A future owner-approved, SHA-pinned publication. PR127 candidate v1 and test-only ledgers remain BLOCKED and cannot be substituted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "pairId",
+    "fromRegionId",
+    "toRegionId",
+    "originalGraphArchives",
+    "producerEvidence",
+    "approval",
+    "counts",
+    "connections",
+    "excludedSourceFinals"
+  ],
+  "properties": {
+    "schema": {
+      "const": "roadpilot.f8-approved-native-directed-road-connections"
+    },
+    "version": {
+      "const": 1
+    },
+    "pairId": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,128}__[a-z0-9-]{1,128}$"
+    },
+    "fromRegionId": {
+      "$ref": "#/$defs/region"
+    },
+    "toRegionId": {
+      "$ref": "#/$defs/region"
+    },
+    "originalGraphArchives": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/hash"
+        },
+        "to": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    },
+    "producerEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producerCommit",
+        "androidAcceptanceCommit",
+        "sourceInventoryProofSha256",
+        "directedReceiverProofSha256",
+        "androidFullJourneyReportSha256",
+        "normalRoutePreviewReportSha256"
+      ],
+      "properties": {
+        "producerCommit": {
+          "$ref": "#/$defs/commit"
+        },
+        "androidAcceptanceCommit": {
+          "$ref": "#/$defs/commit"
+        },
+        "sourceInventoryProofSha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "directedReceiverProofSha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "androidFullJourneyReportSha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "normalRoutePreviewReportSha256": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourcePhysicalRoadDirectionCompleteness",
+        "receiverDirectedRoadIdentity",
+        "genuineBranchesPreserved",
+        "normalPlannerDeviceAcceptance",
+        "routePreviewDeviceAcceptance",
+        "independentReview",
+        "ownerProductionApproval",
+        "productionPublication"
+      ],
+      "properties": {
+        "sourcePhysicalRoadDirectionCompleteness": {
+          "const": "VERIFIED"
+        },
+        "receiverDirectedRoadIdentity": {
+          "const": "VERIFIED"
+        },
+        "genuineBranchesPreserved": {
+          "const": true
+        },
+        "normalPlannerDeviceAcceptance": {
+          "const": "VERIFIED"
+        },
+        "routePreviewDeviceAcceptance": {
+          "const": "VERIFIED"
+        },
+        "independentReview": {
+          "const": "VERIFIED"
+        },
+        "ownerProductionApproval": {
+          "const": "GRANTED"
+        },
+        "productionPublication": {
+          "const": "READY"
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligibleOriginalSourceFinals",
+        "approvedSourceConnections",
+        "approvedReceiverRoadMatches",
+        "explicitlyExcludedSourceFinals"
+      ],
+      "properties": {
+        "eligibleOriginalSourceFinals": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "approvedSourceConnections": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "approvedReceiverRoadMatches": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25000000
+        },
+        "explicitlyExcludedSourceFinals": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        }
+      }
+    },
+    "connections": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/connection"
+      }
+    },
+    "excludedSourceFinals": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/exclusion"
+      }
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "region": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,127}$"
+    },
+    "graphId": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9223372036854776000
+    },
+    "modes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "car",
+          "motorcycle"
+        ]
+      }
+    },
+    "x": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lat",
+        "lng"
+      ],
+      "properties": {
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "lng": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      }
+    },
+    "receiver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receiverDirectedGraphId",
+        "receiverXPosition",
+        "travelModes",
+        "nativeXGapMeters",
+        "directedApproachOverlapMeters"
+      ],
+      "properties": {
+        "receiverDirectedGraphId": {
+          "$ref": "#/$defs/graphId"
+        },
+        "receiverXPosition": {
+          "enum": [
+            "END_NODE",
+            "INTERIOR"
+          ]
+        },
+        "travelModes": {
+          "$ref": "#/$defs/modes"
+        },
+        "nativeXGapMeters": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.75
+        },
+        "directedApproachOverlapMeters": {
+          "type": "number",
+          "minimum": 1
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceFinalDirectedGraphId",
+        "exactX",
+        "sourceModes",
+        "receiverDirectedRoadsAtX"
+      ],
+      "properties": {
+        "sourceFinalDirectedGraphId": {
+          "$ref": "#/$defs/graphId"
+        },
+        "exactX": {
+          "$ref": "#/$defs/x"
+        },
+        "sourceModes": {
+          "$ref": "#/$defs/modes"
+        },
+        "receiverDirectedRoadsAtX": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 250,
+          "items": {
+            "$ref": "#/$defs/receiver"
+          }
+        }
+      }
+    },
+    "exclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceFinalDirectedGraphId",
+        "nativeRejectionProofSha256",
+        "mustNotCreateConnection"
+      ],
+      "properties": {
+        "sourceFinalDirectedGraphId": {
+          "$ref": "#/$defs/graphId"
+        },
+        "nativeRejectionProofSha256": {
+          "$ref": "#/$defs/hash"
+        },
+        "mustNotCreateConnection": {
+          "const": true
+        }
+      }
+    }
+  }
+}
