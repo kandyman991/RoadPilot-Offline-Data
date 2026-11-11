@@ -534,6 +534,39 @@ fn pyvalhalla_native_bin_dir() -> Option<PathBuf> {
     None
 }
 
+// Linux AppImage startup prepends its mount to PYTHONHOME and PYTHONPATH for
+// bundled utilities. Graph Studio runs the *host* Python/venv for region
+// discovery, native F8 and build helpers; inherited AppImage Python variables
+// make host Python fail before it can import the standard-library "encodings"
+// module. Remove only paths belonging to this AppImage, preserving unrelated
+// user-provided PYTHONPATH entries.
+fn external_python_paths(appdir: &Path, pythonpath: &std::ffi::OsStr) -> Option<std::ffi::OsString> {
+    let kept: Vec<PathBuf> = env::split_paths(pythonpath)
+        .filter(|path| !path.as_os_str().is_empty() && !path.starts_with(appdir))
+        .collect();
+    if kept.is_empty() { None } else { env::join_paths(kept).ok() }
+}
+
+fn normalize_appimage_python_environment() {
+    let Some(appdir) = env::var_os("APPDIR").map(PathBuf::from) else { return; };
+    if !appdir.is_absolute() { return; }
+
+    if let Some(home) = env::var_os("PYTHONHOME") {
+        if env::split_paths(&home).any(|path| path.starts_with(&appdir)) {
+            env::remove_var("PYTHONHOME");
+        }
+    }
+
+    if let Some(path) = env::var_os("PYTHONPATH") {
+        if env::split_paths(&path).any(|entry| entry.starts_with(&appdir)) {
+            match external_python_paths(&appdir, &path) {
+                Some(paths) => env::set_var("PYTHONPATH", paths),
+                None => env::remove_var("PYTHONPATH"),
+            }
+        }
+    }
+}
+
 fn normalize_process_path() {
     let home = env::var("HOME").unwrap_or_default();
     let current = env::var_os("PATH").unwrap_or_default();
@@ -4482,6 +4515,7 @@ async fn ai_verify_route(
 }
 
 pub fn run() {
+    normalize_appimage_python_environment();
     normalize_process_path();
     tauri::Builder::default()
         .manage(BuildState::default())
@@ -4535,4 +4569,36 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running RoadPilot Graph Studio");
+}
+
+
+// This regression represents the actual Legion AppImage launch environment:
+// APPDIR=/tmp/.mount_..., PYTHONHOME=APPDIR/usr and
+// PYTHONPATH=APPDIR/usr/share/pyshared/: . It must not break host Python.
+#[cfg(test)]
+mod appimage_python_env_tests {
+    use super::*;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn appimage_only_pythonpath_is_removed() {
+        let appdir = Path::new("/tmp/.mount_RoadPilot");
+        let injected = OsStr::new("/tmp/.mount_RoadPilot/usr/share/pyshared/:");
+        assert!(external_python_paths(appdir, injected).is_none());
+    }
+
+    #[test]
+    fn external_pythonpath_is_preserved_without_bundled_paths() {
+        let appdir = Path::new("/tmp/.mount_RoadPilot");
+        let injected = OsStr::new("/home/mircea/custom:/tmp/.mount_RoadPilot/usr/share/pyshared:/opt/python");
+        let cleaned = external_python_paths(appdir, injected).unwrap();
+        assert_eq!(cleaned, OsStr::new("/home/mircea/custom:/opt/python"));
+    }
+
+    #[test]
+    fn unrelated_paths_do_not_match_the_mount_prefix() {
+        let appdir = Path::new("/tmp/.mount_RoadPilot");
+        let injected = OsStr::new("/tmp/.mount_RoadPilot-similar/usr:/usr/local/python");
+        assert_eq!(external_python_paths(appdir, injected).as_deref(), Some(injected));
+    }
 }
