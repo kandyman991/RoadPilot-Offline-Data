@@ -2805,33 +2805,26 @@ fn handoff_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+// Historical-inspection paths are lookup locations, not output directories.
+// Legacy viewers must never create absent artifact folders as a side effect
+// of simply opening the inspection. Keep missing paths in the response so
+// the UI can still report all locations that were checked.
+fn transition_artifact_search_paths(workspace: &Path) -> Vec<PathBuf> {
+    [
+        "transitions",
+        "imports/handoffs",
+        "connectivity",
+        "imports/connectivity",
+        "connector-matrices",
+        "imports/connector-matrices",
+    ]
+    .into_iter()
+    .map(|relative| workspace.join(relative))
+    .collect()
+}
+
 fn transition_artifact_dirs(app: &AppHandle) -> Result<Vec<PathBuf>, String> {
-    let workspace = workspace_root(app)?;
-    let transitions = workspace.join("transitions");
-    let handoff_imports = workspace.join("imports/handoffs");
-    let connectivity = workspace.join("connectivity");
-    let connectivity_imports = workspace.join("imports/connectivity");
-    let connector_matrices = workspace.join("connector-matrices");
-    let connector_matrix_imports = workspace.join("imports/connector-matrices");
-    for (path, label) in [
-        (&transitions, "transition artifact"),
-        (&handoff_imports, "handoff import"),
-        (&connectivity, "connectivity artifact"),
-        (&connectivity_imports, "connectivity import"),
-        (&connector_matrices, "connector matrix"),
-        (&connector_matrix_imports, "connector matrix import"),
-    ] {
-        fs::create_dir_all(path)
-            .map_err(|e| format!("Could not create Graph Studio {label} directory: {e}"))?;
-    }
-    Ok(vec![
-        transitions,
-        handoff_imports,
-        connectivity,
-        connectivity_imports,
-        connector_matrices,
-        connector_matrix_imports,
-    ])
+    Ok(transition_artifact_search_paths(&workspace_root(app)?))
 }
 
 fn collect_json_files(root: &Path, depth: usize, output: &mut Vec<PathBuf>) {
@@ -4638,5 +4631,60 @@ mod appimage_python_env_tests {
         let appdir = Path::new("/tmp/.mount_RoadPilot");
         let injected = OsStr::new("/tmp/.mount_RoadPilot-similar/usr:/usr/local/python");
         assert_eq!(paths_outside_appimage(appdir, injected).as_deref(), Some(injected));
+    }
+}
+
+#[cfg(test)]
+mod legacy_inspection_readonly_tests {
+    use super::*;
+
+    #[test]
+    fn empty_legacy_search_does_not_create_missing_folders() {
+        let root = env::temp_dir().join(format!(
+            "roadpilot-legacy-readonly-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time")
+                .as_nanos()
+        ));
+        assert!(!root.exists());
+        let paths = transition_artifact_search_paths(&root);
+        assert_eq!(paths.len(), 6);
+        assert_eq!(paths[0], root.join("transitions"));
+        assert_eq!(paths[1], root.join("imports/handoffs"));
+        assert_eq!(paths[2], root.join("connectivity"));
+        assert_eq!(paths[3], root.join("imports/connectivity"));
+        assert_eq!(paths[4], root.join("connector-matrices"));
+        assert_eq!(paths[5], root.join("imports/connector-matrices"));
+        assert!(paths.iter().all(|path| !path.exists()));
+        assert!(!root.exists(), "read-only inspection must not create a workspace");
+    }
+
+    #[test]
+    fn legacy_search_preserves_existing_paths_without_modifying_them() {
+        let root = env::temp_dir().join(format!(
+            "roadpilot-legacy-existing-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time")
+                .as_nanos()
+        ));
+        let evidence = root.join("transitions/saved.json");
+        fs::create_dir_all(evidence.parent().unwrap()).unwrap();
+        fs::write(&evidence, b"historical-evidence").unwrap();
+        let before = fs::read(&evidence).unwrap();
+        let paths = transition_artifact_search_paths(&root);
+        let mut found = Vec::new();
+        for path in paths {
+            collect_json_files(&path, 6, &mut found);
+        }
+        assert_eq!(found, vec![evidence.clone()]);
+        assert_eq!(fs::read(&evidence).unwrap(), before);
+        assert!(!root.join("imports").exists());
+        assert!(!root.join("connectivity").exists());
+        assert!(!root.join("connector-matrices").exists());
+        fs::remove_dir_all(&root).unwrap();
     }
 }
