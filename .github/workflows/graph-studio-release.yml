@@ -200,7 +200,7 @@ jobs:
           TAG=roadpilot-graph-studio-linux
           test "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq '.targetCommitish')" = "$APPROVED_SHA"
           mkdir -p "$RUNNER_TEMP/graph-studio-release-verify"
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/graph-studio-release-verify" --pattern 'RoadPilot-Graph-Studio-Linux.*'
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/graph-studio-release-verify" --pattern 'RoadPilot-Graph-Studio-Linux*'
           (
             cd "$RUNNER_TEMP/graph-studio-release-verify"
             test "$(grep -c '^source_commit=' RoadPilot-Graph-Studio-Linux-SHA256SUMS.txt)" = 1

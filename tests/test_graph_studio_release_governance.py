@@ -69,6 +69,8 @@ class GraphStudioReleaseGovernanceTests(unittest.TestCase):
         self.assertIn("sha256sum RoadPilot-Graph-Studio-Linux.AppImage RoadPilot-Graph-Studio-Linux.deb", release)
         self.assertIn("sha256sum --check", release)
         self.assertIn("Verify remote release asset hashes and source", release)
+        # The download glob must include the manifest (which uses a hyphen, not a dot).
+        self.assertIn("--pattern 'RoadPilot-Graph-Studio-Linux*'", release)
 
     def test_no_publication_during_test_jobs(self) -> None:
         ci = read(CI_WORKFLOW)
