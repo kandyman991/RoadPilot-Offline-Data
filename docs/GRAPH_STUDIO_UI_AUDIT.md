@@ -53,7 +53,7 @@
 
 ## 2026-11-12 — Phase 4 disposition: retained inspectors must not create legacy folders
 
-All 13 original layout/navigation findings remain **DONE** (PRs #90–#92). This is not a second implementation of those already-merged UI fixes. The release at source `3d4c313` passed a real Legion AppImage launch and 23/23 isolated GUI navigation smoke checks; no fresh F8 parity or publication proof is inferred from that result.
+All 13 original layout/navigation findings remain **DONE** (PRs #90–#92). This is not a second implementation of those already-merged UI fixes. The release at source `3d4c313` passed a real Legion AppImage launch and 23/23 isolated GUI navigation smoke checks. An independent resize test on its installed AppImage passed **9/9** at 960, 1024, 1100, 1200 and 1440 px, including functional 960px Regions / Tools / Map switches; evidence is under `~/RoadPilotGraphStudio/diagnostics/ui89-20261112-responsive/switcher-results.json` on Legion. No fresh F8 parity or publication proof is inferred from those tests.
 
 - **Retired producers (already absent):** `build_frontier_road_inventory.py`, `correlate_frontier_roads.py`, `build_crossing_candidates.py`, `prove_crossing_candidates.py`, `compile_runtime_connectivity.py`, `refresh_graph_connectivity.py` and historical region connector production. They remain retired by D-014; none are restored.
 - **Protected active viewers:** Border Inspector Manual and Saved evidence, historical `inspect_handoff_artifacts`, connector-matrix inspection, saved handoff overrides, diagnostic export, and the opt-in Legacy diagnostics tab. These still have live frontend/backend consumers and retained user data; they are **not safe to delete** as unused code. Their output is NOT native F8 proof.
