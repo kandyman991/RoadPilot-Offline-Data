@@ -5,7 +5,7 @@ use std::{
     fs,
     io::Read,
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    process::{Child, Stdio},
     thread,
     time::{Duration, Instant},
 };
@@ -168,7 +168,7 @@ fn valhalla_result(
     program: &Path, config: &Path, action: &str, request: &Value,
     timeout: Duration, max_output_bytes: u64
 ) -> Result<Value, RunnerError> {
-    let mut command = Command::new(program);
+    let mut command = crate::host_command(program);
     command.arg(config).arg(action).arg(request.to_string())
         .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
     #[cfg(unix)]
