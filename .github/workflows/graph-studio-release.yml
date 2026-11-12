@@ -1,0 +1,209 @@
+name: Publish Graph Studio Linux (owner approval)
+
+# This workflow is the ONLY workflow authorized to change the rolling
+# roadpilot-graph-studio-linux release. Normal PR / main builds are read-only.
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Exact 40-character Git SHA currently at main (not a branch or tag)"
+        type: string
+        required: true
+      confirm_release:
+        description: "Type PUBLISH_GRAPH_STUDIO_LINUX to request owner approval"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: graph-studio-linux-approved-release
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    name: Validate explicit release request and immutable main SHA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      source_sha: ${{ steps.pinned.outputs.source_sha }}
+    steps:
+      - name: Fail closed for wrong ref, confirmation, or source SHA
+        id: pinned
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_SHA: ${{ inputs.source_sha }}
+          CONFIRMATION: ${{ inputs.confirm_release }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$CONFIRMATION" = "PUBLISH_GRAPH_STUDIO_LINUX"
+          [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Require the exact lowercase 40-character main SHA"; exit 1; }
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$REQUESTED_SHA" = "$CURRENT_MAIN" || { echo "::error::Requested commit is no longer main HEAD"; exit 1; }
+          echo "source_sha=$REQUESTED_SHA" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Owner-approved release build and publication
+    needs: authorize
+    # Repository environment MUST require explicit owner review. Configure
+    # reviewers and a main-only deployment policy in GitHub Settings.
+    environment: graph-studio-linux-release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout exact approved commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.authorize.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Verify checkout and branch lock
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$APPROVED_SHA"
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$CURRENT_MAIN" = "$APPROVED_SHA" || { echo "::error::main moved after release approval"; exit 1; }
+
+      - name: Install Tauri Linux dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Verify release governance and Graph Studio regression contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_graph_studio_release_governance.py'
+          python3 -m unittest discover -s tests -p 'test_graph_studio_catalog.py'
+          python3 -m unittest discover -s tests -p 'test_f8_architecture_regressions.py'
+          python3 -m unittest discover -s tests -p 'test_source_cache.py'
+          python3 -m unittest discover -s tests -p 'test_prepared_region_cache.py'
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        working-directory: graph-studio
+        run: npm install --package-lock-only && npm ci
+
+      - name: Build frontend
+        working-directory: graph-studio
+        run: npm run build
+
+      - name: Generate Graph Studio icons
+        working-directory: graph-studio
+        run: npm run prepare:icons
+
+      - name: Verify Rust build and read-only AI contracts
+        working-directory: graph-studio/src-tauri
+        run: |
+          cargo check --locked || cargo check
+          cargo test --lib
+
+      - name: Build AppImage and Debian packages
+        working-directory: graph-studio
+        run: npm run tauri build -- --bundles appimage,deb
+
+      - name: Stage release packages and immutable SHA-256 provenance
+        shell: bash
+        env:
+          APPROVED_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          APPIMAGE="$(find graph-studio/src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          DEB="$(find graph-studio/src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -s "$APPIMAGE"
+          test -s "$DEB"
+          mkdir -p "$RUNNER_TEMP/graph-studio-approved-release"
+          RELEASE_DIR="$RUNNER_TEMP/graph-studio-approved-release"
+          cp "$APPIMAGE" "$RELEASE_DIR/RoadPilot-Graph-Studio-Linux.AppImage"
+          cp "$DEB" "$RELEASE_DIR/RoadPilot-Graph-Studio-Linux.deb"
+          chmod +x "$RELEASE_DIR/RoadPilot-Graph-Studio-Linux.AppImage"
+          {
+            echo "source_commit=$APPROVED_SHA"
+            echo "github_run_id=$GITHUB_RUN_ID"
+            echo "github_run_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "approval_environment=graph-studio-linux-release"
+            echo
+            (cd "$RELEASE_DIR" && sha256sum RoadPilot-Graph-Studio-Linux.AppImage RoadPilot-Graph-Studio-Linux.deb)
+          } > "$RELEASE_DIR/RoadPilot-Graph-Studio-Linux-SHA256SUMS.txt"
+          (cd "$RELEASE_DIR" && tail -n 2 RoadPilot-Graph-Studio-Linux-SHA256SUMS.txt | sha256sum --check)
+          echo "GRAPH_STUDIO_RELEASE_DIR=$RELEASE_DIR" >> "$GITHUB_ENV"
+
+      - name: Revalidate approved main HEAD before changing any release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$APPROVED_SHA"
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$CURRENT_MAIN" = "$APPROVED_SHA" || { echo "::error::main moved during the build; publication blocked"; exit 1; }
+
+      - name: Publish explicitly approved rolling Linux prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          TAG=roadpilot-graph-studio-linux
+          RELEASE_DIR="$GRAPH_STUDIO_RELEASE_DIR"
+          NOTES="$RUNNER_TEMP/graph-studio-release-notes.md"
+          cat > "$NOTES" <<EOF
+          Owner-approved rolling Linux build of RoadPilot Graph Studio.
+
+          Immutable source commit: $APPROVED_SHA
+          GitHub Actions run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          Approved environment: graph-studio-linux-release
+
+          Assets:
+          - RoadPilot-Graph-Studio-Linux.AppImage
+          - RoadPilot-Graph-Studio-Linux.deb
+          - RoadPilot-Graph-Studio-Linux-SHA256SUMS.txt
+          EOF
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # Keep the legacy rolling release name for existing consumers.
+            # The tag is moved ONLY by this approved job, never by PR/main CI.
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" -f "sha=$APPROVED_SHA" -F force=true >/dev/null
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --target "$APPROVED_SHA" --title "RoadPilot Graph Studio - Linux" --notes-file "$NOTES" --prerelease
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$APPROVED_SHA" --title "RoadPilot Graph Studio - Linux" --notes-file "$NOTES" --prerelease
+          fi
+          gh release upload "$TAG" "$RELEASE_DIR/RoadPilot-Graph-Studio-Linux.AppImage" "$RELEASE_DIR/RoadPilot-Graph-Studio-Linux.deb" "$RELEASE_DIR/RoadPilot-Graph-Studio-Linux-SHA256SUMS.txt" --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Verify remote release asset hashes and source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_SHA: ${{ needs.authorize.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          TAG=roadpilot-graph-studio-linux
+          test "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq '.targetCommitish')" = "$APPROVED_SHA"
+          mkdir -p "$RUNNER_TEMP/graph-studio-release-verify"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/graph-studio-release-verify" --pattern 'RoadPilot-Graph-Studio-Linux*'
+          (
+            cd "$RUNNER_TEMP/graph-studio-release-verify"
+            test "$(grep -c '^source_commit=' RoadPilot-Graph-Studio-Linux-SHA256SUMS.txt)" = 1
+            grep -Fxq "source_commit=$APPROVED_SHA" RoadPilot-Graph-Studio-Linux-SHA256SUMS.txt
+            tail -n 2 RoadPilot-Graph-Studio-Linux-SHA256SUMS.txt | sha256sum --check
+          )
