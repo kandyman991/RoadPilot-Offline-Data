@@ -1,6 +1,6 @@
 # Graph Studio Phase 4 / P4-C — archive of the legacy connectivity validators and schemas
 
-**Date:** 2026-11-03 · **Decision:** D-016 · **Status:** draft PR, stacked on the retirement-record PR; not merged.
+**Date:** 2026-11-03 · **Decision:** D-016 · **Status:** merged in PR #104 on 2026-11-03. The evidence below records the original draft review and its limitations.
 **Base audit:** `docs/GRAPH_STUDIO_PHASE4_DEPENDENCY_AUDIT.md` (P4-A/P4-B), `docs/GRAPH_STUDIO_PHASE4B_CLI_COMPATIBILITY.md`.
 
 ## What changed

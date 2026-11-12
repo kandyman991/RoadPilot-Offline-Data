@@ -1,3 +1,11 @@
+# Graph Studio UI issue #89 — Phase 4 retained-legacy inspection cleanup (2026-11-12)
+
+All 13 tracked responsive, navigation, console, route/build prerequisite, and map-overlay findings were resolved in merged PRs #90–#92. Current owner-approved Linux AppImage release is source `3d4c313` and passed isolated UI 23/23 navigation smoke tests. Retired OSM-first crossing producers remain absent. The historical Border Legacy tab and saved manual evidence views remain live and must not be deleted without approval and compatibility evidence.
+
+This Phase 4 UI89 incremental branch fixes a read-only side effect in the Rust historical artifact lookup helper: it no longer creates six missing legacy artifact directories just by inspecting history. The same search path list and missing-path diagnostics remain, with new Rust path/fixture tests and Python UI contracts. No changes to F8 A-final GraphId → X → B-directed matching, catalogs, stored overrides, regional graph packages or Android. No release/publishing action authorized. See `docs/GRAPH_STUDIO_UI_AUDIT.md` for the updated disposition.
+
+---
+
 # Current Graph Studio handoff — automatic original native catalog, 10 November 2026
 
 The owner accepted prior Legion/native proof for the original A-final

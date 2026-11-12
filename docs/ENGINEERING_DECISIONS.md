@@ -167,7 +167,7 @@ Reference: D-012, D-013, D-014; `docs/ARCHITECTURE_CONTRACT.md`; `docs/GRAPH_STU
 
 ## D-016 — Archive the 11 legacy connectivity validators and their schemas behind compatibility wrappers (2026-11-03)
 
-**Owner-authorized on 2026-11-03** (scope: the 11 legacy validators and their schemas; method: archive with tested wrappers). This is the Phase 4 P4-C step; it is a separate, stacked draft PR and is **not merged**.
+**Owner-authorized on 2026-11-03** (scope: the 11 legacy validators and their schemas; method: archive with tested wrappers). Phase 4 P4-C was **merged on 2026-11-03 in PR #104**; the downstream read-only legacy inspection UI is retained. External schema-path consumers remain unknown.
 
 - The unchanged validators moved to `tools/legacy_archive/connectivity/`. Each original `tools/validate_*.py` path stays as a thin wrapper that runs the archived file with the same arguments, output and exit codes. The archive sits under `tools/` so the existing packaging mapping (`../../tools/` to `pipeline/tools/`) ships it with no packaging change.
 - The ten legacy schemas moved to `schemas/legacy_archive/connectivity/` byte-identically (`$id` unchanged); `schemas/` is already mapped into the packages. **A JSON file cannot be wrapped**, so the old top-level schema paths no longer exist. No tracked code reads them (the validators hand-check their inputs). Any external reader of those paths is UNKNOWN; the owner is asked to confirm this one path change in PR review.
