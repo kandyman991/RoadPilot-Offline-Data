@@ -165,6 +165,26 @@ class ApprovedCatalogPreflightTest(unittest.TestCase):
         a["originalBDirectRoadMatchCount"] = 2
         self.assert_denied(c, d, a, "directed match count mismatch")
 
+    def test_independently_bound_native_submetre_overlap_must_keep_exact_x(self):
+        c, d, a = fixtures()
+        road = c['nativeDirectedRoadMatchesAtX'][0]['receiverDirectedRoadsAtX'][0]
+        road['directedApproachOverlapMetres'] = 0.933
+        disp = d['nativeOriginalASourceFinalDispositions'][0]
+        disp['nativeBIncomingDirectedOverlapMetres']['202'] = 0.933
+        report = check(c, d, a)
+        receiver = report['nativeDirectedApproachesForReviewOnly'][0][
+            'receiverDirectedRoadsAtX'][0]
+        self.assertEqual(0.933, receiver['directedApproachOverlapMeters'])
+        self.assertEqual(0.04, receiver['nativeXGapMeters'])
+        road['distanceXMetres'] = 0.15
+        with self.assertRaisesRegex(ValueError, 'unsupported physical geometry'):
+            check(c, d, a)
+        road['distanceXMetres'] = 0.04
+        road['directedApproachOverlapMetres'] = 0.3
+        disp['nativeBIncomingDirectedOverlapMetres']['202'] = 0.3
+        with self.assertRaisesRegex(ValueError, 'unsupported physical geometry'):
+            check(c, d, a)
+
     def test_receiver_missing_swapped_or_duplicated_fails(self):
         c, d, a = fixtures()
         c["nativeDirectedRoadMatchesAtX"][0]["receiverDirectedRoadsAtX"] = []

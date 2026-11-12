@@ -93,6 +93,18 @@ class ApprovedDirectedCatalogContractTest(unittest.TestCase):
         self.assertTrue(self.validator.is_valid(sample))
         self.assertEqual(2, len(sample["connections"][0]["receiverDirectedRoadsAtX"]))
 
+    def test_native_submetre_approach_requires_very_close_x_in_wire_schema(self):
+        sample = synthetic_approved_fixture()
+        item = sample['connections'][0]['receiverDirectedRoadsAtX'][0]
+        item['directedApproachOverlapMeters'] = 0.884
+        item['nativeXGapMeters'] = 0.023
+        self.assertTrue(self.validator.is_valid(sample))
+        item['nativeXGapMeters'] = 0.15
+        self.assert_invalid(sample)
+        item['nativeXGapMeters'] = 0.023
+        item['directedApproachOverlapMeters'] = 0.49
+        self.assert_invalid(sample)
+
     def test_pr127_blocked_candidate_is_not_production_contract(self):
         sample = synthetic_approved_fixture()
         sample["schema"] = "roadpilot.f8-final-directed-connection-candidates"

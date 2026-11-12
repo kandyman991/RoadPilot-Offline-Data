@@ -22,7 +22,7 @@ from pathlib import Path
 from shapely.geometry import box, shape, mapping, MultiLineString, Point, LineString
 
 SCHEMA = "roadpilot.f8-region-original-boundary-source"
-NATIVE_PROTOCOL = "roadpilot.f8-native-source-10"
+NATIVE_PROTOCOL = "roadpilot.f8-native-source-11"
 
 
 def sha256(path: Path) -> str:
@@ -412,7 +412,8 @@ def inspect_local_source_edges(*, manifest_path: Path, index_path: Path,
                                buffer_path: Path, valhalla_config_path: Path,
                                binary: Path, source_graph_ids: list[int],
                                allowed_tile_ids: set[int] | None = None,
-                               evaluate_native_costing: bool = False) -> list[dict]:
+                               evaluate_native_costing: bool = False,
+                               approved_extra_endpoint_tile_ids: set[int] | None = None) -> list[dict]:
     """Read immediate Valhalla incident edges for explicitly selected sources.
 
     Uses the same SHA-pinned original graph as the streaming source stage.
@@ -425,8 +426,18 @@ def inspect_local_source_edges(*, manifest_path: Path, index_path: Path,
     original_tiles = {int(x["level"]) | (int(x["tileIndex"]) << 3)
                       for x in selected}
     permissible = original_tiles if allowed_tile_ids is None else allowed_tile_ids
-    if not permissible.issubset(original_tiles):
-        raise ValueError("Local source node inspection exceeds native boundary tiles")
+    extras = permissible - original_tiles
+    if extras:
+        # Only the separately SHA-pinned, native-attested B-outside-A endpoint
+        # selector may authorize these additional source tile IDs. All other
+        # cut/root operations stay within their original shared-cut ring.
+        if (approved_extra_endpoint_tile_ids is None or
+                not extras <= approved_extra_endpoint_tile_ids):
+            raise ValueError("Local source node inspection exceeds native boundary tiles")
+        indexed = {int(t['level']) | (int(t['tileIndex']) << 3)
+                   for t in load_json(index_path)['tiles']}
+        if not extras <= indexed or len(permissible) >= len(indexed):
+            raise ValueError('Unapproved or whole-graph terminal endpoint readback')
     if not source_graph_ids or any(type(gid) is not int or gid <= 0 or
                                    (gid & ((1 << 25) - 1)) not in permissible
                                    for gid in source_graph_ids):
@@ -1170,9 +1181,25 @@ def classify_original_b_directional_overlap(source: dict, receiver: dict) -> dic
     strict_overlap = x_dist <= 0.75 and approach_dist <= 0.75
     travelled = x_along - approach_along
     source_segment_len = a_approach.distance(x)
+    # Valhalla can split exactly the same directed physical road into a
+    # sub-metre final B edge while A retains that short segment inside a
+    # much longer final A GraphId. The normal >=1m proof still applies.
+    # For sub-metre source tangents, accept only centimetre-level agreement
+    # at BOTH original A approach and X, and directionally cover almost the
+    # entire original native last segment. A GPS-nearby road, opposite edge,
+    # crossing, wrong layer, or an arbitrarily tiny tangent is not proof.
+    exact_short_edge_overlap = (
+        0.5 <= source_segment_len < 1.0
+        and x_dist <= 0.10
+        and approach_dist <= 0.10
+        and travelled >= 0.5
+        and travelled >= source_segment_len - 0.12
+    )
     if strict_overlap and travelled <= -0.5:
         status = "REJECTED_OPPOSITE_DIRECTED_SHAPE"
-    elif strict_overlap and travelled >= 1.0 and source_segment_len >= 1.0:
+    elif strict_overlap and (
+            (travelled >= 1.0 and source_segment_len >= 1.0)
+            or exact_short_edge_overlap):
         if (source["layer"] != edge["layer"] or
                 source["bridge"] != edge["bridge"] or
                 source["tunnel"] != edge["tunnel"]):
@@ -1187,6 +1214,9 @@ def classify_original_b_directional_overlap(source: dict, receiver: dict) -> dic
             "distanceXMetres": round(x_dist, 3),
             "distanceSourceApproachMetres": round(approach_dist, 3),
             "directedOverlapProgressMetres": round(travelled, 3),
+            # Direct measurement from the exact compiled ORIGINAL A final
+            # directed shape. Retained for independent sub-metre audit.
+            "sourceNativeApproachSegmentMetres": round(source_segment_len, 3),
             "receiverRemainingMetresAfterX": round(remaining, 3),
             "sameRoadUse": source["roadUse"] == edge["roadUse"],
             "sameRoadClass": source["roadClass"] == edge["roadClass"],
@@ -1570,6 +1600,48 @@ def verify_pair_cut_source_terminal_endpoint_domain(*, graph_index: dict,
 
 
 
+def select_pair_indexed_endpoint_domain_tiles(*, graph_index: dict,
+                                              selected_source_tiles: list[dict],
+                                              source_footprint,
+                                              receiver_footprint) -> tuple[list[dict], int]:
+    """Include only immutable indexed A tiles that can own an X in B outside A.
+
+    The shared-cut selector remains the basis for source root discovery. Some
+    original graphs retain road tiles in B beyond A's 25-km buffer; those
+    tiles are legitimate potential terminal-edge owners even if they are not
+    part of the immediate cut ring. Select by ORIGINAL index bounds only, no
+    tracing, OSM names, external roads or unbounded scan. Fail closed rather
+    than silently claim coverage if this would require the entire graph.
+    """
+    domain = receiver_footprint.difference(source_footprint)
+    if domain.is_empty:
+        raise ValueError('No original receiving coverage beyond the source buffered cutoff')
+    by_key = {}
+    for tile in graph_index['tiles']:
+        key = (int(tile['level']), int(tile['tileIndex']))
+        if key in by_key:
+            raise ValueError('Duplicate original compiled graph index tile')
+        by_key[key] = tile
+    selected = {(int(t['level']), int(t['tileIndex'])) for t in selected_source_tiles}
+    if len(selected) != len(selected_source_tiles) or not selected <= by_key.keys():
+        raise ValueError('Invalid original pair-cut source tiles')
+    extra = set()
+    for key, tile in by_key.items():
+        bounds = tile['bounds']
+        if (key not in selected and
+                box(bounds['minLng'], bounds['minLat'],
+                    bounds['maxLng'], bounds['maxLat']).intersects(domain)):
+            extra.add(key)
+    complete = selected | extra
+    if len(complete) >= len(by_key):
+        raise ValueError('Original pair endpoint domain would require a whole-graph scan')
+    tiles = [by_key[key] for key in sorted(complete)]
+    verify_pair_cut_source_terminal_endpoint_domain(
+        graph_index=graph_index, selected_source_tiles=tiles,
+        source_footprint=source_footprint, receiver_footprint=receiver_footprint)
+    return tiles, len(extra)
+
+
 def validate_native_original_incoming_origin_coverage(completion: dict) -> dict:
     """Prove no eligible incoming native edge owner was excluded by tile selection.
 
@@ -1601,13 +1673,14 @@ def inspect_native_boundary_outer_terminals(*, manifest_path: Path,
                                             valhalla_config_path: Path,
                                             receiver_buffer_path: Path,
                                             binary: Path, paired_scope: dict) -> dict:
-    """Identify local terminal A edges in SAME approved pair-cut original tiles.
+    """Identify original A terminal edges in a pair-bounded indexed X domain.
 
-    A true final edge may begin outside the original source buffered polygon,
-    so unlike the first crossing-root scan its directed shape does NOT need
-    to cross that polygon's outline again. Scan ONLY the already SHA-verified
-    outer-cutoff tile set and evaluate local original terminal adjacency, not
-    paths, all graph tiles, arbitrary physical names or nearby GPS anchors.
+    The original shared 25-km cutoff remains the only source-root selector.
+    An A final edge may begin outside A's buffered polygon and be owned by an
+    original A tile not in the immediate shared-cut ring. Include ONLY native
+    graph-index tiles intersecting B-outside-A and, at most once, additional
+    native GetOpposingEdgeId owner tiles found at those exact X endpoints.
+    No road tracing, arbitrary GPS search, OSM heuristics or whole-graph scan.
     """
     manifest, _ = region_input(manifest_path, index_path, buffer_path)
     if paired_scope['source']['graphFingerprint'] != manifest['graphFingerprint']:
@@ -1616,34 +1689,80 @@ def inspect_native_boundary_outer_terminals(*, manifest_path: Path,
     original_config = load_json(valhalla_config_path)
     if 'mjolnir' not in original_config:
         raise ValueError('Original Valhalla configuration missing mjolnir')
-    tiles = paired_scope['selectedSourceTiles']
+    cut_tiles = paired_scope['selectedSourceTiles']
     source_area = shape(load_json(buffer_path)['geometry'])
     receiver_area = shape(load_json(receiver_buffer_path)['geometry'])
+    original_index = load_json(index_path)
+    tiles, additional_endpoint_tiles = select_pair_indexed_endpoint_domain_tiles(
+        graph_index=original_index, selected_source_tiles=cut_tiles,
+        source_footprint=source_area, receiver_footprint=receiver_area)
     endpoint_domain_tiles = verify_pair_cut_source_terminal_endpoint_domain(
-        graph_index=load_json(index_path),selected_source_tiles=tiles,
-        source_footprint=source_area,receiver_footprint=receiver_area)
-    with tempfile.TemporaryDirectory(prefix='f8-original-outer-A-terminals-') as scratch:
-        work = Path(scratch)
-        original_config['mjolnir'] = dict(original_config['mjolnir'])
-        original_config['mjolnir']['tile_extract'] = str(
-            (manifest_path.parent / manifest['artifact']['fileName']).resolve())
-        original_config['mjolnir']['tile_dir'] = str(work / 'no-unpacked-tiles')
-        conf_path = work / 'original-A-valhalla.json'
-        conf_path.write_text(json.dumps(original_config), encoding='utf-8')
-        tile_path = work / 'approved-pair-cut-tiles.txt'
-        tile_path.write_text(''.join(
-            f'{int(t["level"]) | int(t["tileIndex"]) << 3}\n'
-            for t in tiles), encoding='utf-8')
-        shared_path = work / 'approved-shared-outer-cut.geojson'
-        shared_path.write_text(json.dumps({'type':'Feature', 'properties': {},
-            'geometry': mapping(paired_scope['geometry'])}), encoding='utf-8')
-        result = subprocess.run([str(binary), str(conf_path), str(tile_path),
-            str(buffer_path.resolve()), str(shared_path),
-            '--outer-terminal-candidates', str(receiver_buffer_path.resolve())],
-            capture_output=True, text=True, check=True, timeout=600)
-    all_exterior, unresolved, done = classify_native_rows(
-        result.stdout, selected_count=len(tiles),
-        version=str(manifest['valhallaVersion']))
+        graph_index=original_index, selected_source_tiles=tiles,
+        source_footprint=source_area, receiver_footprint=receiver_area)
+    cut_ids = {int(t['level']) | (int(t['tileIndex']) << 3) for t in cut_tiles}
+    indexed_endpoint_ids = {int(t['level']) | (int(t['tileIndex']) << 3) for t in tiles} - cut_ids
+    if len(indexed_endpoint_ids) != additional_endpoint_tiles:
+        raise ValueError('Indexed endpoint tile expansion lost original source tile identities')
+    indexed_tile_ids = {int(t['level']) | int(t['tileIndex']) << 3: t
+                        for t in original_index['tiles']}
+    if len(indexed_tile_ids) != len(original_index['tiles']):
+        raise ValueError('Duplicate original indexed Valhalla tile ID')
+
+    def read_original_outer_tile_set(chosen_tiles: list[dict]):
+        with tempfile.TemporaryDirectory(prefix='f8-original-outer-A-terminals-') as scratch:
+            work = Path(scratch)
+            params = dict(original_config)
+            params['mjolnir'] = dict(original_config['mjolnir'])
+            params['mjolnir']['tile_extract'] = str(
+                (manifest_path.parent / manifest['artifact']['fileName']).resolve())
+            params['mjolnir']['tile_dir'] = str(work / 'no-unpacked-tiles')
+            conf_path = work / 'original-A-valhalla.json'
+            conf_path.write_text(json.dumps(params), encoding='utf-8')
+            tile_path = work / 'approved-pair-indexed-source-tiles.txt'
+            tile_path.write_text(''.join(
+                f'{int(t["level"]) | int(t["tileIndex"]) << 3}\n'
+                for t in chosen_tiles), encoding='utf-8')
+            shared_path = work / 'approved-shared-outer-cut.geojson'
+            shared_path.write_text(json.dumps({'type':'Feature', 'properties': {},
+                'geometry': mapping(paired_scope['geometry'])}), encoding='utf-8')
+            raw = subprocess.run([str(binary), str(conf_path), str(tile_path),
+                str(buffer_path.resolve()), str(shared_path),
+                '--outer-terminal-candidates', str(receiver_buffer_path.resolve())],
+                capture_output=True, text=True, check=True, timeout=600)
+        return classify_native_rows(raw.stdout, selected_count=len(chosen_tiles),
+                                    version=str(manifest['valhallaVersion']))
+
+    native_added_owner_ids: set[int] = set()
+    additional_native_origin_tiles = 0
+    # At most ONE precise native incident-owner expansion. Do not trace source
+    # roads, follow unrelated turns, raise anchor limits or scan every tile.
+    for owner_pass in range(2):
+        all_exterior, unresolved, done = read_original_outer_tile_set(tiles)
+        missing_count = done.get('nativeIncomingOriginOutsideSelectedPairTilesCount')
+        missing_tiles = done.get('unselectedOriginalIncomingOwnerTileIds')
+        if (type(missing_count) is not int or missing_count < 0 or
+                not isinstance(missing_tiles, list) or
+                any(type(x) is not int or x < 0 for x in missing_tiles) or
+                len(set(missing_tiles)) != len(missing_tiles) or
+                len(missing_tiles) > missing_count):
+            raise ValueError('Malformed original native owning tile identity evidence')
+        if missing_count == 0:
+            if missing_tiles:
+                raise ValueError('Unexpected native owner tiles despite complete coverage')
+            break
+        if owner_pass > 0:
+            raise ValueError('Original native A incoming-owner coverage still incomplete after bounded incident readback')
+        chosen = {int(t['level']) | int(t['tileIndex']) << 3 for t in tiles}
+        extra_owners = set(missing_tiles) - chosen
+        if (not extra_owners or len(extra_owners) != len(missing_tiles) or
+                not extra_owners <= indexed_tile_ids.keys() or
+                len(chosen | extra_owners) >= len(indexed_tile_ids)):
+            raise ValueError('Native missing A owning tiles absent from original index or require whole-graph scan')
+        tiles = [indexed_tile_ids[tid] for tid in sorted(chosen | extra_owners)]
+        native_added_owner_ids.update(extra_owners)
+        additional_native_origin_tiles += len(extra_owners)
+    else:
+        raise ValueError('Incomplete original native A incoming-owner coverage')
     if (unresolved or done.get('originalCutFilterApplied') is not False or
             done.get('sharedCutFilterApplied') is not False or
             done.get('pairBoundaryTilesSelected') is not True or
@@ -1669,7 +1788,15 @@ def inspect_native_boundary_outer_terminals(*, manifest_path: Path,
         if receiver_area.covers(x):
             in_receiver.append(row)
     return {
+        # Used only by this invocation's independent native readback. Never
+        # considered external source discovery or a complete physical-road ID.
+        'nativeSourceTileIdsForReadback': sorted(valid_tiles),
         'originalSourceBoundaryTileCount': len(tiles),
+        'originalSourceCutBoundaryTileCount': len(cut_tiles),
+        'additionalIndexedEndpointDomainTiles': additional_endpoint_tiles,
+        'additionalIndexedEndpointDomainTileIds': sorted(indexed_endpoint_ids),
+        'additionalNativeIncomingOwnerTiles': additional_native_origin_tiles,
+        'additionalNativeIncomingOwnerTileIds': sorted(native_added_owner_ids),
         'indexedSourceTilesIntersectingOuterXDomain': endpoint_domain_tiles,
         'terminalEndpointDomainTileCoverage': 'COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS',
         **native_owners,
@@ -1678,7 +1805,11 @@ def inspect_native_boundary_outer_terminals(*, manifest_path: Path,
         'originalSourceTerminalEdgesOutsideAWithinB': len(in_receiver),
         'outsideAAndOutsideB': len(all_exterior) - len(in_receiver),
         'eligibleTerminalOriginalEdges': in_receiver,
-        'inventoryScope': 'PAIR_SHARED_OUTER_CUTOFF_TILES_ONLY',
+        'inventoryScope': ('PAIR_SHARED_CUTOFF_PLUS_INDEXED_ENDPOINT_AND_NATIVE_OWNER_TILES'
+                           if additional_native_origin_tiles else
+                           'PAIR_SHARED_CUTOFF_PLUS_INDEXED_B_OUTSIDE_A_ENDPOINT_TILES'
+                           if additional_endpoint_tiles else
+                           'PAIR_SHARED_OUTER_CUTOFF_TILES_ONLY'),
         'sourcePhysicalRoadDirectionCompleteness': 'NOT_VERIFIED',
     }
 
@@ -1733,7 +1864,7 @@ def reconcile_original_outer_terminal_candidates(*, prior_candidates: list[dict]
             'endLat': a['endLat'], 'endLon': a['endLon'],
             'endNodeGraphId': a['endNodeGraphId'],
             'sourceCutGraphIds': [],
-            'selectionKinds': ['NATIVE_LOCAL_TERMINAL_IN_PAIR_OUTER_CUTOFF_TILES'],
+            'selectionKinds': ['NATIVE_LOCAL_TERMINAL_IN_ORIGINAL_PAIR_INDEXED_ENDPOINT_DOMAIN'],
             'originalNativeLocalProof': {
                 'method': 'INDEPENDENT_ORIGINAL_END_NODE_ADJACENCY',
                 'endNodeGraphId': a['endNodeGraphId'],
@@ -1745,6 +1876,16 @@ def reconcile_original_outer_terminal_candidates(*, prior_candidates: list[dict]
             'physicalRoadFinalCompleteness': 'NOT_VERIFIED'})
     return [*prior_candidates, *added], {
         'originalSourceBoundaryTileCount': inventory['originalSourceBoundaryTileCount'],
+        'originalSourceCutBoundaryTileCount': inventory.get(
+            'originalSourceCutBoundaryTileCount', inventory['originalSourceBoundaryTileCount']),
+        'additionalIndexedEndpointDomainTiles': inventory.get(
+            'additionalIndexedEndpointDomainTiles', 0),
+        'additionalNativeIncomingOwnerTiles': inventory.get(
+            'additionalNativeIncomingOwnerTiles', 0),
+        'additionalIndexedEndpointDomainTileIds': inventory.get(
+            'additionalIndexedEndpointDomainTileIds', []),
+        'additionalNativeIncomingOwnerTileIds': inventory.get(
+            'additionalNativeIncomingOwnerTileIds', []),
         'indexedSourceTilesIntersectingOuterXDomain':
             inventory['indexedSourceTilesIntersectingOuterXDomain'],
         'terminalEndpointDomainTileCoverage': inventory['terminalEndpointDomainTileCoverage'],
@@ -1798,9 +1939,17 @@ def verified_original_b_directed_roads_at_x(row: dict) -> list[dict]:
             value = edge.get(name)
             if type(value) not in (int, float) or not math.isfinite(value):
                 raise ValueError('Nonfinite original directed B road geometry at X')
+        source_len = edge.get('sourceNativeApproachSegmentMetres')
+        progress = edge['directedOverlapProgressMetres']
+        tiny_native_match = (
+            type(source_len) in (int, float) and math.isfinite(source_len)
+            and 0.5 <= source_len < 1.0 and progress >= 0.5
+            and progress >= source_len - 0.12
+            and edge['distanceXMetres'] <= 0.10
+            and edge['distanceSourceApproachMetres'] <= 0.10)
         if (edge['distanceXMetres'] > 0.75
                 or edge['distanceSourceApproachMetres'] > 0.75
-                or edge['directedOverlapProgressMetres'] < 1.0
+                or not (progress >= 1.0 or tiny_native_match)
                 or edge['sameLayerBridgeTunnel'] is not True):
             raise ValueError('Original B directed road does not overlap A approach at X')
         remaining = edge['receiverRemainingMetresAfterX']
@@ -2145,18 +2294,25 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
                 original['sourceCutGraphIds'].append(link['originalSourceCutGraphId'])
         candidates += extra_source['newOriginalNativeTerminalCandidates']
     outer_inventory = None
+    extra_endpoint_tile_ids: set[int] = set()
     if reconcile_outer_terminals:
         outer = inspect_native_boundary_outer_terminals(
             manifest_path=manifest_path, index_path=index_path,
             buffer_path=buffer_path, valhalla_config_path=valhalla_config_path,
             receiver_buffer_path=receiver_buffer_path, binary=binary,
             paired_scope=pair)
+        expanded_tile_ids = set(outer.pop('nativeSourceTileIdsForReadback'))
+        if not selected_ids <= expanded_tile_ids:
+            raise ValueError('Endpoint-domain native A tiles dropped original source-cut tiles')
+        extra_endpoint_tile_ids = expanded_tile_ids - selected_ids
+        selected_ids = expanded_tile_ids
         def read_outer_final(ids):
             return inspect_local_source_edges(manifest_path=manifest_path,
                 index_path=index_path, buffer_path=buffer_path,
                 valhalla_config_path=valhalla_config_path, binary=binary,
                 source_graph_ids=ids, allowed_tile_ids=selected_ids,
-                evaluate_native_costing=True)
+                evaluate_native_costing=True,
+                approved_extra_endpoint_tile_ids=extra_endpoint_tile_ids)
         candidates, outer_inventory = reconcile_original_outer_terminal_candidates(
             prior_candidates=candidates, inventory=outer, read_native=read_outer_final)
     ids = [r['sourceFinalCandidateGraphId'] for r in candidates]
@@ -2170,7 +2326,8 @@ def match_original_receiver_to_file(*, source_evidence_path: Path,
         index_path=index_path, buffer_path=buffer_path,
         valhalla_config_path=valhalla_config_path, binary=binary,
         source_graph_ids=ids, allowed_tile_ids=selected_ids,
-        evaluate_native_costing=True)
+        evaluate_native_costing=True,
+        approved_extra_endpoint_tile_ids=extra_endpoint_tile_ids)
     b_native = indexed_receiver_edges_at_x(receiver_manifest_path=receiver_manifest_path,
         receiver_index_path=receiver_index_path,
         receiver_buffer_path=receiver_buffer_path,

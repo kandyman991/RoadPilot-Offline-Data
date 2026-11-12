@@ -71,7 +71,9 @@ def build(preflight: dict, preflight_sha256: str) -> dict:
                     b["travelModes"], "B permissions exceed original source permissions")
             require(b["receiverXPosition"] in ("END_NODE", "INTERIOR") and
                     0 <= b["nativeXGapMeters"] <= .75 and
-                    b["directedApproachOverlapMeters"] >= 1,
+                    (b["directedApproachOverlapMeters"] >= 1 or
+                     (0.5 <= b["directedApproachOverlapMeters"] < 1
+                      and b["nativeXGapMeters"] <= .10)),
                     "B original road projection or directed overlap invalid")
     require(len(seen_b) == counts["nativeDirectedBIncomingPhysicalRoadMatches"],
             "Original B directions lost in production-ready candidate generation")

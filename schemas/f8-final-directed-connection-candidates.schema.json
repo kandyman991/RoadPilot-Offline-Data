@@ -88,7 +88,7 @@
         "receiverXPosition":{"enum":["END_NODE","INTERIOR"]},
         "nativeCommonVehicleModes":{"type":"integer","enum":[1,1024,1025]},
         "distanceXMetres":{"type":"number","minimum":0,"maximum":0.75},
-        "directedApproachOverlapMetres":{"type":"number","minimum":1},
+        "directedApproachOverlapMetres":{"type":"number","minimum":0.5},
         "receiverNativeRoadClass":{"type":"integer","minimum":0},
         "receiverNativeRoadUse":{"type":"integer","minimum":0},
         "receiverNativeLayer":{"type":"integer"},

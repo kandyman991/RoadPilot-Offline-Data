@@ -1,7 +1,9 @@
 // Region-independent original Valhalla boundary terminal extractor.
-// This tool reads ONLY the tile IDs selected from a region's own 25km buffer
-// outline by extract_f8_region_final_edges.py; it does not walk all graph tiles,
-// route with Valhalla, or infer receiving-graph identities.
+// This tool reads only the immutable original A tile IDs approved by
+// extract_f8_region_final_edges.py: shared 25km cutoff, B-outside-A indexed
+// endpoint tiles, and at most one bounded native incident-owner expansion.
+// It does not walk roads, scan the whole graph, route with Valhalla, or
+// infer receiving-graph identities.
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <valhalla/baldr/graphreader.h>
@@ -327,7 +329,7 @@ int inspect_local_continuations(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   if (argc == 2 && std::string(argv[1]) == "--protocol") {
-    std::cout << "roadpilot.f8-native-source-10\n";
+    std::cout << "roadpilot.f8-native-source-11\n";
     return 0;
   }
   if (argc == 2 && std::string(argv[1]) == "--version") {
@@ -569,6 +571,20 @@ int main(int argc, char** argv) {
     }
     if (!source.eof()) throw std::runtime_error("Failed to read selected boundary tiles");
     if (visited_tiles.empty()) throw std::runtime_error("No original boundary tiles provided");
+    // No new topology walk: exact missing owners were already observed via
+    // GetOpposingEdgeId at the indexed external endpoint domain above.
+    // Expose just the distinct native owning tiles, so Python can validate
+    // their immutable index membership before ONE bounded source readback.
+    std::unordered_set<uint64_t> unselected_native_origin_tile_ids;
+    for (const auto id : unselected_native_origin_graphids) {
+      const baldr::GraphId edge_id(id);
+      unselected_native_origin_tile_ids.insert(
+          static_cast<uint64_t>(edge_id.level()) |
+          (static_cast<uint64_t>(edge_id.tileid()) << 3));
+    }
+    std::vector<uint64_t> sorted_missing_tiles(unselected_native_origin_tile_ids.begin(),
+                                               unselected_native_origin_tile_ids.end());
+    std::sort(sorted_missing_tiles.begin(), sorted_missing_tiles.end());
     std::cout << "{\"kind\":\"complete\",\"valhallaVersion\":\""
               << ROADPILOT_VALHALLA_VERSION
               << "\",\"selectedTiles\":" << visited_tiles.size()
@@ -582,7 +598,12 @@ int main(int argc, char** argv) {
               << ",\"originalBEligibleExternalEndNodesInspected\":" << original_b_eligible_endnodes_inspected
               << ",\"nativeOriginalIncomingEdgeReferencesInspected\":" << original_native_incoming_references_inspected
               << ",\"nativeIncomingOriginOutsideSelectedPairTilesCount\":" << unselected_native_origin_graphids.size()
-              << "}\n";
+              << ",\"unselectedOriginalIncomingOwnerTileIds\":[";
+    for (std::size_t i = 0; i < sorted_missing_tiles.size(); ++i) {
+      if (i) std::cout << ',';
+      std::cout << sorted_missing_tiles[i];
+    }
+    std::cout << "]}\n";
     if (!std::cout) throw std::runtime_error("Failed writing native boundary records");
     return 0;
   } catch (const std::exception& e) {
