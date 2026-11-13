@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "kandyman991/RoadPilot-Offline-Data",
   "defaultBranch": "main",
-  "generatedAt": "2026-11-13T07:17:50.390Z",
+  "generatedAt": "2026-11-13T08:22:44.911Z",
   "generatedByEvent": "push",
   "instructions": [
     "Read ../CHAT_HANDOFF.md first.",
@@ -11,9 +11,9 @@
     "Before changing code, verify live PR/CI status on GitHub because workflow results may have changed after this snapshot."
   ],
   "head": {
-    "sha": "efc0709b8dadf756be7333af996f0a13ba28359f",
-    "message": "feat(graph-studio): complete independent Search/POI build/import M5 (#17) (#136)\n\n* feat(graph-studio): complete independent Search/POI build and import workflow\n\n* fix(search): pin exact Overture release for both source download paths\n\n* ci(graph-studio): retain short-lived PR desktop packages for independent acceptance",
-    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/efc0709b8dadf756be7333af996f0a13ba28359f"
+    "sha": "10bfc13178d50936e12ebfe2be11f141548fd1e0",
+    "message": "Merge pull request #137 from kandyman991/docs/f8-73-82-reconcile-20261113\n\ndocs(f8): reconcile #73/#82 and Graph Studio private-ready status",
+    "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/commit/10bfc13178d50936e12ebfe2be11f141548fd1e0"
   },
   "openPullRequests": [
     {
@@ -79,9 +79,15 @@
   ],
   "openIssues": [
     {
+      "number": 73,
+      "title": "F8 directed-boundary completeness: six private-ready pairs; global lineage remains unverified",
+      "updatedAt": "2026-11-13T08:07:39Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73"
+    },
+    {
       "number": 17,
       "title": "Graph Studio: build and inspect RoadPilot POI/search database",
-      "updatedAt": "2026-11-13T06:55:37Z",
+      "updatedAt": "2026-11-13T07:18:38Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/issues/17"
     },
     {
@@ -89,18 +95,6 @@
       "title": "Graph Studio UI audit: tracked fixes and cleanup (UI-01–UI-13)",
       "updatedAt": "2026-11-12T19:30:57Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/issues/89"
-    },
-    {
-      "number": 73,
-      "title": "F8 frontier completeness: precompute every useful handoff, never freeze after first learned crossing",
-      "updatedAt": "2026-11-04T19:21:08Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73"
-    },
-    {
-      "number": 82,
-      "title": "Fix F8 production discovery: OSM buffered-overlap anchor explosion (>250k) despite complete native scan",
-      "updatedAt": "2026-11-04T16:58:58Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/issues/82"
     },
     {
       "number": 77,
@@ -135,47 +129,80 @@
   ],
   "recentWorkflowRuns": [
     {
-      "id": 43384726202,
-      "name": "Publish RoadPilot Overture Sidecar Pack",
+      "id": 43392735145,
+      "name": "F8 Architecture Contract",
       "status": "in_progress",
       "conclusion": null,
       "branch": "main",
+      "headSha": "10bfc13178d50936e12ebfe2be11f141548fd1e0",
+      "event": "push",
+      "updatedAt": "2026-11-13T08:22:40Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/43392735145"
+    },
+    {
+      "id": 43390568581,
+      "name": "Validate offline-data repository",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "docs/f8-73-82-reconcile-20261113",
+      "headSha": "fdddd7c99a2fd6cf20afbfe668a51cfd39fb2559",
+      "event": "pull_request",
+      "updatedAt": "2026-11-13T08:09:45Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/43390568581"
+    },
+    {
+      "id": 43390568547,
+      "name": "F8 Architecture Contract",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "docs/f8-73-82-reconcile-20261113",
+      "headSha": "fdddd7c99a2fd6cf20afbfe668a51cfd39fb2559",
+      "event": "pull_request",
+      "updatedAt": "2026-11-13T08:06:31Z",
+      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/43390568547"
+    },
+    {
+      "id": 43384726202,
+      "name": "Publish RoadPilot Overture Sidecar Pack",
+      "status": "completed",
+      "conclusion": "success",
+      "branch": "main",
       "headSha": "efc0709b8dadf756be7333af996f0a13ba28359f",
       "event": "push",
-      "updatedAt": "2026-11-13T07:17:48Z",
+      "updatedAt": "2026-11-13T07:19:20Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/43384726202"
     },
     {
       "id": 43384726183,
       "name": "F8 Architecture Contract",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "efc0709b8dadf756be7333af996f0a13ba28359f",
       "event": "push",
-      "updatedAt": "2026-11-13T07:17:47Z",
+      "updatedAt": "2026-11-13T07:18:14Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/43384726183"
     },
     {
       "id": 43384726147,
       "name": "Build RoadPilot Graph Studio",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "efc0709b8dadf756be7333af996f0a13ba28359f",
       "event": "push",
-      "updatedAt": "2026-11-13T07:17:48Z",
+      "updatedAt": "2026-11-13T07:24:50Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/43384726147"
     },
     {
       "id": 43384726124,
       "name": "Validate offline-data repository",
-      "status": "in_progress",
-      "conclusion": null,
+      "status": "completed",
+      "conclusion": "success",
       "branch": "main",
       "headSha": "efc0709b8dadf756be7333af996f0a13ba28359f",
       "event": "push",
-      "updatedAt": "2026-11-13T07:17:47Z",
+      "updatedAt": "2026-11-13T07:21:17Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/43384726124"
     },
     {
@@ -210,39 +237,6 @@
       "event": "pull_request",
       "updatedAt": "2026-11-13T07:00:03Z",
       "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/43382524802"
-    },
-    {
-      "id": 43382524800,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feat/graph-studio-search-m5-finalize-20261113",
-      "headSha": "e52b1311d4389e8cf7bc75a9fbdae624c117d0e7",
-      "event": "pull_request",
-      "updatedAt": "2026-11-13T07:08:06Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/43382524800"
-    },
-    {
-      "id": 43382453462,
-      "name": "Publish RoadPilot Overture Sidecar Pack",
-      "status": "completed",
-      "conclusion": "success",
-      "branch": "feat/graph-studio-search-m5-finalize-20261113",
-      "headSha": "5900af252456c720845d05f6879c21b468757234",
-      "event": "pull_request",
-      "updatedAt": "2026-11-13T07:00:22Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/43382453462"
-    },
-    {
-      "id": 43382452866,
-      "name": "Build RoadPilot Graph Studio",
-      "status": "completed",
-      "conclusion": "cancelled",
-      "branch": "feat/graph-studio-search-m5-finalize-20261113",
-      "headSha": "5900af252456c720845d05f6879c21b468757234",
-      "event": "pull_request",
-      "updatedAt": "2026-11-13T06:59:58Z",
-      "htmlUrl": "https://github.com/kandyman991/RoadPilot-Offline-Data/actions/runs/43382452866"
     }
   ]
 }
