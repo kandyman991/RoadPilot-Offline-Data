@@ -1,3 +1,18 @@
+# 13 Nov 2026 — Graph Studio main navigation simplification in feature PR
+
+The original 13 UI audit defects are all fixed. A second usability pass
+reduces the main selector to five work areas: Build, A→X→B Connections,
+Route Tests, Maps/Search Data, Publish. Specialist graph, build-comparison
+and historical/manual Border inspectors are accessed only from Advanced.
+All old tools remain reachable; saved overrides/evidence are NOT deleted.
+Stale UI status copy is reconciled with private native A→X→B acceptance;
+the F8 GPS proposal tool is explicitly diagnostic, not the newer native
+final-edge producer. Source GraphIds, routes, graphs, CLI and data untouched.
+See docs/GRAPH_STUDIO_UI_AUDIT.md for the updated status and UI QA plan.
+The owner’s pending Search M5 GUI acceptance is a separate task.
+
+---
+
 # 13 Nov 2026 — Graph Studio Search/POI issue #17 M5 implementation
 
 The existing M1-M4 Search pipeline can inspect, search, compare and publish

@@ -8,16 +8,42 @@ CSS = (ROOT/'graph-studio/src/style.css').read_text()
 AUDIT = (ROOT/'docs/GRAPH_STUDIO_UI_AUDIT.md').read_text()
 
 class Phase2UiContract(unittest.TestCase):
-    def test_all_primary_tools_grouped_and_context_tools_removed_from_dropdown(self):
-        menu = UI.split('<select id="toolMenu"',1)[1].split('</select>',1)[0]
-        for group in ('Build','Inspect','Test','Data','Publish','Advanced'):
-            self.assertIn(f'<optgroup label="{group}">',menu)
-        for tool in ('build','graph','border','f8','route','visual','search','compare','publish'):
-            self.assertEqual(len(re.findall(f'<option value="{tool}">',menu)),1,tool)
-        self.assertNotIn('<option value="region">',menu)
-        self.assertNotIn('<option value="toolchain">',menu)
-        for tool in ('build','region','graph','border','f8','route','visual','search','compare','publish','toolchain'):
+    def test_five_core_workflows_with_advanced_and_preserved_tools(self):
+        main_menu = UI.split('<select id="toolMenu"',1)[1].split('</select>',1)[0]
+        core = ('build','f8','route','data','publish')
+        for tool in core:
+            self.assertEqual(len(re.findall(f'<option value="{tool}">',main_menu)),1,tool)
+        self.assertEqual(len(re.findall('<option value="advanced">',main_menu)),1)
+        for legacy in ('graph','border','compare','visual','search','region','toolchain'):
+            self.assertNotIn(f'<option value="{legacy}">',main_menu)
+
+        advanced_menu=UI.split('<select id="advancedToolMenu"',1)[1].split('</select>',1)[0]
+        for tool in ('graph','border','compare'):
+            self.assertEqual(advanced_menu.count(f'<option value="{tool}">'),1)
+        for tool in ('build','region','graph','border','f8','route','visual','search',
+                     'compare','publish','toolchain'):
             self.assertIn(f'data-tool="{tool}"',UI)
+
+        # Search and visual are one everyday Data workspace, not two separate
+        # top-level tools. The real underlying panels and handlers still exist.
+        for element in ('dataWorkspaceTabs','dataVisualTab','dataSearchTab',
+                        'advancedToolSelector','advancedToolMenu'):
+            self.assertEqual(UI.count(f'id="{element}"'),1)
+        self.assertIn('aria-label="Map and Search data tools"',UI)
+        self.assertIn('aria-label="Advanced Graph Studio tools"',UI)
+        for token in ('toolMenu.value === "data"',
+                      'toolMenu.value === "advanced"',
+                      'dataWorkspaceTabs.hidden = contextual || !dataGroup',
+                      'advancedToolSelector.hidden = contextual || !advancedGroup',
+                      'dataVisualTab.addEventListener("click", () => activateTool("visual"))',
+                      'dataSearchTab.addEventListener("click", () => activateTool("search"))',
+                      'if (advancedGroup) advancedToolMenu.value = displayedTool',
+                      'if (isPrimaryTool(storedTool))'):
+            self.assertIn(token,UI)
+        self.assertIn('.workflow-subnav[hidden]',CSS)
+        self.assertIn('.advanced-tool-selector[hidden]',CSS)
+        self.assertIn('GRAPH_STUDIO_PRIVATE_READY',UI)
+        self.assertNotIn('production connectivity is paused until the native F8 pipeline is verified',UI)
 
     def test_comparisons_are_three_genuine_tabs_in_one_panel(self):
         compare=UI.split('data-tool="compare" hidden>',1)[1].split('</section>',1)[0]

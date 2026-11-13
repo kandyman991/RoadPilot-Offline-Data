@@ -102,6 +102,53 @@ button { cursor: pointer; }
   color: #e7edf5;
   padding: 6px 8px;
 }
+/* The everyday experience has five tasks. Inspection and retained legacy
+   workflows remain reachable, but never compete with production actions. */
+.workflow-subnav,
+.advanced-tool-selector {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border-bottom: 1px solid #27303b;
+  background: #111a24;
+}
+.workflow-subnav[hidden], .advanced-tool-selector[hidden] { display: none !important; }
+.workflow-subnav { display: flex; gap: 7px; }
+.workflow-subnav-btn {
+  flex: 1 1 50%;
+  min-width: 0;
+  padding: 7px 9px;
+  color: #b2bdcc;
+  background: #16222e;
+  border: 1px solid #354252;
+  border-radius: 6px;
+}
+.workflow-subnav-btn[aria-pressed="true"] {
+  color: #edf6ff;
+  background: #254967;
+  border-color: #6aa7dc;
+}
+.workflow-subnav-btn:focus-visible,
+.advanced-tool-selector select:focus-visible {
+  outline: 2px solid #77b9fa;
+  outline-offset: 2px;
+}
+.advanced-tool-selector { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.advanced-tool-selector label {
+  color: #9aabba;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-size: 10px;
+}
+.advanced-tool-selector select {
+  min-width: 0;
+  padding: 7px 8px;
+  color: #e7edf5;
+  background: #15212c;
+  border: 1px solid #354252;
+  border-radius: 6px;
+}
+.advanced-tool-selector small { color: #9caab9; font-size: 11px; line-height: 1.45; }
+
 .tool-panel {
   flex: 1 1 auto;
   min-height: 0;
