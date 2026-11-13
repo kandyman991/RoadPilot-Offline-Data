@@ -4203,6 +4203,11 @@ function configFromEditor(): Record<string, unknown> {
       },
     },
   };
+  // A Search-only edit must not silently populate unused Visual configuration.
+  // In routing-only regions, preserve the entire explicitly disabled section.
+  if (existingVisual.enabled === false) {
+    config.visual = structuredClone(existingVisual);
+  }
   if (editorSearchEnabled.checked) {
     const country = editorSearchCountry.value.trim().toUpperCase();
     if (!/^[A-Z]{2}$/.test(country)) {
