@@ -88,6 +88,27 @@ class PrivateNativeGraphStudioBridgeTest(unittest.TestCase):
             self.assertTrue(result["notForRoadPilotRuntime"])
             self.assertFalse((root/"f8-private-catalogs").exists())
 
+    def test_stale_automatically_discovered_evidence_regenerates_but_explicit_fails(self):
+        import gzip
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            a,b=setup_workspace(root)
+            directory=root/"diagnostics/f8-production/old"
+            directory.mkdir(parents=True)
+            pair="region-a__region-b"
+            (directory/(pair+producer.SUFFIX)).write_text(json.dumps({
+                "pairId":pair,"graphFingerprints":{
+                    "from":"sha256:"+"a"*64,"to":"sha256:"+"b"*64}}))
+            with gzip.open(directory/(pair+producer.NATIVE),"wt") as handle:
+                json.dump({"sourceRegionId":"region-a","receiverRegionId":"region-b",
+                           "sourceGraphFingerprint":"sha256:"+"a"*64,
+                           "receiverGraphFingerprint":"sha256:"+"b"*64},handle)
+            autodiscovered=producer.execute("status",root,a,b,None)
+            self.assertEqual(autodiscovered["status"],"READY_TO_GENERATE_NATIVE_EVIDENCE")
+            self.assertIsNone(autodiscovered["evidencePath"])
+            with self.assertRaisesRegex(ValueError,"archive identity is stale"):
+                producer.execute("status",root,a,b,directory)
+
     def test_absent_original_configuration_fails_readiness(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder)

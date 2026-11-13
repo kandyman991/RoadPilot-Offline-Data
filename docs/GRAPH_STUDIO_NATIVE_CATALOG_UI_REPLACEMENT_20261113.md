@@ -68,7 +68,7 @@ caller inventory and explicit owner approval; none is included here.
 - New negative unit tests cover missing original prerequisites, index/buffer
   tampering, manifest/archive mismatch, unsafe path, symlink evidence,
   identical A/B regions and rejecting RoadPilot/public READY.
-- Full repository Python tests: 526/526 pass. TypeScript/Vite compiles.
+- Full repository Python tests: 527/527 pass. TypeScript/Vite compiles.
   Native Tauri/AppImage/DEB CI and installed desktop button-by-button
   acceptance must still be checked independently.
 

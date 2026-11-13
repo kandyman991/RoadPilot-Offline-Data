@@ -293,6 +293,19 @@ def execute(action: str, workspace: Path, from_manifest: Path,
     root=output_root(workspace,a,b)
     catalog=root/(pair+"-GRAPH_STUDIO_PRIVATE_READY.json")
     evidence=locate_evidence(workspace,pair,evidence_directory)
+    if evidence is not None and evidence_directory is None:
+        # A newly compiled region may share its pair name with retained
+        # diagnostics from older graph archives. Never accidentally promote
+        # stale proof or make a new build unusable because of that cache.
+        # Explicit user-selected evidence, by contrast, must fail loudly.
+        import gzip
+        try:
+            previous=read(evidence[0])
+            with gzip.open(evidence[1],"rt",encoding="utf-8") as stream:
+                native=json.load(stream)
+            validate_identity(a,b,previous,native)
+        except (OSError,ValueError,KeyError,EOFError,json.JSONDecodeError):
+            evidence=None
     if catalog.exists():
         data=check_private(catalog,a,b)
         proof=read(root/"proof.json")
