@@ -70,6 +70,9 @@ jobs:
           python3 -m pip install "jsonschema==4.25.1"
           python3 -m unittest discover -s tests -p 'test_graph_studio_search_producer.py' -v
 
+      - name: Original-native private catalog integrity regression tests
+        run: python3 -m unittest discover -s tests -p 'test_graph_studio_private_catalog_workflow.py' -v
+
       - name: Native-F8 retirement regression checks
         run: python3 -m unittest discover -s tests -p 'test_f8_architecture_regressions.py'
 
