@@ -50,6 +50,7 @@ class CatalogTests(unittest.TestCase):
                          {"italy/nord-est", "italy/nord-ovest"})
         nord_est = next(item for item in items if item["id"] == "italy/nord-est")
         self.assertEqual(nord_est["countryName"], "Italy")
+        self.assertEqual(nord_est["countryIsoAlpha2"], "IT")
         self.assertEqual(nord_est["bounds"],
                          {"minLat": 44.0, "maxLat": 47.0, "minLng": 10.0, "maxLng": 14.0})
         self.assertTrue(nord_est["polygonUrl"].endswith("/nord-est.poly"))
@@ -68,6 +69,7 @@ class CatalogTests(unittest.TestCase):
         chubu = next(item for item in items if item["id"] == "asia/japan/chubu" or
                      item["id"] == "japan/chubu")
         self.assertIsNone(chubu["bounds"])
+        self.assertEqual(chubu["countryIsoAlpha2"], "JP")
         self.assertTrue(chubu["polygonUrl"].endswith("chubu.poly"))
         self.assertIn("italy/nord-est", {item["id"] for item in items})
 

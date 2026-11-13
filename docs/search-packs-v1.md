@@ -53,3 +53,23 @@ Every enriched pack is validated twice:
 
 This makes enrichment additive: an M2 failure cannot silently replace the established Android
 search behavior.
+
+
+## Graph Studio independent owner-local Search build and import (13 Nov 2026)
+
+M5 adds a Search-only producer to the existing Graph Studio Search / POI
+inspector. Configure a region Search target in the Region Editor, then choose
+a new Search pack version. Leave the local source path/release empty to use
+the pinned Overture client and current STAC release, or enter an existing
+bounded GeoJSONSeq and its exact source release to reproduce a build.
+
+The same canonical RoadPilot Search builder, runtime validation, immutable
+SQLite/manifest and SHA-256 proofs are used in local production and import.
+New retained packs live in the Search root, independently of Routing/Visual.
+Search import accepts an absolute manifest path, checks the original
+database, source configuration, required v1 regression and copy, then
+atomically retains a unique version. Search/POI inspector, comparisons and
+the existing Search-only R2 publication manager use these retained artifacts.
+
+See GRAPH_STUDIO_SEARCH_M5_ACCEPTANCE_20261113.md for the complete
+M5 scope, real Austria Overture data proof and desktop acceptance limitations.

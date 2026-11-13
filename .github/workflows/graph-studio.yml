@@ -52,11 +52,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y             libwebkit2gtk-4.1-dev             build-essential             curl             wget             file             libxdo-dev             libssl-dev             libayatana-appindicator3-dev             librsvg2-dev
 
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Release governance regression tests
         run: python3 -m unittest discover -s tests -p 'test_graph_studio_release_governance.py'
 
       - name: Catalog startup regression tests
         run: python3 -m unittest discover -s tests -p 'test_graph_studio_catalog.py'
+
+      - name: Independent Search/POI producer regression (Italy and Austria)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install "jsonschema==4.25.1"
+          python3 -m unittest discover -s tests -p 'test_graph_studio_search_producer.py' -v
 
       - name: Native-F8 retirement regression checks
         run: python3 -m unittest discover -s tests -p 'test_f8_architecture_regressions.py'
@@ -110,3 +122,18 @@ jobs:
           echo "GRAPH_STUDIO_APPIMAGE=$APPIMAGE" >> "$GITHUB_ENV"
           echo "GRAPH_STUDIO_DEB=$DEB" >> "$GITHUB_ENV"
           ls -lh "$APPIMAGE" "$DEB"
+          # Both officially packaged formats must include the exact CLI
+          # that the new native UI commands invoke, plus the pinned source
+          # acquisition contract. No installed toolchain or source download
+          # is needed during this static packaged-resource audit.
+          dpkg-deb --contents "$DEB" | grep "pipeline/tools/graph_studio_search_producer.py"
+          dpkg-deb --contents "$DEB" | grep "pipeline/requirements-search.txt"
+          EXTRACT_DIR="$(mktemp -d)"
+          (
+            cd "$EXTRACT_DIR"
+            "$GITHUB_WORKSPACE/$APPIMAGE" --appimage-extract >/dev/null
+            test -s squashfs-root/usr/lib/roadpilot-graph-studio/pipeline/tools/graph_studio_search_producer.py ||
+              test -n "$(find squashfs-root -type f -path '*/pipeline/tools/graph_studio_search_producer.py' -print -quit)"
+            test -n "$(find squashfs-root -type f -path '*/pipeline/requirements-search.txt' -print -quit)"
+          )
+          rm -rf "$EXTRACT_DIR"
