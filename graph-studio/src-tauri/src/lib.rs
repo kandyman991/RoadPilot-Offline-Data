@@ -4877,7 +4877,8 @@ mod native_f8_start_reservation_tests {
             }));
         }
         ready.wait();
-        let claimed = handles.into_iter().filter(|h| h.join().unwrap()).count();
+        let claimed = handles.into_iter().map(|h| h.join().unwrap())
+            .filter(|claimed| *claimed).count();
         assert_eq!(claimed, 1, "only one start may be reserved");
         assert_ne!(graph_running.load(Ordering::SeqCst),
                    f8_running.load(Ordering::SeqCst));
