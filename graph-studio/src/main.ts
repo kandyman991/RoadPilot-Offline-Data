@@ -447,10 +447,6 @@ app.innerHTML = `
 <div class="app">
   <header class="topbar">
     <div class="brand"><strong>RoadPilot Graph Studio</strong><span>map factory</span></div>
-    <div id="metricCpu" class="metric">CPU <b>—</b></div>
-    <div id="metricRam" class="metric">RAM <b>—</b></div>
-    <div id="metricDisk" class="metric">Disk <b>—</b></div>
-    <div id="metricTemp" class="metric">Temp <b>—</b></div>
     <div class="topbar-spacer"></div>
     <nav id="workspaceSwitcher" class="workspace-switcher" aria-label="Workspace panes" hidden>
       <button id="showRegionsPane" class="workspace-pane-btn" type="button" aria-pressed="false">Regions</button>
@@ -539,12 +535,15 @@ app.innerHTML = `
         </div>
         <div id="buildSelectionSummary" class="status-line">No regions selected.</div>
         <div id="buildPrerequisite" class="status-line" aria-live="polite">Select a region and wait for the toolchain.</div>
-        <label class="check-row"><input id="refreshSourceCheckbox" type="checkbox" />
-          Force source re-download (ignore unchanged source cache)
-        </label>
-        <p class="status-line">Normal builds reuse locally cached Geofabrik PBFs and check their upstream checksums daily.</p>
-        <p>Build each Valhalla region independently. Native A → X → B catalogs can be verified for private Graph Studio use without an Android release; historical connector artifacts remain diagnostic-only.</p>
-        <p>Select any Geofabrik region and click Build selected. Unconfigured regions are prepared automatically; completed routing packages still require Valhalla border proof.</p>
+        <p class="status-line">Select regions on the left, choose a package version, then build. Region sources and normal Valhalla checks are automatic.</p>
+        <details class="route-options">
+          <summary>Advanced build options and details</summary>
+          <label class="check-row"><input id="refreshSourceCheckbox" type="checkbox" />
+            Force source re-download (ignore unchanged source cache)
+          </label>
+          <p>Source PBFs use a shared verified cache with upstream checksum checks. Each routing region is built and validated independently.</p>
+          <p>Native A → X → B catalogs may be verified for private Graph Studio use separately from later Android release acceptance. Historical connector artifacts are diagnostic-only.</p>
+        </details>
       </section>
 
       <section class="section tool-panel" data-tool="publish" hidden>
@@ -603,7 +602,13 @@ app.innerHTML = `
       </section>
 
       <section id="toolchainDetailsPanel" class="section tool-panel" data-tool="toolchain" hidden>
-        <h2>Toolchain</h2>
+        <h2>Toolchain &amp; system</h2>
+        <div class="toolchain-metrics" aria-label="System metrics">
+          <div id="metricCpu" class="metric">CPU <b>—</b></div>
+          <div id="metricRam" class="metric">RAM <b>—</b></div>
+          <div id="metricDisk" class="metric">Disk <b>—</b></div>
+          <div id="metricTemp" class="metric">Temp <b>—</b></div>
+        </div>
         <div id="tools" class="empty">Checking local tools…</div>
       </section>
 
@@ -659,8 +664,8 @@ app.innerHTML = `
       </section>
       <section class="section tool-panel" data-tool="search" hidden>
         <h2>Search / POI inspector</h2>
-        <details class="route-options" open>
-          <summary>Build / import an independent regional Search pack</summary>
+        <details class="route-options">
+          <summary>Create / import a regional Search pack</summary>
           <p>Build Search without rebuilding routing graphs or visual PMTiles. The selected region must have Search enabled and a saved deterministic validation target.</p>
           <div class="field"><label for="searchPackVersion">New immutable Search version</label><input id="searchPackVersion" autocomplete="off" placeholder="2026.11.13-1" /></div>
           <div class="field"><label for="searchLocalInput">Optional existing Overture GeoJSONSeq absolute path</label><input id="searchLocalInput" autocomplete="off" placeholder="Leave empty to download latest pinned Overture Places" /></div>

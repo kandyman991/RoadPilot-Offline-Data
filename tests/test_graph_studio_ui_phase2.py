@@ -44,6 +44,16 @@ class Phase2UiContract(unittest.TestCase):
         self.assertIn('.advanced-tool-selector[hidden]',CSS)
         self.assertIn('GRAPH_STUDIO_PRIVATE_READY',UI)
         self.assertNotIn('production connectivity is paused until the native F8 pipeline is verified',UI)
+        # Header telemetry is available on demand in Toolchain, not across
+        # the entire primary workspace at narrow desktop widths.
+        header=UI.split('<header class="topbar">',1)[1].split('</header>',1)[0]
+        toolchain=UI.split('id="toolchainDetailsPanel"',1)[1].split('</section>',1)[0]
+        for key in ('metricCpu','metricRam','metricDisk','metricTemp'):
+            self.assertNotIn(f'id="{key}"',header)
+            self.assertEqual(UI.count(f'id="{key}"'),1)
+            self.assertIn(f'id="{key}"',toolchain)
+        self.assertIn('Advanced build options and details',UI)
+        self.assertIn('Create / import a regional Search pack',UI)
 
     def test_comparisons_are_three_genuine_tabs_in_one_panel(self):
         compare=UI.split('data-tool="compare" hidden>',1)[1].split('</section>',1)[0]

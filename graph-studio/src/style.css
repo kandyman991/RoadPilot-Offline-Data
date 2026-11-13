@@ -56,6 +56,9 @@ button { cursor: pointer; }
 }
 .metric b { color: #e8edf3; font-weight: 600; }
 
+/* Detailed live telemetry is still present but does not crowd the header. */
+.toolchain-metrics { display: flex; flex-wrap: wrap; gap: 9px; margin: 8px 0 14px; }
+
 .workspace {
   min-width: 0;
   min-height: 0;

@@ -97,3 +97,15 @@ separate implementation to **generate and inspect** approved
 \`GRAPH_STUDIO_PRIVATE_READY\` final-edge catalogs directly from the GUI:
 the existing older F8 GPS-proposal panel is *not* that producer. Do not claim
 the native final-edge CLI is wired into this screen without testing it.
+
+
+**Compiled preview refinement:** A 1200 px headless Chromium preview confirmed
+that an otherwise simplified build screen still showed four live CPU/RAM/
+Disk/Temperature metrics and multiple technical paragraphs. The source now
+keeps the same metric IDs and updates in the Toolchain & system contextual
+panel, replaces repetitive build explanations with a single instruction, and
+hides force-download/technical provenance in an expandable Advanced build
+section. Search-pack source acquisition/import is collapsed by default so
+actual POI search is the primary operation. Existing controls and backend
+commands remain available. A browser screenshot without the Tauri backend
+does not constitute native GUI acceptance.
