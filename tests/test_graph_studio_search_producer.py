@@ -151,6 +151,41 @@ class SearchLocalProductionTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"Unsafe pack version"):
                 producer.build(cfile,base/"dist",base/"work","../v1")
 
+    def test_source_acquisition_pins_exact_stac_release_in_both_attempts(self):
+        with tempfile.TemporaryDirectory() as t:
+            base = Path(t)
+            cfg = config("austria", "Austria", "AT")
+            requested = base / "places.geojsonseq"
+            commands = []
+            from types import SimpleNamespace
+
+            def download_command(args, check=False):
+                commands.append(list(args))
+                if len(commands) == 2:
+                    requested.write_text("some nonempty original source")
+                return SimpleNamespace(returncode=0 if len(commands) == 2 else 1)
+
+            # No network: patch subprocess execution and the CLI existence
+            # probe, then assert both attempts use the exact STAC release.
+            with patch.object(producer, "require_pinned_client", return_value="1.0.2"), (
+                 patch.object(producer, "latest_release", return_value="2026-10-21.0")), (
+                 patch.object(producer.subprocess, "run", side_effect=download_command)), (
+                 patch.object(producer.sys, "executable",
+                              str(Path(__file__).resolve().parents[2] /
+                                  "diagnostics/test-missing-virtualenv/bin/python"))):
+                # Use the existing executable from the local environment,
+                # but fake only the executable-file existence probe.
+                with patch.object(producer.Path, "is_file", return_value=True):
+                    self.assertEqual("2026-10-21.0",
+                                     producer.download(cfg, cfg["overture"], requested))
+            self.assertEqual(2, len(commands))
+            for command in commands:
+                self.assertIn("--release", command)
+                self.assertEqual(command[command.index("--release")+1], "2026-10-21.0")
+                self.assertIn("--bbox=10.0,47.0,17.0,49.0", command)
+            self.assertNotIn("--no-stac", commands[0])
+            self.assertIn("--no-stac", commands[1])
+
     def test_import_refuses_manifest_symlink(self):
         with tempfile.TemporaryDirectory() as t:
             base=Path(t)

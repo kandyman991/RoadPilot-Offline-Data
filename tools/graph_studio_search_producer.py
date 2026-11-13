@@ -93,22 +93,16 @@ def download(config: dict, overture: dict, input_path: Path) -> str:
     require(not input_path.exists(), "Refusing to overwrite retained source input")
     # Exactly the hosted production source acquisition tool and pinned version.
     # No command shell, and never silently succeed with a partial file.
-    commands = [
-        [sys.executable, "-m", "overturemaps", "download",
-         f"--bbox={bbox}", "--type=place", "-f", "geojsonseq",
-         "-o", str(input_path)],
-        [sys.executable, "-m", "overturemaps", "download",
-         "--no-stac", f"--bbox={bbox}", "--type=place", "-f", "geojsonseq",
-         "-o", str(input_path)],
-    ]
-    # Use the CLI entry point installed in the same pinned Python environment;
-    # overturemaps does not expose a stable python -m module entry point.
     cmd_path = Path(sys.executable).parent / "overturemaps"
     require(cmd_path.is_file(), "Pinned Overture download CLI is unavailable")
-    for index, args in enumerate(commands):
-        args[:3] = [str(cmd_path)]
+    for attempt, use_stac in enumerate((True, False), start=1):
+        args = [str(cmd_path), "download", "--release", release,
+                f"--bbox={bbox}", "--type=place", "-f", "geojsonseq",
+                "-o", str(input_path)]
+        if not use_stac:
+            args.insert(2, "--no-stac")
         print(f"Overture Places fetch: {config['id']} source={release} "
-              f"bbox={bbox} attempt={index+1}", flush=True)
+              f"bbox={bbox} attempt={attempt}", flush=True)
         output = subprocess.run(args, check=False)
         if output.returncode == 0 and input_path.is_file() and input_path.stat().st_size:
             return release

@@ -77,7 +77,7 @@ fixture each exercised the new producer CLI, source release, immutable
 manifest/SQLite/checksum, runtime query validation, full import replay,
 tamper rejection, duplicate-version refusal, missing validation target,
 unsafe version and symlink rejection. Python suite at the feature commit
-base passed 517 out of 517 tests. Graph Studio TypeScript and Vite compiled
+base passed 518 out of 518 tests. Graph Studio TypeScript and Vite compiled
 successfully on Legion. The GitHub Linux CI additionally compiles Tauri,
 builds the AppImage and Debian package, and checks bundled producer resources.
 
