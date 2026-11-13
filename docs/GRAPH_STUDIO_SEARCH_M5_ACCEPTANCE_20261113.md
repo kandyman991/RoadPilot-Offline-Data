@@ -92,3 +92,60 @@ restart persistence. Installed-app evidence must be recorded separately:
 a successful Python script or CI does not prove a new AppImage has been
 installed and manually exercised. No RoadPilot Android validation is needed
 for this private Graph Studio milestone.
+
+## Installed Legion AppImage acceptance — 13 November 2026
+
+Live acceptance used the installed Graph Studio AppImage from merged PR #139
+(SHA-256 `9a7847de79bbac713e868c48548a17c7515d1e841d99472ab38bdf4572b8027c`).
+The UI, Tauri commands, local Python runtime and retained real Austria Overture
+source were exercised together; this was **not** a browser-only mock.
+
+- **Region setup:** Austria had routing enabled and Visual explicitly disabled,
+  but its installed-region config lacked Search settings. Through the installed
+  Region Editor, Search was enabled with country `AT`, exact expected name/query
+  `Wiener Staatsoper` and address fragments `Opernring, Wien`. The original
+  verified source's Search coverage was reconciled to the exact retained
+  manifest (the original source envelope, not the smaller routing polygon).
+  Routing configuration was unchanged. The editor's incidental expansion of
+  the disabled Visual block was reverted, and a focused source regression fixes
+  that side effect.
+- **Real import from installed GUI:** `Validate + retain existing pack` accepted
+  `~/RoadPilotGraphStudio/diagnostics/search-m5-20261113/retained/austria/live-2026.10.21.0/austria-v1.json`,
+  independently revalidated the original SQLite and original Search evidence
+  and promoted it into
+  `~/RoadPilotGraphStudio/search-builds/austria/live-2026.10.21.0/`.
+  Imported SQLite SHA-256 exactly matched the source manifest:
+  `54d88e3ae951bff3e1dfd306ae05737bfcc3aaf9bf6f35fd1ba58c15962ccda5`.
+  The installed selector reported **573,842** places and **562,094**
+  categorized places.
+- **Real queries:** Clicking `Search exact DB` for `Wiener Staatsoper`
+  ranked the actual `Opernring 2, 1010, Wien, AT` place first.
+  A category-only query for `restaurant` returned 50 actual SQLite results,
+  including category, address, provider and score components. Clicking an
+  individual result populated the in-app feature inspector with its coordinates,
+  provenance and score details (for example a Gmünd restaurant at
+  `48.76081243361172, 14.991194070053126`). Search overlay construction and
+  result-click actions completed without errors.
+- **Persistence:** The installed AppImage was exited via its desktop window
+  close protocol and launched again. The Search build was automatically listed,
+  its validation count remained correct and `Wiener Staatsoper` was again
+  ranked first from the retained SQLite without a fresh import.
+- **Independent artifacts:** Before/after metadata for the four existing
+  Austria Routing/Visual package files matched exactly; there was no routing
+  or visual build, upload or R2 publication. The routing and disabled Visual
+  configuration objects were restored/preserved unchanged. Evidence and the
+  original Austrian source are retained outside Git under
+  `~/RoadPilotGraphStudio/diagnostics/search-issue17-desktop-acceptance-20261113/`.
+
+**Remaining owner-facing visual gate:** GNOME denied desktop screenshot access.
+The UI successfully created the search map-result layers and populated the
+feature inspector on click, but the rendered pin positioning could not be
+independently inspected pixel-by-pixel. Under unattended desktop automation,
+map-center-relative distances remained approximately 2,950 km (the initial
+world map center) despite invoking Fit region / result recentering. This may
+reflect a background/nonpainting desktop camera animation or a genuine visual
+map issue; do **not** claim proximity ranking or visible map-centering
+acceptance from these observations. Confirm the result pins and map recentering
+in a visible interactive Legion session before closing issue #17. The private
+Search import and runtime query/restart acceptance do **not** depend on this
+remaining visual check.

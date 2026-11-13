@@ -117,6 +117,20 @@ class SearchLocalProductionTest(unittest.TestCase):
             self.assertTrue((base/"retained"/"austria"/"v1").exists())
             self.assertTrue((base/"retained"/"italy-nord-est"/"v1").exists())
 
+    def test_search_only_region_edit_preserves_disabled_visual_configuration(self):
+        # Real Legion QA found that enabling Search on a routing-only Austria
+        # configuration expanded its dormant Visual block. Search must not
+        # touch another independently versioned artifact's configuration.
+        ui = (ROOT / "graph-studio/src/main.ts").read_text(encoding="utf-8")
+        editor = ui.split("function configFromEditor(): Record<string, unknown> {", 1)[1]
+        editor = editor.split("configuredRegionsTab.addEventListener", 1)[0]
+        self.assertRegex(editor,
+            r"if \(existingVisual\.enabled === false\)\s*\{\s*"
+            r"config\.visual = structuredClone\(existingVisual\);")
+        self.assertIn('config["overture"] = {', editor)
+        self.assertLess(editor.index("config.visual = structuredClone(existingVisual);"),
+                        editor.index('config["overture"] = {'))
+
     def test_missing_regression_is_refused_and_creates_no_published_pack(self):
         with tempfile.TemporaryDirectory() as t:
             base=Path(t)
