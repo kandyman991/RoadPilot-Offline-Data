@@ -146,7 +146,8 @@ def reconcile(
                     "Original B X position or publication proof invalid")
             gap = exact_float(road["distanceXMetres"])
             overlap = exact_float(road["directedApproachOverlapMetres"])
-            require(0 <= gap <= .75 and overlap >= 1,
+            require(0 <= gap <= .75 and
+                    (overlap >= 1 or (0.5 <= overlap < 1 and gap <= .10)),
                     "Original B incoming road has unsupported physical geometry")
             rmask = road["nativeCommonVehicleModes"]
             rmodes = modes(rmask)

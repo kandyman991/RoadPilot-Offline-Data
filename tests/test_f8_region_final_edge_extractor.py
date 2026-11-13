@@ -164,7 +164,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-10')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-11')\n"
                 "else:\n"
                 " for item in [\n"
                 "  {'kind':'edge','graphId':77,'access':1025,'nativeTerminalModes':1025,'endLat':44,'endLon':10,'hasNativeApproachTangent':True,'approachLat':43.999,'approachLon':10},\n"
@@ -219,7 +219,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "import json,sys\n"
                 f"gid={gid}\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-10')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-11')\n"
                 "elif '--local-continuations' in sys.argv:\n"
                 " assert sys.argv[4]=='--evaluate-native-costing'\n"
                 " for line in open(sys.argv[3]):\n"
@@ -521,6 +521,57 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
         self.assertEqual(extractor.classify_original_b_directional_overlap(
             source,no_common)['status'],'REJECTED_NO_SHARED_VEHICLE_MODE')
 
+    def test_real_original_native_submetre_directed_matching_without_false_neighbor(self):
+        # SOURCE: the original local native Valhalla 3.6.3 shape, at exact X.
+        # RECEIVERS: all six original indexed B directed edges in each
+        # 4-metre X query. No invented coordinates or road-name inference.
+        fixture = json.loads((Path(__file__).parent / 'fixtures' /
+            'f8_real_original_valhalla_short_edges_20261112.json').read_text())
+        for case in fixture['cases']:
+            with self.subTest(pair=case['pairId']):
+                source = case['source']
+                processed = []
+                for candidate in case['candidates']:
+                    verdict = extractor.classify_original_b_directional_overlap(
+                        source, candidate)
+                    processed.append({
+                        'receiverDirectedGraphId': candidate['edge']['graphId'],
+                        'receiverNativeRoadClass': candidate['edge']['roadClass'],
+                        'receiverNativeRoadUse': candidate['edge']['roadUse'],
+                        'receiverNativeLayer': candidate['edge']['layer'],
+                        'receiverNativeBridge': candidate['edge']['bridge'],
+                        'receiverNativeTunnel': candidate['edge']['tunnel'],
+                        'originalReceiverAccess': candidate['edge']['access'],
+                        **verdict,
+                    })
+                accepted = extractor.verified_original_b_directed_roads_at_x({
+                    'sourceVehicleModes': 1025,
+                    'receiverDirectedCandidatesAtX': processed,
+                })
+                self.assertEqual([case['correctReceiverDirectedGraphId']],
+                                 [r['receiverDirectedGraphId'] for r in accepted])
+                self.assertLess(accepted[0]['directedApproachOverlapMetres'], 1.0)
+                self.assertGreaterEqual(accepted[0]['directedApproachOverlapMetres'], 0.5)
+                self.assertEqual('END_NODE', accepted[0]['receiverXPosition'])
+                self.assertEqual(1025, accepted[0]['nativeCommonVehicleModes'])
+                self.assertEqual(5, len(processed) - len(accepted))
+                # An identical-looking neighbor shifted even 20 cm away is
+                # not a valid sub-metre native same-road proof.
+                target = next(e for e in case['candidates'] if
+                    e['edge']['graphId'] == case['correctReceiverDirectedGraphId'])
+                shifted = json.loads(json.dumps(target))
+                shifted['directedShape'] = [
+                    [p[0] + 0.0000018, p[1]] for p in shifted['directedShape']]
+                self.assertNotIn(extractor.classify_original_b_directional_overlap(
+                    source, shifted)['status'], (
+                    'B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR',
+                    'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP'))
+                wrong_layer = json.loads(json.dumps(target))
+                wrong_layer['edge']['layer'] += 1
+                self.assertEqual('UNRESOLVED_NATIVE_LEVEL_OR_STRUCTURE_CONFLICT',
+                    extractor.classify_original_b_directional_overlap(
+                        source, wrong_layer)['status'])
+
     def test_original_b_predecessor_at_x_preserves_all_native_legal_branches(self):
         candidate={'sourceFinalCandidateGraphId':10,
                    'nativeGraphLocalTerminalProof':'VERIFIED',
@@ -740,6 +791,51 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 graph_index=index,selected_source_tiles=selected,
                 source_footprint=src,receiver_footprint=box(9.1,45.1,9.3,45.3))
 
+    def test_indexed_endpoint_domain_adds_only_real_original_source_tiles(self):
+        # A compiled A archive may contain road tiles beyond its 25-km
+        # nominal buffer. The actual final X in B can be owned by those
+        # indexed tiles without belonging to the immediate shared-cut ring.
+        index = {'tiles': [
+            tile(2, 10, 9.0, 45., .8),
+            tile(2, 11, 9.8, 45., .4),
+            tile(2, 12, 10.2, 45., .8),
+        ]}
+        selected = [index['tiles'][1]]
+        source = box(9, 45, 10, 45.8)
+        receiver = box(9.75, 45, 10.6, 45.8)
+        with self.assertRaisesRegex(ValueError, 'Incomplete original A'):
+            extractor.verify_pair_cut_source_terminal_endpoint_domain(
+                graph_index=index, selected_source_tiles=selected,
+                source_footprint=source, receiver_footprint=receiver)
+        extended, added = extractor.select_pair_indexed_endpoint_domain_tiles(
+            graph_index=index, selected_source_tiles=selected,
+            source_footprint=source, receiver_footprint=receiver)
+        self.assertEqual(added, 1)
+        self.assertEqual([t['tileIndex'] for t in extended], [11, 12])
+        self.assertEqual(extractor.verify_pair_cut_source_terminal_endpoint_domain(
+            graph_index=index, selected_source_tiles=extended,
+            source_footprint=source, receiver_footprint=receiver), 2)
+        with self.assertRaisesRegex(ValueError, 'whole-graph scan'):
+            extractor.select_pair_indexed_endpoint_domain_tiles(
+                graph_index=index, selected_source_tiles=selected,
+                source_footprint=box(9, 45, 9.1, 45.8),
+                receiver_footprint=box(9, 45, 11, 45.8))
+        with self.assertRaisesRegex(ValueError, 'Invalid original pair-cut'):
+            extractor.select_pair_indexed_endpoint_domain_tiles(
+                graph_index=index, selected_source_tiles=selected * 2,
+                source_footprint=source, receiver_footprint=receiver)
+
+    def test_native_original_reader_protocol_requires_exact_incident_owner_tile_output(self):
+        code = (Path(__file__).resolve().parents[1] /
+                'tools/native-f8-boundary-final/native_f8_boundary_final_edges.cpp').read_text()
+        self.assertEqual(extractor.NATIVE_PROTOCOL, 'roadpilot.f8-native-source-11')
+        self.assertIn('unselectedOriginalIncomingOwnerTileIds', code)
+        self.assertIn('GetOpposingEdgeId(edge_id)', code)
+        self.assertIn('sorted_missing_tiles', code)
+        self.assertIn('nativeIncomingOriginOutsideSelectedPairTilesCount', code)
+        self.assertIn('approved_extra_endpoint_tile_ids',
+                      Path(extractor.__file__).read_text())
+
     def test_original_b_covers_outer_a_native_opposing_origin_attestation_fail_closed(self):
         result={'nativeOpposingOriginCheckApplied':True,
                 'nativeIncomingOriginOutsideSelectedPairTilesCount':0,
@@ -919,7 +1015,7 @@ class RegionIndependentBoundaryTests(unittest.TestCase):
                 "#!/usr/bin/env python3\n"
                 "import json,sys\n"
                 "if '--version' in sys.argv: print('3.6.3')\n"
-                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-10')\n"
+                "elif '--protocol' in sys.argv: print('roadpilot.f8-native-source-11')\n"
                 "else:\n"
                 " assert len(sys.argv) == 4\n"
                 " assert 'buffer.geojson' in sys.argv[3]\n"

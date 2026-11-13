@@ -28,6 +28,26 @@ def fail(message: str) -> None:
 
 
 
+def original_native_submetre_overlap_verified(entry: dict) -> bool:
+    """Independently audit native sub-metre source tangent and B direction.
+
+    X proximity alone, a neighboring road or an opposite direction never
+    establishes original physical-road correspondence.
+    """
+    source_length = entry.get('sourceNativeApproachSegmentMetres')
+    progress = entry['directedOverlapProgressMetres']
+    return (type(source_length) in (int, float) and math.isfinite(source_length)
+            and 0.5 <= source_length < 1.0 and progress >= 0.5
+            and progress >= source_length - 0.12
+            and entry['distanceXMetres'] <= 0.10
+            and entry['distanceSourceApproachMetres'] <= 0.10)
+
+
+def original_native_directional_overlap_verified(entry: dict) -> bool:
+    return (entry['directedOverlapProgressMetres'] >= 1.0
+            or original_native_submetre_overlap_verified(entry))
+
+
 def original_native_incoming_at_x(row: dict) -> dict[int, dict]:
     """Independently reread directed B incoming approach, never nearest-point alone."""
     accepted = {}
@@ -41,7 +61,7 @@ def original_native_incoming_at_x(row: dict) -> dict[int, dict]:
         if (entry['status'] != 'B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR'
                 or entry['distanceSourceApproachMetres'] > 0.75
                 or entry['distanceXMetres'] > 0.75
-                or entry['directedOverlapProgressMetres'] <= 0
+                or not original_native_directional_overlap_verified(entry)
                 or not entry['sameLayerBridgeTunnel']):
             continue
         gid = entry['receiverDirectedGraphId']
@@ -57,7 +77,7 @@ def original_native_incoming_at_x(row: dict) -> dict[int, dict]:
         if (entry['status'] == 'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP'
             and entry['distanceXMetres'] <= 0.75
             and entry['distanceSourceApproachMetres'] <= 0.75
-            and entry['directedOverlapProgressMetres'] >= 1.0
+            and original_native_directional_overlap_verified(entry)
             and entry['receiverRemainingMetresAfterX'] >= 1.0
             and entry['sameLayerBridgeTunnel'])
     ]
@@ -83,6 +103,10 @@ def verify_original_native_conditional_mode_partition(row: dict) -> None:
         'UNRESOLVED_HIERARCHY_CONTEXT',
         'UNRESOLVED_SHORTCUT',
         'ALLOWED_NATIVE_IMMEDIATE',
+        # A legal-mode unknown paired with an explicitly inaccessible or
+        # statically denied other mode is still UNRESOLVED, not all-mode pass.
+        'NO_MODE_ACCESS',
+        'DENIED_NATIVE_IMMEDIATE',
     }
     for uncertain in row['receivingNativeUnresolvedContinuations']:
         if (uncertain.get('car') not in valid or
@@ -170,6 +194,43 @@ def independently_reconcile_source_roots(catalog: dict, evidence: dict,
         'boundedRootDispositionCounts': dict(sorted(counter.items())),
         'unlinkedRootsAreNotProvenDistinctMissingRoads': True,
     }
+
+def valid_bounded_terminal_tile_scope(inventory: dict) -> bool:
+    """Fail closed on native source-census tile scope or provenance expansion.
+
+    The original shared cut remains unchanged. Extra tiles can only be
+    original indexed B-outside-A endpoint owners or exact incident owners
+    returned by native Valhalla; never an entire source-graph census.
+    """
+    scope = inventory.get('sourceTerminalInventoryScope')
+    endpoint_n = inventory.get('additionalIndexedEndpointDomainTiles', 0)
+    owner_n = inventory.get('additionalNativeIncomingOwnerTiles', 0)
+    if any(type(v) is not int or v < 0 for v in (endpoint_n, owner_n)):
+        return False
+    if scope == 'PAIR_SHARED_OUTER_CUTOFF_TILES_ONLY':
+        return endpoint_n == 0 and owner_n == 0
+    if scope not in (
+        'PAIR_SHARED_CUTOFF_PLUS_INDEXED_B_OUTSIDE_A_ENDPOINT_TILES',
+        'PAIR_SHARED_CUTOFF_PLUS_INDEXED_ENDPOINT_AND_NATIVE_OWNER_TILES',
+    ):
+        return False
+    selected = inventory.get('originalSourceBoundaryTileCount')
+    cut = inventory.get('originalSourceCutBoundaryTileCount')
+    indexed = inventory.get('indexedSourceTilesIntersectingOuterXDomain')
+    if (any(type(v) is not int or v <= 0 for v in (selected, cut, indexed)) or
+            selected != cut + endpoint_n + owner_n or indexed > selected):
+        return False
+    endpoint_ids = inventory.get('additionalIndexedEndpointDomainTileIds')
+    owner_ids = inventory.get('additionalNativeIncomingOwnerTileIds')
+    if (not isinstance(endpoint_ids, list) or not isinstance(owner_ids, list) or
+            len(endpoint_ids) != endpoint_n or len(owner_ids) != owner_n or
+            any(type(x) is not int or x <= 0 for x in endpoint_ids + owner_ids) or
+            len(set(endpoint_ids + owner_ids)) != len(endpoint_ids) + len(owner_ids)):
+        return False
+    if scope == 'PAIR_SHARED_CUTOFF_PLUS_INDEXED_B_OUTSIDE_A_ENDPOINT_TILES':
+        return endpoint_n > 0 and owner_n == 0
+    return owner_n > 0
+
 
 def audit(catalog: dict, evidence: dict) -> dict:
     if (catalog.get('schema') != 'roadpilot.f8-final-directed-connection-candidates'
@@ -306,7 +367,7 @@ def audit(catalog: dict, evidence: dict) -> dict:
                           and raw['status'] == 'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP'
                           and raw['sameLayerBridgeTunnel']
                           and raw['distanceXMetres'] <= 0.75
-                          and raw['directedOverlapProgressMetres'] >= 1
+                          and original_native_directional_overlap_verified(raw)
                           for raw in row['receiverDirectedCandidatesAtX'])):
                     fail("B interior directed edge was not independently matched at X")
             else:
@@ -390,8 +451,7 @@ def audit(catalog: dict, evidence: dict) -> dict:
                 'VERIFIED_FOR_ORIGINAL_PAIR_ENDPOINT_DOMAIN' or
             native_inventory.get('terminalEndpointDomainTileCoverage') !=
                 'COMPLETE_FOR_ORIGINAL_INDEX_BOUNDS' or
-            native_inventory.get('sourceTerminalInventoryScope') !=
-                'PAIR_SHARED_OUTER_CUTOFF_TILES_ONLY' or
+            not valid_bounded_terminal_tile_scope(native_inventory) or
             native_inventory.get('wholeGraphCensusPerformed') is not False):
         fail("Catalog source IDs do not exactly match independent bounded native A terminal census")
     # Primary A -> exact X -> directed B road correspondence. This MUST
@@ -424,7 +484,7 @@ def audit(catalog: dict, evidence: dict) -> dict:
                 continue
             if (entry['distanceXMetres'] > 0.75
                     or entry['distanceSourceApproachMetres'] > 0.75
-                    or entry['directedOverlapProgressMetres'] < 1.0
+                    or not original_native_directional_overlap_verified(entry)
                     or not entry['sameLayerBridgeTunnel']):
                 fail('Native B approach geometry cannot support matched road')
             gid = entry['receiverDirectedGraphId']
@@ -621,6 +681,30 @@ def build_test_only_original_handoffs(catalog: dict, evidence: dict) -> dict:
     return result
 
 
+def all_original_b_native_directed_roads_at_x(row: dict) -> dict[int, dict]:
+    """Keep ALL existing original-native B matches: endpoint AND interior.
+
+    The predecessor list is intentionally END_NODE-only for native successor
+    costing. Publication dispositions must not inherit that restriction:
+    the same A final may also intersect a distinct B directed edge interior.
+    """
+    matched = dict(original_native_incoming_at_x(row))
+    for entry in row['receiverDirectedCandidatesAtX']:
+        if entry['status'] != 'MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP':
+            continue
+        if (entry['distanceXMetres'] > 0.75
+                or entry['distanceSourceApproachMetres'] > 0.75
+                or not original_native_directional_overlap_verified(entry)
+                or entry['receiverRemainingMetresAfterX'] < 1.0
+                or not entry['sameLayerBridgeTunnel']):
+            fail('Unverified native B interior road was promoted to disposition')
+        gid = entry['receiverDirectedGraphId']
+        if gid in matched:
+            fail('Native B directed road repeated as both END_NODE and INTERIOR')
+        matched[gid] = entry
+    return matched
+
+
 def build_bounded_physical_road_dispositions(catalog: dict, evidence: dict) -> dict:
     """No new discovery: reproducible per-original-GraphId M1 acceptance ledger.
 
@@ -644,7 +728,9 @@ def build_bounded_physical_road_dispositions(catalog: dict, evidence: dict) -> d
         original = by_source[sid]
         candidate = candidate_ids.get(sid)
         exception = exceptions.get(sid)
-        incoming = original_native_incoming_at_x(original)
+        incoming = all_original_b_native_directed_roads_at_x(original)
+        # The independent audit already checked these raw B identities
+        # against the actual primary A→X→B catalog, including both modes.
         legal = sorted(original['receivingNativeDirectedContinuationOptions'],
                        key=lambda row: row['receiverDirectedGraphId'])
         conditional = sorted(original['receivingNativeUnresolvedContinuations'],

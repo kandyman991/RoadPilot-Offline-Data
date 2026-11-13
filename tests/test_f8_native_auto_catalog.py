@@ -46,6 +46,19 @@ class NativeAutoCatalogTest(unittest.TestCase):
             for road in result["connections"][0]["receiverDirectedRoadsAtX"]])
         self.assertEqual("BLOCKED_TEST_ONLY", result["publication"])
 
+    def test_native_submetre_receiving_road_is_retained_only_when_x_is_exact(self):
+        preflight = self.sample()
+        road = preflight['nativeDirectedApproachesForReviewOnly'][0][
+            'receiverDirectedRoadsAtX'][0]
+        road['directedApproachOverlapMeters'] = 0.884
+        road['nativeXGapMeters'] = 0.023
+        result = build(preflight, PRE_SHA)
+        self.assertEqual(0.884, result['connections'][0][
+            'receiverDirectedRoadsAtX'][0]['directedApproachOverlapMeters'])
+        road['nativeXGapMeters'] = 0.15
+        with self.assertRaisesRegex(ValueError, 'projection or directed overlap'):
+            build(preflight, PRE_SHA)
+
     def test_untrusted_or_malformed_preflight_sha_cannot_be_provenance(self):
         for invalid in (
             "sha256:" + "Z" * 64,

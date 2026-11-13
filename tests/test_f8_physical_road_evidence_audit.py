@@ -22,6 +22,110 @@ class OriginalNativePhysicalRoadAuditTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             audit(self.catalog, self.evidence)
 
+    def test_verified_indexed_endpoint_tile_scope_accepts_only_exact_bounded_counts(self):
+        inventory = self.evidence['approvedBoundaryExteriorTerminalInventory']
+        inventory.update({
+            'sourceTerminalInventoryScope':
+                'PAIR_SHARED_CUTOFF_PLUS_INDEXED_B_OUTSIDE_A_ENDPOINT_TILES',
+            'originalSourceCutBoundaryTileCount': 2,
+            'originalSourceBoundaryTileCount': 3,
+            'additionalIndexedEndpointDomainTiles': 1,
+            'additionalIndexedEndpointDomainTileIds': [88],
+            'additionalNativeIncomingOwnerTiles': 0,
+            'additionalNativeIncomingOwnerTileIds': [],
+            'indexedSourceTilesIntersectingOuterXDomain': 2,
+        })
+        self.assertEqual(audit(self.catalog, self.evidence)['productionPublication'],
+                         'BLOCKED')
+        inventory.update({
+            'sourceTerminalInventoryScope':
+                'PAIR_SHARED_CUTOFF_PLUS_INDEXED_ENDPOINT_AND_NATIVE_OWNER_TILES',
+            'additionalNativeIncomingOwnerTiles': 1,
+            'additionalNativeIncomingOwnerTileIds': [96],
+            'originalSourceBoundaryTileCount': 4,
+        })
+        self.assertEqual(audit(self.catalog, self.evidence)['productionPublication'],
+                         'BLOCKED')
+        for change in ({'originalSourceBoundaryTileCount': 3},
+                       {'additionalNativeIncomingOwnerTileIds': [88]},
+                       {'additionalNativeIncomingOwnerTileIds': []},
+                       {'additionalNativeIncomingOwnerTiles': -1},
+                       {'additionalIndexedEndpointDomainTiles': 0},
+                       {'sourceTerminalInventoryScope': 'WHOLE_GRAPH'}):
+            with self.subTest(change=change):
+                current = dict(inventory)
+                inventory.update(change)
+                self.reject()
+                inventory.clear()
+                inventory.update(current)
+
+    def test_independent_disposition_keeps_endpoint_and_interior_b_roads(self):
+        from tools.audit_f8_physical_road_evidence import (
+            all_original_b_native_directed_roads_at_x,
+        )
+        endpoint = {
+            'receiverDirectedGraphId': 41,
+            'status': 'B_PREDECESSOR_ENDS_AT_X_NEEDS_NATIVE_SUCCESSOR',
+            'distanceSourceApproachMetres': 0.02, 'distanceXMetres': 0.03,
+            'directedOverlapProgressMetres': 11.89,
+            'receiverRemainingMetresAfterX': 0.0,
+            'sameLayerBridgeTunnel': True,
+        }
+        interior = dict(endpoint,
+            receiverDirectedGraphId=42,
+            status='MATCHED_DIRECTED_SOURCE_GEOMETRY_OVERLAP',
+            distanceXMetres=0.69,
+            receiverRemainingMetresAfterX=2.0)
+        row = {
+            'receiverDirectedCandidatesAtX': [endpoint, interior],
+            'correspondingBPredecessorAtXGraphIds': [41],
+        }
+        self.assertEqual({41, 42}, set(all_original_b_native_directed_roads_at_x(row)))
+        row['receiverDirectedCandidatesAtX'] = [endpoint, dict(interior, distanceXMetres=0.91)]
+        with self.assertRaisesRegex(ValueError, 'Unverified native B interior'):
+            all_original_b_native_directed_roads_at_x(row)
+        row['receiverDirectedCandidatesAtX'] = [endpoint, dict(interior, receiverDirectedGraphId=41)]
+        with self.assertRaisesRegex(ValueError, 'repeated'):
+            all_original_b_native_directed_roads_at_x(row)
+
+    def test_native_short_original_overlap_requires_strict_two_point_evidence(self):
+        from tools.audit_f8_physical_road_evidence import (
+            original_native_directional_overlap_verified,
+        )
+        witness = {
+            'sourceNativeApproachSegmentMetres': 0.927,
+            'directedOverlapProgressMetres': 0.933,
+            'distanceSourceApproachMetres': 0.0,
+            'distanceXMetres': 0.045,
+        }
+        self.assertTrue(original_native_directional_overlap_verified(witness))
+        for corrupted in (
+            {'distanceXMetres': 0.15},
+            {'distanceSourceApproachMetres': 0.15},
+            {'directedOverlapProgressMetres': -0.933},
+            {'directedOverlapProgressMetres': 0.48},
+            {'sourceNativeApproachSegmentMetres': 2.0},
+            {'sourceNativeApproachSegmentMetres': 0.10},
+            {'sourceNativeApproachSegmentMetres': float('nan')},
+            {'sourceNativeApproachSegmentMetres': 0.99,
+             'directedOverlapProgressMetres': 0.6},
+        ):
+            with self.subTest(corrupted=corrupted):
+                changed = dict(witness, **corrupted)
+                self.assertFalse(
+                    original_native_directional_overlap_verified(changed))
+
+    def test_no_car_access_with_unresolved_motorcycle_does_not_become_legal_car(self):
+        native = self.evidence['sourceToReceiverCandidates'][0]
+        native['receivingNativeUnresolvedContinuations'] = [{
+            'car': 'NO_MODE_ACCESS', 'motorcycle': 'UNRESOLVED_HIERARCHY_CONTEXT',
+            'receiverPredecessorGraphId': 481, 'receiverDirectedGraphId': 482,
+        }]
+        verify_original_native_conditional_mode_partition(native)
+        native['receivingNativeUnresolvedContinuations'][0]['motorcycle'] = 'ALLOWED_NATIVE_IMMEDIATE'
+        with self.assertRaisesRegex(ValueError, 'conditional status'):
+            verify_original_native_conditional_mode_partition(native)
+
     def test_original_valhalla_a_x_b_approach_and_two_branches_preserved(self):
         report = audit(self.catalog, self.evidence)
         self.assertEqual(report['sourceCandidatesWithNativeBOptions'], 1)

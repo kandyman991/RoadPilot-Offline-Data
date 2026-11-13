@@ -251,9 +251,30 @@
         },
         "directedApproachOverlapMeters": {
           "type": "number",
-          "minimum": 1
+          "minimum": 0.5
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "directedApproachOverlapMeters": {
+                "exclusiveMaximum": 1
+              }
+            },
+            "required": [
+              "directedApproachOverlapMeters"
+            ]
+          },
+          "then": {
+            "properties": {
+              "nativeXGapMeters": {
+                "maximum": 0.1
+              }
+            }
+          }
+        }
+      ]
     },
     "connection": {
       "type": "object",

@@ -1,3 +1,19 @@
+# 12 November 2026 — corrected D-017 sub-metre native A→X→B matching
+
+Branch fix/f8-native-two-short-edge-validation-20261112 isolated from
+another ongoing worktree. The original native Valhalla sub-metre final-edge
+false negatives in Italy Centro ↔ Italy Sud are corrected without changing
+the A-final → exact X → B-directed architecture or 25-km buffer.
+Six real directed region pairs: 2,758/2,758 source final edges matched,
+2,759 original B directed receiver roads (one real distinct END_NODE+INTERIOR
+pair). Six native independent audits, six preflights and six test-only
+catalogs PASS; all remain nonpublishing BLOCKED_TEST_ONLY.
+Bounded original source endpoint-domain owning tile coverage VERIFIED;
+semantic physical-road lineage still NOT_VERIFIED, Android READY gates
+NOT_RUN. See docs/F8_NATIVE_TWO_SUBMETRE_EDGE_EXCEPTIONS_20261112.md.
+
+---
+
 # Graph Studio UI issue #89 — Phase 4 retained-legacy inspection cleanup (2026-11-12)
 
 All 13 tracked responsive, navigation, console, route/build prerequisite, and map-overlay findings were resolved in merged PRs #90–#92. Current owner-approved Linux AppImage release is source `3d4c313` and passed isolated UI 23/23 navigation smoke tests. Retired OSM-first crossing producers remain absent. The historical Border Legacy tab and saved manual evidence views remain live and must not be deleted without approval and compatibility evidence.
