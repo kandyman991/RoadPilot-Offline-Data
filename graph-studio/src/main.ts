@@ -447,10 +447,6 @@ app.innerHTML = `
 <div class="app">
   <header class="topbar">
     <div class="brand"><strong>RoadPilot Graph Studio</strong><span>map factory</span></div>
-    <div id="metricCpu" class="metric">CPU <b>—</b></div>
-    <div id="metricRam" class="metric">RAM <b>—</b></div>
-    <div id="metricDisk" class="metric">Disk <b>—</b></div>
-    <div id="metricTemp" class="metric">Temp <b>—</b></div>
     <div class="topbar-spacer"></div>
     <nav id="workspaceSwitcher" class="workspace-switcher" aria-label="Workspace panes" hidden>
       <button id="showRegionsPane" class="workspace-pane-btn" type="button" aria-pressed="false">Regions</button>
@@ -498,16 +494,29 @@ app.innerHTML = `
     <div id="rightSplitter" class="pane-splitter vertical-splitter" role="separator" aria-orientation="vertical" title="Drag to resize tools pane"></div>
     <aside class="inspector">
       <div class="tool-menu-shell">
-        <label for="toolMenu">Tool</label>
+        <label for="toolMenu">Work on</label>
         <select id="toolMenu" aria-label="Graph Studio workflow">
-          <optgroup label="Build"><option value="build">Build regional graphs</option></optgroup>
-          <optgroup label="Inspect"><option value="graph">Graph inspector</option></optgroup>
-          <optgroup label="Test"><option value="f8">Native F8 connectivity</option><option value="route">Route planner</option><option value="compare">Compare builds</option></optgroup>
-          <optgroup label="Data"><option value="visual">Visual map</option><option value="search">Search / POI</option></optgroup>
-          <optgroup label="Publish"><option value="publish">R2 publication</option></optgroup>
-          <optgroup label="Advanced"><option value="border">Border inspector</option></optgroup>
+          <option value="build">Build regions</option>
+          <option value="f8">Connect regions (A → X → B)</option>
+          <option value="route">Test routes</option>
+          <option value="data">Map &amp; Search data</option>
+          <option value="publish">Publish packages</option>
+          <option value="advanced">Advanced tools…</option>
         </select>
         <button id="openToolchainBtn" class="tool-menu-diagnostics" type="button" aria-controls="toolchainDetailsPanel" aria-expanded="false" aria-label="Open toolchain diagnostics" title="Toolchain diagnostics">Tools status</button>
+      </div>
+      <nav id="dataWorkspaceTabs" class="workflow-subnav" aria-label="Map and Search data tools" hidden>
+        <button id="dataVisualTab" type="button" class="workflow-subnav-btn" aria-pressed="true">Visual maps</button>
+        <button id="dataSearchTab" type="button" class="workflow-subnav-btn" aria-pressed="false">Search / POI</button>
+      </nav>
+      <div id="advancedToolSelector" class="advanced-tool-selector" hidden>
+        <label for="advancedToolMenu">Specialist inspector</label>
+        <select id="advancedToolMenu" aria-label="Advanced Graph Studio tools">
+          <option value="graph">Directed graph inspector</option>
+          <option value="compare">Compare retained builds</option>
+          <option value="border">Historical / manual borders</option>
+        </select>
+        <small>Retained diagnostic tools; historical outputs do not prove native F8 connections.</small>
       </div>
       <div id="contextToolNotice" class="context-tool-notice" hidden>
         <span id="contextToolTitle">Context tool</span>
@@ -526,12 +535,15 @@ app.innerHTML = `
         </div>
         <div id="buildSelectionSummary" class="status-line">No regions selected.</div>
         <div id="buildPrerequisite" class="status-line" aria-live="polite">Select a region and wait for the toolchain.</div>
-        <label class="check-row"><input id="refreshSourceCheckbox" type="checkbox" />
-          Force source re-download (ignore unchanged source cache)
-        </label>
-        <p class="status-line">Normal builds reuse locally cached Geofabrik PBFs and check their upstream checksums daily.</p>
-        <p>Regional builds are independent and include normal Valhalla border checks. Cross-region connectivity production is paused until the native F8 pipeline is verified. Existing historical connection artifacts remain read-only and are not F8 parity evidence.</p>
-        <p>Select any Geofabrik region and click Build selected. Unconfigured regions are prepared automatically; completed routing packages still require Valhalla border proof.</p>
+        <p class="status-line">Select regions on the left, choose a package version, then build. Region sources and normal Valhalla checks are automatic.</p>
+        <details class="route-options">
+          <summary>Advanced build options and details</summary>
+          <label class="check-row"><input id="refreshSourceCheckbox" type="checkbox" />
+            Force source re-download (ignore unchanged source cache)
+          </label>
+          <p>Source PBFs use a shared verified cache with upstream checksum checks. Each routing region is built and validated independently.</p>
+          <p>Native A → X → B catalogs may be verified for private Graph Studio use separately from later Android release acceptance. Historical connector artifacts are diagnostic-only.</p>
+        </details>
       </section>
 
       <section class="section tool-panel" data-tool="publish" hidden>
@@ -590,7 +602,13 @@ app.innerHTML = `
       </section>
 
       <section id="toolchainDetailsPanel" class="section tool-panel" data-tool="toolchain" hidden>
-        <h2>Toolchain</h2>
+        <h2>Toolchain &amp; system</h2>
+        <div class="toolchain-metrics" aria-label="System metrics">
+          <div id="metricCpu" class="metric">CPU <b>—</b></div>
+          <div id="metricRam" class="metric">RAM <b>—</b></div>
+          <div id="metricDisk" class="metric">Disk <b>—</b></div>
+          <div id="metricTemp" class="metric">Temp <b>—</b></div>
+        </div>
         <div id="tools" class="empty">Checking local tools…</div>
       </section>
 
@@ -646,8 +664,8 @@ app.innerHTML = `
       </section>
       <section class="section tool-panel" data-tool="search" hidden>
         <h2>Search / POI inspector</h2>
-        <details class="route-options" open>
-          <summary>Build / import an independent regional Search pack</summary>
+        <details class="route-options">
+          <summary>Create / import a regional Search pack</summary>
           <p>Build Search without rebuilding routing graphs or visual PMTiles. The selected region must have Search enabled and a saved deterministic validation target.</p>
           <div class="field"><label for="searchPackVersion">New immutable Search version</label><input id="searchPackVersion" autocomplete="off" placeholder="2026.11.13-1" /></div>
           <div class="field"><label for="searchLocalInput">Optional existing Overture GeoJSONSeq absolute path</label><input id="searchLocalInput" autocomplete="off" placeholder="Leave empty to download latest pinned Overture Places" /></div>
@@ -819,7 +837,8 @@ app.innerHTML = `
       </section>
       <section class="section tool-panel" data-tool="f8" hidden>
         <h2>Native F8 connectivity</h2>
-        <p class="status-line">Graph-native F8 diagnostics on existing immutable regional graphs. Android parity <strong>NOT VERIFIED</strong>; production connectivity <strong>BLOCKED</strong>.</p>
+        <p class="status-line">Compiled native A → X → B catalogs can be <strong>GRAPH_STUDIO_PRIVATE_READY</strong> after independent SHA-bound matching and audit. Android/JNI public release remains <strong>NOT VERIFIED</strong> and <strong>BLOCKED</strong> separately.</p>
+        <p class="status-line">The existing GPS proposal and bounded journey tools below are historical diagnostics, not the approved final-edge catalog producer. They do not replace native A → exact X → directed B matching.</p>
         <div class="coord-grid">
           <div class="field"><label for="f8RegionA">Graph A (retained build)</label><select id="f8RegionA"></select></div>
           <div class="field"><label for="f8RegionB">Graph B (retained build)</label><select id="f8RegionB"></select></div>
@@ -866,7 +885,7 @@ app.innerHTML = `
       </section>
       <section class="section tool-panel" data-tool="route" hidden>
         <h2>Valhalla route planner</h2>
-        <p class="status-line">Single-region Valhalla routing only. Native F8 multi-region routing will return after graph-backed crossing discovery and parity verification.</p>
+        <p class="status-line">Test routes on one original Valhalla regional graph. A single buffered graph's cross-border route is not proof of a two-graph A → X → B connection.</p>
         <div class="field">
           <label for="routeCosting">Costing</label>
           <select id="routeCosting">
@@ -984,6 +1003,11 @@ app.innerHTML = `
 const appRoot = document.querySelector<HTMLDivElement>(".app")!;
 const regionHost = document.querySelector<HTMLDivElement>("#regions")!;
 const toolMenu = document.querySelector<HTMLSelectElement>("#toolMenu")!;
+const dataWorkspaceTabs = document.querySelector<HTMLElement>("#dataWorkspaceTabs")!;
+const dataVisualTab = document.querySelector<HTMLButtonElement>("#dataVisualTab")!;
+const dataSearchTab = document.querySelector<HTMLButtonElement>("#dataSearchTab")!;
+const advancedToolSelector = document.querySelector<HTMLElement>("#advancedToolSelector")!;
+const advancedToolMenu = document.querySelector<HTMLSelectElement>("#advancedToolMenu")!;
 const contextToolNotice = document.querySelector<HTMLDivElement>("#contextToolNotice")!;
 const contextToolTitle = document.querySelector<HTMLSpanElement>("#contextToolTitle")!;
 const contextBackBtn = document.querySelector<HTMLButtonElement>("#contextBackBtn")!;
@@ -1247,7 +1271,15 @@ function activateTool(tool: ToolId, remember = true): void {
   const contextual = tool === "region" || tool === "toolchain";
   if (!contextual) lastNonRegionTool = tool;
   activeTool = tool;
-  toolMenu.value = contextual ? lastNonRegionTool : tool;
+  const displayedTool = contextual ? lastNonRegionTool : tool;
+  const dataGroup = displayedTool === "visual" || displayedTool === "search";
+  const advancedGroup = displayedTool === "graph" || displayedTool === "border" || displayedTool === "compare";
+  toolMenu.value = dataGroup ? "data" : advancedGroup ? "advanced" : displayedTool;
+  dataWorkspaceTabs.hidden = contextual || !dataGroup;
+  advancedToolSelector.hidden = contextual || !advancedGroup;
+  dataVisualTab.setAttribute("aria-pressed", String(displayedTool === "visual"));
+  dataSearchTab.setAttribute("aria-pressed", String(displayedTool === "search"));
+  if (advancedGroup) advancedToolMenu.value = displayedTool;
   contextToolNotice.hidden = !contextual;
   contextToolTitle.textContent = tool === "region" ? "Region editor · opened from region tree" :
     tool === "toolchain" ? "Toolchain diagnostics · opened from header" : "";
@@ -1262,7 +1294,19 @@ const storedTool = localStorage.getItem(TOOL_STORAGE_KEY);
 if (isPrimaryTool(storedTool)) activeTool = lastNonRegionTool = storedTool;
 activateTool(activeTool, false);
 toolMenu.addEventListener("change", () => {
-  if (isPrimaryTool(toolMenu.value)) activateTool(toolMenu.value);
+  if (toolMenu.value === "data") {
+    activateTool(lastNonRegionTool === "search" ? "search" : "visual");
+  } else if (toolMenu.value === "advanced") {
+    activateTool(["graph", "border", "compare"].includes(lastNonRegionTool)
+      ? lastNonRegionTool : "graph");
+  } else if (isPrimaryTool(toolMenu.value)) {
+    activateTool(toolMenu.value);
+  }
+});
+dataVisualTab.addEventListener("click", () => activateTool("visual"));
+dataSearchTab.addEventListener("click", () => activateTool("search"));
+advancedToolMenu.addEventListener("change", () => {
+  if (isPrimaryTool(advancedToolMenu.value)) activateTool(advancedToolMenu.value);
 });
 contextBackBtn.addEventListener("click", () => {
   if (activeTool === "region") closeRegionEditor();

@@ -62,3 +62,50 @@ All 13 original layout/navigation findings remain **DONE** (PRs #90–#92). This
 - **Acceptance:** Python UI contract and full suite, Rust read-only filesystem fixture tests and exact-head package CI. A live GUI legacy tab / installed AppImage check is still required before any future removal of historical readers, and owner permission is required to delete or migrate saved artifacts.
 
 **Issue #89 closeout policy:** UI-01…UI-13 can be considered fully addressed. Keep a separate, explicit authorization gate for future legacy reader removal or external CLI/schema migration; do not pretend the remaining historical tooling is dead code merely because native F8 replaces its old producer.
+
+## 13 November 2026 — Second-pass product UI simplification
+
+This is a product-level simplification, not another implementation of the
+original UI-01–UI-13 fixes (those are already DONE). The previously grouped
+dropdown still exposed nine workflow entries plus contextual buttons, while
+historical/manual border tools could look as important as the approved
+compiled-graph producer.
+
+- **Five everyday work areas** in the primary selector: Build regions,
+  Connect regions (A→X→B), Test routes, Map & Search data, Publish packages.
+  Visual PMTiles and Search/POI are distinct tabs inside one Data area.
+- **Advanced inspection is opt-in:** directed graph inspector, retained-build
+  comparison, manual/historical border inspector. All saved overrides,
+  old artifacts, comparison logic and Tauri endpoints remain untouched.
+  Selecting one of the existing saved advanced tool IDs restores the
+  advanced submenu; context editors still return to their originating tool.
+- Updated stale "cross-region production paused" and "native F8 will return"
+  UI explanations to distinguish private-native A→exact X→B catalogs from
+  older GPS-proposal diagnostics and separate Android release proof.
+  The active native F8 GPS proposal commands remain clearly identified as
+  historical diagnostics; they are not a replacement final-edge producer.
+- This phase does not delete user data, original graphs, handoff overrides,
+  historical readers, R2 credentials or the legacy validation surfaces.
+  Deleting them later needs a separate caller/data inventory and owner
+  approval for destructive migrations.
+- Acceptance: existing 13/13 audit contract and Python UI tests, TS/Vite,
+  compiled desktop CI; verify a desktop screenshot/navigation and persisted
+  advanced state when the owner next installs the build.
+
+The Graph Studio primary workflow is now shorter, but the UI still needs a
+separate implementation to **generate and inspect** approved
+\`GRAPH_STUDIO_PRIVATE_READY\` final-edge catalogs directly from the GUI:
+the existing older F8 GPS-proposal panel is *not* that producer. Do not claim
+the native final-edge CLI is wired into this screen without testing it.
+
+
+**Compiled preview refinement:** A 1200 px headless Chromium preview confirmed
+that an otherwise simplified build screen still showed four live CPU/RAM/
+Disk/Temperature metrics and multiple technical paragraphs. The source now
+keeps the same metric IDs and updates in the Toolchain & system contextual
+panel, replaces repetitive build explanations with a single instruction, and
+hides force-download/technical provenance in an expandable Advanced build
+section. Search-pack source acquisition/import is collapsed by default so
+actual POI search is the primary operation. Existing controls and backend
+commands remain available. A browser screenshot without the Tauri backend
+does not constitute native GUI acceptance.
