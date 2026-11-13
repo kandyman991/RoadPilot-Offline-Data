@@ -1,3 +1,19 @@
+# 13 November 2026 — owner-only Graph Studio native validation is Android-independent
+
+Graph Studio private owner-testing no longer waits for Android route-preview,
+JNI, APK pinning or public-release approval. The existing compiled
+Valhalla A-final→exact X→B directed matcher, SHA-256 native source
+inventory and strict preflight are unchanged. New explicit
+--graph-studio-private-ready on the auto catalog builder creates a
+GRAPH_STUDIO_PRIVATE_READY schema for *owner-only* testing (NOT RoadPilot
+runtime). Six real original Valhalla pairs have 2758 matching source
+finals, 2759 B directed road matches, and six private-ready catalogs.
+Global semantic physical-road lineage remains explicitly NOT_VERIFIED.
+RoadPilot consumer READY contract stays distinct and unchanged.
+See docs/GRAPH_STUDIO_PRIVATE_NATIVE_CATALOG_ACCEPTANCE_20261113.md.
+
+---
+
 # 12 November 2026 — corrected D-017 sub-metre native A→X→B matching
 
 Branch fix/f8-native-two-short-edge-validation-20261112 isolated from

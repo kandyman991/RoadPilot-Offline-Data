@@ -3,8 +3,10 @@
 
 Inputs must independently pass the native original-archive auditor and deterministic
 preflight. No hardcoded region/road IDs, no legacy road scans and no outgoing B
-turn-continuation gate. This stage produces an immutable BLOCKED_TEST_ONLY catalog;
-the separate READY contract requires independent review and APK owner signing.
+turn-continuation gate. The default artifact remains BLOCKED_TEST_ONLY for
+compatibility. --graph-studio-private-ready emits a separately named, SHA-bound
+Graph Studio owner-only validated catalog without Android requirements. It
+cannot impersonate RoadPilot's later public/consumer READY contract.
 """
 from __future__ import annotations
 
@@ -18,9 +20,12 @@ import audit_f8_physical_road_evidence as native_audit
 from preflight_f8_approved_directed_catalog import reconcile, require
 
 SCHEMA = "roadpilot.f8-original-directed-auto-catalog-test-only"
+GRAPH_STUDIO_SCHEMA = "roadpilot.f8-graph-studio-private-validated-catalog"
+GRAPH_STUDIO_NATIVE_SCOPE = "VERIFIED_WITHIN_ORIGINAL_PAIR_ENDPOINT_DOMAIN"
 
 
-def build(preflight: dict, preflight_sha256: str) -> dict:
+def build(preflight: dict, preflight_sha256: str, *,
+          graph_studio_private_ready: bool = False) -> dict:
     require(preflight.get("schema") ==
             "roadpilot.f8-approved-directed-road-production-preflight" and
             preflight.get("publication") == "BLOCKED" and
@@ -79,13 +84,19 @@ def build(preflight: dict, preflight_sha256: str) -> dict:
             "Original B directions lost in production-ready candidate generation")
     source, to = preflight["pairId"].split("__")
     require(source != to and source and to, "Invalid directed region pair")
-    return {
-        "schema": SCHEMA,
+    if graph_studio_private_ready:
+        require(preflight.get("graphStudioPrivateTestingReady") is True and
+                preflight.get("graphStudioNativeCoverageScope") ==
+                    GRAPH_STUDIO_NATIVE_SCOPE,
+                "Graph Studio native private acceptance proof is missing")
+    artifact = {
+        "schema": GRAPH_STUDIO_SCHEMA if graph_studio_private_ready else SCHEMA,
         "version": 1,
         "pairId": preflight["pairId"],
         "fromRegionId": source,
         "toRegionId": to,
-        "publication": "BLOCKED_TEST_ONLY",
+        "publication": ("GRAPH_STUDIO_PRIVATE_READY" if graph_studio_private_ready
+                        else "BLOCKED_TEST_ONLY"),
         "originalGraphArchives": original,
         "independentSourcePreflightSha256": preflight_sha256,
         "nativeEvidenceSha256": preflight["nativeEvidenceSha256"],
@@ -97,8 +108,21 @@ def build(preflight: dict, preflight_sha256: str) -> dict:
         },
         "connections": rows,
         "excludedSourceFinals": [],
-        "remainingProductionReview": preflight["blockingEvidence"],
     }
+    if graph_studio_private_ready:
+        # This is an actual owner-only Graph Studio build/test artifact, not a
+        # consumer production READY authorization. No Android check or APK pin.
+        artifact.update({
+            "intendedUse": "OWNER_ONLY_GRAPH_STUDIO_TESTING",
+            "notForRoadPilotRuntime": True,
+            "graphStudioNativeCoverageScope": GRAPH_STUDIO_NATIVE_SCOPE,
+            "sourcePhysicalRoadDirectionCompleteness": "NOT_VERIFIED",
+            "unverifiedSourcePhysicalRoadLineages":
+                counts["unverifiedSourcePhysicalRoadLineages"],
+        })
+    else:
+        artifact["remainingProductionReview"] = preflight["blockingEvidence"]
+    return artifact
 
 
 def sha(path: Path) -> str:
@@ -114,6 +138,8 @@ def main() -> None:
     for name in ("catalog", "native_evidence", "dispositions",
                  "from_archive", "to_archive", "preflight", "output"):
         p.add_argument("--" + name.replace("_", "-"), required=True, type=Path)
+    p.add_argument("--graph-studio-private-ready", action="store_true",
+                   help="Generate private validated Graph Studio catalog; never a RoadPilot-ready catalog")
     args = p.parse_args()
     original = native_audit.read_json(args.catalog)
     native_evidence = native_audit.read_json(args.native_evidence)
@@ -134,7 +160,16 @@ def main() -> None:
     retained_preflight = native_audit.read_json(args.preflight)
     require(retained_preflight == review,
             "Immutable preflight report differs from independently regenerated proof")
-    auto = build(review, sha(args.preflight))
+    auto = build(review, sha(args.preflight),
+                 graph_studio_private_ready=args.graph_studio_private_ready)
+    if args.graph_studio_private_ready:
+        # Validate the distinct private wire schema before writing any bytes.
+        from jsonschema import Draft202012Validator
+        schema_path = Path(__file__).resolve().parents[1] / "schemas" / (
+            "f8-graph-studio-native-private-catalog.schema.json")
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        Draft202012Validator(schema).validate(auto)
     native_audit.atomic_write_new_json(args.output, auto)
     print(json.dumps({
         "pairId": auto["pairId"],

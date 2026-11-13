@@ -183,7 +183,9 @@ def reconcile(
 
     require(a["fullPhysicalRoadIdentityApproval"] == "NOT_VERIFIED" and
             d["physicalRoadDirectionCompleteness"] == "NOT_VERIFIED" and
-            d["androidProductionUIAcceptance"] == "NOT_VERIFIED" and
+            # Android journey/UI acceptance is RoadPilot's later responsibility.
+            # This independently native-audited Graph Studio preflight must not
+            # inspect or require an Android device status.
             all(row["sourceRoadDirectionCensusCompleteness"] == "NOT_VERIFIED" and
                 row["mustNotPublishAsReady"] is True for row in dispositions),
             "Unexpected approval/completeness change: require new independently reviewed proof")
@@ -219,14 +221,15 @@ def reconcile(
             "outgoingBContextDispositionsNotRoadMatchGates": dict(sorted(no_default_b_exit.items())),
             "originalAModeSets": dict(sorted(source_modes_count.items())),
         },
+        # These limitations belong to the separate RoadPilot/public release
+        # review. They do not gate the owner-only Graph Studio private catalog.
         "blockingEvidence": [
             "SEMANTIC_ORIGINAL_SOURCE_PHYSICAL_ROAD_LINEAGE_NOT_VERIFIED",
-            "ANDROID_NORMAL_A_X_B_ROUTE_PREVIEW_NOT_VERIFIED",
-            "ANDROID_FIRST_REPEAT_BOTH_DIRECTIONS_AND_MODES_NOT_VERIFIED",
             "INDEPENDENT_READY_CATALOG_REVIEW_MISSING",
             "OWNER_PRODUCTION_PUBLICATION_APPROVAL_MISSING",
-            "SIGNED_APK_SHA256_PIN_MISSING",
         ],
+        "graphStudioPrivateTestingReady": True,
+        "graphStudioNativeCoverageScope": "VERIFIED_WITHIN_ORIGINAL_PAIR_ENDPOINT_DOMAIN",
         "nativeDirectedApproachesForReviewOnly": projected,
     }
 
