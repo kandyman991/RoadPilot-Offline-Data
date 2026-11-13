@@ -22,7 +22,11 @@ original graph, original index or 25-km buffer fails closed. The original
 archive and source SHA-256 hashes are checked before promotion. Outputs are
 atomically saved under the owner's Graph Studio private catalog workspace,
 and reused only when retained source, preflight, archive and catalog digests
-still agree. User does not need to enter internal candidate/path filenames.
+still agree. Reusing historical native evidence or a private-ready catalog
+also rechecks both original 25-km buffers, graph indexes and native
+configuration; missing or modified source evidence fails closed.
+Private output parent/leaf symlinks are rejected. User does not need to
+enter internal candidate/path filenames.
 
 An optional advanced evidence-directory input can replay previously retained
 native readback; otherwise the tool automatically generates original
@@ -68,9 +72,12 @@ caller inventory and explicit owner approval; none is included here.
 - New negative unit tests cover missing original prerequisites, index/buffer
   tampering, manifest/archive mismatch, unsafe path, symlink evidence,
   identical A/B regions and rejecting RoadPilot/public READY.
-- Full repository Python tests: 527/527 pass. TypeScript/Vite compiles.
-  Native Tauri/AppImage/DEB CI and installed desktop button-by-button
-  acceptance must still be checked independently.
+- Focused correction-branch Python regressions: 13 private workflow and
+  5 F8 UI contract tests pass. TypeScript/Vite compiles. Previous local
+  525/527 full-suite totals were from different test sessions, not a
+  single reproducible exact-head CI count; do not present them as one.
+  Use PR #139's exact-head GitHub checks for native Tauri, AppImage and
+  DEB verification. Installed desktop button-by-button acceptance is separate.
 
 The actual local QA evidence stays outside Git in the following Legion
 diagnostic workspaces: native-catalog-gui-qa-20261113,

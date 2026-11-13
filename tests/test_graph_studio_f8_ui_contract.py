@@ -43,6 +43,26 @@ class GraphStudioF8UiContractTests(unittest.TestCase):
                      "best of probed only"):
             self.assertNotIn(gone,UI)
 
+    def test_build_and_f8_start_claim_the_same_atomic_reservation(self):
+        # Both entry points must claim the shared lock BEFORE inspecting the
+        # competing workflow and setting their own running state.
+        for method, competing in (("f8_start_workflow", "build_state.status.lock()"),
+                                  ("start_build_queue", "f8_state.status.lock()")):
+            body=RUST.split("fn "+method+"(",1)[1].split("\n#[tauri::command]",1)[0]
+            reservation=body.index("GRAPH_BUILD_F8_RESERVATION.lock()")
+            conflict=body.index(competing)
+            claim=body.index("running:true" if method == "f8_start_workflow" else "running: true")
+            self.assertLess(reservation,conflict,method)
+            self.assertLess(conflict,claim,method)
+        self.assertIn("fn both_workflows_cannot_claim_start_together()",RUST)
+
+    def test_changing_active_region_clears_original_x_marker(self):
+        body=UI.split("function setActiveRegion(",1)[1].split("\nfunction ",1)[0]
+        self.assertIn("f8SampleMarker?.remove()",body)
+        invalidated=UI.split("function renderF8BuildSelectors(",1)[1].split("\nfunction ",1)[0]
+        self.assertIn("++f8PairGeneration",invalidated)
+        self.assertIn("f8SampleMarker?.remove()",invalidated)
+
     def test_existing_native_reader_and_legacy_backends_remain_readonly(self):
         for name in ('f8_pair_overview','f8_private_catalog_overview',
                      'f8_start_workflow','f8_cancel_workflow','f8_workflow_status',

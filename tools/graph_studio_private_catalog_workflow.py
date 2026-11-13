@@ -233,9 +233,14 @@ def generate_native_evidence(workspace: Path, a_manifest: Path, b_manifest: Path
 
 
 def output_root(workspace: Path, a: dict, b: dict) -> Path:
-    return (workspace / "f8-private-catalogs" /
-            (a["regionId"]+"__"+b["regionId"]) /
-            (a["graphFingerprint"][7:23]+"_"+b["graphFingerprint"][7:23]))
+    # Keep all private artifacts inside the owner's actual workspace.
+    # Existing parent symlinks must not redirect staging or promotion.
+    base = workspace.resolve(strict=True) / "f8-private-catalogs"
+    pair = base / (a["regionId"]+"__"+b["regionId"])
+    root = pair / (a["graphFingerprint"][7:23]+"_"+b["graphFingerprint"][7:23])
+    for path in (base, pair, root):
+        require(not path.is_symlink(), "Private catalog output contains a symlinked directory")
+    return root
 
 
 def check_private(path: Path, a: dict, b: dict) -> dict:
@@ -292,6 +297,8 @@ def execute(action: str, workspace: Path, from_manifest: Path,
     pair=a_id+"__"+b_id
     root=output_root(workspace,a,b)
     catalog=root/(pair+"-GRAPH_STUDIO_PRIVATE_READY.json")
+    for path in (catalog, root/"proof.json", root/"original-directed-preflight.json"):
+        require(not path.is_symlink(), "Private catalog output contains a symlinked file")
     evidence=locate_evidence(workspace,pair,evidence_directory)
     if evidence is not None and evidence_directory is None:
         # A newly compiled region may share its pair name with retained
@@ -306,6 +313,11 @@ def execute(action: str, workspace: Path, from_manifest: Path,
             validate_identity(a,b,previous,native)
         except (OSError,ValueError,KeyError,EOFError,json.JSONDecodeError):
             evidence=None
+    # A matching evidence fingerprint alone does not prove that the retained
+    # original index, buffer and native configuration still exist unchanged.
+    # Check those prerequisites even when reusing a previously ready catalog.
+    if evidence is not None or catalog.exists():
+        prerequisites(from_manifest,to_manifest,a,b)
     if catalog.exists():
         data=check_private(catalog,a,b)
         proof=read(root/"proof.json")
@@ -315,9 +327,10 @@ def execute(action: str, workspace: Path, from_manifest: Path,
                 and proof.get("toArchiveSha256")==digest(b_tar),
                 "Private catalog or original archive has changed since its immutable native validation")
         original_readback=Path(str(proof.get("nativeEvidence") or ""))
-        if original_readback.is_file() and not original_readback.is_symlink():
-            require(proof.get("sourceEvidenceSha256")==digest(original_readback),
-                    "Original native receiving evidence was modified after private proof")
+        require(original_readback.is_file() and not original_readback.is_symlink(),
+                "Original native receiving evidence is missing or symlinked")
+        require(proof.get("sourceEvidenceSha256")==digest(original_readback),
+                "Original native receiving evidence was modified after private proof")
         return summary(a,b,"GRAPH_STUDIO_PRIVATE_READY",evidence=evidence,
                        catalog=catalog,content=data)
     if evidence is None and action=="status":

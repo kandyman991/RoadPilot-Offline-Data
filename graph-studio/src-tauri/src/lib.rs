@@ -174,6 +174,10 @@ struct F8WorkflowState {
     pid: Arc<Mutex<Option<u32>>>,
 }
 
+// Serialize the check-and-reserve phase of both operations. Checking the
+// other status without this lock allows simultaneous starts to both pass.
+static GRAPH_BUILD_F8_RESERVATION: Mutex<()> = Mutex::new(());
+
 fn f8_emit(app: &AppHandle, state: &F8WorkflowState) {
     if let Ok(status) = state.status.lock() {
         let _ = app.emit("graph-studio://f8-status", status.clone());
@@ -337,9 +341,6 @@ fn f8_start_workflow(app: AppHandle, state: State<'_, F8WorkflowState>,
     if !["discover", "probe", "private-build"].contains(&operation.as_str()) {
         return Err("Only native private catalog, or retained diagnostic operations, can run.".into());
     }
-    if build_state.status.lock().map_err(|_|"Build lock poisoned")?.running {
-        return Err("Finish or cancel regional graph builds before starting native F8.".into());
-    }
     let mut cmd = if operation == "private-build" {
         f8_private_command(&app, &operation, &from_region, &from_version,
                            &to_region, &to_version, evidence_directory.as_deref())?
@@ -348,6 +349,11 @@ fn f8_start_workflow(app: AppHandle, state: State<'_, F8WorkflowState>,
                    &to_region,&to_version,direction.as_deref(),mode.as_deref(),
                    coordinates,max_probes)?
     };
+    let _reservation = GRAPH_BUILD_F8_RESERVATION.lock()
+        .map_err(|_|"Graph/F8 start reservation lock poisoned")?;
+    if build_state.status.lock().map_err(|_|"Build lock poisoned")?.running {
+        return Err("Finish or cancel regional graph builds before starting native F8.".into());
+    }
     let owned = state.inner().clone();
     {
         let mut status = owned.status.lock().map_err(|_|"F8 lock poisoned")?;
@@ -1728,9 +1734,6 @@ fn start_build_queue(
     refresh_sources: bool,
     f8_state: State<'_, F8WorkflowState>,
 ) -> Result<(), String> {
-    if f8_state.status.lock().map_err(|_| "F8 status lock poisoned")?.running {
-        return Err("Native F8 discovery is running; cancel/finish it before regional graph builds.".into());
-    }
     if region_ids.is_empty() {
         return Err("Select at least one region.".into());
     }
@@ -1741,6 +1744,11 @@ fn start_build_queue(
         return Err("Package version contains unsupported characters.".into());
     }
 
+    let _reservation = GRAPH_BUILD_F8_RESERVATION.lock()
+        .map_err(|_|"Graph/F8 start reservation lock poisoned")?;
+    if f8_state.status.lock().map_err(|_| "F8 status lock poisoned")?.running {
+        return Err("Native F8 discovery is running; cancel/finish it before regional graph builds.".into());
+    }
     let owned = state.inner().clone();
     {
         let mut status = owned.status.lock().expect("build status poisoned");
@@ -4836,6 +4844,45 @@ pub fn run() {
         .expect("error while running RoadPilot Graph Studio");
 }
 
+
+#[cfg(test)]
+mod native_f8_start_reservation_tests {
+    use super::*;
+    use std::sync::Barrier;
+
+    #[test]
+    fn both_workflows_cannot_claim_start_together() {
+        let graph_running = Arc::new(AtomicBool::new(false));
+        let f8_running = Arc::new(AtomicBool::new(false));
+        let ready = Arc::new(Barrier::new(3));
+        let mut handles = Vec::new();
+        for graph_starter in [true, false] {
+            let graph = graph_running.clone();
+            let f8 = f8_running.clone();
+            let barrier = ready.clone();
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+                let _reservation = GRAPH_BUILD_F8_RESERVATION.lock().unwrap();
+                let (mine, other) = if graph_starter {
+                    (&graph, &f8)
+                } else {
+                    (&f8, &graph)
+                };
+                if other.load(Ordering::SeqCst) {
+                    false
+                } else {
+                    mine.store(true, Ordering::SeqCst);
+                    true
+                }
+            }));
+        }
+        ready.wait();
+        let claimed = handles.into_iter().filter(|h| h.join().unwrap()).count();
+        assert_eq!(claimed, 1, "only one start may be reserved");
+        assert_ne!(graph_running.load(Ordering::SeqCst),
+                   f8_running.load(Ordering::SeqCst));
+    }
+}
 
 // This regression represents the actual Legion AppImage launch environment:
 // APPDIR=/tmp/.mount_..., PYTHONHOME=APPDIR/usr and

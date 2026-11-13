@@ -1291,6 +1291,11 @@ function renderF8BuildSelectors(): void {
     if ([...input.options].some(item=>item.value===previous)) input.value=previous;
   }
   if (!f8SelectedBuilds()) {
+    // Retained builds may disappear after a refresh while a status call is
+    // outstanding. Do not let that callback restore stale connections.
+    ++f8PairGeneration;
+    f8SampleMarker?.remove();
+    f8SampleMarker=null;
     currentF8Pair=null;
     f8PairSummary.textContent="Select two different retained original regional graphs.";
     f8SampleConnections.replaceChildren();
@@ -3537,6 +3542,9 @@ function fitActiveRegion(): void {
 }
 
 function setActiveRegion(region: RegionSummary): void {
+  // A native X marker is meaningful only for the map region where it was shown.
+  f8SampleMarker?.remove();
+  f8SampleMarker=null;
   activeRegion = region;
   activeRegionBadge.textContent = region.name;
   fitBtn.disabled = !region.coverage;
