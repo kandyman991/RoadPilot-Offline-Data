@@ -2,6 +2,22 @@
 
 These explicitly declared legacy gaps make the contract honest while safeguards are introduced. They are NOT acceptance or approval to make the same mistake again.
 
+## Current status — 13 November 2026 (supersedes historical statuses below)
+
+The following supersedes older passages saying that native A→X→B B-road matching has not started, that 420/287 are matched/unmatched B roads, that the original Centro/Sud native graph has two unmatched roads, or that Android device/JNI tests block **Graph Studio's private** acceptance. Those passages are retained solely as dated historical experiment evidence.
+
+| Current scope | Verified / outstanding | Source |
+| --- | --- | --- |
+| Current approved D-017 native producer | **Implemented on main** (PRs #121, #126–#128, #134). Original A final directed GraphId → native endpoint X → same physical original B directed road, preserving car/motorcycle modes, distinct receiving branches and independent 25-km SHA-pinned graph identities. No old OSM buffered-frontier producer, no new Y point, no B outgoing-turn acceptance gate, no whole-graph scan. | [Native six-pair proof](F8_NATIVE_TWO_SUBMETRE_EDGE_EXCEPTIONS_20261112.md) |
+| Native endpoint domain across six real regional directions | **2,758/2,758 eligible A final directed source edges match; 2,759 B directed options**, one true extra B branch retained; original 3.6.3 archive readback, independent audit, exact source-owner tile checks. | [Private real-graph acceptance](GRAPH_STUDIO_PRIVATE_NATIVE_CATALOG_ACCEPTANCE_20261113.md) |
+| Owner-only private Graph Studio artifact | **`GRAPH_STUDIO_PRIVATE_READY`**, explicitly `notForRoadPilotRuntime=true`, accepted separately by PR #135 without an Android test/signing gate. Default legacy test-only catalog and RoadPilot consumer/release READY format remain distinct. | [PR #135](https://github.com/kandyman991/RoadPilot-Offline-Data/pull/135) |
+| Broader semantic completeness and route choice | **NOT_VERIFIED** for global per-physical-road/direction source lineage beyond the exact original B-covered / outside-A bounded endpoint census and full-route alternative optimality across all regions. These are explicit limitations, **not blockers** to owner-only Graph Studio use, and not authorization for a new architecture. | [Narrowed issue #73](https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73) |
+| Former >250,000 OSM anchor failure | **Superseded and closed** as not planned: `build_frontier_road_inventory.py` and `refresh_graph_connectivity.py` were retired, not patched. They are not an active producer, and no increase of the sample cap or restoration of OSM-first discovery is required. | [Closed issue #82](https://github.com/kandyman991/RoadPilot-Offline-Data/issues/82) |
+| RoadPilot Android runtime consumption and device parity | Separate **future RoadPilot integration acceptance**. Never a prerequisite to marking Graph Studio's own native catalogs private-ready. Do not claim the private schema is an APK-ready consumer schema. | [RoadPilot #512](https://github.com/kandyman991/SmartRide-Next/issues/512) |
+
+### Historical gap ledger below (retained for audit; no longer current producer gates)
+
+
 | Gap | Present evidence | Required closure | Tracking |
 | --- | --- | --- | --- |
 | G-F8-01 — Discovery source parity | The old OSM buffered-overlap/correlation producer executable files are already absent from tracked Graph Studio source; retained historical inspection/validation readers are separate. Historical OSM outputs are NOT equivalent to actual Android F8 directed graph-edge discovery. The uncapped native graph scanner remains an independent port, not Android reference proof. | On identical physical Valhalla graphs, enumerate F8 graph-edge results, compare all candidates, resolve or flag gaps, retain provenance. | https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73 |
