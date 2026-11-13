@@ -60,10 +60,10 @@ class GraphStudioUiFoundationContractTests(unittest.TestCase):
         for tool in ('build', 'region', 'graph', 'border', 'f8', 'route', 'visual',
                      'search', 'compare', 'publish', 'toolchain'):
             self.assertIn(f'data-tool="{tool}"', UI)
-        for endpoint in ('f8_pair_overview', 'f8_start_workflow', 'f8_cancel_workflow',
+        for endpoint in ('f8_private_catalog_overview', 'f8_start_workflow', 'f8_cancel_workflow',
                          'start_build_queue', 'plan_route'):
             self.assertIn(endpoint, UI)
-        for token in ('NOT VERIFIED', 'BLOCKED', 'UNPROBED'):
+        for token in ('NOT VERIFIED', 'GRAPH_STUDIO_PRIVATE_READY', 'A → X → B'):
             self.assertIn(token, UI)
 
     def test_full_ux_issue_register_survives_future_chats(self):

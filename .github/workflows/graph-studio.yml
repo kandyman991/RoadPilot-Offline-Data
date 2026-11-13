@@ -70,6 +70,9 @@ jobs:
           python3 -m pip install "jsonschema==4.25.1"
           python3 -m unittest discover -s tests -p 'test_graph_studio_search_producer.py' -v
 
+      - name: Original-native private catalog integrity regression tests
+        run: python3 -m unittest discover -s tests -p 'test_graph_studio_private_catalog_workflow.py' -v
+
       - name: Native-F8 retirement regression checks
         run: python3 -m unittest discover -s tests -p 'test_f8_architecture_regressions.py'
 
@@ -128,6 +131,12 @@ jobs:
           # is needed during this static packaged-resource audit.
           dpkg-deb --contents "$DEB" | grep "pipeline/tools/graph_studio_search_producer.py"
           dpkg-deb --contents "$DEB" | grep "pipeline/requirements-search.txt"
+          # New original D-017 private-native GUI requires both the thin
+          # orchestrator and canonical pinned original Valhalla reader
+          # source in the installed binary, not only the source checkout.
+          dpkg-deb --contents "$DEB" | grep "pipeline/tools/graph_studio_private_catalog_workflow.py"
+          dpkg-deb --contents "$DEB" | grep "pipeline/tools/native-f8-boundary-final/native_f8_boundary_final_edges.cpp"
+          dpkg-deb --contents "$DEB" | grep "pipeline/schemas/f8-graph-studio-native-private-catalog.schema.json"
           EXTRACT_DIR="$(mktemp -d)"
           (
             cd "$EXTRACT_DIR"
@@ -135,6 +144,9 @@ jobs:
             test -s squashfs-root/usr/lib/roadpilot-graph-studio/pipeline/tools/graph_studio_search_producer.py ||
               test -n "$(find squashfs-root -type f -path '*/pipeline/tools/graph_studio_search_producer.py' -print -quit)"
             test -n "$(find squashfs-root -type f -path '*/pipeline/requirements-search.txt' -print -quit)"
+            test -n "$(find squashfs-root -type f -path '*/pipeline/tools/graph_studio_private_catalog_workflow.py' -print -quit)"
+            test -n "$(find squashfs-root -type f -path '*/pipeline/tools/native-f8-boundary-final/native_f8_boundary_final_edges.cpp' -print -quit)"
+            test -n "$(find squashfs-root -type f -path '*/pipeline/schemas/f8-graph-studio-native-private-catalog.schema.json' -print -quit)"
           )
           rm -rf "$EXTRACT_DIR"
 

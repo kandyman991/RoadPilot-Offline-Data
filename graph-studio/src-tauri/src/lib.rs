@@ -174,6 +174,10 @@ struct F8WorkflowState {
     pid: Arc<Mutex<Option<u32>>>,
 }
 
+// Serialize the check-and-reserve phase of both operations. Checking the
+// other status without this lock allows simultaneous starts to both pass.
+static GRAPH_BUILD_F8_RESERVATION: Mutex<()> = Mutex::new(());
+
 fn f8_emit(app: &AppHandle, state: &F8WorkflowState) {
     if let Ok(status) = state.status.lock() {
         let _ = app.emit("graph-studio://f8-status", status.clone());
@@ -198,10 +202,46 @@ fn f8_manifests(app: &AppHandle, from_region: &str, from_version: &str,
     Ok((from.manifest_path.clone(), to.manifest_path.clone()))
 }
 
+/// Owner-private original-native catalog bridge. This runs the independently
+/// audited Python D-017 producer and NEVER issues RoadPilot READY or publishes.
+fn f8_private_command(app: &AppHandle, operation: &str, from_region: &str,
+                      from_version: &str, to_region: &str, to_version: &str,
+                      evidence_directory: Option<&str>) -> Result<Command,String> {
+    let action = match operation {
+        "private-status" => "status",
+        "private-build" => "build",
+        _ => return Err("Unsupported private native catalog operation.".into()),
+    };
+    let (from, to) = f8_manifests(app,from_region,from_version,to_region,to_version)?;
+    let python = ensure_python_env(app)?;
+    let script = pipeline_root(app)?.join("tools/graph_studio_private_catalog_workflow.py");
+    if !script.is_file() {
+        return Err("Bundled private-native catalog workflow is missing.".into());
+    }
+    let mut command = host_command(python);
+    command.arg("-u").arg(script).arg(action)
+        .arg("--workspace").arg(workspace_root(app)?)
+        .arg("--from-manifest").arg(from)
+        .arg("--to-manifest").arg(to);
+    if let Some(dir) = evidence_directory {
+        let folder = PathBuf::from(dir.trim());
+        if !folder.is_absolute() || dir.len() > 4096 ||
+                !folder.is_dir() || folder.is_symlink() {
+            return Err("Native evidence must be a real absolute directory.".into());
+        }
+        command.arg("--evidence-directory").arg(folder);
+    }
+    Ok(command)
+}
+
 fn f8_command(app: &AppHandle, operation: &str, from_region: &str,
               from_version: &str, to_region: &str, to_version: &str,
               direction: Option<&str>, mode: Option<&str>,
               coordinates: Option<[f64;4]>, max_probes: Option<u32>) -> Result<Command,String> {
+    if ["private-status", "private-build"].contains(&operation) {
+        return f8_private_command(app, operation, from_region, from_version,
+                                  to_region, to_version, None);
+    }
     if !["status", "discover", "probe"].contains(&operation) {
         return Err("Unsupported F8 operation.".into());
     }
@@ -265,22 +305,55 @@ async fn f8_pair_overview(app: AppHandle, from_region: String, from_version: Str
     }).await.map_err(|_|"Native F8 status worker failed".to_string())?
 }
 
+/// Read-only status for Graph Studio's approved native A-final → X → B
+/// catalog, not the historical GPS-proposal diagnostic.
+#[tauri::command]
+async fn f8_private_catalog_overview(
+    app: AppHandle, from_region: String, from_version: String,
+    to_region: String, to_version: String,
+    evidence_directory: Option<String>,
+) -> Result<Value,String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let output=f8_private_command(&app,"private-status",&from_region,&from_version,
+                    &to_region,&to_version,evidence_directory.as_deref())?
+            .output().map_err(|e|format!("Private F8 status failed to start: {e}"))?;
+        let stdout=String::from_utf8_lossy(&output.stdout);
+        if !output.status.success() {
+            let stderr=String::from_utf8_lossy(&output.stderr);
+            return Err(stderr.lines().find_map(|l|l.strip_prefix("F8_ERROR "))
+                .unwrap_or("Native original A→X→B catalog status failed").to_string());
+        }
+        let result=stdout.lines().find_map(|l|l.strip_prefix("F8_RESULT "))
+            .ok_or("Private F8 status is missing validated structured evidence")?;
+        serde_json::from_str::<Value>(result)
+            .map_err(|e|format!("Malformed private F8 status: {e}"))
+    }).await.map_err(|_|"Private F8 status worker crashed".to_string())?
+}
+
 #[tauri::command]
 fn f8_start_workflow(app: AppHandle, state: State<'_, F8WorkflowState>,
                      build_state: State<'_, BuildState>, operation: String,
                      from_region: String, from_version: String,
                      to_region: String, to_version: String,
                      direction: Option<String>, mode: Option<String>,
-                     coordinates: Option<[f64;4]>, max_probes: Option<u32>) -> Result<(),String> {
-    if !["discover", "probe"].contains(&operation.as_str()) {
-        return Err("Only explicit native discovery and bounded proof can run.".into());
+                     coordinates: Option<[f64;4]>, max_probes: Option<u32>,
+                     evidence_directory: Option<String>) -> Result<(),String> {
+    if !["discover", "probe", "private-build"].contains(&operation.as_str()) {
+        return Err("Only native private catalog, or retained diagnostic operations, can run.".into());
     }
+    let mut cmd = if operation == "private-build" {
+        f8_private_command(&app, &operation, &from_region, &from_version,
+                           &to_region, &to_version, evidence_directory.as_deref())?
+    } else {
+        f8_command(&app,&operation,&from_region,&from_version,
+                   &to_region,&to_version,direction.as_deref(),mode.as_deref(),
+                   coordinates,max_probes)?
+    };
+    let _reservation = GRAPH_BUILD_F8_RESERVATION.lock()
+        .map_err(|_|"Graph/F8 start reservation lock poisoned")?;
     if build_state.status.lock().map_err(|_|"Build lock poisoned")?.running {
         return Err("Finish or cancel regional graph builds before starting native F8.".into());
     }
-    let mut cmd = f8_command(&app,&operation,&from_region,&from_version,
-                             &to_region,&to_version,direction.as_deref(),mode.as_deref(),
-                             coordinates,max_probes)?;
     let owned = state.inner().clone();
     {
         let mut status = owned.status.lock().map_err(|_|"F8 lock poisoned")?;
@@ -349,8 +422,14 @@ fn f8_start_workflow(app: AppHandle, state: State<'_, F8WorkflowState>,
         let mut status=owned.status.lock().expect("F8 lock poisoned");
         status.running=false;
         match outcome {
-            Ok(())=>{ status.stage="Native F8 diagnostic operation complete".into();status.last_error=None; },
-            Err(ref error)=>{status.stage="Native F8 diagnostic operation failed".into();status.last_error=Some(error.clone());},
+            Ok(())=>{ status.stage=if operation == "private-build" {
+                    "Original native A→X→B private catalog validated"
+                } else { "Native F8 diagnostic operation complete" }.into();
+                status.last_error=None; },
+            Err(ref error)=>{status.stage=if operation == "private-build" {
+                    "Private native catalog validation failed"
+                } else { "Native F8 diagnostic operation failed" }.into();
+                status.last_error=Some(error.clone());},
         }
         owned.cancel.store(false,Ordering::SeqCst);
         drop(status);
@@ -1655,9 +1734,6 @@ fn start_build_queue(
     refresh_sources: bool,
     f8_state: State<'_, F8WorkflowState>,
 ) -> Result<(), String> {
-    if f8_state.status.lock().map_err(|_| "F8 status lock poisoned")?.running {
-        return Err("Native F8 discovery is running; cancel/finish it before regional graph builds.".into());
-    }
     if region_ids.is_empty() {
         return Err("Select at least one region.".into());
     }
@@ -1668,6 +1744,11 @@ fn start_build_queue(
         return Err("Package version contains unsupported characters.".into());
     }
 
+    let _reservation = GRAPH_BUILD_F8_RESERVATION.lock()
+        .map_err(|_|"Graph/F8 start reservation lock poisoned")?;
+    if f8_state.status.lock().map_err(|_| "F8 status lock poisoned")?.running {
+        return Err("Native F8 discovery is running; cancel/finish it before regional graph builds.".into());
+    }
     let owned = state.inner().clone();
     {
         let mut status = owned.status.lock().expect("build status poisoned");
@@ -4715,6 +4796,7 @@ pub fn run() {
             ai_verify_route,
             f8_workflow_status,
             f8_pair_overview,
+            f8_private_catalog_overview,
             f8_start_workflow,
             f8_cancel_workflow,
             list_regions,
@@ -4762,6 +4844,46 @@ pub fn run() {
         .expect("error while running RoadPilot Graph Studio");
 }
 
+
+#[cfg(test)]
+mod native_f8_start_reservation_tests {
+    use super::*;
+    use std::sync::Barrier;
+
+    #[test]
+    fn both_workflows_cannot_claim_start_together() {
+        let graph_running = Arc::new(AtomicBool::new(false));
+        let f8_running = Arc::new(AtomicBool::new(false));
+        let ready = Arc::new(Barrier::new(3));
+        let mut handles = Vec::new();
+        for graph_starter in [true, false] {
+            let graph = graph_running.clone();
+            let f8 = f8_running.clone();
+            let barrier = ready.clone();
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+                let _reservation = GRAPH_BUILD_F8_RESERVATION.lock().unwrap();
+                let (mine, other) = if graph_starter {
+                    (&graph, &f8)
+                } else {
+                    (&f8, &graph)
+                };
+                if other.load(Ordering::SeqCst) {
+                    false
+                } else {
+                    mine.store(true, Ordering::SeqCst);
+                    true
+                }
+            }));
+        }
+        ready.wait();
+        let claimed = handles.into_iter().map(|h| h.join().unwrap())
+            .filter(|claimed| *claimed).count();
+        assert_eq!(claimed, 1, "only one start may be reserved");
+        assert_ne!(graph_running.load(Ordering::SeqCst),
+                   f8_running.load(Ordering::SeqCst));
+    }
+}
 
 // This regression represents the actual Legion AppImage launch environment:
 // APPDIR=/tmp/.mount_..., PYTHONHOME=APPDIR/usr and

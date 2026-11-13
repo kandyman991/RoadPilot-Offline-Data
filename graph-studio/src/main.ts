@@ -340,54 +340,6 @@ type ConnectorMatrixMode = {
   inconclusiveCount: number;
   cells: ConnectorMatrixCell[];
 };
-type ConnectorMatrixInspection = {
-  regionId: string;
-  status: "CURRENT" | "STALE" | "MISSING" | string;
-  refreshAction: string;
-  currentGraph: Record<string, unknown>;
-  recognizedInventories: number;
-  recognizedMatrices: number;
-  searchDirectories: string[];
-  inventory: null | {
-    artifactPath: string;
-    sha256: string;
-    current: boolean;
-    graph: Record<string, unknown>;
-    anchorCount: number;
-    sourceConnectivity: Array<Record<string, unknown>>;
-    boundaryChecks: Array<{
-      neighborPrimaryGeofabrikId: string;
-      boundBoundaryFingerprint: string | null;
-      currentBoundaryFingerprint: string | null;
-      matches: boolean;
-    }>;
-    anchors: ConnectorAnchor[];
-  };
-  matrix: null | {
-    artifactPath: string;
-    current: boolean;
-    graph: Record<string, unknown>;
-    sourceInventorySha256: string | null;
-    sourceAnchorCount: number | null;
-    sourceInventoryPresent: boolean;
-    sourceInventoryCurrent: boolean;
-    anchorCountMatches: boolean;
-    modes: {
-      MOTORCYCLE?: ConnectorMatrixMode;
-      CAR?: ConnectorMatrixMode;
-    };
-  };
-};
-
-type BorderRoadDiffMetrics = {
-  commonWays: number;
-  aOnlyWays: number;
-  bOnlyWays: number;
-  loadedEdgesA: number;
-  loadedEdgesB: number;
-  unidentifiedA: number;
-  unidentifiedB: number;
-};
 type BuildIndexDiff = {
   regionId: string;
   versionA: string;
@@ -748,7 +700,6 @@ app.innerHTML = `
         <div class="border-tabs" role="tablist" aria-label="Border inspection workflow">
           <button id="borderManualTab" class="border-tab active" type="button" role="tab" aria-selected="true" aria-controls="borderManualPanel">Manual validation</button>
           <button id="borderEvidenceTab" class="border-tab" type="button" role="tab" aria-selected="false" aria-controls="borderEvidencePanel" tabindex="-1">Saved evidence</button>
-          <button id="borderLegacyTab" class="border-tab" type="button" role="tab" aria-selected="false" aria-controls="borderLegacyPanel" tabindex="-1">Legacy diagnostics</button>
         </div>
         <div id="borderManualPanel" class="border-subpanel" role="tabpanel" aria-labelledby="borderManualTab">
           <h3>Manual directed-edge crossing</h3>
@@ -796,92 +747,31 @@ app.innerHTML = `
         <h3>Saved manual overrides</h3>
         <div id="handoffOverrideList" class="empty">No manual overrides.</div>
         </div>
-        <div id="borderLegacyPanel" class="border-subpanel" role="tabpanel" aria-labelledby="borderLegacyTab" hidden>
-          <p class="legacy-diagnostic-warning"><strong>Legacy diagnostics — not native F8 proof.</strong> OSM-way overlap and the historical connector matrix are retained for investigation only. They must not determine production F8 crossing acceptance, completeness, or directionality.</p>
-        <h3>OSM-way road overlap (non-authoritative)</h3>
-        <div class="border-diff-legend">
-          <span><i class="legend-common"></i>Common OSM way</span>
-          <span><i class="legend-a"></i>A only</span>
-          <span><i class="legend-b"></i>B only</span>
-        </div>
-        <div class="actions" style="margin-top:8px">
-          <button id="refreshBorderDiffBtn" class="btn" type="button" disabled>Refresh road diff</button>
-        </div>
-        <div id="borderDiffSummary" class="empty">Load a graph pair to compare border roads.</div>
-        <h3>Historical regional connector matrix</h3>
-        <div class="coord-grid">
-          <div class="field">
-            <label for="connectorRegion">Region</label>
-            <select id="connectorRegion"></select>
-          </div>
-          <div class="field">
-            <label for="connectorMode">Mode</label>
-            <select id="connectorMode">
-              <option value="MOTORCYCLE">Motorcycle</option>
-              <option value="CAR">Car</option>
-            </select>
-          </div>
-        </div>
-        <div class="connector-matrix-legend">
-          <span><i class="connector-reachable"></i>Reachable</span>
-          <span><i class="connector-unreachable"></i>Unreachable</span>
-          <span><i class="connector-inconclusive"></i>Inconclusive</span>
-          <span><i class="connector-anchor"></i>Anchor</span>
-        </div>
-        <div class="actions" style="margin-top:8px">
-          <button id="refreshConnectorMatrixBtn" class="btn" type="button" disabled>Inspect matrix</button>
-        </div>
-        <div id="connectorMatrixSummary" class="empty">Choose a locally built region to inspect its connector inventory and matrix.</div>
-        <div id="connectorMatrixList" class="artifact-list"></div>
-        </div>
       </section>
       <section class="section tool-panel" data-tool="f8" hidden>
-        <h2>Native F8 connectivity</h2>
-        <p class="status-line">Compiled native A → X → B catalogs can be <strong>GRAPH_STUDIO_PRIVATE_READY</strong> after independent SHA-bound matching and audit. Android/JNI public release remains <strong>NOT VERIFIED</strong> and <strong>BLOCKED</strong> separately.</p>
-        <p class="status-line">The existing GPS proposal and bounded journey tools below are historical diagnostics, not the approved final-edge catalog producer. They do not replace native A → exact X → directed B matching.</p>
+        <h2>Connect regions (A → X → B)</h2>
+        <p class="status-line">Build a private native catalog using Graph A final directed GraphIds and original Graph B matching directed roads at exact GPS X, preserving real branches and vehicle permissions.</p>
         <div class="coord-grid">
-          <div class="field"><label for="f8RegionA">Graph A (retained build)</label><select id="f8RegionA"></select></div>
-          <div class="field"><label for="f8RegionB">Graph B (retained build)</label><select id="f8RegionB"></select></div>
+          <div class="field"><label for="f8RegionA">Graph A</label><select id="f8RegionA"></select></div>
+          <div class="field"><label for="f8RegionB">Graph B</label><select id="f8RegionB"></select></div>
         </div>
-        <div class="f8-tabs" role="tablist" aria-label="Native F8 workflow">
-          <button id="f8DiscoveryTab" class="f8-tab active" type="button" role="tab" aria-selected="true" aria-controls="f8DiscoveryPanel">Discovery</button>
-          <button id="f8ValidationTab" class="f8-tab" type="button" role="tab" aria-selected="false" aria-controls="f8ValidationPanel" tabindex="-1">Journey Validation</button>
+        <div class="actions">
+          <button id="f8RefreshBtn" class="btn" type="button" disabled>Check original native proof</button>
+          <button id="f8BuildCatalogBtn" class="btn primary" type="button" disabled>Build private catalog</button>
+          <button id="f8CancelBtn" class="btn danger" type="button" disabled>Cancel</button>
         </div>
-        <div class="f8-job-bar">
-          <div id="f8JobSummary" class="status-line" aria-live="polite">No F8 operation running.</div>
-          <button id="f8CancelBtn" class="btn danger" type="button" disabled>Cancel operation</button>
-        </div>
-        <div id="f8DiscoveryPanel" class="f8-subpanel" role="tabpanel" aria-labelledby="f8DiscoveryTab">
-          <h3>Native graph discovery</h3>
-          <p class="status-line">Inspect an existing graph pair, then explicitly generate directed GPS proposals from native GraphReader evidence. Previously verified-on-input scans are reused without rebuilding.</p>
-          <div class="actions">
-            <button id="f8RefreshBtn" class="btn" type="button">Inspect pair</button>
-            <button id="f8DiscoverBtn" class="btn primary" type="button" disabled>Discover native GPS proposals</button>
+        <div id="f8JobSummary" class="status-line" aria-live="polite">Select original Graph A and Graph B.</div>
+        <div id="f8PairSummary" class="empty" aria-live="polite">Select two different retained regional graphs.</div>
+        <div id="f8SampleConnections" class="artifact-list"></div>
+        <details class="route-options">
+          <summary>Original native evidence (advanced)</summary>
+          <div class="field">
+            <label for="f8EvidenceDirectory">Optional matching evidence folder</label>
+            <input id="f8EvidenceDirectory" autocomplete="off" placeholder="Leave blank to search retained original native evidence" />
           </div>
-          <div id="f8PairSummary" class="empty">Choose two different retained graph builds, then inspect their native F8 evidence.</div>
-        </div>
-        <div id="f8ValidationPanel" class="f8-subpanel" role="tabpanel" aria-labelledby="f8ValidationTab" hidden>
-          <h3>Journey validation (bounded)</h3>
-          <div id="f8ValidationReadiness" class="empty" aria-live="polite">Choose a graph pair and generate its native GPS proposals in Discovery before validating a journey.</div>
-          <div class="coord-grid">
-            <div class="field"><label for="f8Direction">Direction</label>
-              <select id="f8Direction"><option value="from-to">Graph A → B</option><option value="to-from">Graph B → A</option></select></div>
-            <div class="field"><label for="f8Mode">Vehicle</label>
-              <select id="f8Mode"><option value="motorcycle">Motorcycle</option><option value="auto">Car</option></select></div>
-            <div class="field"><label for="f8StartLat">Start latitude</label><input id="f8StartLat" type="number" step="0.000001" /></div>
-            <div class="field"><label for="f8StartLng">Start longitude</label><input id="f8StartLng" type="number" step="0.000001" /></div>
-            <div class="field"><label for="f8EndLat">Destination latitude</label><input id="f8EndLat" type="number" step="0.000001" /></div>
-            <div class="field"><label for="f8EndLng">Destination longitude</label><input id="f8EndLng" type="number" step="0.000001" /></div>
-            <div class="field"><label for="f8ProbeCount">Maximum proposals to test (1–16)</label><input id="f8ProbeCount" type="number" min="1" max="16" step="1" value="6" /></div>
-          </div>
-          <div class="actions">
-            <button id="f8CopyRouteBtn" class="btn" type="button">Copy route planner points</button>
-            <button id="f8ProbeBtn" class="btn primary" type="button" disabled>Run Valhalla journey proof</button>
-          </div>
-          <p class="status-line">Validation is limited to explicitly sampled proposals; other crossings remain <strong>UNPROBED</strong>. FASTER / SHORTER indicate best of probed only, never global optimality.</p>
-          <h3>Recent journey proofs</h3>
-          <div id="f8RecentProofs" class="artifact-list"></div>
-        </div>
+          <p>If independent matching evidence already exists, it is verified and reused. Otherwise Build runs the approved original-native final-edge reader, A→exact X→B matcher, independent audit and private catalog validator. Missing original source/build prerequisites fail closed.</p>
+          <p>Private catalogs are not RoadPilot Android releases; global physical-road lineage remains NOT_VERIFIED.</p>
+        </details>
       </section>
       <section class="section tool-panel" data-tool="route" hidden>
         <h2>Valhalla route planner</h2>
@@ -1170,16 +1060,9 @@ const clearHandoffBtn = document.querySelector<HTMLButtonElement>("#clearHandoff
 const handoffValidationSummary = document.querySelector<HTMLDivElement>("#handoffValidationSummary")!;
 const handoffProbeList = document.querySelector<HTMLDivElement>("#handoffProbeList")!;
 const handoffOverrideList = document.querySelector<HTMLDivElement>("#handoffOverrideList")!;
-const refreshBorderDiffBtn = document.querySelector<HTMLButtonElement>("#refreshBorderDiffBtn")!;
-const borderDiffSummary = document.querySelector<HTMLDivElement>("#borderDiffSummary")!;
 const refreshHandoffArtifactsBtn = document.querySelector<HTMLButtonElement>("#refreshHandoffArtifactsBtn")!;
 const handoffArtifactSummary = document.querySelector<HTMLDivElement>("#handoffArtifactSummary")!;
 const handoffArtifactList = document.querySelector<HTMLDivElement>("#handoffArtifactList")!;
-const connectorRegion = document.querySelector<HTMLSelectElement>("#connectorRegion")!;
-const connectorMode = document.querySelector<HTMLSelectElement>("#connectorMode")!;
-const refreshConnectorMatrixBtn = document.querySelector<HTMLButtonElement>("#refreshConnectorMatrixBtn")!;
-const connectorMatrixSummary = document.querySelector<HTMLDivElement>("#connectorMatrixSummary")!;
-const connectorMatrixList = document.querySelector<HTMLDivElement>("#connectorMatrixList")!;
 const exportBorderDiagnosticsBtn = document.querySelector<HTMLButtonElement>("#exportBorderDiagnosticsBtn")!;
 const borderReportSummary = document.querySelector<HTMLDivElement>("#borderReportSummary")!;
 const routeCosting = document.querySelector<HTMLSelectElement>("#routeCosting")!;
@@ -1229,13 +1112,11 @@ let activeRegion: RegionSummary | null = null;
 let graphVisible = false;
 let activeVisualBuild: VisualBuildArtifact | null = null;
 let referenceLayerIds: string[] = [];
-let lastBorderDiffMetrics: BorderRoadDiffMetrics | null = null;
 let handoffPickMode: "A" | "B" | null = null;
 let editingHandoffId: string | null = null;
 let handoffSnapA: HandoffSnap | null = null;
 let handoffSnapB: HandoffSnap | null = null;
 let handoffValidation: HandoffValidation | null = null;
-let connectorInspection: ConnectorMatrixInspection | null = null;
 let r2Credentials: R2CredentialStatus | null = null;
 let remotePublication: R2RegionPublicationStatus | null = null;
 let currentPublicationStatus: PublicationStatus | null = null;
@@ -1328,34 +1209,35 @@ function bytes(value: number | null): string {
   return `${v.toFixed(i >= 3 ? 1 : 0)} ${units[i]}`;
 }
 
-type F8PairOverview = {
-  pairId: string; fromVersion: string; toVersion: string;
-  fromGraphFingerprint: string; toGraphFingerprint: string;
-  source: string; nativeScannerAvailable: boolean; proposalsReady: boolean;
-  proposalError: string | null; diagnosticDirectory: string;
-  counts: Record<string, { receiverDirectedEdges: number; exactPhysicalPeerEvidence: number; noExactPhysicalPeer: number }> | null;
-  recentProbes: Array<{mode:string;direction:string;attempted:number;validated:number;unprobed:number;file:string;
-    sampledHandoffs:Array<{coordinate:{lat:number;lng:number};graphId:number;durationSeconds:number;distanceKm:number}>;
-    bestOfProbedOnly: Record<string,string|null>;
-    selectionMethod?:string;edgeWalkReplayMatchesOnly?:number;originalNativeRouteEdgeMatchesOnly?:number;nextOrderedStartOrdinal?:number|null}>;
-  androidParity:string; productionPublication:string;
+type NativePrivateConnectionPoint = {
+  sourceGraphId:number; receiverGraphIds:number[]; latitude:number; longitude:number; modes:string[];
 };
-type F8JobStatus = {running:boolean;stage:string;lastError:string|null;lastResult:F8PairOverview|null};
+type NativePrivatePairOverview = {
+  pairId:string; fromVersion:string; toVersion:string;
+  fromGraphFingerprint:string; toGraphFingerprint:string;
+  status:"GRAPH_STUDIO_PRIVATE_READY"|"NATIVE_EVIDENCE_REQUIRED"|"READY_TO_VALIDATE_NATIVE_EVIDENCE"|"READY_TO_GENERATE_NATIVE_EVIDENCE";
+  publication:string|null; sourceConnections:number; receiverIncomingRoads:number;
+  sourcePhysicalRoadDirectionCompleteness:string; catalogPath:string|null;
+  evidencePath:string|null; reason:string|null; samplePoints:NativePrivateConnectionPoint[];
+  notForRoadPilotRuntime:true;
+};
+type F8JobStatus = {
+  running:boolean; stage:string; lastError:string|null;
+  lastResult:NativePrivatePairOverview|null;
+};
 
-type BorderSubTab = "manual" | "evidence" | "legacy";
+type BorderSubTab = "manual" | "evidence";
 const BORDER_TAB_KEY = "roadpilot.graph-studio.border.tab";
 const borderTabs = {
   manual: document.querySelector<HTMLButtonElement>("#borderManualTab")!,
   evidence: document.querySelector<HTMLButtonElement>("#borderEvidenceTab")!,
-  legacy: document.querySelector<HTMLButtonElement>("#borderLegacyTab")!,
 };
 const borderPanels = {
   manual: document.querySelector<HTMLDivElement>("#borderManualPanel")!,
   evidence: document.querySelector<HTMLDivElement>("#borderEvidencePanel")!,
-  legacy: document.querySelector<HTMLDivElement>("#borderLegacyPanel")!,
 };
 function activateBorderTab(tab: BorderSubTab, remember = true): void {
-  for (const key of ["manual", "evidence", "legacy"] as const) {
+  for (const key of ["manual", "evidence"] as const) {
     const chosen = key === tab;
     borderPanels[key].hidden = !chosen;
     borderTabs[key].classList.toggle("active", chosen);
@@ -1363,75 +1245,31 @@ function activateBorderTab(tab: BorderSubTab, remember = true): void {
     borderTabs[key].tabIndex = chosen ? 0 : -1;
   }
   if (remember) localStorage.setItem(BORDER_TAB_KEY, tab);
-  if (remember && tab === "legacy") scheduleBorderRoadDiff();
 }
 const savedBorderTab = localStorage.getItem(BORDER_TAB_KEY);
-activateBorderTab(savedBorderTab === "evidence" || savedBorderTab === "legacy" ? savedBorderTab : "manual", false);
-for (const tab of ["manual", "evidence", "legacy"] as const) {
+activateBorderTab(savedBorderTab === "evidence" ? "evidence" : "manual", false);
+for (const tab of ["manual", "evidence"] as const) {
   borderTabs[tab].addEventListener("click", () => activateBorderTab(tab));
   borderTabs[tab].addEventListener("keydown", event => {
-    const all: BorderSubTab[] = ["manual", "evidence", "legacy"];
+    const all: BorderSubTab[] = ["manual", "evidence"];
     const delta = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-    const next = event.key === "Home" ? "manual" : event.key === "End" ? "legacy" :
+    const next = event.key === "Home" ? "manual" : event.key === "End" ? "evidence" :
       delta ? all[(all.indexOf(tab) + delta + all.length) % all.length] : null;
     if (!next) return;
     event.preventDefault(); activateBorderTab(next); borderTabs[next].focus();
   });
 }
 
-type F8SubTab = "discovery" | "validation";
-const F8_TAB_STORAGE_KEY = "roadpilot.graph-studio.f8.active-tab";
-const f8DiscoveryTab = document.querySelector<HTMLButtonElement>("#f8DiscoveryTab")!;
-const f8ValidationTab = document.querySelector<HTMLButtonElement>("#f8ValidationTab")!;
-const f8DiscoveryPanel = document.querySelector<HTMLDivElement>("#f8DiscoveryPanel")!;
-const f8ValidationPanel = document.querySelector<HTMLDivElement>("#f8ValidationPanel")!;
-const f8ValidationReadiness = document.querySelector<HTMLDivElement>("#f8ValidationReadiness")!;
-
-function activateF8Tab(tab: F8SubTab, remember = true): void {
-  const discovery = tab === "discovery";
-  f8DiscoveryPanel.hidden = !discovery;
-  f8ValidationPanel.hidden = discovery;
-  f8DiscoveryTab.classList.toggle("active", discovery);
-  f8ValidationTab.classList.toggle("active", !discovery);
-  f8DiscoveryTab.setAttribute("aria-selected", String(discovery));
-  f8ValidationTab.setAttribute("aria-selected", String(!discovery));
-  f8DiscoveryTab.tabIndex = discovery ? 0 : -1;
-  f8ValidationTab.tabIndex = discovery ? -1 : 0;
-  if (remember) localStorage.setItem(F8_TAB_STORAGE_KEY, tab);
-}
-const initialF8Tab = localStorage.getItem(F8_TAB_STORAGE_KEY);
-activateF8Tab(initialF8Tab === "validation" ? "validation" : "discovery", false);
-f8DiscoveryTab.addEventListener("click", () => activateF8Tab("discovery"));
-f8ValidationTab.addEventListener("click", () => activateF8Tab("validation"));
-for (const button of [f8DiscoveryTab, f8ValidationTab]) {
-  button.addEventListener("keydown", event => {
-    const tab = event.key === "ArrowRight" || event.key === "End" ? "validation" :
-      event.key === "ArrowLeft" || event.key === "Home" ? "discovery" : null;
-    if (!tab) return;
-    event.preventDefault();
-    activateF8Tab(tab);
-    (tab === "discovery" ? f8DiscoveryTab : f8ValidationTab).focus();
-  });
-}
-
 const f8RegionA = document.querySelector<HTMLSelectElement>("#f8RegionA")!;
 const f8RegionB = document.querySelector<HTMLSelectElement>("#f8RegionB")!;
 const f8RefreshBtn = document.querySelector<HTMLButtonElement>("#f8RefreshBtn")!;
-const f8DiscoverBtn = document.querySelector<HTMLButtonElement>("#f8DiscoverBtn")!;
+const f8BuildCatalogBtn = document.querySelector<HTMLButtonElement>("#f8BuildCatalogBtn")!;
 const f8CancelBtn = document.querySelector<HTMLButtonElement>("#f8CancelBtn")!;
+const f8EvidenceDirectory = document.querySelector<HTMLInputElement>("#f8EvidenceDirectory")!;
 const f8PairSummary = document.querySelector<HTMLDivElement>("#f8PairSummary")!;
-const f8Direction = document.querySelector<HTMLSelectElement>("#f8Direction")!;
-const f8Mode = document.querySelector<HTMLSelectElement>("#f8Mode")!;
-const f8StartLat = document.querySelector<HTMLInputElement>("#f8StartLat")!;
-const f8StartLng = document.querySelector<HTMLInputElement>("#f8StartLng")!;
-const f8EndLat = document.querySelector<HTMLInputElement>("#f8EndLat")!;
-const f8EndLng = document.querySelector<HTMLInputElement>("#f8EndLng")!;
-const f8ProbeCount = document.querySelector<HTMLInputElement>("#f8ProbeCount")!;
-const f8CopyRouteBtn = document.querySelector<HTMLButtonElement>("#f8CopyRouteBtn")!;
-const f8ProbeBtn = document.querySelector<HTMLButtonElement>("#f8ProbeBtn")!;
+const f8SampleConnections = document.querySelector<HTMLDivElement>("#f8SampleConnections")!;
 const f8JobSummary = document.querySelector<HTMLDivElement>("#f8JobSummary")!;
-const f8RecentProofs = document.querySelector<HTMLDivElement>("#f8RecentProofs")!;
-let currentF8Pair: F8PairOverview | null = null;
+let currentF8Pair: NativePrivatePairOverview | null = null;
 let currentF8Job: F8JobStatus | null = null;
 let f8PairGeneration = 0;
 let f8SampleMarker: Marker | null = null;
@@ -1442,152 +1280,165 @@ function f8SelectedBuilds(): [BuildArtifact,BuildArtifact] | null {
   return a && b && a.region_id !== b.region_id ? [a,b] : null;
 }
 function renderF8BuildSelectors(): void {
-  const existingA=f8RegionA.value, existingB=f8RegionB.value;
-  const options=artifacts.map(item => `<option value="${escapeHtml(item.manifest_path)}">${escapeHtml(item.region_id)} · ${escapeHtml(item.version)}</option>`).join("");
-  f8RegionA.innerHTML=`<option value="">Select Graph A…</option>${options}`;
-  f8RegionB.innerHTML=`<option value="">Select Graph B…</option>${options}`;
-  f8RegionA.value=existingA;f8RegionB.value=existingB;
+  const previousA=f8RegionA.value, previousB=f8RegionB.value;
+  for (const input of [f8RegionA, f8RegionB]) {
+    const previous=input===f8RegionA ? previousA : previousB;
+    input.replaceChildren(new Option(input===f8RegionA ? "Select original Graph A…" :
+                                      "Select original Graph B…", ""));
+    for (const item of artifacts) {
+      input.add(new Option(item.region_id + " · " + item.version, item.manifest_path));
+    }
+    if ([...input.options].some(item=>item.value===previous)) input.value=previous;
+  }
   if (!f8SelectedBuilds()) {
+    // Retained builds may disappear after a refresh while a status call is
+    // outstanding. Do not let that callback restore stale connections.
+    ++f8PairGeneration;
+    f8SampleMarker?.remove();
+    f8SampleMarker=null;
     currentF8Pair=null;
-    f8PairSummary.textContent="Select two different retained regional routing graph builds.";
-    f8RecentProofs.replaceChildren();
+    f8PairSummary.textContent="Select two different retained original regional graphs.";
+    f8SampleConnections.replaceChildren();
   }
   updateF8Buttons();
-}
-function updateF8ValidationReadiness(): void {
-  const valid = f8SelectedBuilds() != null;
-  const ready = valid && currentF8Pair?.proposalsReady === true;
-  f8ValidationReadiness.className = ready ? "status-line" : "empty";
-  f8ValidationReadiness.textContent = !valid
-    ? "Choose two different retained graph builds above, then generate their native proposals in Discovery."
-    : ready
-      ? "Native GPS proposals available for this exact graph pair. Journey proofs are sampled only; remaining candidates are UNPROBED."
-      : "No verified-on-input GPS inventory for this pair yet. Use Discovery → Inspect pair / Discover native GPS proposals first.";
 }
 function updateF8Buttons(): void {
-  const valid = f8SelectedBuilds() != null;
-  const running = currentF8Job?.running === true;
-  f8RegionA.disabled=running;f8RegionB.disabled=running;
-  f8RefreshBtn.disabled = !valid || running;
-  f8DiscoverBtn.disabled = !valid || running || currentF8Pair?.proposalsReady === true;
-  f8ProbeBtn.disabled = !valid || running || currentF8Pair?.proposalsReady !== true;
-  f8CancelBtn.disabled = !running;
-  updateF8ValidationReadiness();
+  const pairValid=f8SelectedBuilds()!=null;
+  const running=currentF8Job?.running === true;
+  f8RegionA.disabled=running;
+  f8RegionB.disabled=running;
+  f8EvidenceDirectory.disabled=running;
+  f8RefreshBtn.disabled=!pairValid || running;
+  f8BuildCatalogBtn.disabled=!pairValid || running ||
+    !["READY_TO_VALIDATE_NATIVE_EVIDENCE","READY_TO_GENERATE_NATIVE_EVIDENCE"].includes(currentF8Pair?.status ?? "");
+  f8CancelBtn.disabled=!running;
 }
-function renderF8Overview(report:F8PairOverview): void {
+function renderF8Overview(report:NativePrivatePairOverview):void {
   currentF8Pair=report;
-  const counts=report.counts;
-  f8PairSummary.className="kv";
-  f8PairSummary.innerHTML=`<dt>Pair</dt><dd>${escapeHtml(report.pairId)}</dd>
-    <dt>Graph versions</dt><dd>${escapeHtml(report.fromVersion)} → ${escapeHtml(report.toVersion)}</dd>
-    <dt>Source</dt><dd>${escapeHtml(report.source.replaceAll("_"," "))}</dd>
-    <dt>GPS proposals</dt><dd>${counts ? `${counts["from-to"].receiverDirectedEdges.toLocaleString()} A→B / ${counts["to-from"].receiverDirectedEdges.toLocaleString()} B→A` : "Not generated yet"}</dd>
-    <dt>Native scanner</dt><dd>${report.nativeScannerAvailable ? "Available" : "Not installed; existing scans only"}</dd>
-    <dt>Android F8 parity</dt><dd class="bad">${escapeHtml(report.androidParity)}</dd>
-    <dt>Runtime publication</dt><dd class="bad">${escapeHtml(report.productionPublication)}</dd>
-    <dt>Local evidence</dt><dd>${escapeHtml(report.diagnosticDirectory)}</dd>`;
-  if (report.proposalError) {
-    f8PairSummary.innerHTML += `<p class="bad">Stale/corrupt GPS inventory: ${escapeHtml(report.proposalError)}. Will not overwrite.</p>`;
+  const complete=report.status==="GRAPH_STUDIO_PRIVATE_READY";
+  f8PairSummary.className=complete?"kv":"empty";
+  f8PairSummary.replaceChildren();
+  const rows = [
+    ["Pair",report.pairId],
+    ["Original graph versions", report.fromVersion + " → " + report.toVersion],
+    ["Native status",report.status.replaceAll("_"," ")],
+    ["A final directed GraphIds",String(report.sourceConnections)],
+    ["B matching directed roads",String(report.receiverIncomingRoads)],
+    ["Global physical-road lineage", "NOT VERIFIED"],
+    ["Android release", "NOT FOR ROADPILOT RUNTIME"],
+    ["Private catalog",report.catalogPath || "Not generated"],
+    ["Original evidence",report.evidencePath || "Unavailable"],
+  ];
+  for (const [name,value] of rows) {
+    const label=document.createElement("dt");
+    const content=document.createElement("dd");
+    label.textContent=name;
+    content.textContent=value;
+    f8PairSummary.append(label,content);
   }
-  f8RecentProofs.innerHTML = report.recentProbes.length
-    ? report.recentProbes.map(item=>`<div class="handoff-card"><strong>${escapeHtml(item.direction)} · ${escapeHtml(item.mode)}</strong>
-      <p>${item.selectionMethod === "ordered-native-ledger"
-        ? ((item.originalNativeRouteEdgeMatchesOnly ?? 0) > 0
-           ? `${item.originalNativeRouteEdgeMatchesOnly} original Valhalla receiver-edge matches / ${item.attempted} ordered samples · cross-graph and road completeness NOT VERIFIED`
-           : `${item.edgeWalkReplayMatchesOnly ?? 0} B edge-walk replay matches / ${item.attempted} ordered samples · original route edges NOT VERIFIED`)
-        : `${item.validated} validated / ${item.attempted} sampled`} · ${item.unprobed.toLocaleString()} not evaluated in this report</p>
-      <small>Best of ${item.selectionMethod === "ordered-native-ledger" ? "current ordered batch only" : "sampled"}: FASTER ${escapeHtml(item.bestOfProbedOnly?.FASTER ?? "none")} · SHORTER ${escapeHtml(item.bestOfProbedOnly?.SHORTER ?? "none")}${item.selectionMethod === "ordered-native-ledger"
-        ? ` · Next source ordinal: ${item.nextOrderedStartOrdinal === null ? "end of this ledger" : Number(item.nextOrderedStartOrdinal).toLocaleString()} · parity NOT VERIFIED` : ""}</small>
-      <div class="actions">${(item.sampledHandoffs??[]).map((point,index)=>
-        `<button type="button" class="btn" data-f8-report="${report.recentProbes.indexOf(item)}" data-f8-point="${index}">
-          View handoff ${index+1} (${Number(point.coordinate.lat).toFixed(5)}, ${Number(point.coordinate.lng).toFixed(5)})</button>`).join("")}</div>
-      </div>`).join("")
-    : `<p class="empty">No journey probes for this exact pair yet. All alternatives remain unverified.</p>`;
+  if (report.reason) {
+    const warning=document.createElement("p");
+    warning.className="warn";
+    warning.textContent=report.reason;
+    f8PairSummary.appendChild(warning);
+  }
+  f8SampleConnections.replaceChildren();
+  if(complete && report.samplePoints.length){
+    const heading=document.createElement("h3");
+    heading.textContent="Native directed matches at X (sample)";
+    f8SampleConnections.appendChild(heading);
+    for (const [index,point] of report.samplePoints.entries()) {
+      const button=document.createElement("button");
+      button.type="button";
+      button.className="btn f8-native-sample";
+      button.dataset.f8PrivateIndex=String(index);
+      button.textContent="Graph A " + point.sourceGraphId + " → B " +
+        point.receiverGraphIds.join(", ") + " · " + point.modes.join("/") + " · View X";
+      f8SampleConnections.appendChild(button);
+    }
+  }
   updateF8Buttons();
 }
-async function refreshF8Pair(): Promise<void> {
-  const selected=f8SelectedBuilds();const generation=++f8PairGeneration;
+async function refreshF8Pair():Promise<void> {
+  const pair=f8SelectedBuilds();
+  const generation=++f8PairGeneration;
+  f8SampleMarker?.remove();
+  f8SampleMarker=null;
   currentF8Pair=null;
-  f8RecentProofs.replaceChildren();
+  f8SampleConnections.replaceChildren();
   updateF8Buttons();
-  if (!selected) {
+  if (!pair) {
     f8PairSummary.className="empty";
-    f8PairSummary.textContent="Select two different retained regional routing graph builds.";
+    f8PairSummary.textContent="Select two different original regional graph builds.";
     return;
   }
-  f8PairSummary.className="empty";f8PairSummary.textContent="Checking graph fingerprints and retained native F8 evidence…";
+  f8PairSummary.className="empty";
+  f8PairSummary.textContent="Checking native source and receiver graph fingerprints…";
+  const [a,b]=pair;
   try {
-    const [a,b]=selected;
-    const report=await invoke<F8PairOverview>("f8_pair_overview",{
-      fromRegion:a.region_id, fromVersion:a.version,toRegion:b.region_id,toVersion:b.version,
+    const data=await invoke<NativePrivatePairOverview>("f8_private_catalog_overview",{
+      fromRegion:a.region_id,fromVersion:a.version,
+      toRegion:b.region_id,toVersion:b.version,
+      evidenceDirectory:f8EvidenceDirectory.value.trim()||null,
     });
-    if (generation===f8PairGeneration) renderF8Overview(report);
-  } catch (error) {
-    if (generation===f8PairGeneration) {
+    if (generation===f8PairGeneration) renderF8Overview(data);
+  } catch(error){
+    if (generation===f8PairGeneration){
       f8PairSummary.className="bad";
-      f8PairSummary.textContent=`Cannot prepare F8 pair: ${String(error)}`;
+      f8PairSummary.textContent="Native pair could not be verified: "+String(error);
+      updateF8Buttons();
     }
-  } finally {if(generation===f8PairGeneration)updateF8Buttons();}
+  }
 }
 function renderF8Job(status:F8JobStatus):void {
-  const wasRunning=currentF8Job?.running === true;
+  const wasRunning=currentF8Job?.running===true;
   currentF8Job=status;
-  f8JobSummary.className=status.lastError ? "bad" : "status-line";
-  f8JobSummary.textContent=status.lastError ? `F8 failed: ${status.lastError}` : status.stage;
+  f8JobSummary.className=status.lastError?"bad":"status-line";
+  f8JobSummary.textContent=status.lastError ?
+    "Private catalog validation failed: "+status.lastError : status.stage;
   updateF8Buttons();
   if (wasRunning && !status.running && f8SelectedBuilds()) void refreshF8Pair();
 }
-async function runF8(operation:"discover"|"probe"): Promise<void> {
-  const builds=f8SelectedBuilds();if(!builds)return;
-  const [a,b]=builds;
-  const args:Record<string,unknown>={operation,fromRegion:a.region_id,fromVersion:a.version,
-    toRegion:b.region_id,toVersion:b.version};
-  if(operation==="probe") {
-    const values=[f8StartLat,f8StartLng,f8EndLat,f8EndLng].map(input=>input.value.trim()===""?NaN:Number(input.value));
-    if(values.some(value=>!Number.isFinite(value)) || Math.abs(values[0])>90 || Math.abs(values[2])>90 ||
-       Math.abs(values[1])>180 || Math.abs(values[3])>180) {
-      f8JobSummary.className="bad";f8JobSummary.textContent="Enter all four valid journey coordinates.";return;
-    }
-    const count=Number(f8ProbeCount.value);
-    if(!Number.isInteger(count)||count<1||count>16) {
-      f8JobSummary.className="bad";f8JobSummary.textContent="Choose 1–16 bounded proof samples.";return;
-    }
-    args.direction=f8Direction.value;args.mode=f8Mode.value;
-    args.coordinates=values;args.maxProbes=count;
-  }
+async function runPrivateF8Catalog():Promise<void>{
+  const pair=f8SelectedBuilds();
+  if (!pair || !["READY_TO_VALIDATE_NATIVE_EVIDENCE","READY_TO_GENERATE_NATIVE_EVIDENCE"].includes(currentF8Pair?.status ?? ""))return;
+  const [a,b]=pair;
   try {
-    await invoke("f8_start_workflow",args);
+    await invoke("f8_start_workflow",{
+      operation:"private-build",fromRegion:a.region_id,fromVersion:a.version,
+      toRegion:b.region_id,toVersion:b.version,
+      evidenceDirectory:f8EvidenceDirectory.value.trim()||null,
+    });
     renderF8Job(await invoke<F8JobStatus>("f8_workflow_status"));
-    appendLog(`Started native F8 ${operation} on ${a.region_id} / ${b.region_id} (diagnostic only).`);
+    appendLog("Private native A → X → B catalog requested: "+a.region_id+" → "+b.region_id);
   } catch(error) {
-    f8JobSummary.className="bad";f8JobSummary.textContent=`Cannot start F8 ${operation}: ${String(error)}`;
-    appendLog(String(error));
+    f8JobSummary.className="bad";
+    f8JobSummary.textContent="Cannot start private native catalog: "+String(error);
   }
 }
 f8RegionA.addEventListener("change",()=>void refreshF8Pair());
 f8RegionB.addEventListener("change",()=>void refreshF8Pair());
+f8EvidenceDirectory.addEventListener("change",()=>void refreshF8Pair());
 f8RefreshBtn.addEventListener("click",()=>void refreshF8Pair());
-f8DiscoverBtn.addEventListener("click",()=>void runF8("discover"));
-f8ProbeBtn.addEventListener("click",()=>void runF8("probe"));
+f8BuildCatalogBtn.addEventListener("click",()=>void runPrivateF8Catalog());
 f8CancelBtn.addEventListener("click",async()=>{
-  try {await invoke("f8_cancel_workflow");appendLog("Native F8 cancellation requested.");}
-  catch(error){appendLog(`F8 cancellation failed: ${String(error)}`);}
+  try {
+    await invoke("f8_cancel_workflow");
+    appendLog("Private native catalog cancellation requested.");
+  }catch(error){
+    appendLog("Cannot cancel private native catalog: "+String(error));
+  }
 });
-f8RecentProofs.addEventListener("click", event => {
-  const target=(event.target as HTMLElement).closest<HTMLButtonElement>("[data-f8-report][data-f8-point]");
-  if (!target || !currentF8Pair) return;
-  const report=currentF8Pair.recentProbes[Number(target.dataset.f8Report)];
-  const point=report?.sampledHandoffs?.[Number(target.dataset.f8Point)];
-  if (!point || !Number.isFinite(point.coordinate.lat) || !Number.isFinite(point.coordinate.lng)) return;
+f8SampleConnections.addEventListener("click",event=>{
+  const control=(event.target as HTMLElement).closest<HTMLButtonElement>("[data-f8-private-index]");
+  if(!control || !currentF8Pair)return;
+  const point=currentF8Pair.samplePoints[Number(control.dataset.f8PrivateIndex)];
+  if(!point || !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude))return;
   f8SampleMarker?.remove();
-  f8SampleMarker=new Marker().setLngLat([point.coordinate.lng,point.coordinate.lat]).addTo(map);
-  map.flyTo({center:[point.coordinate.lng,point.coordinate.lat],zoom:15});
-  appendLog(`Native F8 sampled handoff: ${point.coordinate.lat.toFixed(6)}, ${point.coordinate.lng.toFixed(6)} · directed GraphId ${point.graphId} · tested journey only.`);
-});
-f8CopyRouteBtn.addEventListener("click",()=>{
-  for (const [target,source] of [[f8StartLat,routeStartLat],[f8StartLng,routeStartLng],
-    [f8EndLat,routeEndLat],[f8EndLng,routeEndLng]] as Array<[HTMLInputElement,HTMLInputElement]>)
-    target.value=source.value;
+  f8SampleMarker=new Marker().setLngLat([point.longitude,point.latitude]).addTo(map);
+  map.flyTo({center:[point.longitude,point.latitude],zoom:15});
+  appendLog("Original native X "+point.latitude+", "+point.longitude+
+    ": Graph A "+point.sourceGraphId+" → B "+point.receiverGraphIds.join(", "));
 });
 
 function defaultVersion(): string {
@@ -2483,10 +2334,6 @@ const borderSourceA = "roadpilot-border-a";
 const borderSourceB = "roadpilot-border-b";
 const borderLayerA = "roadpilot-border-a-edges";
 const borderLayerB = "roadpilot-border-b-edges";
-const borderDiffSource = "roadpilot-border-road-diff";
-const borderDiffCommonLayer = "roadpilot-border-common";
-const borderDiffAOnlyLayer = "roadpilot-border-a-only";
-const borderDiffBOnlyLayer = "roadpilot-border-b-only";
 const buildDiffSource = "roadpilot-build-boundary-diff";
 const buildDiffFillLayer = "roadpilot-build-boundary-diff-fill";
 const buildDiffLineLayer = "roadpilot-build-boundary-diff-line";
@@ -2799,161 +2646,20 @@ function loadBuildRoadComparison(a: BuildArtifact, b: BuildArtifact, diff: Build
   map.once("idle", () => classifyBuildRoads(diff, generation));
 }
 
-function removeBorderRoadDiff(): void {
-  lastBorderDiffMetrics = null;
-  for (const id of [borderDiffCommonLayer, borderDiffAOnlyLayer, borderDiffBOnlyLayer]) {
-    if (map.getLayer(id)) map.removeLayer(id);
-  }
-  if (map.getSource(borderDiffSource)) map.removeSource(borderDiffSource);
-  borderDiffSummary.className = "empty";
-  borderDiffSummary.textContent = "Load a graph pair to compare border roads.";
-}
-
 function removeBorderPairLayers(): void {
-  removeBorderRoadDiff();
   removeHandoffArtifactOverlay();
   for (const id of [borderLayerA, borderLayerB]) if (map.getLayer(id)) map.removeLayer(id);
   for (const id of [borderSourceA, borderSourceB]) if (map.getSource(id)) map.removeSource(id);
-  refreshBorderDiffBtn.disabled = true;
   exportBorderDiagnosticsBtn.disabled = true;
   borderReportSummary.className = "empty";
   borderReportSummary.textContent = "No diagnostics report exported.";
 }
 
+// Used by the retained-build comparison tool, not obsolete border overlap.
 function edgeOsmId(feature: { properties?: Record<string, unknown> | null }): string | null {
   const value = feature.properties?.osm_id;
   if (value == null || value === "") return null;
   return String(value);
-}
-
-function borderDiffFeatureKey(osmId: string, geometry: Geometry, side: string): string {
-  return `${side}:${osmId}:${JSON.stringify(geometry)}`;
-}
-
-function refreshBorderRoadDiff(): void {
-  if (!map.getSource(borderSourceA) || !map.getSource(borderSourceB)) return;
-
-  const featuresA = map.querySourceFeatures(borderSourceA, { sourceLayer: "edges" });
-  const featuresB = map.querySourceFeatures(borderSourceB, { sourceLayer: "edges" });
-  if (!featuresA.length && !featuresB.length) {
-    lastBorderDiffMetrics = null;
-    borderDiffSummary.className = "empty";
-    borderDiffSummary.textContent = "Graph tiles are still loading. Move/zoom the map or refresh again.";
-    return;
-  }
-
-  const idsA = new Set<string>();
-  const idsB = new Set<string>();
-  let unidentifiedA = 0;
-  let unidentifiedB = 0;
-  for (const feature of featuresA) {
-    const id = edgeOsmId(feature);
-    if (id) idsA.add(id);
-    else unidentifiedA += 1;
-  }
-  for (const feature of featuresB) {
-    const id = edgeOsmId(feature);
-    if (id) idsB.add(id);
-    else unidentifiedB += 1;
-  }
-
-  const common = new Set([...idsA].filter(id => idsB.has(id)));
-  const aOnly = new Set([...idsA].filter(id => !idsB.has(id)));
-  const bOnly = new Set([...idsB].filter(id => !idsA.has(id)));
-
-  const output: Feature[] = [];
-  const seen = new Set<string>();
-  const addFeatures = (
-    features: typeof featuresA,
-    allowed: Set<string>,
-    classification: "common" | "a-only" | "b-only",
-    side: "A" | "B",
-  ) => {
-    for (const feature of features) {
-      const osmId = edgeOsmId(feature);
-      if (!osmId || !allowed.has(osmId)) continue;
-      const key = borderDiffFeatureKey(osmId, feature.geometry as Geometry, side);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      output.push({
-        type: "Feature",
-        geometry: feature.geometry as Geometry,
-        properties: {
-          classification,
-          side,
-          osm_id: osmId,
-        },
-      });
-    }
-  };
-
-  // Draw common roads once using Graph A's geometry. Independent graphs may split the same
-  // OSM way differently, but shared OSM identity is the stable evidence we care about here.
-  addFeatures(featuresA, common, "common", "A");
-  addFeatures(featuresA, aOnly, "a-only", "A");
-  addFeatures(featuresB, bOnly, "b-only", "B");
-
-  const collection: FeatureCollection = { type: "FeatureCollection", features: output };
-  const existing = map.getSource(borderDiffSource) as { setData?: (data: FeatureCollection) => void } | undefined;
-  if (existing?.setData) {
-    existing.setData(collection);
-  } else {
-    map.addSource(borderDiffSource, { type: "geojson", data: collection });
-    map.addLayer({
-      id: borderDiffCommonLayer,
-      type: "line",
-      source: borderDiffSource,
-      filter: ["==", ["get", "classification"], "common"],
-      paint: { "line-color": "#42c58a", "line-width": 4.2, "line-opacity": 0.92 },
-    });
-    map.addLayer({
-      id: borderDiffAOnlyLayer,
-      type: "line",
-      source: borderDiffSource,
-      filter: ["==", ["get", "classification"], "a-only"],
-      paint: { "line-color": "#e35d5b", "line-width": 3.2, "line-opacity": 0.9 },
-    });
-    map.addLayer({
-      id: borderDiffBOnlyLayer,
-      type: "line",
-      source: borderDiffSource,
-      filter: ["==", ["get", "classification"], "b-only"],
-      paint: { "line-color": "#4b9ee8", "line-width": 3.2, "line-opacity": 0.9 },
-    });
-  }
-
-  lastBorderDiffMetrics = {
-    commonWays: common.size,
-    aOnlyWays: aOnly.size,
-    bOnlyWays: bOnly.size,
-    loadedEdgesA: featuresA.length,
-    loadedEdgesB: featuresB.length,
-    unidentifiedA,
-    unidentifiedB,
-  };
-
-  borderDiffSummary.className = "kv";
-  borderDiffSummary.innerHTML = `
-    <dt>Common OSM ways</dt><dd>${common.size}</dd>
-    <dt>Graph A only</dt><dd>${aOnly.size}</dd>
-    <dt>Graph B only</dt><dd>${bOnly.size}</dd>
-    <dt>Loaded A edges</dt><dd>${featuresA.length}</dd>
-    <dt>Loaded B edges</dt><dd>${featuresB.length}</dd>
-    <dt>No OSM id</dt><dd>A ${unidentifiedA} / B ${unidentifiedB}</dd>
-  `;
-}
-
-function scheduleBorderRoadDiff(): void {
-  if (borderPanels.legacy.hidden || !map.getSource(borderSourceA) || !map.getSource(borderSourceB)) return;
-  window.setTimeout(() => {
-    if (borderPanels.legacy.hidden || !map.getSource(borderSourceA) || !map.getSource(borderSourceB)) return;
-    try {
-      refreshBorderRoadDiff();
-    } catch (error) {
-      borderDiffSummary.className = "bad";
-      borderDiffSummary.textContent = `Road diff failed: ${String(error)}`;
-    }
-  }, 120);
 }
 
 function showBorderPairLayers(regionA: string, regionB: string): void {
@@ -2984,13 +2690,9 @@ function showBorderPairLayers(regionA: string, regionB: string): void {
     "source-layer": "edges",
     paint: { "line-color": "#4b9ee8", "line-width": 1.4, "line-opacity": 0.22 },
   });
-  refreshBorderDiffBtn.disabled = false;
   refreshHandoffArtifactsBtn.disabled = false;
   exportBorderDiagnosticsBtn.disabled = false;
-  borderDiffSummary.className = "empty";
-  borderDiffSummary.textContent = "Open Legacy diagnostics to inspect historical OSM-way overlap (not native F8 proof).";
   applyMapLayerToggles();
-  if (!borderPanels.legacy.hidden) map.once("idle", scheduleBorderRoadDiff);
   refreshHandoffArtifactOverlay().catch(error => appendLog(String(error)));
 }
 
@@ -3054,15 +2756,12 @@ function uniqueBuiltRegions(): string[] {
 function renderBorderRegionSelectors(): void {
   const currentA = borderRegionA.value;
   const currentB = borderRegionB.value;
-  const currentConnector = connectorRegion.value || activeRegion?.id || "";
   const options = uniqueBuiltRegions().map(id => `<option value="${id}">${id}</option>`).join("");
   borderRegionA.innerHTML = `<option value="">Choose A…</option>${options}`;
   borderRegionB.innerHTML = `<option value="">Choose B…</option>${options}`;
-  connectorRegion.innerHTML = `<option value="">Choose region…</option>${options}`;
+  /* removed old connector matrix selector */
   if ([...borderRegionA.options].some(option => option.value === currentA)) borderRegionA.value = currentA;
   if ([...borderRegionB.options].some(option => option.value === currentB)) borderRegionB.value = currentB;
-  if ([...connectorRegion.options].some(option => option.value === currentConnector)) connectorRegion.value = currentConnector;
-  refreshConnectorMatrixBtn.disabled = !connectorRegion.value;
 }
 
 async function refreshHandoffOverrides(): Promise<void> {
@@ -3369,192 +3068,6 @@ async function refreshHandoffArtifactOverlay(): Promise<void> {
     handoffArtifactSummary.textContent = `Handoff artifact inspection failed: ${String(error)}`;
   } finally {
     refreshHandoffArtifactsBtn.disabled = false;
-  }
-}
-
-const connectorMatrixSource = "roadpilot-connector-matrix";
-const connectorMatrixLayers = [
-  "roadpilot-connector-reachable",
-  "roadpilot-connector-unreachable",
-  "roadpilot-connector-inconclusive",
-  "roadpilot-connector-anchors",
-];
-
-function removeConnectorMatrixOverlay(): void {
-  for (const id of connectorMatrixLayers) if (map.getLayer(id)) map.removeLayer(id);
-  if (map.getSource(connectorMatrixSource)) map.removeSource(connectorMatrixSource);
-}
-
-function connectorStatusClass(status: string): string {
-  if (status === "CURRENT" || status === "REACHABLE" || status === "NONE") return "ok";
-  if (status === "MISSING" || status.includes("BUILD") || status.includes("REBUILD") || status === "INCONCLUSIVE") return "warn";
-  return "bad";
-}
-
-function renderConnectorMatrix(result: ConnectorMatrixInspection): void {
-  connectorInspection = result;
-  removeConnectorMatrixOverlay();
-  const modeName = connectorMode.value as "MOTORCYCLE" | "CAR";
-  const inventory = result.inventory;
-  const matrix = result.matrix;
-  const mode = matrix?.modes?.[modeName];
-  const anchors = inventory?.anchors ?? [];
-  const anchorById = new globalThis.Map(anchors.map(anchor => [anchor.id, anchor]));
-  const features: Feature[] = [];
-
-  for (const anchor of anchors) {
-    const roles = anchor.roles?.[modeName] ?? [];
-    if (!roles.length) continue;
-    features.push({
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [anchor.graphAnchor.coordinate.lng, anchor.graphAnchor.coordinate.lat],
-      },
-      properties: {
-        geometryRole: "anchor",
-        id: anchor.id,
-        candidateId: anchor.candidateId,
-        neighborRegionId: anchor.neighborRegionId,
-        roles: roles.join(","),
-      },
-    });
-  }
-
-  const allCells = mode?.cells ?? [];
-  const renderCells = allCells.slice(0, 500);
-  for (const cell of renderCells) {
-    const from = anchorById.get(cell.fromAnchorId);
-    const to = anchorById.get(cell.toAnchorId);
-    if (!from || !to) continue;
-    features.push({
-      type: "Feature",
-      geometry: {
-        type: "LineString",
-        coordinates: [
-          [from.graphAnchor.coordinate.lng, from.graphAnchor.coordinate.lat],
-          [to.graphAnchor.coordinate.lng, to.graphAnchor.coordinate.lat],
-        ],
-      },
-      properties: {
-        geometryRole: "cell",
-        status: cell.status,
-        fromAnchorId: cell.fromAnchorId,
-        toAnchorId: cell.toAnchorId,
-        distanceKm: cell.distanceKm,
-        timeSeconds: cell.timeSeconds,
-      },
-    });
-  }
-
-  if (features.length) {
-    const collection: FeatureCollection = { type: "FeatureCollection", features };
-    map.addSource(connectorMatrixSource, { type: "geojson", data: collection });
-    for (const [id, status, color, opacity, dash] of [
-      ["roadpilot-connector-reachable", "REACHABLE", "#2fbd71", 0.78, null],
-      ["roadpilot-connector-unreachable", "UNREACHABLE", "#e35d5b", 0.22, [2, 2]],
-      ["roadpilot-connector-inconclusive", "INCONCLUSIVE", "#f0a44b", 0.55, [4, 2]],
-    ] as Array<[string, string, string, number, number[] | null]>) {
-      map.addLayer({
-        id,
-        type: "line",
-        source: connectorMatrixSource,
-        filter: ["all", ["==", ["get", "geometryRole"], "cell"], ["==", ["get", "status"], status]],
-        paint: {
-          "line-color": color,
-          "line-width": status === "REACHABLE" ? 3.2 : 2,
-          "line-opacity": opacity,
-          ...(dash ? { "line-dasharray": dash } : {}),
-        },
-      });
-    }
-    map.addLayer({
-      id: "roadpilot-connector-anchors",
-      type: "circle",
-      source: connectorMatrixSource,
-      filter: ["==", ["get", "geometryRole"], "anchor"],
-      paint: {
-        "circle-radius": 5,
-        "circle-color": [
-          "case",
-          ["==", ["get", "roles"], "ENTRY,EXIT"], "#9d72e8",
-          ["==", ["get", "roles"], "ENTRY"], "#4b9ee8",
-          "#ee5aa7",
-        ],
-        "circle-stroke-color": "#111820",
-        "circle-stroke-width": 1.2,
-      },
-    });
-  }
-
-  const statusClass = connectorStatusClass(result.status);
-  const matrixStatus = matrix ? (matrix.current ? "CURRENT" : "STALE") : "MISSING";
-  const inventoryStatus = inventory ? (inventory.current ? "CURRENT" : "STALE") : "MISSING";
-  connectorMatrixSummary.className = "kv";
-  connectorMatrixSummary.innerHTML = `
-    <dt>Overall</dt><dd class="${statusClass}">${result.status}</dd>
-    <dt>Refresh action</dt><dd class="${connectorStatusClass(result.refreshAction)}">${result.refreshAction}</dd>
-    <dt>Inventory</dt><dd class="${connectorStatusClass(inventoryStatus)}">${inventoryStatus} • ${inventory?.anchorCount ?? 0} anchors</dd>
-    <dt>Inventory file</dt><dd>${inventory?.artifactPath ?? "—"}</dd>
-    <dt>Matrix</dt><dd class="${connectorStatusClass(matrixStatus)}">${matrixStatus}</dd>
-    <dt>Matrix file</dt><dd>${matrix?.artifactPath ?? "—"}</dd>
-    <dt>Inventory binding</dt><dd class="${matrix?.sourceInventoryPresent && matrix?.sourceInventoryCurrent && matrix?.anchorCountMatches ? "ok" : "warn"}">${matrix ? (matrix.sourceInventoryPresent && matrix.sourceInventoryCurrent && matrix.anchorCountMatches ? "exact/current" : "stale or missing") : "—"}</dd>
-    <dt>${modeName}</dt><dd>${mode ? `${mode.reachableCount} reachable / ${mode.unreachableCount} unreachable / ${mode.inconclusiveCount} inconclusive` : "no mode matrix"}</dd>
-    <dt>Overlay</dt><dd>${Math.min(allCells.length, 500)} / ${allCells.length} cells rendered</dd>
-  `;
-
-  const boundaryRows = (inventory?.boundaryChecks ?? []).map(check => {
-    const state = check.matches ? "CURRENT" : "STALE";
-    return `
-      <div class="artifact-row">
-        <div><b>BOUNDARY ${check.neighborPrimaryGeofabrikId}</b><span class="${connectorStatusClass(state)}">${state}</span></div>
-        <small>${check.currentBoundaryFingerprint ?? "missing current fingerprint"}</small>
-      </div>
-    `;
-  }).join("");
-
-  const cellRows = allCells.slice(0, 200).map(cell => {
-    const metric = cell.status === "REACHABLE"
-      ? `${cell.distanceKm?.toFixed(2) ?? "—"} km • ${cell.timeSeconds?.toFixed(0) ?? "—"} s`
-      : cell.error || "no usable connector traversal";
-    return `
-      <div class="artifact-row">
-        <div><b>${cell.fromAnchorId} → ${cell.toAnchorId}</b><span class="${connectorStatusClass(cell.status)}">${cell.status}</span></div>
-        <small>${metric}</small>
-      </div>
-    `;
-  }).join("");
-
-  connectorMatrixList.innerHTML = boundaryRows + cellRows;
-  if (!inventory && !matrix) {
-    connectorMatrixList.innerHTML = `
-      <div class="empty">
-        No connector inventory or matrix found for ${result.regionId}. Searched:<br>
-        ${result.searchDirectories.map(path => `<code>${path}</code>`).join("<br>")}
-      </div>
-    `;
-  } else if (!boundaryRows && !cellRows) {
-    connectorMatrixList.innerHTML = '<div class="empty">No boundary checks or matrix cells to display.</div>';
-  }
-}
-
-async function refreshConnectorMatrix(): Promise<void> {
-  const regionId = connectorRegion.value;
-  if (!regionId) return;
-  refreshConnectorMatrixBtn.disabled = true;
-  connectorMatrixSummary.className = "empty";
-  connectorMatrixSummary.textContent = "Reading connector inventory, weights and freshness…";
-  try {
-    const result = await invoke<ConnectorMatrixInspection>("inspect_region_connector_matrix", { regionId });
-    renderConnectorMatrix(result);
-  } catch (error) {
-    connectorInspection = null;
-    removeConnectorMatrixOverlay();
-    connectorMatrixSummary.className = "bad";
-    connectorMatrixSummary.textContent = `Connector matrix inspection failed: ${String(error)}`;
-    connectorMatrixList.innerHTML = "";
-  } finally {
-    refreshConnectorMatrixBtn.disabled = false;
   }
 }
 
@@ -4029,6 +3542,9 @@ function fitActiveRegion(): void {
 }
 
 function setActiveRegion(region: RegionSummary): void {
+  // A native X marker is meaningful only for the map region where it was shown.
+  f8SampleMarker?.remove();
+  f8SampleMarker=null;
   activeRegion = region;
   activeRegionBadge.textContent = region.name;
   fitBtn.disabled = !region.coverage;
@@ -4051,10 +3567,6 @@ function setActiveRegion(region: RegionSummary): void {
   routeEndMarker?.remove();
   routeStartMarker = null;
   routeEndMarker = null;
-  if ([...connectorRegion.options].some(option => option.value === region.id)) {
-    connectorRegion.value = region.id;
-    refreshConnectorMatrixBtn.disabled = false;
-  }
   fitActiveRegion();
   renderRegions();
   renderVisualBuildSelectors();
@@ -5043,11 +4555,12 @@ function removeVisualComparison(): void {
 // Removes temporary rendered diagnostics only, never graph archives, files, manual saved fixes,
 // search queries or selected build IDs. Does not change the current map-layer preset.
 function clearTransientMapOverlays(): void {
+  f8SampleMarker?.remove();
+  f8SampleMarker=null;
   // Prevent an outstanding async comparison/road-diff callback from restoring a cleared view.
   buildComparisonGeneration += 1;
   removeBuildDiffOverlay();
   removeVisualComparison();
-  removeConnectorMatrixOverlay();
   removeBorderPairLayers();
   removeRouteLayers();
   removeLocateEdgeOverlay();
@@ -5649,25 +5162,10 @@ loadBorderPairBtn.addEventListener("click", () => {
   clearHandoffSelection(false);
   showBorderPairLayers(a, b);
   handoffValidationSummary.className = "empty";
-  handoffValidationSummary.textContent = `Overlay loaded: A=${a}, B=${b}. Manual validation uses correlated Valhalla directed edges; historical OSM overlap is non-authoritative.`;
+  handoffValidationSummary.textContent = `Overlay loaded: A=${a}, B=${b}. Manual validation uses correlated Valhalla directed edges; saved historical evidence is read-only and not native D-017 proof.`;
 });
 
-refreshBorderDiffBtn.addEventListener("click", scheduleBorderRoadDiff);
 refreshHandoffArtifactsBtn.addEventListener("click", () => refreshHandoffArtifactOverlay());
-refreshConnectorMatrixBtn.addEventListener("click", () => refreshConnectorMatrix());
-connectorMode.addEventListener("change", () => {
-  if (connectorInspection) renderConnectorMatrix(connectorInspection);
-});
-connectorRegion.addEventListener("change", () => {
-  connectorInspection = null;
-  removeConnectorMatrixOverlay();
-  connectorMatrixList.innerHTML = "";
-  connectorMatrixSummary.className = "empty";
-  connectorMatrixSummary.textContent = connectorRegion.value
-    ? "Inspect this region to load connector inventory and matrix freshness."
-    : "Choose a locally built region to inspect its connector inventory and matrix.";
-  refreshConnectorMatrixBtn.disabled = !connectorRegion.value;
-});
 exportBorderDiagnosticsBtn.addEventListener("click", async () => {
   const regionA = borderRegionA.value;
   const regionB = borderRegionB.value;
@@ -5679,7 +5177,7 @@ exportBorderDiagnosticsBtn.addEventListener("click", async () => {
     const result = await invoke<BorderDiagnosticsExport>("export_border_diagnostics", {
       regionA,
       regionB,
-      roadDiff: lastBorderDiffMetrics,
+      roadDiff: null,
       selectedValidation: handoffValidation,
     });
     borderReportSummary.className = "ok report-path";
@@ -5692,7 +5190,6 @@ exportBorderDiagnosticsBtn.addEventListener("click", async () => {
     exportBorderDiagnosticsBtn.disabled = false;
   }
 });
-map.on("moveend", scheduleBorderRoadDiff);
 
 pickHandoffABtn.addEventListener("click", () => {
   if (!borderRegionA.value) {
