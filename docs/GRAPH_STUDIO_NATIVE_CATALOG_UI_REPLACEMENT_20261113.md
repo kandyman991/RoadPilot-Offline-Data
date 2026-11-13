@@ -81,3 +81,15 @@ native-catalog-gui-branch-qa-20261113.
 No installed Graph Studio process, retained graph archive, RoadPilot Android
 app, R2 bucket or production pointer was altered. Source and legacy readers
 remain available.
+
+
+## Packaged desktop resource guard
+
+Graph Studio Linux CI now verifies that both AppImage and Debian outputs
+contain the original D-017 C++ native reader source, this new GUI bridge
+producer and the existing private catalog schema. A green Python or TS test
+alone is insufficient to claim an installed application can build native
+catalogs. The original reader is compiled on the owner's machine against
+the pinned Valhalla 3.6.3 native development package; if absent, fresh native
+catalog generation fails with an explicit dependency error, never with an
+invented graph match.
