@@ -58,6 +58,36 @@ class PrivateNativeGraphStudioBridgeTest(unittest.TestCase):
             self.assertIsNone(result["catalogPath"])
             self.assertFalse((root/"f8-private-catalogs").exists())
 
+    def test_matching_retained_native_evidence_is_ready_for_private_audit(self):
+        import gzip
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            a,b=setup_workspace(root)
+            a_obj=json.loads(a.read_text())
+            b_obj=json.loads(b.read_text())
+            evidence_dir=root/"diagnostics/f8-production/proof"
+            evidence_dir.mkdir(parents=True)
+            pair="region-a__region-b"
+            native={
+                "sourceRegionId":"region-a","receiverRegionId":"region-b",
+                "sourceGraphFingerprint":a_obj["graphFingerprint"],
+                "receiverGraphFingerprint":b_obj["graphFingerprint"],
+                "sourceBufferFingerprint":"sha256:"+a_obj["source"]["bufferGeoJsonSha256"],
+                "receiverBufferFingerprint":"sha256:"+b_obj["source"]["bufferGeoJsonSha256"],
+                "sourceIndexFingerprint":"sha256:"+a_obj["graphIndex"]["sha256"],
+                "receiverIndexFingerprint":"sha256:"+b_obj["graphIndex"]["sha256"]
+            }
+            candidate={"pairId":pair,"graphFingerprints":{
+                "from":a_obj["graphFingerprint"],"to":b_obj["graphFingerprint"]}}
+            (evidence_dir/(pair+producer.SUFFIX)).write_text(json.dumps(candidate))
+            with gzip.open(evidence_dir/(pair+producer.NATIVE),"wt") as out:
+                json.dump(native,out)
+            result=producer.execute("status",root,a,b,None)
+            self.assertEqual(result["status"],"READY_TO_VALIDATE_NATIVE_EVIDENCE")
+            self.assertEqual(result["evidencePath"],str(evidence_dir))
+            self.assertTrue(result["notForRoadPilotRuntime"])
+            self.assertFalse((root/"f8-private-catalogs").exists())
+
     def test_absent_original_configuration_fails_readiness(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder)

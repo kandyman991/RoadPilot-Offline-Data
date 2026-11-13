@@ -301,6 +301,10 @@ def execute(action: str, workspace: Path, from_manifest: Path,
                 and proof.get("fromArchiveSha256")==digest(a_tar)
                 and proof.get("toArchiveSha256")==digest(b_tar),
                 "Private catalog or original archive has changed since its immutable native validation")
+        original_readback=Path(str(proof.get("nativeEvidence") or ""))
+        if original_readback.is_file() and not original_readback.is_symlink():
+            require(proof.get("sourceEvidenceSha256")==digest(original_readback),
+                    "Original native receiving evidence was modified after private proof")
         return summary(a,b,"GRAPH_STUDIO_PRIVATE_READY",evidence=evidence,
                        catalog=catalog,content=data)
     if evidence is None and action=="status":
@@ -311,7 +315,6 @@ def execute(action: str, workspace: Path, from_manifest: Path,
         except (OSError,KeyError,ValueError) as exc:
             return summary(a,b,"NATIVE_EVIDENCE_REQUIRED",evidence=None,
                            why="Cannot build an original native catalog without matching historical source data: "+str(exc))
-    require(action=="build", "Unsupported private Graph Studio action")
     if evidence is not None:
         original_path,native_path=evidence
         import gzip
@@ -319,6 +322,10 @@ def execute(action: str, workspace: Path, from_manifest: Path,
         with gzip.open(native_path,"rt",encoding="utf-8") as f:
             native=json.load(f)
         validate_identity(a,b,original,native)
+        if action == "status":
+            return summary(a,b,"READY_TO_VALIDATE_NATIVE_EVIDENCE",evidence=evidence,
+                           why="The original graph identities match retained A-final and directed B evidence; Build will independently audit and validate the private catalog.")
+    require(action=="build", "Unsupported private Graph Studio action")
     # Authoritative original TAR checks BEFORE any private-ready artifact
     # or immutable publication-status file is produced.
     for name,archive,manifest in (("A",a_tar,a),("B",b_tar,b)):
