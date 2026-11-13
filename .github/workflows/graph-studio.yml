@@ -137,3 +137,14 @@ jobs:
             test -n "$(find squashfs-root -type f -path '*/pipeline/requirements-search.txt' -print -quit)"
           )
           rm -rf "$EXTRACT_DIR"
+
+      - name: Retain short-lived review packages for owner-only Linux desktop acceptance
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: graph-studio-pr-linux-review-packages
+          path: |
+            graph-studio/src-tauri/target/release/bundle/appimage/*.AppImage
+            graph-studio/src-tauri/target/release/bundle/deb/*.deb
+          retention-days: 7
+          if-no-files-found: error
