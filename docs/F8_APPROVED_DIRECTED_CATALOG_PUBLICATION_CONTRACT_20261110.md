@@ -1,5 +1,13 @@
 # D-017 approved directed-road catalog publication contract — proposal
 
+> **Scope clarification, 13 November 2026:** This historical contract is
+> for the prospective RoadPilot Android *consumer/public release*, NOT
+> Graph Studio private completion. Android device, route-preview, signed
+> APK pin and owner public-release review do not block Graph Studio. Its
+> private native validated catalog is described in
+> GRAPH_STUDIO_PRIVATE_NATIVE_CATALOG_ACCEPTANCE_20261113.md.
+> The original RoadPilot runtime READY schema remains unchanged.
+
 10 November 2026 · **NONPUBLISHING schema contract only**. This deliberately does not assert that PR #127's completed native A → exact X → B matching has passed separate completeness, time-dependent or Android UI acceptance. PR #127 was merged into main and its `roadpilot.f8-final-directed-connection-candidates` v1 schema remains **BLOCKED**, regardless of the number of native directed matches.
 
 ## Wire schema
