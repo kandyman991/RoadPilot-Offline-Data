@@ -1,3 +1,17 @@
+# 13 Nov 2026 — owner Graph Studio native F8 GUI and stale UI removal
+
+After merged five-workflow PR #138, new Cross-region Connections UI runs
+the existing original-native A-final to exact X to directed B matcher,
+independent audit/preflight and immutable owner-only private-ready catalog.
+Full from-scratch Valhalla 3.6.3 native reader generation tested on Legion
+454/454 Italy NE to Austria; 299 A to 300 B branch acceptance also proven.
+Removed older GPS proposal tabs and OSM overlap/connector matrix visible
+GUI, but retained read-only Tauri/CLI readers, manual overrides, evidence,
+archives and Android/release separation. Full docs:
+docs/GRAPH_STUDIO_NATIVE_CATALOG_UI_REPLACEMENT_20261113.md.
+
+---
+
 # 13 Nov 2026 — Graph Studio main navigation simplification in feature PR
 
 The original 13 UI audit defects are all fixed. A second usability pass

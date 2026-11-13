@@ -250,3 +250,17 @@ reference parity, all valid directed alternatives, mode/direction-specific
 Valhalla routes, multi-hop ranking and actual device consumption are **NOT_VERIFIED**.
 See issues #73, #82 and RoadPilot Android #512. No existing regional graph data
 or local native scan evidence is removed by this code cleanup.
+
+### Native private cross-region catalogs
+
+Connect regions selects original A/B regional graph archives, checks original
+Valhalla 3.6.3 SHA-bound native cutoff/receiver evidence and generates
+an immutable, independently audited private A-final GraphId to exact X to
+original B directed GraphId catalog. It uses the existing approved D-017
+native matcher, validates both graphs, original 25-km buffers and modes,
+and preserves distinct B branches. The tool can generate missing native
+evidence directly from original graph archives. Historical GPS proposal and
+OSM matrix views are retired; saved manual and historical evidence and
+read-only compatibility commands remain. No Android/public production
+READY or R2 publication is implied. See
+../docs/GRAPH_STUDIO_NATIVE_CATALOG_UI_REPLACEMENT_20261113.md.

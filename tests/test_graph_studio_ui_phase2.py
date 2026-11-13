@@ -87,7 +87,7 @@ class Phase2UiContract(unittest.TestCase):
         self.assertIn('openToolchainBtn.addEventListener("click", toggleToolchainDetails)',UI)
         self.assertIn('if (isPrimaryTool(storedTool))',UI)
         self.assertIn('if (remember && !contextual) localStorage.setItem',UI)
-        for native in ('f8_pair_overview','f8_start_workflow','f8_cancel_workflow','list_search_builds',
+        for native in ('f8_private_catalog_overview','f8_start_workflow','f8_cancel_workflow','list_search_builds',
                        'compare_search_builds','compare_build_indexes','toolchain_status', 'load_region_config'):
             self.assertIn(native,UI)
 
@@ -95,7 +95,7 @@ class Phase2UiContract(unittest.TestCase):
         for index in range(1,14):self.assertIn(f'UI-{index:02d}',AUDIT)
         self.assertIn('NOT_VERIFIED',AUDIT)
         self.assertIn('BLOCKED',AUDIT)
-        for token in ('NOT VERIFIED','BLOCKED','UNPROBED'):
+        for token in ('NOT VERIFIED','GRAPH_STUDIO_PRIVATE_READY','A → X → B'):
             self.assertIn(token,UI)
 
 if __name__ == '__main__': unittest.main()

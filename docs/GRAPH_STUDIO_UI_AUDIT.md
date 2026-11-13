@@ -109,3 +109,13 @@ section. Search-pack source acquisition/import is collapsed by default so
 actual POI search is the primary operation. Existing controls and backend
 commands remain available. A browser screenshot without the Tauri backend
 does not constitute native GUI acceptance.
+
+## 13 November 2026 — original native catalog replaces stale F8 UI
+
+The simplified Cross-region Connections workflow now generates canonical
+owner-only A-final to exact X to directed B native catalogs with independent
+audit. The previously visible GPS-proposal tabs, OSM way overlap panel
+and old connector-matrix panel and map logic were removed. Specialist
+manual and saved evidence, actual read-only compatibility endpoints and
+all published/retained artifacts survive. See
+GRAPH_STUDIO_NATIVE_CATALOG_UI_REPLACEMENT_20261113.md.

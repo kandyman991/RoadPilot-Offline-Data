@@ -1,5 +1,20 @@
 # Graph Studio Phase 4 — read-only dependency audit and guarded retirement plan
 
+## 13 November 2026 — current UI and compatibility disposition
+
+The historical status rows below predate native private-catalog GUI
+integration. The original GPS-proposal frontend was retired; the old
+f8_pair_overview, diagnostic f8_start_workflow discover/probe and Python
+graph_studio_f8_workspace.py remain as explicit external compatibility
+interfaces. The primary screen instead calls f8_private_catalog_overview
+and private-build through the existing F8 subprocess/cancel engine.
+Historical OSM overlap and connector-matrix frontend and map layers were
+retired; read-only inspect_region_connector_matrix, inspect_handoff_artifacts,
+saved JSON and manual overrides remain. No backend reader or artifact
+was deleted. Full current record is in
+GRAPH_STUDIO_NATIVE_CATALOG_UI_REPLACEMENT_20261113.md.
+
+
 **Audit date:** 2026-11-01  
 **Repository:** `kandyman991/RoadPilot-Offline-Data`  
 **GitHub main at audit:** `1d71db035695060341dd0b54fa142ce1ee5135b5`  
