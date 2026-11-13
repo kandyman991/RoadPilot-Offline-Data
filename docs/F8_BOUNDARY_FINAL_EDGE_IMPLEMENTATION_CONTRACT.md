@@ -1,10 +1,12 @@
 # F8 build-time final-edge connection contract — OWNER APPROVED
 
-**Decision:** D-017, November 5, 2026. **Status:** binding design, **not yet implemented**.
+**Decision:** D-017, November 5, 2026. **Status (13 November 2026):** binding design; **original-native A→exact X→directed B implementation merged and validated for six pairs**, owner-only private catalogs enabled. Broader global semantic one-final-edge-per-physical-road/direction completeness remains **NOT_VERIFIED**; RoadPilot Android runtime integration/release acceptance is separate.
 **Scope:** the F8 cross-region connection producer in RoadPilot Graph Studio.
 **Reference:** `docs/ARCHITECTURE_CONTRACT.md`; this document specifies its
 new boundary-only build implementation and supersedes conflicting legacy
 requirements for a full-edge census and per-connection routing proofs.
+
+**Current acceptance record (PRs #127–#128 and #134–#135):** On six SHA-pinned Valhalla 3.6.3 original graph directions, **2,758/2,758** scoped original A final directed GraphIds matched **2,759** original B directed options, preserving one real two-option B branch, both vehicle modes and exact X. The original sub-metre geometry exceptions were corrected without introducing any new matcher or OSM/name heuristic. Independent source-owner tile/audit checks passed. Graph Studio may produce the separate owner-only `GRAPH_STUDIO_PRIVATE_READY` schema without Android acceptance, signed APK or full global semantic lineage proof; its `sourcePhysicalRoadDirectionCompleteness` stays `NOT_VERIFIED` and `notForRoadPilotRuntime=true`. See [real-native exceptions](F8_NATIVE_TWO_SUBMETRE_EDGE_EXCEPTIONS_20261112.md), [private acceptance](GRAPH_STUDIO_PRIVATE_NATIVE_CATALOG_ACCEPTANCE_20261113.md), and [reconciled #73](https://github.com/kandyman991/RoadPilot-Offline-Data/issues/73). The following earlier dated producer checkpoints are retained for history; later merged evidence supersedes their interim `not started` or `BLOCKED` statements.
 
 ## The only production workflow — owner reconfirmed 2026-11-06
 
