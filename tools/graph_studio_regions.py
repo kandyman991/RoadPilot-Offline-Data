@@ -197,6 +197,27 @@ def country_info(
     return None, None
 
 
+def country_iso_alpha2(feature: dict[str, Any],
+                       nodes: dict[str, dict[str, Any]]) -> str | None:
+    """Actual ISO code from Geofabrik country ancestor, not an inferred id."""
+    current: dict[str, Any] | None = feature
+    seen: set[str] = set()
+    while current is not None:
+        props = current.get("properties", {})
+        node_id = str(props.get("id") or "")
+        if node_id in seen:
+            break
+        seen.add(node_id)
+        raw = props.get("iso3166-1:alpha2")
+        codes = raw if isinstance(raw, list) else [raw]
+        for code in codes:
+            if isinstance(code, str) and len(code) == 2 and code.isalpha():
+                return code.upper()
+        parent = str(props.get("parent") or "").strip()
+        current = nodes.get(parent) if parent else None
+    return None
+
+
 def geometry_for(feature: dict[str, Any]):
     geometry = feature.get("geometry")
     if not geometry:
@@ -287,6 +308,7 @@ def catalog_payload(root: dict[str, Any]) -> list[dict[str, Any]]:
                 "polygonUrl": poly_url_for_pbf(url),
                 "countryId": country_id,
                 "countryName": country_name,
+                "countryIsoAlpha2": country_iso_alpha2(feature, nodes),
                 "bounds": geojson_bounds(feature),
             }
         )
@@ -374,6 +396,7 @@ def preview_payload(
         "name": str(props.get("name") or region_id),
         "countryId": country_id,
         "countryName": country_name,
+        "countryIsoAlpha2": country_iso_alpha2(primary, nodes),
         "pbfUrl": primary_url,
         "polygonUrl": poly_url,
         "borderBufferKm": buffer_km,

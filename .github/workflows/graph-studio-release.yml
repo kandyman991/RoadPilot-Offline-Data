@@ -81,12 +81,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Verify release governance and Graph Studio regression contracts
         shell: bash
         run: |
           set -euo pipefail
           python3 -m unittest discover -s tests -p 'test_graph_studio_release_governance.py'
           python3 -m unittest discover -s tests -p 'test_graph_studio_catalog.py'
+          python3 -m pip install "jsonschema==4.25.1"
+          python3 -m unittest discover -s tests -p 'test_graph_studio_search_producer.py' -v
           python3 -m unittest discover -s tests -p 'test_f8_architecture_regressions.py'
           python3 -m unittest discover -s tests -p 'test_source_cache.py'
           python3 -m unittest discover -s tests -p 'test_prepared_region_cache.py'

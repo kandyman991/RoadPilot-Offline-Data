@@ -1869,6 +1869,174 @@ fn list_search_builds(app: AppHandle) -> Result<Vec<SearchBuildArtifact>, String
     Ok(result)
 }
 
+/// The Search producer has an independent run mode. It shares the existing
+/// cancellable BuildState worker only to prevent simultaneous write operations;
+/// it never builds Routing, Visual or publishes R2 objects.
+#[tauri::command]
+fn start_search_build(
+    app: AppHandle,
+    state: State<'_, BuildState>,
+    f8_state: State<'_, F8WorkflowState>,
+    region_id: String,
+    pack_version: String,
+    source_input: Option<String>,
+    source_release: Option<String>,
+) -> Result<(), String> {
+    if !safe_token(&region_id) || region_id == "." || region_id == ".."
+        || !safe_token(&pack_version) || pack_version == "."
+        || pack_version == ".." || pack_version.contains("..") {
+        return Err("Invalid Search region id or immutable version.".into());
+    }
+    if f8_state.status.lock().map_err(|_| "F8 status lock poisoned")?.running {
+        return Err("Finish native F8 discovery before building Search.".into());
+    }
+    if source_input.is_some() != source_release.is_some() {
+        return Err("Local Overture input requires its actual source release.".into());
+    }
+    if source_release.as_deref().is_some_and(|v| v.trim().is_empty()
+        || v.len() > 160 || v.contains('\n') || v.contains('\r')) {
+        return Err("Invalid Overture source release.".into());
+    }
+    let owned = state.inner().clone();
+    {
+        let mut status = owned.status.lock().map_err(|_| "Build status lock poisoned")?;
+        if status.running {
+            return Err("Another build is already running; finish or cancel it first.".into());
+        }
+        *status = BuildStatus {
+            running: true, current_region: Some(region_id.clone()),
+            queue: vec![region_id.clone()],
+            stage: "Preparing independent Search/POI build".into(),
+            started_at_epoch_ms: Some(now_epoch_ms()), last_error: None,
+        };
+    }
+    owned.cancel.store(false, Ordering::SeqCst);
+    emit_status(&app, &owned);
+    tauri::async_runtime::spawn_blocking(move || {
+        let result: Result<(), String> = (|| {
+            let config = region_config_dir(&app)?.join(format!("{region_id}.json"));
+            if !config.is_file() {
+                return Err("Configure and save this region before building Search.".into());
+            }
+            let python = ensure_python_env(&app)?;
+            let tool = pipeline_root(&app)?.join("tools/graph_studio_search_producer.py");
+            if !tool.is_file() {
+                return Err("Bundled Graph Studio Search producer is missing.".into());
+            }
+            let dest = workspace_root(&app)?.join("search-builds");
+            let work = work_dir(&app)?.join("search");
+            let mut cmd = host_command(python);
+            cmd.arg(tool).arg("build")
+                .arg("--config").arg(config)
+                .arg("--dist-dir").arg(dest)
+                .arg("--work-dir").arg(work)
+                .arg("--pack-version").arg(&pack_version);
+            if let (Some(input), Some(release)) = (source_input, source_release) {
+                cmd.arg("--input").arg(input).arg("--source-release").arg(release);
+            }
+            set_stage(&app, &owned, "Downloading/validating Overture Search data");
+            run_process_streaming(&app, &owned, cmd)?;
+            if owned.cancel.load(Ordering::SeqCst) {
+                return Err("Search build cancelled.".into());
+            }
+            emit_log(&app, format!("Search pack {region_id} {pack_version} independently built and validated."));
+            Ok(())
+        })();
+        let mut status = owned.status.lock().expect("Build status poisoned");
+        status.running = false;
+        status.queue.clear();
+        status.current_region = None;
+        status.last_error = result.as_ref().err().cloned();
+        status.stage = if result.is_ok() { "Search build complete" }
+                       else if owned.cancel.load(Ordering::SeqCst) { "Search build cancelled" }
+                       else { "Search build failed" }.into();
+        if let Err(ref error) = result {
+            emit_log(&app, format!("Search build failed: {error}"));
+        }
+        owned.cancel.store(false, Ordering::SeqCst);
+        drop(status);
+        emit_status(&app, &owned);
+    });
+    Ok(())
+}
+
+/// Deliberately import an existing owner-selected, SHA-verified Search pack
+/// without touching Routing, Visual, published pointers or installed graphs.
+#[tauri::command]
+async fn import_search_build(
+    app: AppHandle,
+    state: State<'_, BuildState>,
+    region_id: String,
+    manifest_path: String,
+) -> Result<SearchBuildArtifact, String> {
+    if !safe_token(&region_id) || region_id == "." || region_id == ".." {
+        return Err("Invalid Search region id.".into());
+    }
+    let manifest = PathBuf::from(&manifest_path);
+    if !manifest.is_absolute() || manifest_path.trim().is_empty() {
+        return Err("Provide an absolute path to a retained Search manifest JSON.".into());
+    }
+    let owned = state.inner().clone();
+    {
+        let mut status = owned.status.lock().map_err(|_| "Build status lock poisoned")?;
+        if status.running {
+            return Err("Finish the active build before importing Search.".into());
+        }
+        *status = BuildStatus {
+            running: true,
+            current_region: Some(region_id.clone()),
+            queue: vec![region_id.clone()],
+            stage: "Independently validating Search import".into(),
+            started_at_epoch_ms: Some(now_epoch_ms()),
+            last_error: None,
+        };
+    }
+    emit_status(&app, &owned);
+    tauri::async_runtime::spawn_blocking(move || {
+        let result: Result<SearchBuildArtifact, String> = (|| {
+            let python = ensure_python_env(&app)?;
+            let config = region_config_dir(&app)?.join(format!("{region_id}.json"));
+            let tool = pipeline_root(&app)?.join("tools/graph_studio_search_producer.py");
+            if !config.is_file() || !tool.is_file() {
+                return Err("Search config or bundled producer is missing.".into());
+            }
+            let dest = workspace_root(&app)?.join("search-builds");
+            let output = host_command(python)
+                .arg(tool).arg("import")
+                .arg("--config").arg(config)
+                .arg("--dist-dir").arg(dest)
+                .arg("--manifest").arg(&manifest)
+                .output().map_err(|e| format!("Could not import Search pack: {e}"))?;
+            if !output.status.success() {
+                return Err(format!("Search import validation failed: {}",
+                    String::from_utf8_lossy(&output.stderr).trim()));
+            }
+            let text = String::from_utf8_lossy(&output.stdout);
+            let evidence = text.lines()
+                .find_map(|line| line.strip_prefix("SEARCH_RESULT "))
+                .ok_or("Search import completed without validated result")?;
+            let payload: Value = serde_json::from_str(evidence)
+                .map_err(|e| format!("Invalid Search import evidence: {e}"))?;
+            let version = payload.get("version").and_then(Value::as_str)
+                .ok_or("Search import has no version")?;
+            let (artifact, _) = load_search_build(&app, &region_id, version)?;
+            emit_log(&app, format!("Imported and verified Search {} {}.", region_id, version));
+            Ok(artifact)
+        })();
+        {
+            let mut status = owned.status.lock().expect("Build status lock poisoned");
+            status.running = false;
+            status.queue.clear();
+            status.current_region = None;
+            status.last_error = result.as_ref().err().cloned();
+            status.stage = if result.is_ok() { "Search import complete" }
+                           else { "Search import failed" }.into();
+        }
+        emit_status(&app, &owned);
+        result
+    }).await.map_err(|_| "Search import worker failed".to_string())?
+}
+
 #[tauri::command]
 fn search_retained_build(
     app: AppHandle,
@@ -4562,6 +4730,8 @@ pub fn run() {
             list_builds,
             list_visual_builds,
             list_search_builds,
+            start_search_build,
+            import_search_build,
             search_retained_build,
             compare_search_builds,
             visual_archive_range,

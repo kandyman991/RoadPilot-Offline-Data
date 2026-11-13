@@ -190,6 +190,7 @@ type GeofabrikCatalogItem = {
   polygonUrl: string;
   countryId: string | null;
   countryName: string | null;
+  countryIsoAlpha2: string | null;
   // Geofabrik includes downloadable extracts with empty index geometry.
   // The exact .poly geometry is retrieved when opening their region editor.
   bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null;
@@ -431,6 +432,7 @@ type RegionPreview = {
   name: string;
   countryId: string | null;
   countryName: string | null;
+  countryIsoAlpha2: string | null;
   pbfUrl: string;
   polygonUrl: string;
   borderBufferKm: number;
@@ -628,6 +630,13 @@ app.innerHTML = `
           <div class="field"><label for="editorEndLat">End lat</label><input id="editorEndLat" type="number" step="0.000001" /></div>
           <div class="field"><label for="editorEndLng">End lng</label><input id="editorEndLng" type="number" step="0.000001" /></div>
         </div>
+        <h2 style="margin-top:16px">Search / POI region configuration</h2>
+        <label class="check-row"><input id="editorSearchEnabled" type="checkbox" /> Enable independent offline Search / POI pack for this region</label>
+        <div class="field"><label for="editorSearchCountry">Overture ISO alpha-2 country (from Geofabrik)</label><input id="editorSearchCountry" maxlength="2" autocomplete="off" placeholder="AT" /></div>
+        <div class="field"><label for="editorSearchExpectedName">Required regression place name</label><input id="editorSearchExpectedName" autocomplete="off" placeholder="Name confirmed in Overture Places" /></div>
+        <div class="field"><label for="editorSearchQuery">Required regression search query</label><input id="editorSearchQuery" autocomplete="off" placeholder="Exactly what RoadPilot should find" /></div>
+        <div class="field"><label for="editorSearchAddress">Optional expected address fragments (comma-separated)</label><input id="editorSearchAddress" autocomplete="off" placeholder="city, street" /></div>
+        <p>The exact Geofabrik region bounds define Search coverage for new regions; the existing Search coverage is retained on edits. Enabling Search requires one known Overture place that is verified with the Android-compatible search runtime before publication.</p>
         <div class="actions editor-pin-actions"><button id="pickEditorStartBtn" class="btn" type="button">Pick start on map</button><button id="pickEditorEndBtn" class="btn" type="button">Pick end on map</button><button id="clearEditorPinsBtn" class="btn" type="button">Clear pins</button></div>
         <p>Click Pick start/end, then click a road on the map. Drag pins to refine. This is an optional manual fallback; automatic builds find Valhalla-proved crossings.</p>
         <div class="actions">
@@ -637,6 +646,17 @@ app.innerHTML = `
       </section>
       <section class="section tool-panel" data-tool="search" hidden>
         <h2>Search / POI inspector</h2>
+        <details class="route-options" open>
+          <summary>Build / import an independent regional Search pack</summary>
+          <p>Build Search without rebuilding routing graphs or visual PMTiles. The selected region must have Search enabled and a saved deterministic validation target.</p>
+          <div class="field"><label for="searchPackVersion">New immutable Search version</label><input id="searchPackVersion" autocomplete="off" placeholder="2026.11.13-1" /></div>
+          <div class="field"><label for="searchLocalInput">Optional existing Overture GeoJSONSeq absolute path</label><input id="searchLocalInput" autocomplete="off" placeholder="Leave empty to download latest pinned Overture Places" /></div>
+          <div class="field"><label for="searchLocalRelease">Source release (required for existing local input)</label><input id="searchLocalRelease" autocomplete="off" placeholder="YYYY-MM-DD.N" /></div>
+          <div class="actions"><button id="buildSearchBtn" class="btn primary" type="button">Build Search only</button><button id="cancelSearchBtn" class="btn danger" type="button" disabled>Cancel Search build</button></div>
+          <div class="field"><label for="searchImportManifest">Import validated Search manifest (absolute .json path)</label><input id="searchImportManifest" autocomplete="off" placeholder="/path/to/region-search-manifest.json" /></div>
+          <div class="actions"><button id="importSearchBtn" class="btn" type="button">Validate + retain existing pack</button><button id="refreshSearchBtn" class="btn" type="button">Refresh builds</button></div>
+          <div id="searchProduceStatus" class="status-line">Select a configured region to build or import. Search artifact builds are independent of Routing/Visual.</div>
+        </details>
         <div class="field"><label for="searchBuildSelect">Retained search build</label><select id="searchBuildSelect"></select></div>
         <div id="searchBuildSummary" class="empty">No retained search build selected.</div>
         <div class="field"><label for="searchQuery">Name / phrase / address</label><input id="searchQuery" autocomplete="off" placeholder="SARP, hotel, Via Roma…" /></div>
@@ -1048,6 +1068,11 @@ const pickEditorStartBtn = document.querySelector<HTMLButtonElement>("#pickEdito
 const pickEditorEndBtn = document.querySelector<HTMLButtonElement>("#pickEditorEndBtn")!;
 const clearEditorPinsBtn = document.querySelector<HTMLButtonElement>("#clearEditorPinsBtn")!;
 const saveRegionBtn = document.querySelector<HTMLButtonElement>("#saveRegionBtn")!;
+const editorSearchEnabled = document.querySelector<HTMLInputElement>("#editorSearchEnabled")!;
+const editorSearchCountry = document.querySelector<HTMLInputElement>("#editorSearchCountry")!;
+const editorSearchExpectedName = document.querySelector<HTMLInputElement>("#editorSearchExpectedName")!;
+const editorSearchQuery = document.querySelector<HTMLInputElement>("#editorSearchQuery")!;
+const editorSearchAddress = document.querySelector<HTMLInputElement>("#editorSearchAddress")!;
 const closeRegionEditorBtn = document.querySelector<HTMLButtonElement>("#closeRegionEditorBtn")!;
 const buildBtn = document.querySelector<HTMLButtonElement>("#buildBtn")!;
 const buildPrerequisite = document.querySelector<HTMLDivElement>("#buildPrerequisite")!;
@@ -1070,6 +1095,15 @@ const publicationVersionSummary = document.querySelector<HTMLDivElement>("#publi
 const publicationProgress = document.querySelector<HTMLDivElement>("#publicationProgress")!;
 const publicationProgressText = document.querySelector<HTMLDivElement>("#publicationProgressText")!;
 const publicationHistory = document.querySelector<HTMLDivElement>("#publicationHistory")!;
+const searchPackVersion = document.querySelector<HTMLInputElement>("#searchPackVersion")!;
+const searchLocalInput = document.querySelector<HTMLInputElement>("#searchLocalInput")!;
+const searchLocalRelease = document.querySelector<HTMLInputElement>("#searchLocalRelease")!;
+const searchImportManifest = document.querySelector<HTMLInputElement>("#searchImportManifest")!;
+const buildSearchBtn = document.querySelector<HTMLButtonElement>("#buildSearchBtn")!;
+const cancelSearchBtn = document.querySelector<HTMLButtonElement>("#cancelSearchBtn")!;
+const importSearchBtn = document.querySelector<HTMLButtonElement>("#importSearchBtn")!;
+const refreshSearchBtn = document.querySelector<HTMLButtonElement>("#refreshSearchBtn")!;
+const searchProduceStatus = document.querySelector<HTMLDivElement>("#searchProduceStatus")!;
 const searchBuildSelect = document.querySelector<HTMLSelectElement>("#searchBuildSelect")!;
 const searchBuildSummary = document.querySelector<HTMLDivElement>("#searchBuildSummary")!;
 const searchQuery = document.querySelector<HTMLInputElement>("#searchQuery")!;
@@ -1155,6 +1189,7 @@ let regions: RegionSummary[] = [];
 let artifacts: BuildArtifact[] = [];
 let visualArtifacts: VisualBuildArtifact[] = [];
 let searchArtifacts: SearchBuildArtifact[] = [];
+let searchBuildPending = false;
 let currentSearchResults: SearchResult[] = [];
 let geofabrikCatalog: GeofabrikCatalogItem[] = [];
 let catalogLoadError: string | null = null;
@@ -4444,6 +4479,11 @@ function resetRegionEditor(): void {
   editorGeofabrik.value = "";
   editorBuffer.value = "25";
   editorRouteName.value = "border-smoke-test";
+  editorSearchEnabled.checked = false;
+  editorSearchCountry.value = "";
+  editorSearchExpectedName.value = "";
+  editorSearchQuery.value = "";
+  editorSearchAddress.value = "";
   editorStartLat.value = "";
   editorStartLng.value = "";
   editorEndLat.value = "";
@@ -4477,6 +4517,9 @@ async function previewEditorRegion(refresh = false): Promise<void> {
   try {
     const preview = await invoke<RegionPreview>("preview_region", { geofabrikId, bufferKm, refresh });
     editorPreview = preview;
+    if (!editorSearchCountry.value.trim() && preview.countryIsoAlpha2) {
+      editorSearchCountry.value = preview.countryIsoAlpha2;
+    }
     if (!editorName.value.trim()) editorName.value = preview.name;
     if (!editorRoadpilotId.value.trim()) {
       editorRoadpilotId.value = geofabrikId.replaceAll("/", "-");
@@ -4517,13 +4560,6 @@ function configFromEditor(): Record<string, unknown> {
   const name = editorName.value.trim();
   if (!name) throw new Error("Display name is required.");
 
-  const startLat = numberField(editorStartLat, "Start latitude");
-  const startLng = numberField(editorStartLng, "Start longitude");
-  const endLat = numberField(editorEndLat, "End latitude");
-  const endLng = numberField(editorEndLng, "End longitude");
-  if (startLat === endLat && startLng === endLng) {
-    throw new Error("The border route start and end must differ and cross the selected region boundary.");
-  }
   const existing = editorExistingConfig ? structuredClone(editorExistingConfig) : {};
   const existingOverture = existing["overture"];
   const existingRouting = (existing["routing"] ?? {}) as Record<string, unknown>;
@@ -4532,18 +4568,35 @@ function configFromEditor(): Record<string, unknown> {
   const existingRoutes = Array.isArray(existingRouting.validationRoutes)
     ? existingRouting.validationRoutes as Array<Record<string, unknown>>
     : [];
-  const firstBorderIndex = existingRoutes.findIndex(route => route.kind === "border");
-  const routeName = editorRouteName.value.trim() || "border-smoke-test";
-  const editedBorderRoute = {
-    name: routeName,
-    kind: "border",
-    costing: "motorcycle",
-    start: { lat: startLat, lng: startLng },
-    end: { lat: endLat, lng: endLng },
-  };
   const validationRoutes = existingRoutes.map(route => structuredClone(route));
-  if (firstBorderIndex >= 0) validationRoutes[firstBorderIndex] = editedBorderRoute;
-  else validationRoutes.push(editedBorderRoute);
+  const routeFields = [editorStartLat, editorStartLng, editorEndLat, editorEndLng];
+  const anyRoute = routeFields.some(field => field.value.trim().length > 0);
+  if (anyRoute) {
+    if (!routeFields.every(field => field.value.trim().length > 0)) {
+      throw new Error("Complete all four border test coordinates, or leave all blank for automatic route validation.");
+    }
+    const startLat = numberField(editorStartLat, "Start latitude");
+    const startLng = numberField(editorStartLng, "Start longitude");
+    const endLat = numberField(editorEndLat, "End latitude");
+    const endLng = numberField(editorEndLng, "End longitude");
+    if (startLat === endLat && startLng === endLng) {
+      throw new Error("Border test start and end must differ.");
+    }
+    const editedBorderRoute = {
+      name: editorRouteName.value.trim() || "border-smoke-test",
+      kind: "border",
+      costing: "motorcycle",
+      start: { lat: startLat, lng: startLng },
+      end: { lat: endLat, lng: endLng },
+    };
+    const firstBorderIndex = validationRoutes.findIndex(route => route.kind === "border");
+    if (firstBorderIndex >= 0) validationRoutes[firstBorderIndex] = editedBorderRoute;
+    else validationRoutes.push(editedBorderRoute);
+  } else if (existingRouting.validationMode !== "auto" && !editorSearchEnabled.checked) {
+    throw new Error("Provide a border validation route, or enable Search with automatic routing validation.");
+  }
+  const validationMode = !anyRoute && (existingRouting.validationMode === "auto" || editorSearchEnabled.checked)
+    ? "auto" : String(existingRouting.validationMode ?? "manual");
 
   const config: Record<string, unknown> = {
     ...existing,
@@ -4567,6 +4620,7 @@ function configFromEditor(): Record<string, unknown> {
         manifestFileNameTemplate: `${regionId}-routing-{version}-manifest.json`,
       },
       validationRoutes,
+      validationMode,
     },
     visual: {
       ...existingVisual,
@@ -4593,7 +4647,38 @@ function configFromEditor(): Record<string, unknown> {
       },
     },
   };
-  if (existingOverture) config["overture"] = existingOverture;
+  if (editorSearchEnabled.checked) {
+    const country = editorSearchCountry.value.trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(country)) {
+      throw new Error("Search requires a real two-letter ISO country from Geofabrik.");
+    }
+    const expectedName = editorSearchExpectedName.value.trim();
+    const query = editorSearchQuery.value.trim();
+    if (!expectedName || query.length < 2) {
+      throw new Error("Search needs an expected Overture place name and query for publication validation.");
+    }
+    const overtureOld = (existingOverture && typeof existingOverture === "object")
+      ? existingOverture as Record<string, unknown> : {};
+    const oldTargets = Array.isArray(overtureOld.validation)
+      ? overtureOld.validation as Array<Record<string, unknown>> : [];
+    config["overture"] = {
+      ...overtureOld,
+      enabled: true,
+      country,
+      databaseSchema: "roadpilot-overture-v1",
+      fileName: String(overtureOld.fileName ?? (regionId + "-v1.sqlite")),
+      manifestFileName: String(overtureOld.manifestFileName ?? (regionId + "-v1.json")),
+      coverage: overtureOld.coverage ?? editorPreview.bounds,
+      validation: [{
+        nameEquals: expectedName,
+        query,
+        addressContainsAny: editorSearchAddress.value.split(",").map(value => value.trim()).filter(Boolean),
+        limit: 8,
+      }, ...oldTargets.slice(1)],
+    };
+  } else if (existingOverture && typeof existingOverture === "object") {
+    config["overture"] = { ...existingOverture as Record<string, unknown>, enabled: false };
+  }
   return config;
 }
 
@@ -4619,6 +4704,16 @@ editRegionBtn.addEventListener("click", async () => {
     if (!geofabrikCatalog.length) await loadGeofabrikCatalog(false);
     const config = await invoke<Record<string, unknown>>("load_region_config", { regionId: activeRegion.id });
     editorExistingConfig = config;
+    const overture = (config.overture ?? {}) as Record<string, unknown>;
+    editorSearchEnabled.checked = overture.enabled === true;
+    editorSearchCountry.value = String(overture.country ?? "");
+    const searchTargets = Array.isArray(overture.validation)
+      ? overture.validation as Array<Record<string, unknown>> : [];
+    const target = searchTargets[0] ?? {};
+    editorSearchExpectedName.value = String(target.nameEquals ?? "");
+    editorSearchQuery.value = String(target.query ?? "");
+    editorSearchAddress.value = (Array.isArray(target.addressContainsAny)
+      ? target.addressContainsAny as string[] : []).join(", ");
     editorRoadpilotId.value = String(config.id ?? activeRegion.id);
     editorRoadpilotId.disabled = true;
     editorName.value = String(config.name ?? activeRegion.name);
@@ -4707,6 +4802,29 @@ async function refreshStats(): Promise<void> {
 }
 
 function renderBuildStatus(status: BuildStatus): void {
+  cancelSearchBtn.disabled = !status.running || !status.stage.toLowerCase().includes("search");
+  if (searchBuildPending) {
+    searchProduceStatus.textContent = status.last_error ?? status.stage;
+    searchProduceStatus.className = status.last_error ? "status-line bad" : "status-line";
+    if (!status.running && (status.stage.includes("Search build complete")
+        || status.stage.includes("Search build failed")
+        || status.stage.includes("Search build cancelled"))) {
+      searchBuildPending = false;
+      if (!status.last_error) {
+        void refreshSearchBuilds().then(() => {
+          const match = searchArtifacts.find(b => b.region_id === activeRegion?.id
+            && b.version === searchPackVersion.value.trim());
+          if (match) {
+            searchBuildSelect.value = match.region_id + "::" + match.version;
+            renderSearchBuildSummary();
+          }
+          appendLog("Retained Search builds refreshed after independent validation.");
+        }).catch(error => {
+          searchProduceStatus.textContent = "Search completed but catalog refresh failed: " + String(error);
+        });
+      }
+    }
+  }
   document.querySelector("#statusTitle")!.textContent = status.running
     ? `Building ${status.current_region ?? "queue"}`
     : status.last_error ? "Build failed" : "Idle";
@@ -5184,6 +5302,73 @@ visualBuildSelect.addEventListener("change", () => {
   loadVisualBuildBtn.disabled = build == null;
   fitVisualBuildBtn.disabled = build == null;
   renderVisualBuildSummary(build);
+});
+buildSearchBtn.addEventListener("click", async () => {
+  if (!activeRegion) {
+    searchProduceStatus.textContent = "Select a configured region first.";
+    return;
+  }
+  const version = searchPackVersion.value.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/.test(version) || version.includes("..")) {
+    searchProduceStatus.textContent = "Enter a new safe, immutable Search version.";
+    return;
+  }
+  const input = searchLocalInput.value.trim();
+  const release = searchLocalRelease.value.trim();
+  if (!!input !== !!release || (input && !input.startsWith("/"))) {
+    searchProduceStatus.textContent = "Local source requires an absolute GeoJSONSeq path and its source release; leave both empty for live Overture download.";
+    return;
+  }
+  buildSearchBtn.disabled = true;
+  searchProduceStatus.className = "status-line";
+  searchProduceStatus.textContent = "Preparing independently validated Overture Search build…";
+  try {
+    searchBuildPending = true;
+    await invoke("start_search_build", {
+      regionId: activeRegion.id, packVersion: version,
+      sourceInput: input || null, sourceRelease: release || null,
+    });
+    await refreshBuildStatus();
+    appendLog("Search-only producer started: " + activeRegion.id + " • " + version);
+  } catch (error) {
+    searchBuildPending = false;
+    searchProduceStatus.className = "status-line bad";
+    searchProduceStatus.textContent = "Could not start Search build: " + String(error);
+  } finally { buildSearchBtn.disabled = false; }
+});
+cancelSearchBtn.addEventListener("click", async () => {
+  try { await invoke("cancel_build"); } catch (error) {
+    searchProduceStatus.textContent = "Could not cancel Search producer: " + String(error);
+  }
+});
+importSearchBtn.addEventListener("click", async () => {
+  if (!activeRegion || !searchImportManifest.value.trim()) {
+    searchProduceStatus.textContent = "Select a configured region and a validated Search manifest path.";
+    return;
+  }
+  importSearchBtn.disabled = true;
+  searchProduceStatus.className = "status-line";
+  searchProduceStatus.textContent = "Independently verifying original Search pack and preparing immutable import…";
+  try {
+    const item = await invoke<SearchBuildArtifact>("import_search_build", {
+      regionId: activeRegion.id, manifestPath: searchImportManifest.value.trim(),
+    });
+    await refreshSearchBuilds();
+    searchBuildSelect.value = item.region_id + "::" + item.version;
+    renderSearchBuildSummary();
+    searchProduceStatus.textContent = "Imported validated Search: " + item.region_id + " • " + item.version;
+    appendLog("Retained Search import: " + item.manifest_path);
+  } catch (error) {
+    searchProduceStatus.className = "status-line bad";
+    searchProduceStatus.textContent = "Search import rejected: " + String(error);
+  } finally { importSearchBtn.disabled = false; }
+});
+refreshSearchBtn.addEventListener("click", () => {
+  void refreshSearchBuilds().then(() => {
+    searchProduceStatus.textContent = "Retained local Search catalog refreshed.";
+  }).catch(error => {
+    searchProduceStatus.textContent = "Search catalog refresh failed: " + String(error);
+  });
 });
 searchBuildSelect.addEventListener("change", renderSearchBuildSummary);
 runSearchBtn.addEventListener("click", () => void runSearchWorkspace());

@@ -75,6 +75,12 @@ jobs:
       - name: Compile Python tooling
         run: python -m py_compile tools/*.py
 
+      - name: Graph Studio independent Search/POI production and import regression
+        run: |
+          python -m unittest discover -s tests -p 'test_graph_studio_catalog.py' -v
+          python -m unittest discover -s tests -p 'test_graph_studio_search_producer.py' -v
+          python -m py_compile tools/graph_studio_search_producer.py
+
       - name: Regression-test Valhalla semantic version parsing
         shell: bash
         run: |

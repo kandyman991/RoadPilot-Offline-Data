@@ -1,3 +1,21 @@
+# 13 Nov 2026 — Graph Studio Search/POI issue #17 M5 implementation
+
+The existing M1-M4 Search pipeline can inspect, search, compare and publish
+validated retained Overture SQLite but lacked independent local production.
+M5 feature work adds editor Search target and country code from actual
+Geofabrik ISO ancestors, pinned local Overture Places acquisition, Search-only
+build and validated immutable import commands in Tauri and UI. It reuses the
+existing RoadPilot v1/v2 SQLite and publication implementation. Real Overture
+Austria release 2026-10-21.0, 1,534,139 source rows, yielded 573,842
+AT records in a 249MB SQLite (562,094 categorized), with Wiener Staatsoper
+rank 1 at 3.76m, local category/proximity search, successful import and local
+Search-only latest publication. 518 Python tests and TypeScript/Vite pass on
+Legion. CI native Tauri/AppImage/DEB, installed-app acceptance and PR state
+must be verified separately before marking issue #17 fully done.
+See docs/GRAPH_STUDIO_SEARCH_M5_ACCEPTANCE_20261113.md.
+
+---
+
 # 13 November 2026 — owner-only Graph Studio native validation is Android-independent
 
 Graph Studio private owner-testing no longer waits for Android route-preview,
